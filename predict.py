@@ -106,7 +106,7 @@ def save_predictions(probability_maps, output_file, average_all_channels=True):
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='3D U-Net predictions')
     parser.add_argument('--model-path', required=True, type=str,
                         help='path to the model')
     parser.add_argument('--in-channels', type=int,

@@ -8,3 +8,6 @@ __pycache__/
 
 # Tensorboard logs
 logs/
+
+# PyTorch models
+.pytorch
