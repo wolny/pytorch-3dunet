@@ -10,4 +10,4 @@ __pycache__/
 logs/
 
 # PyTorch models
-.pytorch
+*.pytorch
