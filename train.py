@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
-from unet3d.utils import Random3DDataset
+from unet3d.utils import RandomSliced3DTrainingDataset
 from unet3d.utils import DiceCoefficient
 from unet3d.utils import get_logger
 from unet3d.utils import get_number_of_learnable_parameters
@@ -63,7 +63,12 @@ def _get_loaders(in_channels, out_channels):
     # TODO: replace with your own training and validation loader and don't forget about data augmentation
 
     # return just a random dataset
-    train_dataset = Random3DDataset(4, (32, 64, 64), in_channels, out_channels)
+    raw_shape = (in_channels, 128, 128, 128)
+    labels_shape = (out_channels, 128, 128, 128)
+    patch_shape = (32, 32, 32)
+    stride_shape = (28, 28, 28)
+    train_dataset = RandomSliced3DTrainingDataset(raw_shape, labels_shape,
+                                                  patch_shape, stride_shape)
     # same as training data
     val_dataset = train_dataset
 

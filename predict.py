@@ -145,7 +145,7 @@ def main():
 
     model = model.to(device)
 
-    dataset, dataset_size = _get_dataset()
+    dataset, dataset_size = _get_dataset(1)
     probability_maps = predict(model, dataset, dataset_size, device)
 
     output_file = os.path.join(os.path.split(args.model_path)[0],
@@ -154,15 +154,15 @@ def main():
     save_predictions(probability_maps, output_file)
 
 
-def _get_dataset():
-    # TODO: replace with you own dataset of type from torch.utils.data.Dataset
+def _get_dataset(in_channels):
+    # TODO: replace with your own dataset of type from torch.utils.data.Dataset
 
-    # here return just a random dataset
-    dataset_size = (1, 256, 256, 256)
-    patch_size = (32, 32, 32)
-    stride_size = (28, 28, 28)
-    dataset = utils.RandomSliced3DDataset(dataset_size, patch_size, stride_size)
-    return dataset, dataset_size
+    # return just a random dataset
+    raw_shape = (in_channels, 256, 256, 256)
+    patch_shape = (32, 32, 32)
+    stride_shape = (28, 28, 28)
+    dataset = utils.RandomSliced3DDataset(raw_shape, patch_shape, stride_shape)
+    return dataset, raw_shape
 
 
 if __name__ == '__main__':
