@@ -26,7 +26,6 @@ conda create -n 3dunet pytorch torchvision tensorboardx h5py pytest -c conda-for
 Activate newly created conda environment via:
 ```
 source activate 3dunet
-
 ```
 
 ## Train
@@ -75,11 +74,12 @@ python train.py --checkpoint-dir ~/3dunet --in-channels 1 --out-channels 2 --val
 In order to resume training from the last checkpoint:
 ```
 python train.py --resume ~/3dunet/last_checkpoint.pytorch --in-channels 1 --out-channels 2 --validate-after-iters 10 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --weight-decay 0.0005 --interpolate --batchnorm        
-
 ```
 In order to train on your own data just replace the `_get_loaders` implementation in [train.py](train.py) by returning your own 'train' and 'valid' loaders.
 
-Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 8666`
+Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 8666` (you need `tensorboard` installed in your conda env).
+![3dunet-training](https://user-images.githubusercontent.com/706781/45916217-9626d580-be62-11e8-95c3-508e2719c915.png)
+
 
 ## Test
 ```
