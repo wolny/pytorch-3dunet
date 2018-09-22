@@ -33,8 +33,8 @@ source activate 3dunet
 ```
 usage: train.py [-h] --checkpoint-dir CHECKPOINT_DIR --in-channels IN_CHANNELS
                 --out-channels OUT_CHANNELS [--interpolate] [--batchnorm]
-                [--epochs EPOCHS] [--learning-rate LEARNING_RATE]
-                [--weight-decay WEIGHT_DECAY]
+                [--epochs EPOCHS] [--iters ITERS] [--patience PATIENCE]
+                [--learning-rate LEARNING_RATE] [--weight-decay WEIGHT_DECAY]
                 [--validate-after-iters VALIDATE_AFTER_ITERS]
                 [--log-after-iters LOG_AFTER_ITERS] [--resume RESUME]
 
@@ -50,17 +50,21 @@ optional arguments:
                         number of output channels
   --interpolate         use F.interpolate instead of ConvTranspose3d
   --batchnorm           use BatchNorm3d before nonlinearity
-  --epochs EPOCHS       max number of epochs
+  --epochs EPOCHS       max number of epochs (default: 500)
+  --iters ITERS         max number of iterations (default: 1e5)
+  --patience PATIENCE   number of validation steps with no improvement after
+                        which the training will be stopped (default: 20)
   --learning-rate LEARNING_RATE
-                        initial learning rate
+                        initial learning rate (default: 0.0002)
   --weight-decay WEIGHT_DECAY
-                        weight decay
+                        weight decay (default: 0.0001)
   --validate-after-iters VALIDATE_AFTER_ITERS
-                        how many iterations between validations
+                        how many iterations between validations (default: 100)
   --log-after-iters LOG_AFTER_ITERS
                         how many iterations between tensorboard logging
-  --resume RESUME       path to latest checkpoint (default: none)
-
+                        (default: 100)
+  --resume RESUME       path to latest checkpoint (default: none); if provided
+                        the training will be resumed from that checkpoint
 ```
 
 
@@ -79,8 +83,10 @@ Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 86
 
 ## Test
 ```
-usage: predict.py [-h] --model-path MODEL_PATH [--in-channels IN_CHANNELS]
-                  [--out-channels OUT_CHANNELS] [--interpolate] [--batchnorm]
+usage: predict.py [-h] --model-path MODEL_PATH --in-channels IN_CHANNELS
+                  --out-channels OUT_CHANNELS [--interpolate] [--batchnorm]
+
+3D U-Net predictions
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -92,7 +98,6 @@ optional arguments:
                         number of output channels
   --interpolate         use F.interpolate instead of ConvTranspose3d
   --batchnorm           use BatchNorm3d before nonlinearity
-
 ```
 
 Test on randomly generated 3D volume (just for demonstration purposes). See [predict.py](predict.py) for more info.

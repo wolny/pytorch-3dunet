@@ -27,18 +27,22 @@ def _arg_parser():
     parser.add_argument('--batchnorm',
                         help='use BatchNorm3d before nonlinearity',
                         action='store_true')
-    parser.add_argument('--epochs', default=100, type=int,
-                        help='max number of epochs')
-    parser.add_argument('--learning-rate', default=0.0001, type=float,
-                        help='initial learning rate')
-    parser.add_argument('--weight-decay', default=0.0005, type=float,
-                        help='weight decay')
+    parser.add_argument('--epochs', default=500, type=int,
+                        help='max number of epochs (default: 500)')
+    parser.add_argument('--iters', default=1e5, type=int,
+                        help='max number of iterations (default: 1e5)')
+    parser.add_argument('--patience', default=20, type=int,
+                        help='number of validation steps with no improvement after which the training will be stopped (default: 20)')
+    parser.add_argument('--learning-rate', default=0.0002, type=float,
+                        help='initial learning rate (default: 0.0002)')
+    parser.add_argument('--weight-decay', default=0.0001, type=float,
+                        help='weight decay (default: 0.0001)')
     parser.add_argument('--validate-after-iters', default=100, type=int,
-                        help='how many iterations between validations')
+                        help='how many iterations between validations (default: 100)')
     parser.add_argument('--log-after-iters', default=100, type=int,
-                        help='how many iterations between tensorboard logging')
-    parser.add_argument('--resume', default='', type=str,
-                        help='path to latest checkpoint (default: none)')
+                        help='how many iterations between tensorboard logging (default: 100)')
+    parser.add_argument('--resume', type=str,
+                        help='path to latest checkpoint (default: none); if provided the training will be resumed from that checkpoint')
     return parser
 
 
@@ -131,6 +135,8 @@ def main():
                                 error_criterion,
                                 device, loaders, args.checkpoint_dir,
                                 max_num_epochs=args.epochs,
+                                max_num_iterations=args.iters,
+                                max_patience=args.patience,
                                 validate_after_iters=args.validate_after_iters,
                                 log_after_iters=args.log_after_iters,
                                 logger=logger)

@@ -109,9 +109,9 @@ def main():
     parser = argparse.ArgumentParser(description='3D U-Net predictions')
     parser.add_argument('--model-path', required=True, type=str,
                         help='path to the model')
-    parser.add_argument('--in-channels', type=int,
+    parser.add_argument('--in-channels', required=True, type=int,
                         help='number of input channels')
-    parser.add_argument('--out-channels', type=int,
+    parser.add_argument('--out-channels', required=True, type=int,
                         help='number of output channels')
     parser.add_argument('--interpolate',
                         help='use F.interpolate instead of ConvTranspose3d',
