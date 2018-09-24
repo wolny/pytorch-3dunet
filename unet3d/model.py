@@ -21,11 +21,13 @@ class UNet3D(nn.Module):
         final_sigmoid (bool): if True apply element-wise torch.sigmoid after the
             final 1x1x1 convolution; set to True if nn.BCELoss is to be used
             to train the model
-        batch_norm (bool): if True use BatchNorm3d before ReLU
+        conv_layer_order (string): determines the order of layers
+            in `DoubleConv` module. e.g. 'brc' stands for BatchNorm3d+ReLU+Conv3d.
+            See `DoubleConv` for more info.
     """
 
     def __init__(self, in_channels, out_channels, interpolate=True,
-                 final_sigmoid=True, batch_norm=True):
+                 final_sigmoid=True, conv_layer_order='brc'):
         super(UNet3D, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -33,16 +35,20 @@ class UNet3D(nn.Module):
         # encoder path consist of 4 subsequent Encoder modules
         # the number of features maps is the same as in the paper
         self.encoders = nn.ModuleList([
-            Encoder(in_channels, 64, is_max_pool=False, batch_norm=batch_norm),
-            Encoder(64, 128, batch_norm=batch_norm),
-            Encoder(128, 256, batch_norm=batch_norm),
-            Encoder(256, 512, batch_norm=batch_norm)
+            Encoder(in_channels, 64, is_max_pool=False,
+                    conv_layer_order=conv_layer_order),
+            Encoder(64, 128, conv_layer_order=conv_layer_order),
+            Encoder(128, 256, conv_layer_order=conv_layer_order),
+            Encoder(256, 512, conv_layer_order=conv_layer_order)
         ])
 
         self.decoders = nn.ModuleList([
-            Decoder(256 + 512, 256, interpolate, batch_norm=batch_norm),
-            Decoder(128 + 256, 128, interpolate, batch_norm=batch_norm),
-            Decoder(64 + 128, 64, interpolate, batch_norm=batch_norm)
+            Decoder(256 + 512, 256, interpolate,
+                    conv_layer_order=conv_layer_order),
+            Decoder(128 + 256, 128, interpolate,
+                    conv_layer_order=conv_layer_order),
+            Decoder(64 + 128, 64, interpolate,
+                    conv_layer_order=conv_layer_order)
         ])
 
         # in the last layer a 1×1×1 convolution reduces the number of output
@@ -84,59 +90,76 @@ class DoubleConv(nn.Sequential):
     """
     A module consisting of two consecutive convolution layers (BatchNorm3d+ReLU+Conv3d)
     with the number of output channels 'out_channels // 2' and 'out_channels' respectively.
-    We use (BatchNorm3d+ReLU+Conv3d) instead of (Conv3d+BatchNorm3d+ReLU) suggested
+    We use (BatchNorm3d+ReLU+Conv3d) by default instead of (Conv3d+BatchNorm3d+ReLU) suggested
     in the 3DUnet paper https://arxiv.org/pdf/1606.06650.pdf, cause:
     1. In the BN paper, the authors suggested to use BN immediately before the nonlinearity
     2. torch implementation of _DenseLayer uses BN+ReLU+conv as well
+    This can be change however by providing the 'order' argument, e.g. in order
+    to change to Conv3d+BatchNorm3d+ReLU use order='cbr'.
     Use padded convolutions to make sure that the output (H_out, W_out) is the same
     as (H_in, W_in), so that you don't have to crop in the decoder path.
     Args:
         in_channels (int): number of input channels
         out_channels (int): number of output channels
         kernel_size (int): size of the convolving kernel
-        batch_norm (bool): if True use BatchNorm3d before ReLU
+        order (string): determines the order of layers, e.g.
+            'cr' -> conv + ReLU
+            'brc' -> batchnorm + ReLU + conv
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size=3,
-                 batch_norm=True):
+    def __init__(self, in_channels, out_channels, kernel_size=3, order='brc'):
         super(DoubleConv, self).__init__()
         if in_channels < out_channels:
-            # encoder path
+            # if in_channels < out_channels we're in the encoder path
             conv1_in_channels, conv1_out_channels = in_channels, out_channels // 2
             conv2_in_channels, conv2_out_channels = conv1_out_channels, out_channels
         else:
-            # decoder path
+            # otherwise we're in the decoder path
             conv1_in_channels, conv1_out_channels = in_channels, out_channels
             conv2_in_channels, conv2_out_channels = out_channels, out_channels
 
-        if batch_norm:
-            # conv1
-            self.add_module('norm1', nn.BatchNorm3d(conv1_in_channels))
-            self.add_module('relu1', nn.ReLU(inplace=True))
-            self.add_module('conv1', nn.Conv3d(conv1_in_channels,
-                                               conv1_out_channels,
-                                               kernel_size,
-                                               padding=1))
-            # conv2
-            self.add_module('norm2', nn.BatchNorm3d(conv2_in_channels))
-            self.add_module('relu2', nn.ReLU(inplace=True))
-            self.add_module('conv2', nn.Conv3d(conv2_in_channels,
-                                               conv2_out_channels,
-                                               kernel_size,
-                                               padding=1))
-        else:
-            # conv1
-            self.add_module('conv1', nn.Conv3d(conv1_in_channels,
-                                               conv1_out_channels,
-                                               kernel_size,
-                                               padding=1))
-            self.add_module('relu1', nn.ReLU(inplace=True))
-            # conv2
-            self.add_module('conv2', nn.Conv3d(conv2_in_channels,
-                                               conv2_out_channels,
-                                               kernel_size,
-                                               padding=1))
-            self.add_module('relu2', nn.ReLU(inplace=True))
+        # conv1
+        self._add_conv(1, conv1_in_channels, conv1_out_channels,
+                       kernel_size, order)
+        # conv2
+        self._add_conv(2, conv2_in_channels, conv2_out_channels,
+                       kernel_size, order)
+
+    def _add_conv(self, pos, in_channels, out_channels, kernel_size, order):
+        """Add the conv layer with non-linearity and optional batchnorm
+
+        Args:
+            pos (int): the order (position) of the layer. MUST be 1 or 2
+            in_channels (int): number of input channels
+            out_channels (int): number of output channels
+            order (string): order of things, e.g.
+                'cr' -> conv + ReLU
+                'brc' -> batchnrom + ReLU + conv
+        """
+        assert pos in [1, 2], 'pos MUST be either 1 or 2'
+        assert 'c' in order, "'c' (conv layer) MUST be present"
+        assert 'r' in order, "'r' (ReLU layer) MUST be present"
+        assert order[
+                   0] is not 'r', 'ReLU cannot be the first operation in the layer'
+
+        for i, char in enumerate(order):
+            if char == 'r':
+                self.add_module(f'relu{pos}', nn.ReLU(inplace=True))
+            elif char == 'c':
+                self.add_module(f'conv{pos}', nn.Conv3d(in_channels,
+                                                        out_channels,
+                                                        kernel_size,
+                                                        padding=1))
+            elif char == 'b':
+                is_before_conv = i < order.index('c')
+                if is_before_conv:
+                    self.add_module(f'norm{pos}', nn.BatchNorm3d(in_channels))
+                else:
+                    self.add_module(f'norm{pos}', nn.BatchNorm3d(out_channels))
+
+            else:
+                raise ValueError(
+                    f"Unsupported layer type '{char}'. MUST be one of 'b', 'r', 'c'")
 
 
 class Encoder(nn.Module):
@@ -152,18 +175,19 @@ class Encoder(nn.Module):
         conv_kernel_size (int): size of the convolving kernel
         is_max_pool (bool): if True use MaxPool3d before DoubleConv
         max_pool_kernel_size (tuple): the size of the window to take a max over
-        batch_norm (bool): if True use BatchNorm3d before ReLU
+        conv_layer_order (string): determines the order of layers
+            in `DoubleConv` module. See `DoubleConv` for more info.
     """
 
     def __init__(self, in_channels, out_channels, conv_kernel_size=3,
                  is_max_pool=True,
-                 max_pool_kernel_size=(2, 2, 2), batch_norm=True):
+                 max_pool_kernel_size=(2, 2, 2), conv_layer_order='brc'):
         super(Encoder, self).__init__()
         self.max_pool = nn.MaxPool3d(
             kernel_size=max_pool_kernel_size) if is_max_pool else None
         self.double_conv = DoubleConv(in_channels, out_channels,
                                       kernel_size=conv_kernel_size,
-                                      batch_norm=batch_norm)
+                                      order=conv_layer_order)
 
     def forward(self, x):
         if self.max_pool is not None:
@@ -186,11 +210,12 @@ class Decoder(nn.Module):
         kernel_size (int): size of the convolving kernel
         scale_factor (tuple): used as the multiplier for the image H/W/D in
             case of nn.Upsample or as stride in case of ConvTranspose3d
-        batch_norm (bool): if True use BatchNorm3d before ReLU
+        conv_layer_order (string): determines the order of layers
+            in `DoubleConv` module. See `DoubleConv` for more info.
     """
 
     def __init__(self, in_channels, out_channels, interpolate, kernel_size=3,
-                 scale_factor=(2, 2, 2), batch_norm=True):
+                 scale_factor=(2, 2, 2), conv_layer_order='brc'):
         super(Decoder, self).__init__()
         if interpolate:
             self.upsample = None
@@ -205,7 +230,7 @@ class Decoder(nn.Module):
                                                output_padding=1)
         self.double_conv = DoubleConv(in_channels, out_channels,
                                       kernel_size=kernel_size,
-                                      batch_norm=batch_norm)
+                                      order=conv_layer_order)
 
     def forward(self, encoder_features, x):
         if self.upsample is None:

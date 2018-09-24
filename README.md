@@ -31,7 +31,7 @@ source activate 3dunet
 ## Train
 ```
 usage: train.py [-h] --checkpoint-dir CHECKPOINT_DIR --in-channels IN_CHANNELS
-                --out-channels OUT_CHANNELS [--interpolate] [--batchnorm]
+                --out-channels OUT_CHANNELS [--interpolate] [--layer-order]
                 [--epochs EPOCHS] [--iters ITERS] [--patience PATIENCE]
                 [--learning-rate LEARNING_RATE] [--weight-decay WEIGHT_DECAY]
                 [--validate-after-iters VALIDATE_AFTER_ITERS]
@@ -48,7 +48,9 @@ optional arguments:
   --out-channels OUT_CHANNELS
                         number of output channels
   --interpolate         use F.interpolate instead of ConvTranspose3d
-  --batchnorm           use BatchNorm3d before nonlinearity
+  --layer-order LAYER_ORDER
+                        Conv layer ordering, e.g. 'brc' ->
+                        BatchNorm3d+ReLU+Conv3D
   --epochs EPOCHS       max number of epochs (default: 500)
   --iters ITERS         max number of iterations (default: 1e5)
   --patience PATIENCE   number of validation steps with no improvement after
@@ -69,11 +71,11 @@ optional arguments:
 
 E.g. fit to randomly generated 3D volume and random segmentation mask (see [train.py](train.py)):
 ```
-python train.py --checkpoint-dir ~/3dunet --in-channels 1 --out-channels 2 --validate-after-iters 10 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --weight-decay 0.0005 --interpolate --batchnorm        
+python train.py --checkpoint-dir ~/3dunet --in-channels 1 --out-channels 2 --layer-order brc --validate-after-iters 10 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --weight-decay 0.0005 --interpolate       
 ```
 In order to resume training from the last checkpoint:
 ```
-python train.py --resume ~/3dunet/last_checkpoint.pytorch --in-channels 1 --out-channels 2 --validate-after-iters 10 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --weight-decay 0.0005 --interpolate --batchnorm        
+python train.py --resume ~/3dunet/last_checkpoint.pytorch --in-channels 1 --out-channels 2 --layer-order brc --validate-after-iters 10 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --weight-decay 0.0005 --interpolate        
 ```
 In order to train on your own data just replace the `_get_loaders` implementation in [train.py](train.py) by returning your own 'train' and 'valid' loaders.
 
@@ -84,7 +86,7 @@ Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 86
 ## Test
 ```
 usage: predict.py [-h] --model-path MODEL_PATH --in-channels IN_CHANNELS
-                  --out-channels OUT_CHANNELS [--interpolate] [--batchnorm]
+                  --out-channels OUT_CHANNELS [--interpolate] [--layer-order]
 
 3D U-Net predictions
 
@@ -97,12 +99,15 @@ optional arguments:
   --out-channels OUT_CHANNELS
                         number of output channels
   --interpolate         use F.interpolate instead of ConvTranspose3d
-  --batchnorm           use BatchNorm3d before nonlinearity
+  --layer-order LAYER_ORDER
+                        Conv layer ordering, e.g. 'brc' ->
+                        BatchNorm3d+ReLU+Conv3D
+
 ```
 
 Test on randomly generated 3D volume (just for demonstration purposes). See [predict.py](predict.py) for more info.
 ```
-python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --interpolate --batchnorm
+python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --interpolate --layer-order brc
 ```
 Prediction masks will be saved to `~/3dunet/probabilities.h5`.
 
