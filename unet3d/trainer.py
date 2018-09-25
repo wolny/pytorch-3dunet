@@ -22,7 +22,7 @@ class UNet3DTrainer:
         checkpoint_dir (string): dir for saving checkpoints and tensorboard logs
         max_num_epochs (int): maximum number of epochs
         max_num_iterations (int): maximum number of iterations
-        max_patience (int): number of validation steps with no improvement
+        max_patience (int): number of EPOCHS with no improvement
             after which the training will be stopped
         validate_after_iters (int): validate after that many iterations
         log_after_iters (int): number of iterations before logging to tensorboard
@@ -35,7 +35,7 @@ class UNet3DTrainer:
 
     def __init__(self, model, optimizer, loss_criterion, error_criterion,
                  device, loaders, checkpoint_dir,
-                 max_num_epochs=200, max_num_iterations=1e5, max_patience=20,
+                 max_num_epochs=200, max_num_iterations=1e5, max_patience=10,
                  validate_after_iters=100, log_after_iters=100,
                  validate_iters=None, best_val_error=float('-inf'),
                  num_iterations=0, num_epoch=0, logger=None):
@@ -91,12 +91,20 @@ class UNet3DTrainer:
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
             # train for one epoch
-            self.train(self.loaders['train'])
+            best_model_found = self.train(self.loaders['train'])
 
-            if self.patience <= 0:
-                self.logger.info(
-                    f'Validation error did not improve for the last {self.max_patience} validation checks. Early stopping...')
-                break
+            if best_model_found:
+                self.patience = self.max_patience
+            else:
+                self.patience -= 1
+                if self.patience <= 0:
+                    # early stop the training
+                    self.logger.info(
+                        f'Validation error did not improve for the last {self.max_patience} validation checks. Early stopping...')
+                    break
+                # adjust learning rate when reaching half of the max_patience
+                if self.patience == self.max_patience // 2:
+                    self._adjust_learning_rate()
 
             if self.max_num_iterations < self.num_iterations:
                 self.logger.info(
@@ -106,10 +114,23 @@ class UNet3DTrainer:
             self.num_epoch += 1
 
     def train(self, train_loader):
+        """Trains the model for 1 epoch.
+
+        Args:
+            train_loader (torch.utils.data.DataLoader): training data loader
+
+        Returns:
+            True if the best performing model was found within this epoch,
+            False otherwise
+        """
         train_losses = utils.RunningAverage()
         train_errors = utils.RunningAverage()
 
+        # sets the model in training mode
         self.model.train()
+
+        # initialize the return value
+        best_model_found = False
 
         for i, (input, target) in enumerate(train_loader):
             self.logger.info(
@@ -148,16 +169,8 @@ class UNet3DTrainer:
 
                 # remember best validation metric
                 is_best = self._is_best_val_error(val_error)
-                if is_best:
-                    self.patience = self.max_patience
-                else:
-                    # adjust learning rate when reaching half of the max_patience
-                    if self.patience == self.max_patience // 2:
-                        self._adjust_learning_rate()
-                    self.patience -= 1
-                    if self.patience <= 0:
-                        # early stop the training
-                        break
+                # update the return value
+                best_model_found |= is_best
 
                 # save checkpoint
                 self._save_checkpoint(is_best)
@@ -196,7 +209,7 @@ class UNet3DTrainer:
         finally:
             self.model.train()
 
-    def _adjust_learning_rate(self, decay_rate=0.5):
+    def _adjust_learning_rate(self, decay_rate=0.75):
         """Sets the learning rate to the initial LR decayed by 'decay_rate'"""
 
         def get_lr(optimizer):
