@@ -100,7 +100,7 @@ class UNet3DTrainer:
                 if self.patience <= 0:
                     # early stop the training
                     self.logger.info(
-                        f'Validation error did not improve for the last {self.max_patience} validation checks. Early stopping...')
+                        f'Validation error did not improve for the last {self.max_patience} epochs. Early stopping...')
                     break
                 # adjust learning rate when reaching half of the max_patience
                 if self.patience == self.max_patience // 2:
