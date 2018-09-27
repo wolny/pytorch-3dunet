@@ -35,13 +35,13 @@ def _arg_parser():
                         help="Conv layer ordering, e.g. 'brc' -> BatchNorm3d+ReLU+Conv3D",
                         default='brc')
     parser.add_argument('--loss', type=str, default='bce',
-                        help='Which loss function to use. Possible values: [bce, ce, dice]. Where bce - BinaryCrossEntropy (binary classification only), ce - CrossEntropy (multi-class classification), dice - DiceLoss (binary classification only)')
+                        help='Which loss function to use. Possible values: [bce, ce, dice]. Where bce - BinaryCrossEntropy (binary classification only), ce - CrossEntropy (multi-class classification), dice - DiceLoss (binary classification only). Default: 20')
     parser.add_argument('--epochs', default=500, type=int,
                         help='max number of epochs (default: 500)')
     parser.add_argument('--iters', default=1e5, type=int,
                         help='max number of iterations (default: 1e5)')
     parser.add_argument('--patience', default=20, type=int,
-                        help='number of validation steps with no improvement after which the training will be stopped (default: 20)')
+                        help='number of epochs with no loss improvement after which the training will be stopped (default: 20)')
     parser.add_argument('--learning-rate', default=0.0002, type=float,
                         help='initial learning rate (default: 0.0002)')
     parser.add_argument('--weight-decay', default=0.0001, type=float,
