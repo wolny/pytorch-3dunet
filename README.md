@@ -31,8 +31,9 @@ source activate 3dunet
 ## Train
 ```
 usage: train.py [-h] --checkpoint-dir CHECKPOINT_DIR --in-channels IN_CHANNELS
-                --out-channels OUT_CHANNELS [--interpolate] [--layer-order]
-                [--epochs EPOCHS] [--iters ITERS] [--patience PATIENCE]
+                --out-channels OUT_CHANNELS [--interpolate]
+                [--layer-order LAYER_ORDER] [--loss LOSS] [--epochs EPOCHS]
+                [--iters ITERS] [--patience PATIENCE]
                 [--learning-rate LEARNING_RATE] [--weight-decay WEIGHT_DECAY]
                 [--validate-after-iters VALIDATE_AFTER_ITERS]
                 [--log-after-iters LOG_AFTER_ITERS] [--resume RESUME]
@@ -51,6 +52,11 @@ optional arguments:
   --layer-order LAYER_ORDER
                         Conv layer ordering, e.g. 'brc' ->
                         BatchNorm3d+ReLU+Conv3D
+  --loss LOSS           Which loss function to use. Possible values: [bce, ce,
+                        dice]. Where bce - BinaryCrossEntropy (binary
+                        classification only), ce - CrossEntropy (multi-class
+                        classification), dice - DiceLoss (binary
+                        classification only)
   --epochs EPOCHS       max number of epochs (default: 500)
   --iters ITERS         max number of iterations (default: 1e5)
   --patience PATIENCE   number of validation steps with no improvement after
