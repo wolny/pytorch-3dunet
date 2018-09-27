@@ -1,3 +1,4 @@
+import logging
 import os
 
 import torch
@@ -7,6 +8,7 @@ from torch.utils.data import DataLoader
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import DiceCoefficient
+from unet3d.utils import DiceLoss
 from unet3d.utils import Random3DDataset
 from unet3d.utils import get_logger
 
@@ -18,16 +20,11 @@ class TestUNet3DTrainer(object):
             device = torch.device(
                 "cuda:0" if torch.cuda.is_available() else 'cpu')
 
-            # Treat different output channels as different segmentation mask
-            # Ground truth data should have the same number of channels in this case
-            out_channels_as_classes = False
-            layer_order = 'crb'
-            model = self._load_model(not out_channels_as_classes, layer_order)
-            # Create criterion
-            if out_channels_as_classes:
-                loss_criterion = nn.CrossEntropyLoss()
-            else:
-                loss_criterion = nn.BCELoss()
+            conv_layer_order = 'crb'
+
+            loss_criterion, final_sigmoid = DiceLoss(), True
+
+            model = self._load_model(final_sigmoid, conv_layer_order)
 
             error_criterion = DiceCoefficient()
 

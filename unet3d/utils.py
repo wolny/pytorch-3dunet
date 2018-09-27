@@ -230,31 +230,23 @@ class DiceCoefficient(nn.Module):
 
     def forward(self, input, target):
         assert input.size() == target.size()
-        if input.dim() == 5:
-            per_sample_coeffs = [self._dice_coeff(input[i], target[i]) for i in
-                                 range(input.size()[0])]
-            return torch.Tensor(per_sample_coeffs).mean()
-        else:
-            return self._dice_coeff(input, target)
 
-    def _dice_coeff(self, x, y):
-        inter_card = (x * y).sum()
-        sum_of_cards = x.sum() + y.sum()
+        inter_card = (input * target).sum()
+        sum_of_cards = input.sum() + target.sum()
         return (2. * inter_card + self.epsilon) / (sum_of_cards + self.epsilon)
 
 
-class DiceLoss(nn.Module):
+class DiceLoss(DiceCoefficient):
     """Compute Dice Loss averaging across batch axis.
     Just the negation of Dice Coefficient.
     """
 
     def __init__(self, epsilon=1e-5):
-        super(DiceLoss, self).__init__()
-        self.dice_coeff = DiceCoefficient(epsilon)
+        super(DiceLoss, self).__init__(epsilon)
 
     def forward(self, input, target):
-        dc = self.dice_coeff(input, target)
-        return -1.0 * dc
+        coeff = super(DiceLoss, self).forward(input, target)
+        return -1.0 * coeff
 
 
 def find_maximum_patch_size(model, device):
