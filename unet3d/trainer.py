@@ -35,7 +35,7 @@ class UNet3DTrainer:
 
     def __init__(self, model, optimizer, loss_criterion, error_criterion,
                  device, loaders, checkpoint_dir,
-                 max_num_epochs=200, max_num_iterations=1e5, max_patience=10,
+                 max_num_epochs=200, max_num_iterations=1e5, max_patience=20,
                  validate_after_iters=100, log_after_iters=100,
                  validate_iters=None, best_val_error=float('-inf'),
                  num_iterations=0, num_epoch=0, logger=None):
