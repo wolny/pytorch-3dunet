@@ -8,9 +8,16 @@ from torch.utils.data import DataLoader
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import DiceCoefficient
+from unet3d.utils import DiceLoss
 from unet3d.utils import Random3DDataset
 from unet3d.utils import get_logger
 from unet3d.utils import get_number_of_learnable_parameters
+
+LOSSES = {
+    'bce': (nn.BCELoss(), True),
+    'dice': (DiceLoss(), True),
+    'ce': (nn.CrossEntropyLoss(), False)
+}
 
 
 def _arg_parser():
@@ -27,6 +34,8 @@ def _arg_parser():
     parser.add_argument('--layer-order', type=str,
                         help="Conv layer ordering, e.g. 'brc' -> BatchNorm3d+ReLU+Conv3D",
                         default='brc')
+    parser.add_argument('--loss', type=str, default='bce',
+                        help='Which loss function to use. Possible values: [bce, ce, dice]. Where bce - BinaryCrossEntropy (binary classification only), ce - CrossEntropy (multi-class classification), dice - DiceLoss (binary classification only)')
     parser.add_argument('--epochs', default=500, type=int,
                         help='max number of epochs (default: 500)')
     parser.add_argument('--iters', default=1e5, type=int,
@@ -73,13 +82,11 @@ def _get_loaders(in_channels, out_channels):
     }
 
 
-def _create_criterions(final_sigmoid):
-    if final_sigmoid:
-        loss_criterion = nn.BCELoss()
-    else:
-        loss_criterion = nn.CrossEntropyLoss()
-    error_criterion = DiceCoefficient()
-    return error_criterion, loss_criterion
+def _get_loss_criterion(loss_str):
+    """Returns the loss function together with boolean flag which indicates
+    whether to use an element-wise Sigmoid on the network output"""
+    assert loss_str in LOSSES, f'Invalid loss string: {loss_str}'
+    return LOSSES[loss_str]
 
 
 def _create_optimizer(args, model):
@@ -99,10 +106,10 @@ def main():
     args = parser.parse_args()
 
     logger.info(args)
-    # Treat different output channels as different binary segmentation masks
-    # instead of treating each channel as a mask for a different class
-    out_channels_as_classes = False
-    final_sigmoid = not out_channels_as_classes
+
+    # Create loss criterion
+    loss_criterion, final_sigmoid = _get_loss_criterion(args.loss)
+
     model = _create_model(args.in_channels, args.out_channels,
                           layer_order=args.layer_order,
                           interpolate=args.interpolate,
@@ -114,8 +121,8 @@ def main():
     logger.info(
         f'Number of learnable params {get_number_of_learnable_parameters(model)}')
 
-    # Create loss criterion and error metric
-    error_criterion, loss_criterion = _create_criterions(final_sigmoid)
+    # Create error metric
+    error_criterion = DiceCoefficient()
 
     # Get data loaders
     loaders = _get_loaders(args.in_channels, args.out_channels)
