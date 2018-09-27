@@ -2,9 +2,9 @@ import logging
 import os
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import DiceCoefficient
@@ -20,7 +20,7 @@ class TestUNet3DTrainer(object):
             device = torch.device(
                 "cuda:0" if torch.cuda.is_available() else 'cpu')
 
-            conv_layer_order = 'crb'
+            conv_layer_order = 'crg'
 
             loss_criterion, final_sigmoid = DiceLoss(), True
 
@@ -35,7 +35,7 @@ class TestUNet3DTrainer(object):
             optimizer = optim.Adam(model.parameters(), lr=learning_rate,
                                    weight_decay=weight_decay)
 
-            logger = get_logger('UNet3DTrainer')
+            logger = get_logger('UNet3DTrainer', logging.DEBUG)
             trainer = UNet3DTrainer(model, optimizer, loss_criterion,
                                     error_criterion,
                                     device, loaders, tmpdir,

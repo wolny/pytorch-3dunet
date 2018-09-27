@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from . import groupnorm
 
 
 class UNet3D(nn.Module):
@@ -22,12 +23,12 @@ class UNet3D(nn.Module):
             final 1x1x1 convolution; set to True if nn.BCELoss is to be used
             to train the model
         conv_layer_order (string): determines the order of layers
-            in `DoubleConv` module. e.g. 'brc' stands for BatchNorm3d+ReLU+Conv3d.
+            in `DoubleConv` module. e.g. 'crg' stands for Conv3d+ReLU+GroupNorm3d.
             See `DoubleConv` for more info.
     """
 
     def __init__(self, in_channels, out_channels, interpolate=True,
-                 final_sigmoid=True, conv_layer_order='brc'):
+                 final_sigmoid=True, conv_layer_order='crg'):
         super(UNet3D, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -88,12 +89,9 @@ class UNet3D(nn.Module):
 
 class DoubleConv(nn.Sequential):
     """
-    A module consisting of two consecutive convolution layers (BatchNorm3d+ReLU+Conv3d)
+    A module consisting of two consecutive convolution layers (e.g. BatchNorm3d+ReLU+Conv3d)
     with the number of output channels 'out_channels // 2' and 'out_channels' respectively.
-    We use (BatchNorm3d+ReLU+Conv3d) by default instead of (Conv3d+BatchNorm3d+ReLU) suggested
-    in the 3DUnet paper https://arxiv.org/pdf/1606.06650.pdf, cause:
-    1. In the BN paper, the authors suggested to use BN immediately before the nonlinearity
-    2. torch implementation of _DenseLayer uses BN+ReLU+conv as well
+    We use (Conv3d+ReLU+GroupNorm3d) by default.
     This can be change however by providing the 'order' argument, e.g. in order
     to change to Conv3d+BatchNorm3d+ReLU use order='cbr'.
     Use padded convolutions to make sure that the output (H_out, W_out) is the same
@@ -104,10 +102,10 @@ class DoubleConv(nn.Sequential):
         kernel_size (int): size of the convolving kernel
         order (string): determines the order of layers, e.g.
             'cr' -> conv + ReLU
-            'brc' -> batchnorm + ReLU + conv
+            'crg' -> conv + ReLU + groupnorm
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size=3, order='brc'):
+    def __init__(self, in_channels, out_channels, kernel_size=3, order='crg'):
         super(DoubleConv, self).__init__()
         if in_channels < out_channels:
             # if in_channels < out_channels we're in the encoder path
@@ -134,7 +132,7 @@ class DoubleConv(nn.Sequential):
             out_channels (int): number of output channels
             order (string): order of things, e.g.
                 'cr' -> conv + ReLU
-                'brc' -> batchnrom + ReLU + conv
+                'crg' -> conv + ReLU + groupnorm
         """
         assert pos in [1, 2], 'pos MUST be either 1 or 2'
         assert 'c' in order, "'c' (conv layer) MUST be present"
@@ -150,13 +148,17 @@ class DoubleConv(nn.Sequential):
                                                         out_channels,
                                                         kernel_size,
                                                         padding=1))
+            elif char == 'g':
+                is_before_conv = i < order.index('c')
+                assert not is_before_conv, 'GroupNorm3d MUST go after the Conv3d'
+                self.add_module(f'norm{pos}',
+                                groupnorm.GroupNorm3d(out_channels))
             elif char == 'b':
                 is_before_conv = i < order.index('c')
                 if is_before_conv:
                     self.add_module(f'norm{pos}', nn.BatchNorm3d(in_channels))
                 else:
                     self.add_module(f'norm{pos}', nn.BatchNorm3d(out_channels))
-
             else:
                 raise ValueError(
                     f"Unsupported layer type '{char}'. MUST be one of 'b', 'r', 'c'")
@@ -181,7 +183,7 @@ class Encoder(nn.Module):
 
     def __init__(self, in_channels, out_channels, conv_kernel_size=3,
                  is_max_pool=True,
-                 max_pool_kernel_size=(2, 2, 2), conv_layer_order='brc'):
+                 max_pool_kernel_size=(2, 2, 2), conv_layer_order='crg'):
         super(Encoder, self).__init__()
         self.max_pool = nn.MaxPool3d(
             kernel_size=max_pool_kernel_size) if is_max_pool else None
@@ -215,7 +217,7 @@ class Decoder(nn.Module):
     """
 
     def __init__(self, in_channels, out_channels, interpolate, kernel_size=3,
-                 scale_factor=(2, 2, 2), conv_layer_order='brc'):
+                 scale_factor=(2, 2, 2), conv_layer_order='crg'):
         super(Decoder, self).__init__()
         if interpolate:
             self.upsample = None
