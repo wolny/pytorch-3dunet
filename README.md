@@ -13,9 +13,9 @@ PyTorch implementation of 3D U-Net based on:
 ## Getting Started
 
 ### Dependencies
-- pytorch
-- torchvision
-- tensorboardx
+- pytorch (0.4.1+)
+- torchvision (0.2.1+)
+- tensorboardx (1.4+)
 - h5py
 - pytest
 
