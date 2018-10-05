@@ -5,15 +5,19 @@ import torch.nn as nn
 # Based on: https://github.com/kuangliu/pytorch-groupnorm
 
 class _GroupNorm(nn.Module):
+    dim_to_params_shape = {
+        3: (1, 1, 1, 1, 1),
+        2: (1, 1, 1, 1),
+        1: (1, 1, 1)
+    }
+
     def __init__(self, num_features, dim, num_groups=32, eps=1e-5):
         super(_GroupNorm, self).__init__()
-        assert dim in [2, 3], f'Unsupported dimensionality: {dim}'
-        if dim == 3:
-            self.weight = nn.Parameter(torch.ones(1, num_features, 1, 1, 1))
-            self.bias = nn.Parameter(torch.zeros(1, num_features, 1, 1, 1))
-        else:
-            self.weight = nn.Parameter(torch.ones(1, num_features, 1, 1))
-            self.bias = nn.Parameter(torch.zeros(1, num_features, 1, 1))
+        assert dim in [1, 2, 3], f'Unsupported dimensionality: {dim}'
+        params_shape = list(self.dim_to_params_shape[dim])
+        params_shape[1] = num_features
+        self.weight = nn.Parameter(torch.ones(params_shape))
+        self.bias = nn.Parameter(torch.zeros(params_shape))
         self.num_groups = num_groups
         self.eps = eps
 
@@ -57,3 +61,12 @@ class GroupNorm2d(_GroupNorm):
     def _check_input_dim(self, x):
         if x.dim() != 4:
             raise ValueError(f'Expected 4D input (got {x.dim()}D input)')
+
+
+class GroupNorm1d(_GroupNorm):
+    def __init__(self, num_features, num_groups=32, eps=1e-5):
+        super(GroupNorm1d, self).__init__(num_features, 1, num_groups, eps)
+
+    def _check_input_dim(self, x):
+        if x.dim() != 3:
+            raise ValueError(f'Expected 3D input (got {x.dim()}D input)')
