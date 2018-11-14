@@ -13,12 +13,6 @@ from unet3d.utils import Random3DDataset
 from unet3d.utils import get_logger
 from unet3d.utils import get_number_of_learnable_parameters
 
-LOSSES = {
-    'bce': (nn.BCELoss(), True),
-    'dice': (DiceLoss(), True),
-    'ce': (nn.CrossEntropyLoss(), False)
-}
-
 
 def _arg_parser():
     parser = argparse.ArgumentParser(description='UNet3D training')
@@ -36,6 +30,7 @@ def _arg_parser():
                         default='brc')
     parser.add_argument('--loss', type=str, default='bce',
                         help='Which loss function to use. Possible values: [bce, ce, dice]. Where bce - BinaryCrossEntropy (binary classification only), ce - CrossEntropy (multi-class classification), dice - DiceLoss (binary classification only). Default: 20')
+    parser.add_argument('--loss-weight', type=float, nargs='+', default=None, help='A manual rescaling weight given to each class in case of CELoss. E.g. --loss-weight 0.1 0.2 0.7')
     parser.add_argument('--epochs', default=500, type=int,
                         help='max number of epochs (default: 500)')
     parser.add_argument('--iters', default=1e5, type=int,
@@ -82,11 +77,19 @@ def _get_loaders(in_channels, out_channels):
     }
 
 
-def _get_loss_criterion(loss_str):
-    """Returns the loss function together with boolean flag which indicates
-    whether to use an element-wise Sigmoid on the network output"""
+def _get_loss_criterion(loss_str, weight=None):
+    """
+    Returns the loss function together with boolean flag which indicates
+    whether to apply an element-wise Sigmoid on the network output
+    """
+    LOSSES = ['bce', 'dice', 'ce']
     assert loss_str in LOSSES, f'Invalid loss string: {loss_str}'
-    return LOSSES[loss_str]
+    if loss_str == 'bce':
+        return nn.BCELoss(weight), True
+    elif loss_str == 'ce':
+        return nn.CrossEntropyLoss(weight), False
+    else:
+        return DiceLoss(), True
 
 
 def _create_optimizer(args, model):
@@ -108,7 +111,7 @@ def main():
     logger.info(args)
 
     # Create loss criterion
-    loss_criterion, final_sigmoid = _get_loss_criterion(args.loss)
+    loss_criterion, final_sigmoid = _get_loss_criterion(args.loss, args.loss_weight)
 
     model = _create_model(args.in_channels, args.out_channels,
                           layer_order=args.layer_order,
