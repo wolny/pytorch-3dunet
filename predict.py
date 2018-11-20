@@ -5,6 +5,7 @@ import h5py
 import numpy as np
 import torch
 
+from datasets.hdf5 import HDF5Dataset
 from unet3d import utils
 from unet3d.model import UNet3D
 
@@ -117,8 +118,8 @@ def main():
                         help='use F.interpolate instead of ConvTranspose3d',
                         action='store_true')
     parser.add_argument('--layer-order', type=str,
-                        help="Conv layer ordering, e.g. 'brc' -> BatchNorm3d+ReLU+Conv3D",
-                        default='brc')
+                        help="Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm",
+                        default='crg')
 
     args = parser.parse_args()
 
@@ -139,30 +140,19 @@ def main():
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
     else:
-        logger.warning(
-            'No CUDA device available. Using CPU for predictions')
+        logger.warning('No CUDA device available. Using CPU for predictions')
         device = torch.device('cpu')
 
     model = model.to(device)
 
-    dataset, dataset_size = _get_dataset(1)
+    test_path = 'resources/random.h5'
+    dataset = HDF5Dataset(test_path, (64, 128, 128), (64, 128, 128))
+    dataset_size = (256, 256, 256)
     probability_maps = predict(model, dataset, dataset_size, device)
 
-    output_file = os.path.join(os.path.split(args.model_path)[0],
-                               'probabilities.h5')
+    output_file = os.path.join(os.path.split(args.model_path)[0], 'probabilities.h5')
 
     save_predictions(probability_maps, output_file)
-
-
-def _get_dataset(in_channels):
-    # TODO: replace with your own dataset of type from torch.utils.data.Dataset
-
-    # return just a random dataset
-    raw_shape = (in_channels, 256, 256, 256)
-    patch_shape = (32, 32, 32)
-    stride_shape = (28, 28, 28)
-    dataset = utils.RandomSliced3DDataset(raw_shape, patch_shape, stride_shape)
-    return dataset, raw_shape
 
 
 if __name__ == '__main__':

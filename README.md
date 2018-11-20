@@ -32,8 +32,9 @@ source activate 3dunet
 ```
 usage: train.py [-h] --checkpoint-dir CHECKPOINT_DIR --in-channels IN_CHANNELS
                 --out-channels OUT_CHANNELS [--interpolate]
-                [--layer-order LAYER_ORDER] [--loss LOSS] [--epochs EPOCHS]
-                [--iters ITERS] [--patience PATIENCE]
+                [--layer-order LAYER_ORDER] [--loss LOSS]
+                [--loss-weight LOSS_WEIGHT [LOSS_WEIGHT ...]]
+                [--epochs EPOCHS] [--iters ITERS] [--patience PATIENCE]
                 [--learning-rate LEARNING_RATE] [--weight-decay WEIGHT_DECAY]
                 [--validate-after-iters VALIDATE_AFTER_ITERS]
                 [--log-after-iters LOG_AFTER_ITERS] [--resume RESUME]
@@ -50,17 +51,20 @@ optional arguments:
                         number of output channels
   --interpolate         use F.interpolate instead of ConvTranspose3d
   --layer-order LAYER_ORDER
-                        Conv layer ordering, e.g. 'brc' ->
-                        BatchNorm3d+ReLU+Conv3D
+                        Conv layer ordering, e.g. 'crg' ->
+                        Conv3D+ReLU+GroupNorm
   --loss LOSS           Which loss function to use. Possible values: [bce, ce,
                         dice]. Where bce - BinaryCrossEntropy (binary
                         classification only), ce - CrossEntropy (multi-class
                         classification), dice - DiceLoss (binary
-                        classification only)
+                        classification only). Default: 20
+  --loss-weight LOSS_WEIGHT [LOSS_WEIGHT ...]
+                        A manual rescaling weight given to each class in case
+                        of CELoss. E.g. --loss-weight 0.1 0.2 0.7
   --epochs EPOCHS       max number of epochs (default: 500)
   --iters ITERS         max number of iterations (default: 1e5)
-  --patience PATIENCE   number of validation steps with no improvement after
-                        which the training will be stopped (default: 20)
+  --patience PATIENCE   number of epochs with no loss improvement after which
+                        the training will be stopped (default: 20)
   --learning-rate LEARNING_RATE
                         initial learning rate (default: 0.0002)
   --weight-decay WEIGHT_DECAY
@@ -75,15 +79,20 @@ optional arguments:
 ```
 
 
-E.g. fit to randomly generated 3D volume and random segmentation mask (see [train.py](train.py)):
+E.g. fit to randomly generated 3D volume and random segmentation mask from [random.h5](resources/random.h5) (see [train.py](train.py)):
 ```
-python train.py --checkpoint-dir ~/3dunet --in-channels 1 --out-channels 2 --layer-order brc --validate-after-iters 10 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --weight-decay 0.0005 --interpolate       
+python train.py --checkpoint-dir ~/3dunet --in-channels 1 --out-channels 2 --layer-order crg --validate-after-iters 100 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --interpolate       
 ```
 In order to resume training from the last checkpoint:
 ```
-python train.py --resume ~/3dunet/last_checkpoint.pytorch --in-channels 1 --out-channels 2 --layer-order brc --validate-after-iters 10 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --weight-decay 0.0005 --interpolate        
+python train.py --resume ~/3dunet/last_checkpoint.pytorch --in-channels 1 --out-channels 2 --layer-order crg --validate-after-iters 100 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --interpolate        
 ```
-In order to train on your own data just replace the `_get_loaders` implementation in [train.py](train.py) by returning your own 'train' and 'valid' loaders.
+In order to train on your own data just provide paths to your HDF5 training and validation datasets (see [train.py](train.py)).
+The HDF5 files should have the following scheme:
+```
+/raw - dataset containing the raw 3D/4D stack. The axis order has to be DxHxW/CxDxHxW
+/label - dataset containing the label 4D stack. The axis order has to be CxDxHxW
+```
 
 Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 8666` (you need `tensorboard` installed in your conda env).
 ![3dunet-training](https://user-images.githubusercontent.com/706781/45916217-9626d580-be62-11e8-95c3-508e2719c915.png)
@@ -106,15 +115,16 @@ optional arguments:
                         number of output channels
   --interpolate         use F.interpolate instead of ConvTranspose3d
   --layer-order LAYER_ORDER
-                        Conv layer ordering, e.g. 'brc' ->
-                        BatchNorm3d+ReLU+Conv3D
+                        Conv layer ordering, e.g. 'crg' ->
+                        Conv3D+ReLU+GroupNorm
 
 ```
 
-Test on randomly generated 3D volume (just for demonstration purposes). See [predict.py](predict.py) for more info.
+Test on randomly generated 3D volume (just for demonstration purposes) from [random.h5](resources/random.h5). 
+See [predict.py](predict.py) for more info.
 ```
-python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --interpolate --layer-order brc
+python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --interpolate --layer-order crg
 ```
 Prediction masks will be saved to `~/3dunet/probabilities.h5`.
 
-Replace the `_get_dataset` implementation in [predict.py](predict.py) to test the trained model on you own data.
+In order to predict your own raw dataset provide the path to your HDF5 test dataset (see [predict.py](predict.py)).
