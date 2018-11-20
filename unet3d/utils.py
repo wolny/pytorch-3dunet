@@ -6,7 +6,6 @@ import sys
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
 
 
 def save_checkpoint(state, is_best, checkpoint_dir, logger=None):
@@ -122,102 +121,6 @@ class ComposedLoss(nn.Module):
 
     def forward(self, input, target):
         return self.loss(self.input_func(input), target)
-
-
-class Random3DDataset(Dataset):
-    """Generates random 3D dataset for testing and demonstration purposes.
-    Args:
-        N (int): batch size
-        size (tuple): dimensionality of each batch (DxHxW)
-        in_channels (int): number of input channels
-        out_channels (int): number of output channels (labeled masks)
-    """
-
-    def __init__(self, N, size, in_channels, out_channels):
-        assert len(size) == 3
-        raw_dims = (N, in_channels) + size
-        labels_dims = (N, out_channels) + size
-        self.raw = torch.randn(raw_dims)
-        self.labels = torch.empty(labels_dims, dtype=torch.float).random_(2)
-
-    def __len__(self):
-        return self.raw.size(0)
-
-    def __getitem__(self, idx):
-        """Returns tuple (raw, labels) for a given batch 'idx'"""
-        return self.raw[idx], self.labels[idx]
-
-
-class RandomSliced3DDataset(Dataset):
-    """Generates random 3D dataset for testing purposes.
-    Args:
-        raw_shape (tuple): shape of the randomly generated dataset (CxDxHxW)
-        patch_shape (tuple): shape of the patch DxHxW
-        stride_shape (tuple): shape of the stride DxHxW
-    """
-
-    def __init__(self, raw_shape, patch_shape, stride_shape):
-        assert len(raw_shape) == 4
-        assert len(patch_shape) == 3
-        assert len(stride_shape) == 3
-
-        self.raw = np.random.randn(*raw_shape).astype('float32')
-
-        self.raw_slices = RandomSliced3DDataset.build_slices(raw_shape,
-                                                             patch_shape,
-                                                             stride_shape)
-
-    def __len__(self):
-        return len(self.raw_slices)
-
-    def __getitem__(self, idx):
-        """Returns the tuple (raw, slice)"""
-        if idx not in self.raw_slices:
-            raise StopIteration()
-
-        index_spec = self.raw_slices[idx]
-        return torch.from_numpy(self.raw[index_spec]), index_spec[1:]
-
-    @staticmethod
-    def build_slices(raw_shape, patch_shape, stride_shape):
-        """Iterates over the n-dimensional array of shape 'raw_shape' patch-by-patch
-        using the patch shape of 'patch_shape' and stride of 'stride_shape' and
-        builds the mapping from index to slice position.
-
-        Args:
-            raw_shape (tuple): shape of the n-dim array
-            patch_shape (tuple): patch shape
-            stride_shape (tuple): stride shape
-
-        Returns:
-            slice mapping (int -> (slice, slice, slice, slice))
-        """
-        slices = {}
-        in_channels, i_z, i_y, i_x = raw_shape
-        k_z, k_y, k_x = patch_shape
-        s_z, s_y, s_x = stride_shape
-        idx = 0
-        z_steps = RandomSliced3DDataset._gen_indices(i_z, k_z, s_z)
-        for z in z_steps:
-            y_steps = RandomSliced3DDataset._gen_indices(i_y, k_y, s_y)
-            for y in y_steps:
-                x_steps = RandomSliced3DDataset._gen_indices(i_x, k_x, s_x)
-                for x in x_steps:
-                    slices[idx] = (
-                        slice(0, in_channels),
-                        slice(z, z + k_z),
-                        slice(y, y + k_y),
-                        slice(x, x + k_x)
-                    )
-                    idx += 1
-        return slices
-
-    @staticmethod
-    def _gen_indices(i, k, s):
-        for j in range(0, i - k + 1, s):
-            yield j
-        if not (i - k + 1) % k == 0:
-            yield i - k
 
 
 class DiceCoefficient(nn.Module):

@@ -9,9 +9,9 @@ from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import DiceCoefficient
 from unet3d.utils import DiceLoss
-from unet3d.utils import Random3DDataset
 from unet3d.utils import get_logger
 from unet3d.utils import get_number_of_learnable_parameters
+from datasets.hdf5 import AugmentedHDF5Dataset, HDF5Dataset
 
 
 def _arg_parser():
@@ -26,11 +26,12 @@ def _arg_parser():
                         help='use F.interpolate instead of ConvTranspose3d',
                         action='store_true')
     parser.add_argument('--layer-order', type=str,
-                        help="Conv layer ordering, e.g. 'brc' -> BatchNorm3d+ReLU+Conv3D",
-                        default='brc')
+                        help="Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm",
+                        default='crg')
     parser.add_argument('--loss', type=str, default='bce',
                         help='Which loss function to use. Possible values: [bce, ce, dice]. Where bce - BinaryCrossEntropy (binary classification only), ce - CrossEntropy (multi-class classification), dice - DiceLoss (binary classification only). Default: 20')
-    parser.add_argument('--loss-weight', type=float, nargs='+', default=None, help='A manual rescaling weight given to each class in case of CELoss. E.g. --loss-weight 0.1 0.2 0.7')
+    parser.add_argument('--loss-weight', type=float, nargs='+', default=None,
+                        help='A manual rescaling weight given to each class in case of CELoss. E.g. --loss-weight 0.1 0.2 0.7')
     parser.add_argument('--epochs', default=500, type=int,
                         help='max number of epochs (default: 500)')
     parser.add_argument('--iters', default=1e5, type=int,
@@ -56,20 +57,26 @@ def _create_model(in_channels, out_channels, layer_order, interpolate=False,
                   conv_layer_order=layer_order)
 
 
-def _get_loaders(in_channels, out_channels):
-    """Returns dictionary containing the training and validation loaders
-    (torch.utils.data.DataLoader) of the form:
-    {
+def _get_loaders(train_path, val_path):
+    """
+    Returns dictionary containing the  training and validation loaders
+    (torch.utils.data.DataLoader) backed by the datasets.hdf5.HDF5Dataset
+
+    :param train_path: path to the H5 file containing the training set
+    :param val_path: path to the H5 file containing the validation set
+    :param in_channels: number of channels in the raw data
+    :param out_channels: number of target channels
+    :return: dict {
         'train': <train_loader>
         'val': <val_loader>
-    }"""
+    }
+    """
 
-    # TODO: replace with your own training and validation loader and don't forget about data augmentation
+    # create H5 backed training dataset with data augmentation
+    train_dataset = AugmentedHDF5Dataset(train_path, (32, 96, 96), (16, 32, 32), phase='train')
 
-    # return just a random dataset
-    train_dataset = Random3DDataset(4, (32, 64, 64), in_channels, out_channels)
-    # same as training data
-    val_dataset = train_dataset
+    # create H5 backed validation dataset
+    val_dataset = HDF5Dataset(val_path, (64, 128, 128), (64, 128, 128), phase='val')
 
     return {
         'train': DataLoader(train_dataset, batch_size=1, shuffle=True),
@@ -127,8 +134,9 @@ def main():
     # Create error metric
     error_criterion = DiceCoefficient()
 
-    # Get data loaders
-    loaders = _get_loaders(args.in_channels, args.out_channels)
+    # Get data loaders (for demo purposes the training and validation sets are the same)
+    train_path = val_path = 'resources/random.h5'
+    loaders = _get_loaders(train_path, val_path)
 
     # Create the optimizer
     optimizer = _create_optimizer(args, model)
