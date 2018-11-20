@@ -1,15 +1,18 @@
 import logging
 import os
+from tempfile import NamedTemporaryFile
 
+import h5py
+import numpy as np
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from datasets.hdf5 import HDF5Dataset
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import DiceCoefficient
 from unet3d.utils import DiceLoss
-from unet3d.utils import Random3DDataset
 from unet3d.utils import get_logger
 
 
@@ -17,14 +20,14 @@ class TestUNet3DTrainer(object):
     def test_single_epoch(self, tmpdir, capsys):
         with capsys.disabled():
             # get device to train on
-            device = torch.device(
-                "cuda:0" if torch.cuda.is_available() else 'cpu')
+            device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
+            # conv-relu-groupnorm
             conv_layer_order = 'crg'
 
             loss_criterion, final_sigmoid = DiceLoss(), True
 
-            model = self._load_model(final_sigmoid, conv_layer_order)
+            model = self._create_model(final_sigmoid, conv_layer_order)
 
             error_criterion = DiceCoefficient()
 
@@ -40,8 +43,9 @@ class TestUNet3DTrainer(object):
                                     error_criterion,
                                     device, loaders, tmpdir,
                                     max_num_epochs=1,
-                                    log_after_iters=2,
-                                    validate_after_iters=2,
+                                    log_after_iters=4,
+                                    validate_after_iters=4,
+                                    max_num_iterations=16,
                                     logger=logger)
 
             trainer.fit()
@@ -52,7 +56,8 @@ class TestUNet3DTrainer(object):
                 model, optimizer, loss_criterion, error_criterion, loaders,
                 logger=logger)
 
-    def _load_model(self, final_sigmoid, layer_order):
+    @staticmethod
+    def _create_model(final_sigmoid, layer_order):
         in_channels = 1
         out_channels = 2
         # use F.interpolate for upsampling
@@ -60,10 +65,32 @@ class TestUNet3DTrainer(object):
         return UNet3D(in_channels, out_channels, interpolate,
                       final_sigmoid, layer_order)
 
-    def _get_loaders(self):
-        # when using ConvTranspose3d, make sure that dimensions can be divided by 16
-        train_dataset = Random3DDataset(4, (32, 64, 64), 1, 2)
-        val_dataset = Random3DDataset(1, (32, 64, 64), 1, 2)
+    @staticmethod
+    def _create_random_dataset():
+        result = []
+
+        for phase in ['train', 'val']:
+            tmp = NamedTemporaryFile(delete=False)
+
+            with h5py.File(tmp.name, 'w') as f:
+                if phase == 'train':
+                    r_size = (128, 128, 128)
+                    l_size = (2, 128, 128, 128)
+                else:
+                    r_size = (64, 64, 64)
+                    l_size = (2, 64, 64, 64)
+                f.create_dataset('raw', data=np.random.rand(*r_size))
+                f.create_dataset('label', data=np.random.randint(0, 2, l_size))
+
+            result.append(tmp.name)
+
+        return result
+
+    @staticmethod
+    def _get_loaders():
+        train, val = TestUNet3DTrainer._create_random_dataset()
+        train_dataset = HDF5Dataset(train, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32), phase='train')
+        val_dataset = HDF5Dataset(val, patch_shape=(64, 64, 64), stride_shape=(64, 64, 64), phase='val')
 
         return {
             'train': DataLoader(train_dataset, batch_size=1, shuffle=True),

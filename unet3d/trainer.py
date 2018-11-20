@@ -108,7 +108,7 @@ class UNet3DTrainer:
 
             if self.max_num_iterations < self.num_iterations:
                 self.logger.info(
-                    f'Maximum number of iterations {max_num_iterations} exceeded. Finishing training...')
+                    f'Maximum number of iterations {self.max_num_iterations} exceeded. Finishing training...')
                 break
 
             self.num_epoch += 1
@@ -174,6 +174,11 @@ class UNet3DTrainer:
 
                 # save checkpoint
                 self._save_checkpoint(is_best)
+
+            if self.max_num_iterations < self.num_iterations:
+                self.logger.info(
+                    f'Maximum number of iterations {self.max_num_iterations} exceeded. Finishing training...')
+                break
 
     def validate(self, val_loader):
         self.logger.info('Validating...')
