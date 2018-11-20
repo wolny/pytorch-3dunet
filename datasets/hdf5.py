@@ -30,25 +30,29 @@ class HDF5Dataset(Dataset):
         assert phase in ['train', 'val', 'test']
         self._check_patch_shape(patch_shape)
         self.phase = phase
+
         self.raw_file = h5py.File(raw_file_path, 'r')
-
-        # if label_file_path is None assume that labels are stored in the raw_file_path as well
-        if label_file_path is None:
-            self.label_file = self.raw_file
-        else:
-            self.label_file = h5py.File(label_file_path, 'r')
-
         self.raw = self.raw_file[raw_internal_path]
-        self.label = self.label_file[label_internal_path]
-
-        self._check_dimensionality(self.raw, self.label)
+        # build index->slice mapping
+        self.raw_slices = self._build_slices(self.raw.shape, patch_shape, stride_shape)
 
         self.raw_transform, self.label_transform = self.get_transforms(phase)
 
-        # build index->slice mapping
-        self.raw_slices = self._build_slices(self.raw.shape, patch_shape, stride_shape)
-        self.label_slices = self._build_slices(self.label.shape, patch_shape, stride_shape)
-        assert len(self.raw_slices) == len(self.label_slices)
+        # 'test' phase used only for predictions so ignore the label dataset
+        if phase != 'test':
+            # if label_file_path is None assume that labels are stored in the raw_file_path as well
+            if label_file_path is None:
+                self.label_file = self.raw_file
+            else:
+                self.label_file = h5py.File(label_file_path, 'r')
+
+            self.label = self.label_file[label_internal_path]
+            self._check_dimensionality(self.raw, self.label)
+            self.label_slices = self._build_slices(self.label.shape, patch_shape, stride_shape)
+            assert len(self.raw_slices) == len(self.label_slices)
+        else:
+            self.label = None
+
         self.patch_count = len(self.raw_slices)
 
     def __getitem__(self, idx):
@@ -57,14 +61,14 @@ class HDF5Dataset(Dataset):
 
         raw_idx = self.raw_slices[idx]
         img_slice_tensor = self.raw_transform(self.raw[raw_idx])
-        label_idx = self.label_slices[idx]
-        label_slice_tensor = self.label_transform(self.label[label_idx])
 
-        # if in the 'test' phase return the slice metadata as well
-        if self.phase == 'test':
-            return img_slice_tensor, label_slice_tensor, raw_idx
-        else:
+        if self.phase != 'test':
+            label_idx = self.label_slices[idx]
+            label_slice_tensor = self.label_transform(self.label[label_idx])
             return img_slice_tensor, label_slice_tensor
+        else:
+            # if in the 'test' phase return the slice metadata as well
+            return img_slice_tensor, raw_idx
 
     def __len__(self):
         return self.patch_count

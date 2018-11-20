@@ -12,25 +12,28 @@ from unet3d.model import UNet3D
 logger = utils.get_logger('UNet3DPredictor')
 
 
-def predict(model, dataset, dataset_size, device):
+def predict(model, dataset, dataset_shape, device):
     """
     Return prediction masks by applying the model on the given dataset
 
     Args:
         model (Unet3D): trained 3D UNet model used for prediction
         dataset (torch.utils.data.Dataset): input dataset
-        dataset_size (tuple): 3D dataset size CxDxHxW
+        dataset_shape (tuple): 3D (DxHxW) or 4D (CxDxHxW) dataset
         device (torch.Device): device to run the prediction on
 
     Returns:
          probability_maps (numpy array): prediction masks for given dataset
     """
-    logger.info(
-        f'Running prediction on {len(dataset)} patches...')
+    logger.info(f'Running prediction on {len(dataset)} patches...')
     # number of output channels the model predicts
     out_channels = model.out_channels
     # dimensionality of the the output (CxDxHxW)
-    probability_maps_shape = (out_channels,) + dataset_size[1:]
+    if len(dataset_shape) == 3:
+        volume_shape = dataset_shape
+    else:
+        volume_shape = dataset_shape[1:]
+    probability_maps_shape = (out_channels,) + volume_shape
     # initialize the output prediction array
     probability_maps = np.zeros(probability_maps_shape, dtype='float32')
 
@@ -40,8 +43,6 @@ def predict(model, dataset, dataset_size, device):
 
     with torch.no_grad():
         for patch, index_spec in dataset:
-            # IMPORTANT: patch MUST be 4D torch tensor (CxDxHxW)
-            # and index_spec MUST a tuple of slices (slice_D, slice_H, slice_W)
             logger.info(f'Predicting slice:{index_spec}')
 
             # save patch index: (C,) + (D,H,W)
@@ -146,7 +147,7 @@ def main():
     model = model.to(device)
 
     test_path = 'resources/random.h5'
-    dataset = HDF5Dataset(test_path, (64, 128, 128), (64, 128, 128))
+    dataset = HDF5Dataset(test_path, (64, 128, 128), (64, 128, 128), phase='test')
     dataset_size = (256, 256, 256)
     probability_maps = predict(model, dataset, dataset_size, device)
 
