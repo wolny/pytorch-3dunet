@@ -147,7 +147,7 @@ class HDF5Dataset(Dataset):
 
     @staticmethod
     def _gen_indices(i, k, s):
-        assert i >= k, ''
+        assert i >= k, 'Sample size has to be bigger than the patch size'
         for j in range(0, i - k + 1, s):
             yield j
         if j + k < i:
