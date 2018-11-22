@@ -156,7 +156,6 @@ class HDF5Dataset(Dataset):
     @staticmethod
     def _check_dimensionality(raw, label):
         assert raw.ndim in [3, 4], 'Raw dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
-        assert label.ndim == 4, 'Labels dataset must be 4D (CxDxHxW)'
         if raw.ndim == 3:
             assert raw.shape == label.shape[1:], 'Raw and labels have to be of the same size'
         elif raw.ndim == 4:
