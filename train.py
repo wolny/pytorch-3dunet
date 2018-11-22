@@ -5,13 +5,13 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from datasets.hdf5 import AugmentedHDF5Dataset, HDF5Dataset
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import DiceCoefficient
 from unet3d.utils import DiceLoss
 from unet3d.utils import get_logger
 from unet3d.utils import get_number_of_learnable_parameters
-from datasets.hdf5 import AugmentedHDF5Dataset, HDF5Dataset
 
 
 def _arg_parser():
@@ -92,9 +92,6 @@ def _get_loss_criterion(loss_str, weight=None):
     LOSSES = ['bce', 'dice', 'ce']
     assert loss_str in LOSSES, f'Invalid loss string: {loss_str}'
 
-    if weight is not None:
-        weight = torch.tensor(weight)
-
     if loss_str == 'bce':
         return nn.BCELoss(weight), True
     elif loss_str == 'ce':
@@ -122,7 +119,13 @@ def main():
     logger.info(args)
 
     # Create loss criterion
-    loss_criterion, final_sigmoid = _get_loss_criterion(args.loss, args.loss_weight)
+    if args.loss_weight is not None:
+        loss_weight = torch.tensor(args.loss_weight)
+        loss_weight = loss_weight.to(device)
+    else:
+        loss_weight = None
+
+    loss_criterion, final_sigmoid = _get_loss_criterion(args.loss, loss_weight)
 
     model = _create_model(args.in_channels, args.out_channels,
                           layer_order=args.layer_order,

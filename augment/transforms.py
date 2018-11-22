@@ -66,6 +66,7 @@ class Normalize:
     Normalizes a given input tensor to be 0-mean and 1-std.
     mean and std parameter have to be provided explicitly.
     """
+
     def __init__(self, mean, std, eps=1e-4):
         self.mean = mean
         self.std = std
@@ -80,8 +81,10 @@ class ToTensor:
     Converts a given input numpy.ndarray into torch.Tensor. Adds additional 'channel' axis when the input is 3D
     and expand_dims=True (usually useful for raw data of the shape (D, H, W)).
     """
-    def __init__(self, expand_dims):
+
+    def __init__(self, expand_dims, dtype=np.float32):
         self.expand_dims = expand_dims
+        self.dtype = dtype
 
     def __call__(self, m):
         assert m.ndim in [3, 4], 'Supports only 3D (DxHxW) or 4D (CxDxHxW) images'
@@ -89,7 +92,7 @@ class ToTensor:
         if self.expand_dims and m.ndim == 3:
             m = np.expand_dims(m, axis=0)
 
-        return torch.from_numpy(m.astype(np.float32))
+        return torch.from_numpy(m.astype(dtype=self.dtype))
 
 
 class Identity:

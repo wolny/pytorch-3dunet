@@ -15,7 +15,7 @@ class HDF5Dataset(Dataset):
     """
 
     def __init__(self, raw_file_path, patch_shape, stride_shape, phase, label_file_path=None, raw_internal_path='raw',
-                 label_internal_path='label'):
+                 label_internal_path='label', label_dtype=np.float32):
         """
         Creates transformers for raw and label datasets and builds the index to slice mapping for raw and label datasets.
         :param raw_file_path: path to H5 file containing raw data
@@ -31,6 +31,7 @@ class HDF5Dataset(Dataset):
         assert phase in ['train', 'val', 'test']
         self._check_patch_shape(patch_shape)
         self.phase = phase
+        self.label_dtype = label_dtype
 
         self.raw_file = h5py.File(raw_file_path, 'r')
         self.raw = self.raw_file[raw_internal_path]
@@ -92,7 +93,7 @@ class HDF5Dataset(Dataset):
             transforms.ToTensor(expand_dims=True)
         ])
         label_transform = Compose([
-            transforms.ToTensor(expand_dims=False)
+            transforms.ToTensor(expand_dims=False, dtype=self.label_dtype)
         ])
         return raw_transform, label_transform
 
@@ -191,7 +192,7 @@ class AugmentedHDF5Dataset(HDF5Dataset):
             label_transform = Compose([
                 transforms.RandomFlip(np.random.RandomState(seed)),
                 transforms.RandomRotate90(np.random.RandomState(seed)),
-                transforms.ToTensor(expand_dims=False)
+                transforms.ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])
         else:
             raw_transform = Compose([
@@ -199,7 +200,7 @@ class AugmentedHDF5Dataset(HDF5Dataset):
                 transforms.ToTensor(expand_dims=True)
             ])
             label_transform = Compose([
-                transforms.ToTensor(expand_dims=False)
+                transforms.ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])
 
         return raw_transform, label_transform
