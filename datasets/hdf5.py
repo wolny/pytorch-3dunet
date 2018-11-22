@@ -88,10 +88,10 @@ class HDF5Dataset(Dataset):
         mean, std = self.calculate_mean_std()
         raw_transform = Compose([
             transforms.Normalize(mean, std),
-            transforms.ToTensor()
+            transforms.ToTensor(expand_dims=True)
         ])
         label_transform = Compose([
-            transforms.ToTensor()
+            transforms.ToTensor(expand_dims=False)
         ])
         return raw_transform, label_transform
 
@@ -180,20 +180,20 @@ class AugmentedHDF5Dataset(HDF5Dataset):
                 transforms.Normalize(mean, std),
                 transforms.RandomFlip(np.random.RandomState(seed)),
                 transforms.RandomRotate90(np.random.RandomState(seed)),
-                transforms.ToTensor()
+                transforms.ToTensor(expand_dims=True)
             ])
             label_transform = Compose([
                 transforms.RandomFlip(np.random.RandomState(seed)),
                 transforms.RandomRotate90(np.random.RandomState(seed)),
-                transforms.ToTensor()
+                transforms.ToTensor(expand_dims=False)
             ])
         else:
             raw_transform = Compose([
                 transforms.Normalize(mean, std),
-                transforms.ToTensor()
+                transforms.ToTensor(expand_dims=True)
             ])
             label_transform = Compose([
-                transforms.ToTensor()
+                transforms.ToTensor(expand_dims=False)
             ])
 
         return raw_transform, label_transform

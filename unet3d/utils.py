@@ -127,12 +127,25 @@ class DiceCoefficient(nn.Module):
     """Compute Dice Coefficient averaging across batch axis
     """
 
-    def __init__(self, epsilon=1e-5):
+    def __init__(self, epsilon=1e-5, expand_dims=True):
         super(DiceCoefficient, self).__init__()
         self.epsilon = epsilon
+        self.expand_dims = expand_dims
 
     def forward(self, input, target):
-        assert input.size() == target.size()
+        if not self.expand_dims:
+            assert input.size() == target.size()
+        else:
+            # input NxCxDxHxW, target NxDxHxW
+            if input.size() != target.size():
+                t = torch.zeros_like(input)
+                # for each batch instance
+                for i in range(input.size()[0]):
+                    # iterate over channel axis and create corresponding binary mask in the target
+                    for c in range(input.size()[1]):
+                        mask = t[i]
+                        mask[mask == c] = 1
+                target = t
 
         inter_card = (input * target).sum()
         sum_of_cards = input.sum() + target.sum()

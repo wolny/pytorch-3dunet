@@ -62,6 +62,10 @@ class RandomRotate90:
 
 
 class Normalize:
+    """
+    Normalizes a given input tensor to be 0-mean and 1-std.
+    mean and std parameter have to be provided explicitly.
+    """
     def __init__(self, mean, std, eps=1e-4):
         self.mean = mean
         self.std = std
@@ -72,7 +76,11 @@ class Normalize:
 
 
 class ToTensor:
-    def __init__(self, expand_dims=True):
+    """
+    Converts a given input numpy.ndarray into torch.Tensor. Adds additional 'channel' axis when the input is 3D
+    and expand_dims=True (usually useful for raw data of the shape (D, H, W)).
+    """
+    def __init__(self, expand_dims):
         self.expand_dims = expand_dims
 
     def __call__(self, m):

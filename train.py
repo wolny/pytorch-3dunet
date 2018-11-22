@@ -73,10 +73,10 @@ def _get_loaders(train_path, val_path):
     """
 
     # create H5 backed training dataset with data augmentation
-    train_dataset = AugmentedHDF5Dataset(train_path, (32, 96, 96), (16, 32, 32), phase='train')
+    train_dataset = AugmentedHDF5Dataset(train_path, (32, 64, 64), (16, 32, 32), phase='train')
 
     # create H5 backed validation dataset
-    val_dataset = HDF5Dataset(val_path, (64, 128, 128), (64, 128, 128), phase='val')
+    val_dataset = HDF5Dataset(val_path, (32, 64, 64), (32, 64, 64), phase='val')
 
     return {
         'train': DataLoader(train_dataset, batch_size=1, shuffle=True),
