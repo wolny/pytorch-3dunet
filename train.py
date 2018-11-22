@@ -91,6 +91,10 @@ def _get_loss_criterion(loss_str, weight=None):
     """
     LOSSES = ['bce', 'dice', 'ce']
     assert loss_str in LOSSES, f'Invalid loss string: {loss_str}'
+
+    if weight is not None:
+        weight = torch.tensor(weight)
+
     if loss_str == 'bce':
         return nn.BCELoss(weight), True
     elif loss_str == 'ce':

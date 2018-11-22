@@ -72,10 +72,13 @@ class Normalize:
 
 
 class ToTensor:
+    def __init__(self, expand_dims=True):
+        self.expand_dims = expand_dims
+
     def __call__(self, m):
         assert m.ndim in [3, 4], 'Supports only 3D (DxHxW) or 4D (CxDxHxW) images'
         # add channel dimension
-        if m.ndim == 3:
+        if self.expand_dims and m.ndim == 3:
             m = np.expand_dims(m, axis=0)
 
         return torch.from_numpy(m.astype(np.float32))
