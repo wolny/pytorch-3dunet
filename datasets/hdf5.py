@@ -1,8 +1,9 @@
 import h5py
+import numpy as np
 from torch.utils.data import Dataset
 from torchvision.transforms import Compose
+
 import augment.transforms as transforms
-import numpy as np
 
 
 class HDF5Dataset(Dataset):
@@ -156,12 +157,18 @@ class HDF5Dataset(Dataset):
     @staticmethod
     def _check_dimensionality(raw, label):
         assert raw.ndim in [3, 4], 'Raw dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
+        assert label.ndim in [3, 4], 'Label dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
         if raw.ndim == 3:
-            assert raw.shape == label.shape[1:], 'Raw and labels have to be of the same size'
-        elif raw.ndim == 4:
-            assert raw.shape[1:] == label.shape[1:], 'Raw and labels have to be of the same size'
+            raw_shape = raw.shape
         else:
-            raise RuntimeError('Raw volume must be either 3D or 4D')
+            raw_shape = raw.shape[1:]
+
+        if label.ndim == 3:
+            label_shape = label.shape
+        else:
+            label_shape = label.shape[1:]
+
+        assert raw_shape == label_shape, 'Raw and labels have to be of the same size'
 
     @staticmethod
     def _check_patch_shape(patch_shape):
