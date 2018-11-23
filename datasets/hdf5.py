@@ -99,12 +99,13 @@ class HDF5Dataset(Dataset):
 
     def calculate_mean_std(self):
         """
-        Compute mean/std of the raw stack for normalization. This is an in-memory implementation override this method
+        Compute a channel-wise mean/std of the raw stack for normalization.
+        This is an in-memory implementation, override this method
         with the chunk-based computation if you're working with huge H5 files.
-        :return: a tuple of (mean, std dev) of the raw data
+        :return: a tuple of (mean, std) of the raw data
         """
 
-        return self.raw[...].mean(), self.raw[...].std()
+        return self.raw[...].mean(keepdims=True), self.raw[...].std(keepdims=True)
 
     @staticmethod
     def _build_slices(shape, patch_shape, stride_shape):

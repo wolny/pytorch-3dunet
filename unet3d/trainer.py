@@ -141,8 +141,14 @@ class UNet3DTrainer:
             # forward pass
             output = self.model(input)
 
-            # mesure training loss and error
+            # compute the loss
             loss = self.loss_criterion(output, target)
+
+            # if the labels in the target are stored in the single channel (e.g. when CrossEntropyLoss is used)
+            # put the in the separate channels for error criterion computation and tensorboard logging
+            if target.dim() == 4:
+                target = self._expand_target(target, output.size()[1])
+            # compute the error criterion
             error = self.error_criterion(output, target)
 
             train_losses.update(loss.item(), input.size(0))
@@ -198,6 +204,8 @@ class UNet3DTrainer:
                     output = self.model(input)
 
                     loss = self.loss_criterion(output, target)
+                    if target.dim() == 4:
+                        target = self._expand_target(target, output.size()[1])
                     error = self.error_criterion(output, target)
 
                     val_losses.update(loss.item(), input.size(0))
@@ -292,3 +300,25 @@ class UNet3DTrainer:
     @staticmethod
     def _normalize_img(img):
         return (img - np.min(img)) / np.ptp(img)
+
+    def _expand_target(self, input, C):
+        """
+        Converts NxDxHxW label image to NxCxDxHxW, where each label is stored in a separate channel
+        :param input: 4D input image (NxDxHxW)
+        :param C: number of channels/labels
+        :return: 5D output image (NxCxDxHxW)
+        """
+        assert input.dim() == 4
+        shape = input.size()
+        shape = list(shape)
+        shape.insert(1, C)
+        shape = tuple(shape)
+
+        result = torch.zeros(shape)
+        # for each batch instance
+        for i in range(input.size()[0]):
+            # iterate over channel axis and create corresponding binary mask in the target
+            for c in range(C):
+                mask = result[i, c]
+                mask[input[i] == c] = 1
+        return result.to(self.device)
