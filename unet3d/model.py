@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from . import groupnorm
 
 
@@ -15,20 +16,19 @@ class UNet3D(nn.Module):
             Note that that the of out_channels might correspond to either
             different semantic classes or to different binary segmentation mask.
             It's up to the user of the class to interpret the out_channels and
-            use the proper loss criterion during training (i.e. CrossEntropyLoss
-            or BCELoss respectively)
+            use the proper loss criterion during training (i.e. NLLLoss (multi-class)
+            or BCELoss (two-class) respectively)
         interpolate (bool): if True use F.interpolate for upsampling otherwise
             use ConvTranspose3d
-        final_sigmoid (bool): if True apply element-wise torch.sigmoid after the
-            final 1x1x1 convolution; set to True if nn.BCELoss is to be used
-            to train the model
+        final_sigmoid (bool): if True apply element-wise nn.Sigmoid after the
+            final 1x1x1 convolution, otherwise apply nn.LogSoftmax. MUST be True if nn.BCELoss (two-class) is used
+            to train the model. MUST be False if nn.NLLLoss (multi-class) is used to train the model.
         conv_layer_order (string): determines the order of layers
             in `DoubleConv` module. e.g. 'crg' stands for Conv3d+ReLU+GroupNorm3d.
             See `DoubleConv` for more info.
     """
 
-    def __init__(self, in_channels, out_channels, interpolate=True,
-                 final_sigmoid=True, conv_layer_order='crg'):
+    def __init__(self, in_channels, out_channels, final_sigmoid, interpolate=True, conv_layer_order='crg'):
         super(UNet3D, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -57,9 +57,9 @@ class UNet3D(nn.Module):
         self.final_conv = nn.Conv3d(64, out_channels, 1)
 
         if final_sigmoid:
-            self.final_sigmoid = nn.Sigmoid()
+            self.final_activation = nn.Sigmoid()
         else:
-            self.final_sigmoid = None
+            self.final_activation = nn.LogSoftmax()
 
     def forward(self, x):
         # encoder part
@@ -81,8 +81,7 @@ class UNet3D(nn.Module):
 
         x = self.final_conv(x)
 
-        if self.final_sigmoid is not None:
-            x = self.final_sigmoid(x)
+        x = self.final_activation(x)
 
         return x
 

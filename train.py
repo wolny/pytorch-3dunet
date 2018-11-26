@@ -28,10 +28,10 @@ def _arg_parser():
     parser.add_argument('--layer-order', type=str,
                         help="Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm",
                         default='crg')
-    parser.add_argument('--loss', type=str, default='bce',
-                        help='Which loss function to use. Possible values: [bce, ce, dice]. Where bce - BinaryCrossEntropy (binary classification only), ce - CrossEntropy (multi-class classification), dice - DiceLoss (binary classification only). Default: 20')
+    parser.add_argument('--loss', type=str, required=True,
+                        help='Which loss function to use. Possible values: [bce, nll, dice]. Where bce - BinaryCrossEntropy (binary classification only), nll - NegativeLogLikelihood (multi-class classification), dice - DiceLoss (binary classification only)')
     parser.add_argument('--loss-weight', type=float, nargs='+', default=None,
-                        help='A manual rescaling weight given to each class in case of CELoss. E.g. --loss-weight 0.1 0.2 0.7')
+                        help='A manual rescaling weight given to each class in case of NLLLoss. E.g. --loss-weight 0.3 0.3 0.4')
     parser.add_argument('--epochs', default=500, type=int,
                         help='max number of epochs (default: 500)')
     parser.add_argument('--iters', default=1e5, type=int,
@@ -51,10 +51,8 @@ def _arg_parser():
     return parser
 
 
-def _create_model(in_channels, out_channels, layer_order, interpolate=False,
-                  final_sigmoid=True):
-    return UNet3D(in_channels, out_channels, interpolate, final_sigmoid,
-                  conv_layer_order=layer_order)
+def _create_model(in_channels, out_channels, layer_order, interpolate=False, final_sigmoid=True):
+    return UNet3D(in_channels, out_channels, interpolate, final_sigmoid, conv_layer_order=layer_order)
 
 
 def _get_loaders(train_path, val_path):
@@ -89,13 +87,13 @@ def _get_loss_criterion(loss_str, weight=None):
     Returns the loss function together with boolean flag which indicates
     whether to apply an element-wise Sigmoid on the network output
     """
-    LOSSES = ['bce', 'dice', 'ce']
+    LOSSES = ['bce', 'nll', 'dice']
     assert loss_str in LOSSES, f'Invalid loss string: {loss_str}'
 
     if loss_str == 'bce':
         return nn.BCELoss(weight), True
-    elif loss_str == 'ce':
-        return nn.CrossEntropyLoss(weight), False
+    elif loss_str == 'nll':
+        return nn.NLLLoss(weight), False
     else:
         return DiceLoss(), True
 
@@ -103,8 +101,7 @@ def _get_loss_criterion(loss_str, weight=None):
 def _create_optimizer(args, model):
     learning_rate = args.learning_rate
     weight_decay = args.weight_decay
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate,
-                           weight_decay=weight_decay)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     return optimizer
 
 
@@ -135,8 +132,7 @@ def main():
     model = model.to(device)
 
     # Log the number of learnable parameters
-    logger.info(
-        f'Number of learnable params {get_number_of_learnable_parameters(model)}')
+    logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
 
     # Create error metric
     error_criterion = DiceCoefficient()

@@ -32,7 +32,7 @@ source activate 3dunet
 ```
 usage: train.py [-h] --checkpoint-dir CHECKPOINT_DIR --in-channels IN_CHANNELS
                 --out-channels OUT_CHANNELS [--interpolate]
-                [--layer-order LAYER_ORDER] [--loss LOSS]
+                [--layer-order LAYER_ORDER] --loss LOSS
                 [--loss-weight LOSS_WEIGHT [LOSS_WEIGHT ...]]
                 [--epochs EPOCHS] [--iters ITERS] [--patience PATIENCE]
                 [--learning-rate LEARNING_RATE] [--weight-decay WEIGHT_DECAY]
@@ -53,14 +53,14 @@ optional arguments:
   --layer-order LAYER_ORDER
                         Conv layer ordering, e.g. 'crg' ->
                         Conv3D+ReLU+GroupNorm
-  --loss LOSS           Which loss function to use. Possible values: [bce, ce,
-                        dice]. Where bce - BinaryCrossEntropy (binary
-                        classification only), ce - CrossEntropy (multi-class
-                        classification), dice - DiceLoss (binary
-                        classification only). Default: 20
+  --loss LOSS           Which loss function to use. Possible values: [bce,
+                        nll, dice]. Where bce - BinaryCrossEntropy (binary
+                        classification only), nll - NegativeLogLikelihood
+                        (multi-class classification), dice - DiceLoss (binary
+                        classification only)
   --loss-weight LOSS_WEIGHT [LOSS_WEIGHT ...]
                         A manual rescaling weight given to each class in case
-                        of CELoss. E.g. --loss-weight 0.1 0.2 0.7
+                        of NLLLoss. E.g. --loss-weight 0.3 0.3 0.4
   --epochs EPOCHS       max number of epochs (default: 500)
   --iters ITERS         max number of iterations (default: 1e5)
   --patience PATIENCE   number of epochs with no loss improvement after which
@@ -81,7 +81,7 @@ optional arguments:
 
 E.g. fit to randomly generated 3D volume and random segmentation mask from [random.h5](resources/random.h5) (see [train.py](train.py)):
 ```
-python train.py --checkpoint-dir ~/3dunet --in-channels 1 --out-channels 2 --layer-order crg --validate-after-iters 100 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --interpolate       
+python train.py --checkpoint-dir ~/3dunet --in-channels 1 --out-channels 2 --layer-order crg --loss bce --validate-after-iters 100 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --interpolate       
 ```
 In order to resume training from the last checkpoint:
 ```
@@ -101,7 +101,8 @@ Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 86
 ## Test
 ```
 usage: predict.py [-h] --model-path MODEL_PATH --in-channels IN_CHANNELS
-                  --out-channels OUT_CHANNELS [--interpolate] [--layer-order]
+                  --out-channels OUT_CHANNELS [--interpolate]
+                  [--layer-order LAYER_ORDER] --loss LOSS
 
 3D U-Net predictions
 
@@ -117,13 +118,15 @@ optional arguments:
   --layer-order LAYER_ORDER
                         Conv layer ordering, e.g. 'crg' ->
                         Conv3D+ReLU+GroupNorm
-
+  --loss LOSS           Loss function used for training. Possible values:
+                        [bce, nll, dice]. Has to be provided cause loss
+                        determines the final activation of the model.
 ```
 
 Test on randomly generated 3D volume (just for demonstration purposes) from [random.h5](resources/random.h5). 
 See [predict.py](predict.py) for more info.
 ```
-python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --interpolate --layer-order crg
+python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --loss bce --interpolate --layer-order crg
 ```
 Prediction masks will be saved to `~/3dunet/probabilities.h5`.
 
