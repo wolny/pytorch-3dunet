@@ -211,7 +211,7 @@ class UNet3DTrainer:
                     val_losses.update(loss.item(), input.size(0))
                     val_errors.update(error.item(), input.size(0))
 
-                    if self.validate_iters is not None and i % self.validate_iters == 0:
+                    if i == self.validate_iters:
                         # stop validation
                         break
 
