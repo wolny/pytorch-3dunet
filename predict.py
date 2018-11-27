@@ -133,6 +133,7 @@ def main():
                         default='crg')
     parser.add_argument('--loss', type=str, required=True,
                         help='Loss function used for training. Possible values: [bce, nll, dice]. Has to be provided cause loss determines the final activation of the model.')
+    parser.add_argument('--test-path', type=str, required=True, help='path to the test dataset')
 
     args = parser.parse_args()
 
@@ -143,8 +144,8 @@ def main():
     interpolate = args.interpolate
     layer_order = args.layer_order
     final_sigmoid = _final_sigmoid(args.loss)
-    model = UNet3D(in_channels, out_channels, interpolate=interpolate,
-                   final_sigmoid=final_sigmoid, conv_layer_order=layer_order)
+    model = UNet3D(in_channels, out_channels, final_sigmoid=final_sigmoid, interpolate=interpolate,
+                   conv_layer_order=layer_order)
 
     logger.info(f'Loading model from {args.model_path}...')
     utils.load_checkpoint(args.model_path, model)
@@ -159,8 +160,7 @@ def main():
 
     model = model.to(device)
 
-    test_path = 'resources/random.h5'
-    dataset = HDF5Dataset(test_path, (32, 64, 64), (32, 64, 64), phase='test')
+    dataset = HDF5Dataset(args.test_path, (32, 64, 64), (32, 64, 64), phase='test')
     dataset_size = (256, 256, 256)
     probability_maps = predict(model, dataset, dataset_size, device)
 

@@ -48,22 +48,25 @@ def _arg_parser():
                         help='how many iterations between tensorboard logging (default: 100)')
     parser.add_argument('--resume', type=str,
                         help='path to latest checkpoint (default: none); if provided the training will be resumed from that checkpoint')
+    parser.add_argument('--train-path', type=str, required=True, help='path to the train dataset')
+    parser.add_argument('--val-path', type=str, required=True, help='path to the val dataset')
+
     return parser
 
 
-def _create_model(in_channels, out_channels, layer_order, interpolate=False, final_sigmoid=True):
-    return UNet3D(in_channels, out_channels, interpolate, final_sigmoid, conv_layer_order=layer_order)
+def _create_model(in_channels, out_channels, layer_order, interpolate, final_sigmoid):
+    return UNet3D(in_channels, out_channels, final_sigmoid=final_sigmoid, interpolate=interpolate,
+                  conv_layer_order=layer_order)
 
 
-def _get_loaders(train_path, val_path):
+def _get_loaders(train_path, val_path, label_dtype):
     """
     Returns dictionary containing the  training and validation loaders
     (torch.utils.data.DataLoader) backed by the datasets.hdf5.HDF5Dataset
 
     :param train_path: path to the H5 file containing the training set
     :param val_path: path to the H5 file containing the validation set
-    :param in_channels: number of channels in the raw data
-    :param out_channels: number of target channels
+    :param label_dtype: target type of the label dataset
     :return: dict {
         'train': <train_loader>
         'val': <val_loader>
@@ -71,10 +74,10 @@ def _get_loaders(train_path, val_path):
     """
 
     # create H5 backed training dataset with data augmentation
-    train_dataset = AugmentedHDF5Dataset(train_path, (32, 64, 64), (16, 32, 32), phase='train')
+    train_dataset = AugmentedHDF5Dataset(train_path, (32, 64, 64), (16, 32, 32), phase='train', label_dtype=label_dtype)
 
     # create H5 backed validation dataset
-    val_dataset = HDF5Dataset(val_path, (32, 64, 64), (32, 64, 64), phase='val')
+    val_dataset = HDF5Dataset(val_path, (32, 64, 64), (32, 64, 64), phase='val', label_dtype=label_dtype)
 
     return {
         'train': DataLoader(train_dataset, batch_size=1, shuffle=True),
@@ -137,9 +140,13 @@ def main():
     # Create error metric
     error_criterion = DiceCoefficient()
 
-    # Get data loaders (for demo purposes the training and validation sets are the same)
-    train_path = val_path = 'resources/random.h5'
-    loaders = _get_loaders(train_path, val_path)
+    # Get data loaders. If 'bce' or 'dice' loss is used, convert labels to float
+    train_path, val_path = args.train_path, args.val_path
+    if args.loss in ['bce', 'dice']:
+        label_dtype = 'float32'
+    else:
+        label_dtype = 'long'
+    loaders = _get_loaders(train_path, val_path, label_dtype=label_dtype)
 
     # Create the optimizer
     optimizer = _create_optimizer(args, model)

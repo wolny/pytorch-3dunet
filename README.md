@@ -76,18 +76,21 @@ optional arguments:
                         (default: 100)
   --resume RESUME       path to latest checkpoint (default: none); if provided
                         the training will be resumed from that checkpoint
+  --train-path TRAIN_PATH
+                        path to the train dataset
+  --val-path VAL_PATH   path to the val dataset
 ```
 
 
-E.g. fit to randomly generated 3D volume and random segmentation mask from [random.h5](resources/random.h5) (see [train.py](train.py)):
+E.g. fit to randomly generated 3D volume and random segmentation mask from [random_label3D.h5](resources/random_label3D.h5) (see [train.py](train.py)):
 ```
-python train.py --checkpoint-dir ~/3dunet --in-channels 1 --out-channels 2 --layer-order crg --loss nll --validate-after-iters 100 --log-after-iters 50 --epoch 50 --learning-rate 0.0002 --interpolate       
+python train.py --checkpoint-dir ~/3dunet --in-channels 1 --out-channels 2 --layer-order crg --loss nll --validate-after-iters 100 --log-after-iters 50 --epoch 50 --learning-rate 0.0002 --interpolate --train-path resources/random_label3D.h5 --val-path resources/random_label3D.h5     
 ```
 In order to resume training from the last checkpoint:
 ```
-python train.py --resume ~/3dunet/last_checkpoint.pytorch --in-channels 1 --out-channels 2 --layer-order crg --loss nll --validate-after-iters 100 --log-after-iters 50 --epoch 50 --learning-rate 0.0002 --interpolate        
+python train.py --resume ~/3dunet/last_checkpoint.pytorch --in-channels 1 --out-channels 2 --layer-order crg --loss nll --validate-after-iters 100 --log-after-iters 50 --epoch 50 --learning-rate 0.0002 --interpolate --train-path resources/random_label3D.h5 --val-path resources/random_label3D.h5       
 ```
-In order to train on your own data just provide paths to your HDF5 training and validation datasets (see [train.py](train.py)).
+In order to train on your own data just provide the paths to your HDF5 training and validation datasets (see [train.py](train.py)).
 The HDF5 files should have the following scheme:
 ```
 /raw - dataset containing the raw 3D/4D stack. The axis order has to be DxHxW/CxDxHxW
@@ -104,6 +107,11 @@ Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 86
 
 ### IMPORTANT
 In order to train with `BinaryCrossEntropy` or `DiceLoss` the label data has to be 4D! (one target binary mask per channel).
+
+E.g. fit to randomly generated 3D volume and random 4D target volume (3 target channels containing random 3D binary masks) from [random_label4D.h5](resources/random_label4D.h5):
+```
+python train.py --checkpoint-dir /home/adrian/workspace/pytorch-3dunet --in-channels 1 --out-channels 3 --loss bce --validate-after-iters 100 --log-after-iters 50 --interpolate --train-path resources/random_label4D.h5 --val-path resources/random_label4D.h5
+```
 
 ## Test
 ```
@@ -128,13 +136,20 @@ optional arguments:
   --loss LOSS           Loss function used for training. Possible values:
                         [bce, nll, dice]. Has to be provided cause loss
                         determines the final activation of the model.
+  --test-path TEST_PATH
+                        path to the test dataset
 ```
 
-Test on randomly generated 3D volume (just for demonstration purposes) from [random.h5](resources/random.h5). 
+Test on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/random_label3D.h5). 
 See [predict.py](predict.py) for more info.
 ```
-python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --loss nll --interpolate --layer-order crg
+python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --loss nll --interpolate --layer-order crg --test-path resources/random_label3D.h5
 ```
 Prediction masks will be saved to `~/3dunet/probabilities.h5`.
 
 In order to predict your own raw dataset provide the path to your HDF5 test dataset (see [predict.py](predict.py)).
+
+In order to predict with the network trained with `BinaryCrossEntropy` or `DiceLoss` on the randomly generated 3D volume:
+```
+python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 3 --interpolate --loss bce --test-path resources/random_label4D.h5
+```
