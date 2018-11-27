@@ -102,6 +102,8 @@ Sometimes the problem to be solved requires to predict multiple channel binary m
 Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 8666` (you need `tensorboard` installed in your conda env).
 ![3dunet-training](https://user-images.githubusercontent.com/706781/45916217-9626d580-be62-11e8-95c3-508e2719c915.png)
 
+### IMPORTANT
+In order to train with `BinaryCrossEntropy` or `DiceLoss` the label data has to be 4D! (one target binary mask per channel).
 
 ## Test
 ```
