@@ -79,7 +79,7 @@ class Normalize:
 class ToTensor:
     """
     Converts a given input numpy.ndarray into torch.Tensor. Adds additional 'channel' axis when the input is 3D
-    and expand_dims=True (usually useful for raw data of the shape (D, H, W)).
+    and expand_dims=True (use for raw data of the shape (D, H, W)).
     """
 
     def __init__(self, expand_dims, dtype=np.float32):

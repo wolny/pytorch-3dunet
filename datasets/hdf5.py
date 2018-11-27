@@ -15,7 +15,7 @@ class HDF5Dataset(Dataset):
     """
 
     def __init__(self, raw_file_path, patch_shape, stride_shape, phase, label_file_path=None, raw_internal_path='raw',
-                 label_internal_path='label', label_dtype=np.float32):
+                 label_internal_path='label', label_dtype=np.long):
         """
         Creates transformers for raw and label datasets and builds the index to slice mapping for raw and label datasets.
         :param raw_file_path: path to H5 file containing raw data

@@ -27,9 +27,9 @@ class TestHDF5Dataset(object):
                 visit_raw = np.zeros_like(raw)
                 visit_label = np.zeros_like(label)
 
-                for (_, _, idx) in dataset:
+                for (_, idx) in dataset:
                     visit_raw[idx] = 1
-                    visit_label[(slice(0, 2),) + idx] = 1
+                    visit_label[idx] = 1
 
                 # verify that every element was visited at least once
                 assert np.all(visit_raw)
@@ -63,23 +63,22 @@ class CustomAugmentation(HDF5Dataset):
         raw_transform = Compose([
             transforms.RandomFlip(np.random.RandomState(seed)),
             transforms.RandomRotate90(np.random.RandomState(seed)),
-            transforms.ToTensor()
+            transforms.ToTensor(expand_dims=True)
         ])
         label_transform = Compose([
             transforms.RandomFlip(np.random.RandomState(seed)),
             transforms.RandomRotate90(np.random.RandomState(seed)),
-            transforms.ToTensor()
+            transforms.ToTensor(expand_dims=False)
         ])
 
         return raw_transform, label_transform
 
 
-def create_random_dataset(shape, in_channels=2):
+def create_random_dataset(shape):
     tmp_file = NamedTemporaryFile(delete=False)
 
     with h5py.File(tmp_file.name, 'w') as f:
-        l_shape = (in_channels,) + shape
         f.create_dataset('raw', data=np.random.rand(*shape))
-        f.create_dataset('label', data=np.random.randint(0, 2, l_shape))
+        f.create_dataset('label', data=np.random.randint(0, 2, shape))
 
     return tmp_file.name

@@ -5,6 +5,7 @@ from tempfile import NamedTemporaryFile
 import h5py
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
@@ -12,7 +13,6 @@ from datasets.hdf5 import HDF5Dataset
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import DiceCoefficient
-from unet3d.utils import DiceLoss
 from unet3d.utils import get_logger
 
 
@@ -25,7 +25,7 @@ class TestUNet3DTrainer(object):
             # conv-relu-groupnorm
             conv_layer_order = 'crg'
 
-            loss_criterion, final_sigmoid = DiceLoss(), True
+            loss_criterion, final_sigmoid = nn.NLLLoss(), False
 
             model = self._create_model(final_sigmoid, conv_layer_order)
 
@@ -33,10 +33,9 @@ class TestUNet3DTrainer(object):
 
             loaders = self._get_loaders()
 
-            learning_rate = 1e-4
-            weight_decay = 0.0005
-            optimizer = optim.Adam(model.parameters(), lr=learning_rate,
-                                   weight_decay=weight_decay)
+            learning_rate = 2e-4
+            weight_decay = 0.0001
+            optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
             logger = get_logger('UNet3DTrainer', logging.DEBUG)
             trainer = UNet3DTrainer(model, optimizer, loss_criterion,
@@ -61,9 +60,8 @@ class TestUNet3DTrainer(object):
         in_channels = 1
         out_channels = 2
         # use F.interpolate for upsampling
-        interpolate = True
-        return UNet3D(in_channels, out_channels, interpolate,
-                      final_sigmoid, layer_order)
+        return UNet3D(in_channels, out_channels, final_sigmoid=final_sigmoid, interpolate=True,
+                      conv_layer_order=layer_order)
 
     @staticmethod
     def _create_random_dataset():
@@ -74,13 +72,11 @@ class TestUNet3DTrainer(object):
 
             with h5py.File(tmp.name, 'w') as f:
                 if phase == 'train':
-                    r_size = (128, 128, 128)
-                    l_size = (2, 128, 128, 128)
+                    size = (128, 128, 128)
                 else:
-                    r_size = (64, 64, 64)
-                    l_size = (2, 64, 64, 64)
-                f.create_dataset('raw', data=np.random.rand(*r_size))
-                f.create_dataset('label', data=np.random.randint(0, 2, l_size))
+                    size = (64, 64, 64)
+                f.create_dataset('raw', data=np.random.rand(*size))
+                f.create_dataset('label', data=np.random.randint(0, 2, size))
 
             result.append(tmp.name)
 
