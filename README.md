@@ -81,17 +81,22 @@ optional arguments:
 
 E.g. fit to randomly generated 3D volume and random segmentation mask from [random.h5](resources/random.h5) (see [train.py](train.py)):
 ```
-python train.py --checkpoint-dir ~/3dunet --in-channels 1 --out-channels 2 --layer-order crg --loss bce --validate-after-iters 100 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --interpolate       
+python train.py --checkpoint-dir ~/3dunet --in-channels 1 --out-channels 2 --layer-order crg --loss nll --validate-after-iters 100 --log-after-iters 50 --epoch 50 --learning-rate 0.0002 --interpolate       
 ```
 In order to resume training from the last checkpoint:
 ```
-python train.py --resume ~/3dunet/last_checkpoint.pytorch --in-channels 1 --out-channels 2 --layer-order crg --validate-after-iters 100 --log-after-iters 10 --epoch 50 --learning-rate 0.0001 --interpolate        
+python train.py --resume ~/3dunet/last_checkpoint.pytorch --in-channels 1 --out-channels 2 --layer-order crg --loss nll --validate-after-iters 100 --log-after-iters 50 --epoch 50 --learning-rate 0.0002 --interpolate        
 ```
 In order to train on your own data just provide paths to your HDF5 training and validation datasets (see [train.py](train.py)).
 The HDF5 files should have the following scheme:
 ```
 /raw - dataset containing the raw 3D/4D stack. The axis order has to be DxHxW/CxDxHxW
-/label - dataset containing the label 4D stack. The axis order has to be CxDxHxW
+/label - dataset containing the label 3D stack with values 0..C (C - number of classes). The axis order has to be DxHxW.
+```
+Sometimes the problem to be solved requires to predict multiple channel binary masks. In that case the `label` dataset should be 4D and Binary Cross Entropy loss should be used during training:
+```
+/raw - dataset containing the raw 3D/4D stack. The axis order has to be DxHxW/CxDxHxW
+/label - dataset containing the label 4D stack with values 0..1 (binary classification with C channels). The axis order has to be CxDxHxW.
 ```
 
 Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 8666` (you need `tensorboard` installed in your conda env).
@@ -126,7 +131,7 @@ optional arguments:
 Test on randomly generated 3D volume (just for demonstration purposes) from [random.h5](resources/random.h5). 
 See [predict.py](predict.py) for more info.
 ```
-python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --loss bce --interpolate --layer-order crg
+python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --loss nll --interpolate --layer-order crg
 ```
 Prediction masks will be saved to `~/3dunet/probabilities.h5`.
 
