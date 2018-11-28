@@ -28,6 +28,17 @@ Activate newly created conda environment via:
 source activate 3dunet
 ```
 
+## Supported Losses
+For a detailed explanation of the loss functions used see:
+[Generalised Dice overlap as a deep learning loss function for highly unbalanced segmentations](https://arxiv.org/pdf/1707.03237.pdf)
+Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
+
+### Loss functions
+- **wnll** - _WeightedNLLLoss_ (see 'Weighted cross-entropy (WCE)' in the above paper for a detailed explanation)
+- **nll** - _NLLLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)
+- **bce** - _BCELoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)
+- **dice** - _GeneralizedDiceLoss_ (see 'Generalized Dice Loss (GDL)' in the above paper for a detailed explanation)
+
 ## Train
 ```
 usage: train.py [-h] --checkpoint-dir CHECKPOINT_DIR --in-channels IN_CHANNELS
@@ -38,6 +49,11 @@ usage: train.py [-h] --checkpoint-dir CHECKPOINT_DIR --in-channels IN_CHANNELS
                 [--learning-rate LEARNING_RATE] [--weight-decay WEIGHT_DECAY]
                 [--validate-after-iters VALIDATE_AFTER_ITERS]
                 [--log-after-iters LOG_AFTER_ITERS] [--resume RESUME]
+                --train-path TRAIN_PATH --val-path VAL_PATH
+                [--train-patch TRAIN_PATCH [TRAIN_PATCH ...]]
+                [--train-stride TRAIN_STRIDE [TRAIN_STRIDE ...]]
+                [--val-patch VAL_PATCH [VAL_PATCH ...]]
+                [--val-stride VAL_STRIDE [VAL_STRIDE ...]]
 
 UNet3D training
 
@@ -54,13 +70,15 @@ optional arguments:
                         Conv layer ordering, e.g. 'crg' ->
                         Conv3D+ReLU+GroupNorm
   --loss LOSS           Which loss function to use. Possible values: [bce,
-                        nll, dice]. Where bce - BinaryCrossEntropy (binary
-                        classification only), nll - NegativeLogLikelihood
-                        (multi-class classification), dice - DiceLoss (binary
-                        classification only)
+                        nll, wnll, dice]. Where bce - BinaryCrossEntropy
+                        (binary classification only), nll -
+                        NegativeLogLikelihood (multi-class classification),
+                        wnll - WeightedNegativeLogLikelihood (multi-class
+                        classification), dice - GeneralizedDiceLoss (multi-
+                        class classification)
   --loss-weight LOSS_WEIGHT [LOSS_WEIGHT ...]
                         A manual rescaling weight given to each class in case
-                        of NLLLoss. E.g. --loss-weight 0.3 0.3 0.4
+                        of NLLLoss or BCELoss. E.g. --loss-weight 0.3 0.3 0.4
   --epochs EPOCHS       max number of epochs (default: 500)
   --iters ITERS         max number of iterations (default: 1e5)
   --patience PATIENCE   number of epochs with no loss improvement after which
@@ -79,6 +97,14 @@ optional arguments:
   --train-path TRAIN_PATH
                         path to the train dataset
   --val-path VAL_PATH   path to the val dataset
+  --train-patch TRAIN_PATCH [TRAIN_PATCH ...]
+                        Patch shape for used for training
+  --train-stride TRAIN_STRIDE [TRAIN_STRIDE ...]
+                        Patch stride for used for training
+  --val-patch VAL_PATCH [VAL_PATCH ...]
+                        Patch shape for used for validation
+  --val-stride VAL_STRIDE [VAL_STRIDE ...]
+                        Patch stride for used for validation
 ```
 
 

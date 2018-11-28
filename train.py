@@ -30,7 +30,7 @@ def _arg_parser():
     parser.add_argument('--loss', type=str, required=True,
                         help='Which loss function to use. Possible values: [bce, nll, wnll, dice]. Where bce - BinaryCrossEntropy (binary classification only), nll - NegativeLogLikelihood (multi-class classification), wnll - WeightedNegativeLogLikelihood (multi-class classification), dice - GeneralizedDiceLoss (multi-class classification)')
     parser.add_argument('--loss-weight', type=float, nargs='+', default=None,
-                        help='A manual rescaling weight given to each class in case of NLLLoss. E.g. --loss-weight 0.3 0.3 0.4')
+                        help='A manual rescaling weight given to each class in case of NLLLoss or BCELoss. E.g. --loss-weight 0.3 0.3 0.4')
     parser.add_argument('--epochs', default=500, type=int,
                         help='max number of epochs (default: 500)')
     parser.add_argument('--iters', default=1e5, type=int,
@@ -49,6 +49,10 @@ def _arg_parser():
                         help='path to latest checkpoint (default: none); if provided the training will be resumed from that checkpoint')
     parser.add_argument('--train-path', type=str, required=True, help='path to the train dataset')
     parser.add_argument('--val-path', type=str, required=True, help='path to the val dataset')
+    parser.add_argument('--train-patch', type=int, nargs='+', default=None, help='Patch shape for used for training')
+    parser.add_argument('--train-stride', type=int, nargs='+', default=None, help='Patch stride for used for training')
+    parser.add_argument('--val-patch', type=int, nargs='+', default=None, help='Patch shape for used for validation')
+    parser.add_argument('--val-stride', type=int, nargs='+', default=None, help='Patch stride for used for validation')
 
     return parser
 
