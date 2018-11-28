@@ -50,7 +50,7 @@ class TestHDF5Dataset:
         f.create_dataset('label', data=label)
         f.close()
 
-        dataset = CustomAugmentation(tmp_path, patch_shape=(16, 64, 64), stride_shape=(1, 1, 1), phase='train')
+        dataset = CustomAugmentation(tmp_path, patch_shape=(16, 64, 64), stride_shape=(8, 32, 32), phase='train')
 
         for (img, label) in dataset:
             for i in range(label.shape[0]):

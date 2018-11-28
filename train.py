@@ -9,7 +9,7 @@ from datasets.hdf5 import AugmentedHDF5Dataset, HDF5Dataset
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import DiceCoefficient
-from unet3d.utils import DiceLoss
+from unet3d.utils import GeneralizedDiceLoss
 from unet3d.utils import get_logger
 from unet3d.utils import get_number_of_learnable_parameters
 
@@ -98,7 +98,7 @@ def _get_loss_criterion(loss_str, weight=None):
     elif loss_str == 'nll':
         return nn.NLLLoss(weight), False
     else:
-        return DiceLoss(), True
+        return GeneralizedDiceLoss(), True
 
 
 def _create_optimizer(args, model):

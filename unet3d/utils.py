@@ -140,7 +140,19 @@ class GeneralizedDiceLoss(DiceCoefficient):
         super(GeneralizedDiceLoss, self).__init__(epsilon)
 
     def forward(self, input, target):
-        pass
+        assert input.size() == target.size(), "'input' and 'target' must have the same shape"
+
+        input = self.flatten(input)
+        target = self.flatten(target)
+
+        target_sum = target.sum(-1)
+        class_weights = 1. / (target_sum * target_sum + self.epsilon)
+
+        # Compute per channel Dice Coefficient
+        intersect = ((input * target).sum(-1) * class_weights).sum() + self.epsilon
+        denominator = ((input + target).sum(-1) * class_weights).sum() + self.epsilon
+        # Average across channels in order to get the final score
+        return 1 - 2. * intersect / denominator
 
 
 def find_maximum_patch_size(model, device):
