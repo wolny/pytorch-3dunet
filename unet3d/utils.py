@@ -94,37 +94,10 @@ class RunningAverage:
         self.avg = self.sum / self.count
 
 
-class ComposedLoss(nn.Module):
-    """Helper class for composed loss functions.
-
-    Args:
-        input_func (nn.Module): element-wise function applied on the input before
-            passing it to the output
-        loss (nn.Module): loss function to be applied on the transformed input and target
-
-    Example:
-        ```
-        loss = ComposedLoss(nn.Sigmoid(), nn.BCELoss())
-        output = loss(input, target)
-        ```
-        would be equivalent to:
-        ```
-        loss = nn.BCELoss()
-        output = loss(F.sigmoid(input), target)
-        ```
-    """
-
-    def __init__(self, input_func, loss):
-        super(ComposedLoss, self).__init__()
-        self.input_func = input_func
-        self.loss = loss
-
-    def forward(self, input, target):
-        return self.loss(self.input_func(input), target)
-
-
 class DiceCoefficient(nn.Module):
-    """Compute Dice Coefficient averaging across batch axis
+    """Computes Dice Coefficient
+    Generalized to multiple channels by computing per-channel Dice Score
+    (as described in https://arxiv.org/pdf/1707.03237.pdf) and then simply taking the average.
     """
 
     def __init__(self, epsilon=1e-5):
@@ -132,24 +105,42 @@ class DiceCoefficient(nn.Module):
         self.epsilon = epsilon
 
     def forward(self, input, target):
-        assert input.size() == target.size()
+        assert input.size() == target.size(), "'input' and 'target' must have the same shape"
 
-        inter_card = (input * target).sum()
-        sum_of_cards = input.sum() + target.sum()
-        return (2. * inter_card + self.epsilon) / (sum_of_cards + self.epsilon)
+        input = self.flatten(input)
+        target = self.flatten(target)
+
+        # Compute per channel Dice Coefficient
+        intersect = (input * target).sum(-1) + self.epsilon
+        denominator = (input + target).sum(-1) + self.epsilon
+        # Average across channels in order to get the final score
+        return torch.mean(2. * intersect / denominator)
+
+    @staticmethod
+    def flatten(tensor):
+        """Flattens a given tensor such that the channel axis is first.
+        The shapes are transformed as follows:
+           (N, C, D, H, W) -> (C, N * D * H * W)
+        """
+        N = tensor.size(0)
+        C = tensor.size(1)
+        # new axis order
+        axis_order = (1, 0) + tuple(range(2, tensor.dim()))
+        # Transpose: (N, C, D, H, W) -> (C, N, D, H, W)
+        transposed = tensor.permute(axis_order)
+        # Flatten: (C, N, D, H, W) -> (C, N * D * H * W)
+        return transposed.view(C, -1)
 
 
-class DiceLoss(DiceCoefficient):
-    """Compute Dice Loss averaging across batch axis.
-    Just the negation of Dice Coefficient.
+class GeneralizedDiceLoss(DiceCoefficient):
+    """Computes Generalized Dice Loss (GDL) as described in https://arxiv.org/pdf/1707.03237.pdf
     """
 
     def __init__(self, epsilon=1e-5):
-        super(DiceLoss, self).__init__(epsilon)
+        super(GeneralizedDiceLoss, self).__init__(epsilon)
 
     def forward(self, input, target):
-        coeff = super(DiceLoss, self).forward(input, target)
-        return -1.0 * coeff
+        pass
 
 
 def find_maximum_patch_size(model, device):

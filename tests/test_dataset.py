@@ -8,7 +8,7 @@ import augment.transforms as transforms
 from datasets.hdf5 import HDF5Dataset
 
 
-class TestHDF5Dataset(object):
+class TestHDF5Dataset:
     def test_hdf5_dataset(self):
         path = create_random_dataset((128, 128, 128))
 

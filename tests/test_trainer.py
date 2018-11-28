@@ -16,7 +16,7 @@ from unet3d.utils import DiceCoefficient
 from unet3d.utils import get_logger
 
 
-class TestUNet3DTrainer(object):
+class TestUNet3DTrainer:
     def test_single_epoch(self, tmpdir, capsys):
         with capsys.disabled():
             # get device to train on
