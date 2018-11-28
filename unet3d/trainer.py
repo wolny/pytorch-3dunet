@@ -70,22 +70,24 @@ class UNet3DTrainer:
         self.patience = max_patience
 
     @classmethod
-    def from_checkpoint(cls, checkpoint_path, model, optimizer, loss_criterion,
-                        accuracy_criterion, loaders,
-                        validate_after_iters=100, log_after_iters=100,
+    def from_checkpoint(cls, checkpoint_path, model, optimizer, loss_criterion, accuracy_criterion, loaders,
                         logger=None):
         logger.info(f"Loading checkpoint '{checkpoint_path}'...")
         state = utils.load_checkpoint(checkpoint_path, model, optimizer)
         logger.info(
             f"Checkpoint loaded. Epoch: {state['epoch']}. Best val accuracy: {state['best_val_accuracy']}. Num_iterations: {state['num_iterations']}")
         checkpoint_dir = os.path.split(checkpoint_path)[0]
-        return cls(model, optimizer, loss_criterion, accuracy_criterion,
-                   torch.device(state['device']), loaders,
-                   checkpoint_dir, best_val_accuracy=state['best_val_accuracy'],
+        return cls(model, optimizer, loss_criterion, accuracy_criterion, torch.device(state['device']), loaders,
+                   checkpoint_dir,
+                   best_val_accuracy=state['best_val_accuracy'],
                    num_iterations=state['num_iterations'],
                    num_epoch=state['epoch'],
-                   validate_after_iters=validate_after_iters,
-                   log_after_iters=log_after_iters,
+                   max_num_epochs=state['max_num_epochs'],
+                   max_num_iterations=state['max_num_iterations'],
+                   max_patience=state['max_patience'],
+                   validate_after_iters=state['validate_after_iters'],
+                   log_after_iters=state['log_after_iters'],
+                   validate_iters=state['validate_iters'],
                    logger=logger)
 
     def fit(self):
@@ -105,11 +107,6 @@ class UNet3DTrainer:
                 # adjust learning rate when reaching half of the max_patience
                 if self.patience == self.max_patience // 2:
                     self._adjust_learning_rate()
-
-            if self.max_num_iterations < self.num_iterations:
-                self.logger.info(
-                    f'Maximum number of iterations {self.max_num_iterations} exceeded. Finishing training...')
-                break
 
             self.num_epoch += 1
 
@@ -251,7 +248,13 @@ class UNet3DTrainer:
             'model_state_dict': self.model.state_dict(),
             'best_val_accuracy': self.best_val_accuracy,
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'device': str(self.device)
+            'device': str(self.device),
+            'max_num_epochs': self.max_num_epochs,
+            'max_num_iterations': self.max_num_iterations,
+            'validate_after_iters': self.validate_after_iters,
+            'log_after_iters': self.log_after_iters,
+            'validate_iters': self.validate_iters,
+            'max_patience': self.max_patience
         }, is_best, checkpoint_dir=self.checkpoint_dir,
             logger=self.logger)
 

@@ -10,50 +10,94 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from datasets.hdf5 import HDF5Dataset
+from unet3d.losses import DiceCoefficient, WeightedNLLLoss, GeneralizedDiceLoss
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
-from unet3d.utils import DiceCoefficient
 from unet3d.utils import get_logger
 
 
 class TestUNet3DTrainer:
-    def test_single_epoch(self, tmpdir, capsys):
+    def test_nll_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            # get device to train on
-            device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+            trainer = self._train_save_load(tmpdir, 'nll')
 
-            # conv-relu-groupnorm
-            conv_layer_order = 'crg'
+            assert trainer.max_num_epochs == 1
+            assert trainer.log_after_iters == 2
+            assert trainer.validate_after_iters == 2
+            assert trainer.max_num_iterations == 4
 
-            loss_criterion, final_sigmoid = nn.NLLLoss(), False
+    def test_wnll_loss(self, tmpdir, capsys):
+        with capsys.disabled():
+            trainer = self._train_save_load(tmpdir, 'wnll')
 
-            model = self._create_model(final_sigmoid, conv_layer_order)
+            assert trainer.max_num_epochs == 1
+            assert trainer.log_after_iters == 2
+            assert trainer.validate_after_iters == 2
+            assert trainer.max_num_iterations == 4
 
-            accuracy_criterion = DiceCoefficient()
+    def test_bce_loss(self, tmpdir, capsys):
+        with capsys.disabled():
+            trainer = self._train_save_load(tmpdir, 'bce')
 
-            loaders = self._get_loaders()
+            assert trainer.max_num_epochs == 1
+            assert trainer.log_after_iters == 2
+            assert trainer.validate_after_iters == 2
+            assert trainer.max_num_iterations == 4
 
-            learning_rate = 2e-4
-            weight_decay = 0.0001
-            optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    def test_dice_loss(self, tmpdir, capsys):
+        with capsys.disabled():
+            trainer = self._train_save_load(tmpdir, 'dice')
 
-            logger = get_logger('UNet3DTrainer', logging.DEBUG)
-            trainer = UNet3DTrainer(model, optimizer, loss_criterion,
-                                    accuracy_criterion,
-                                    device, loaders, tmpdir,
-                                    max_num_epochs=1,
-                                    log_after_iters=4,
-                                    validate_after_iters=4,
-                                    max_num_iterations=16,
-                                    logger=logger)
+            assert trainer.max_num_epochs == 1
+            assert trainer.log_after_iters == 2
+            assert trainer.validate_after_iters == 2
+            assert trainer.max_num_iterations == 4
 
-            trainer.fit()
+    def _train_save_load(self, tmpdir, loss, max_num_epochs=1, log_after_iters=2, validate_after_iters=2,
+                         max_num_iterations=4):
+        # get device to train on
+        device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+        # conv-relu-groupnorm
+        conv_layer_order = 'crg'
+        loss_criterion, final_sigmoid = self._get_loss_criterion(loss)
+        model = self._create_model(final_sigmoid, conv_layer_order)
+        accuracy_criterion = DiceCoefficient()
+        channel_per_class = loss in ['bce', 'dice']
+        if loss in ['bce', 'dice']:
+            label_dtype = 'float32'
+        else:
+            label_dtype = 'long'
+        loaders = self._get_loaders(channel_per_class=channel_per_class, label_dtype=label_dtype)
+        learning_rate = 2e-4
+        weight_decay = 0.0001
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        logger = get_logger('UNet3DTrainer', logging.DEBUG)
+        trainer = UNet3DTrainer(model, optimizer, loss_criterion,
+                                accuracy_criterion,
+                                device, loaders, tmpdir,
+                                max_num_epochs=max_num_epochs,
+                                log_after_iters=log_after_iters,
+                                validate_after_iters=validate_after_iters,
+                                max_num_iterations=max_num_iterations,
+                                logger=logger)
+        trainer.fit()
+        # test loading the trainer from the checkpoint
+        trainer = UNet3DTrainer.from_checkpoint(
+            os.path.join(tmpdir, 'last_checkpoint.pytorch'),
+            model, optimizer, loss_criterion, accuracy_criterion, loaders,
+            logger=logger)
+        return trainer
 
-            # test loading the trainer from the checkpoint
-            UNet3DTrainer.from_checkpoint(
-                os.path.join(tmpdir, 'last_checkpoint.pytorch'),
-                model, optimizer, loss_criterion, accuracy_criterion, loaders,
-                logger=logger)
+    @staticmethod
+    def _get_loss_criterion(loss):
+        if loss == 'bce':
+            return nn.BCELoss(), True
+        elif loss == 'nll':
+            return nn.NLLLoss(), False
+        elif loss == 'wnll':
+            return WeightedNLLLoss(), False
+        else:
+            return GeneralizedDiceLoss(), True
 
     @staticmethod
     def _create_model(final_sigmoid, layer_order):
@@ -64,29 +108,31 @@ class TestUNet3DTrainer:
                       conv_layer_order=layer_order)
 
     @staticmethod
-    def _create_random_dataset():
+    def _create_random_dataset(train_shape, val_shape, channel_per_class):
         result = []
 
-        for phase in ['train', 'val']:
+        for shape in [train_shape, val_shape]:
             tmp = NamedTemporaryFile(delete=False)
 
             with h5py.File(tmp.name, 'w') as f:
-                if phase == 'train':
-                    size = (128, 128, 128)
+                if channel_per_class:
+                    l_shape = (2,) + shape
                 else:
-                    size = (64, 64, 64)
-                f.create_dataset('raw', data=np.random.rand(*size))
-                f.create_dataset('label', data=np.random.randint(0, 2, size))
+                    l_shape = shape
+                f.create_dataset('raw', data=np.random.rand(*shape))
+                f.create_dataset('label', data=np.random.randint(0, 2, l_shape))
 
             result.append(tmp.name)
 
         return result
 
     @staticmethod
-    def _get_loaders():
-        train, val = TestUNet3DTrainer._create_random_dataset()
-        train_dataset = HDF5Dataset(train, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32), phase='train')
-        val_dataset = HDF5Dataset(val, patch_shape=(64, 64, 64), stride_shape=(64, 64, 64), phase='val')
+    def _get_loaders(channel_per_class, label_dtype):
+        train, val = TestUNet3DTrainer._create_random_dataset((128, 128, 128), (64, 64, 64), channel_per_class)
+        train_dataset = HDF5Dataset(train, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32), phase='train',
+                                    label_dtype=label_dtype)
+        val_dataset = HDF5Dataset(val, patch_shape=(64, 64, 64), stride_shape=(64, 64, 64), phase='val',
+                                  label_dtype=label_dtype)
 
         return {
             'train': DataLoader(train_dataset, batch_size=1, shuffle=True),

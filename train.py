@@ -6,10 +6,9 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from datasets.hdf5 import AugmentedHDF5Dataset, HDF5Dataset
+from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedNLLLoss
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
-from unet3d.utils import DiceCoefficient
-from unet3d.utils import GeneralizedDiceLoss
 from unet3d.utils import get_logger
 from unet3d.utils import get_number_of_learnable_parameters
 
@@ -29,7 +28,7 @@ def _arg_parser():
                         help="Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm",
                         default='crg')
     parser.add_argument('--loss', type=str, required=True,
-                        help='Which loss function to use. Possible values: [bce, nll, dice]. Where bce - BinaryCrossEntropy (binary classification only), nll - NegativeLogLikelihood (multi-class classification), dice - DiceLoss (binary classification only)')
+                        help='Which loss function to use. Possible values: [bce, nll, wnll, dice]. Where bce - BinaryCrossEntropy (binary classification only), nll - NegativeLogLikelihood (multi-class classification), wnll - WeightedNegativeLogLikelihood (multi-class classification), dice - GeneralizedDiceLoss (multi-class classification)')
     parser.add_argument('--loss-weight', type=float, nargs='+', default=None,
                         help='A manual rescaling weight given to each class in case of NLLLoss. E.g. --loss-weight 0.3 0.3 0.4')
     parser.add_argument('--epochs', default=500, type=int,
@@ -90,13 +89,15 @@ def _get_loss_criterion(loss_str, weight=None):
     Returns the loss function together with boolean flag which indicates
     whether to apply an element-wise Sigmoid on the network output
     """
-    LOSSES = ['bce', 'nll', 'dice']
+    LOSSES = ['bce', 'nll', 'wnll', 'dice']
     assert loss_str in LOSSES, f'Invalid loss string: {loss_str}'
 
     if loss_str == 'bce':
         return nn.BCELoss(weight), True
     elif loss_str == 'nll':
         return nn.NLLLoss(weight), False
+    elif loss_str == 'wnll':
+        return WeightedNLLLoss(), False
     else:
         return GeneralizedDiceLoss(), True
 
@@ -155,8 +156,6 @@ def main():
         trainer = UNet3DTrainer.from_checkpoint(args.resume, model,
                                                 optimizer, loss_criterion,
                                                 accuracy_criterion, loaders,
-                                                validate_after_iters=args.validate_after_iters,
-                                                log_after_iters=args.log_after_iters,
                                                 logger=logger)
     else:
         trainer = UNet3DTrainer(model, optimizer, loss_criterion,

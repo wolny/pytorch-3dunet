@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from unet3d.utils import DiceCoefficient, GeneralizedDiceLoss
+from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss
 
 
 class TestCriterion:
