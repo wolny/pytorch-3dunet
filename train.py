@@ -49,10 +49,14 @@ def _arg_parser():
                         help='path to latest checkpoint (default: none); if provided the training will be resumed from that checkpoint')
     parser.add_argument('--train-path', type=str, required=True, help='path to the train dataset')
     parser.add_argument('--val-path', type=str, required=True, help='path to the val dataset')
-    parser.add_argument('--train-patch', type=int, nargs='+', default=None, help='Patch shape for used for training')
-    parser.add_argument('--train-stride', type=int, nargs='+', default=None, help='Patch stride for used for training')
-    parser.add_argument('--val-patch', type=int, nargs='+', default=None, help='Patch shape for used for validation')
-    parser.add_argument('--val-stride', type=int, nargs='+', default=None, help='Patch stride for used for validation')
+    parser.add_argument('--train-patch', required=True, type=int, nargs='+', default=None,
+                        help='Patch shape for used for training')
+    parser.add_argument('--train-stride', required=True, type=int, nargs='+', default=None,
+                        help='Patch stride for used for training')
+    parser.add_argument('--val-patch', required=True, type=int, nargs='+', default=None,
+                        help='Patch shape for used for validation')
+    parser.add_argument('--val-stride', required=True, type=int, nargs='+', default=None,
+                        help='Patch stride for used for validation')
 
     return parser
 
@@ -62,7 +66,7 @@ def _create_model(in_channels, out_channels, layer_order, interpolate, final_sig
                   conv_layer_order=layer_order)
 
 
-def _get_loaders(train_path, val_path, label_dtype):
+def _get_loaders(train_path, val_path, label_dtype, train_patch, train_stride, val_patch, val_stride):
     """
     Returns dictionary containing the  training and validation loaders
     (torch.utils.data.DataLoader) backed by the datasets.hdf5.HDF5Dataset
@@ -77,10 +81,10 @@ def _get_loaders(train_path, val_path, label_dtype):
     """
 
     # create H5 backed training dataset with data augmentation
-    train_dataset = AugmentedHDF5Dataset(train_path, (32, 64, 64), (16, 32, 32), phase='train', label_dtype=label_dtype)
+    train_dataset = AugmentedHDF5Dataset(train_path, train_patch, train_stride, phase='train', label_dtype=label_dtype)
 
     # create H5 backed validation dataset
-    val_dataset = HDF5Dataset(val_path, (32, 64, 64), (32, 64, 64), phase='val', label_dtype=label_dtype)
+    val_dataset = HDF5Dataset(val_path, val_patch, val_stride, phase='val', label_dtype=label_dtype)
 
     return {
         'train': DataLoader(train_dataset, batch_size=1, shuffle=True),
@@ -151,7 +155,17 @@ def main():
         label_dtype = 'float32'
     else:
         label_dtype = 'long'
-    loaders = _get_loaders(train_path, val_path, label_dtype=label_dtype)
+
+    train_patch = tuple(args.train_patch)
+    train_stride = tuple(args.train_stride)
+    val_patch = tuple(args.val_patch)
+    val_stride = tuple(args.val_stride)
+
+    logger.info(f'Train patch/stride: {train_patch}/{train_stride}')
+    logger.info(f'Val patch/stride: {val_patch}/{val_stride}')
+
+    loaders = _get_loaders(train_path, val_path, label_dtype=label_dtype, train_patch=train_patch,
+                           train_stride=train_stride, val_patch=val_patch, val_stride=val_stride)
 
     # Create the optimizer
     optimizer = _create_optimizer(args, model)
