@@ -29,7 +29,7 @@ class TestUNet3DTrainer:
 
             model = self._create_model(final_sigmoid, conv_layer_order)
 
-            error_criterion = DiceCoefficient()
+            accuracy_criterion = DiceCoefficient()
 
             loaders = self._get_loaders()
 
@@ -39,7 +39,7 @@ class TestUNet3DTrainer:
 
             logger = get_logger('UNet3DTrainer', logging.DEBUG)
             trainer = UNet3DTrainer(model, optimizer, loss_criterion,
-                                    error_criterion,
+                                    accuracy_criterion,
                                     device, loaders, tmpdir,
                                     max_num_epochs=1,
                                     log_after_iters=4,
@@ -52,7 +52,7 @@ class TestUNet3DTrainer:
             # test loading the trainer from the checkpoint
             UNet3DTrainer.from_checkpoint(
                 os.path.join(tmpdir, 'last_checkpoint.pytorch'),
-                model, optimizer, loss_criterion, error_criterion, loaders,
+                model, optimizer, loss_criterion, accuracy_criterion, loaders,
                 logger=logger)
 
     @staticmethod

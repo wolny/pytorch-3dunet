@@ -137,8 +137,8 @@ def main():
     # Log the number of learnable parameters
     logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
 
-    # Create error metric
-    error_criterion = DiceCoefficient()
+    # Create accuracy metric
+    accuracy_criterion = DiceCoefficient()
 
     # Get data loaders. If 'bce' or 'dice' loss is used, convert labels to float
     train_path, val_path = args.train_path, args.val_path
@@ -154,13 +154,13 @@ def main():
     if args.resume:
         trainer = UNet3DTrainer.from_checkpoint(args.resume, model,
                                                 optimizer, loss_criterion,
-                                                error_criterion, loaders,
+                                                accuracy_criterion, loaders,
                                                 validate_after_iters=args.validate_after_iters,
                                                 log_after_iters=args.log_after_iters,
                                                 logger=logger)
     else:
         trainer = UNet3DTrainer(model, optimizer, loss_criterion,
-                                error_criterion,
+                                accuracy_criterion,
                                 device, loaders, args.checkpoint_dir,
                                 max_num_epochs=args.epochs,
                                 max_num_iterations=args.iters,

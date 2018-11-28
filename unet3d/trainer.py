@@ -15,8 +15,8 @@ class UNet3DTrainer:
         model (Unet3D): UNet 3D model to be trained
         optimizer (nn.optim.Optimizer): optimizer used for training
         loss_criterion (callable): loss function
-        error_criterion (callable): used to compute training/validation error
-            best checkpoint is based on the result of this function
+        accuracy_criterion (callable): used to compute training/validation accuracy (such as Dice or Rand score)
+            saving the best checkpoint is based on the result of this function on the validation set
         device (torch.device): device to train on
         loaders (dict): 'train' and 'val' loaders
         checkpoint_dir (string): dir for saving checkpoints and tensorboard logs
@@ -28,16 +28,16 @@ class UNet3DTrainer:
         log_after_iters (int): number of iterations before logging to tensorboard
         validate_iters (int): number of validation iterations, if None validate
             on the whole validation set
-        best_val_error (float): best validation error so far (higher better)
+        best_val_accuracy (float): best validation accuracy so far (higher better)
         num_iterations (int): useful when loading the model from the checkpoint
         num_epoch (int): useful when loading the model from the checkpoint
     """
 
-    def __init__(self, model, optimizer, loss_criterion, error_criterion,
+    def __init__(self, model, optimizer, loss_criterion, accuracy_criterion,
                  device, loaders, checkpoint_dir,
                  max_num_epochs=200, max_num_iterations=1e5, max_patience=20,
                  validate_after_iters=100, log_after_iters=100,
-                 validate_iters=None, best_val_error=float('-inf'),
+                 validate_iters=None, best_val_accuracy=float('-inf'),
                  num_iterations=0, num_epoch=0, logger=None):
         if logger is None:
             self.logger = utils.get_logger('UNet3DTrainer', level=logging.DEBUG)
@@ -50,7 +50,7 @@ class UNet3DTrainer:
 
         self.optimizer = optimizer
         self.loss_criterion = loss_criterion
-        self.error_criterion = error_criterion
+        self.accuracy_criterion = accuracy_criterion
         self.device = device
         self.loaders = loaders
         self.checkpoint_dir = checkpoint_dir
@@ -59,7 +59,7 @@ class UNet3DTrainer:
         self.validate_after_iters = validate_after_iters
         self.log_after_iters = log_after_iters
         self.validate_iters = validate_iters
-        self.best_val_error = best_val_error
+        self.best_val_accuracy = best_val_accuracy
         self.writer = SummaryWriter(
             log_dir=os.path.join(checkpoint_dir, 'logs'))
 
@@ -71,17 +71,17 @@ class UNet3DTrainer:
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path, model, optimizer, loss_criterion,
-                        error_criterion, loaders,
+                        accuracy_criterion, loaders,
                         validate_after_iters=100, log_after_iters=100,
                         logger=None):
         logger.info(f"Loading checkpoint '{checkpoint_path}'...")
         state = utils.load_checkpoint(checkpoint_path, model, optimizer)
         logger.info(
-            f"Checkpoint loaded. Epoch: {state['epoch']}. Best val error: {state['best_val_error']}. Num_iterations: {state['num_iterations']}")
+            f"Checkpoint loaded. Epoch: {state['epoch']}. Best val accuracy: {state['best_val_accuracy']}. Num_iterations: {state['num_iterations']}")
         checkpoint_dir = os.path.split(checkpoint_path)[0]
-        return cls(model, optimizer, loss_criterion, error_criterion,
+        return cls(model, optimizer, loss_criterion, accuracy_criterion,
                    torch.device(state['device']), loaders,
-                   checkpoint_dir, best_val_error=state['best_val_error'],
+                   checkpoint_dir, best_val_accuracy=state['best_val_accuracy'],
                    num_iterations=state['num_iterations'],
                    num_epoch=state['epoch'],
                    validate_after_iters=validate_after_iters,
@@ -100,7 +100,7 @@ class UNet3DTrainer:
                 if self.patience <= 0:
                     # early stop the training
                     self.logger.info(
-                        f'Validation error did not improve for the last {self.max_patience} epochs. Early stopping...')
+                        f'Validation accuracy did not improve for the last {self.max_patience} epochs. Early stopping...')
                     break
                 # adjust learning rate when reaching half of the max_patience
                 if self.patience == self.max_patience // 2:
@@ -124,7 +124,7 @@ class UNet3DTrainer:
             False otherwise
         """
         train_losses = utils.RunningAverage()
-        train_errors = utils.RunningAverage()
+        train_accuracy = utils.RunningAverage()
 
         # sets the model in training mode
         self.model.train()
@@ -145,14 +145,14 @@ class UNet3DTrainer:
             loss = self.loss_criterion(output, target)
 
             # if the labels in the target are stored in the single channel (e.g. when CrossEntropyLoss is used)
-            # put the in the separate channels for error criterion computation and tensorboard logging
+            # put the in the separate channels for accuracy criterion computation and tensorboard logging
             if target.dim() == 4:
                 target = self._expand_target(target, output.size()[1])
-            # compute the error criterion
-            error = self.error_criterion(output, target)
+            # compute the accuracy criterion
+            accuracy = self.accuracy_criterion(output, target)
 
             train_losses.update(loss.item(), input.size(0))
-            train_errors.update(error.item(), input.size(0))
+            train_accuracy.update(accuracy.item(), input.size(0))
 
             # compute gradients and update parameters
             self.optimizer.zero_grad()
@@ -164,17 +164,17 @@ class UNet3DTrainer:
             if self.num_iterations % self.log_after_iters == 0:
                 # log stats, params and images
                 self.logger.info(
-                    f'Training stats. Loss {train_losses.avg}. Error {train_errors.avg}')
-                self._log_stats('train', train_losses.avg, train_errors.avg)
+                    f'Training stats. Loss: {train_losses.avg}. Accuracy: {train_accuracy.avg}')
+                self._log_stats('train', train_losses.avg, train_accuracy.avg)
                 self._log_params()
                 self._log_images(input, target, output)
 
             if self.num_iterations % self.validate_after_iters == 0:
                 # evaluate on validation set
-                val_error = self.validate(self.loaders['val'])
+                val_accuracy = self.validate(self.loaders['val'])
 
                 # remember best validation metric
-                is_best = self._is_best_val_error(val_error)
+                is_best = self._is_best_val_accuracy(val_accuracy)
                 # update the return value
                 best_model_found |= is_best
 
@@ -190,7 +190,7 @@ class UNet3DTrainer:
         self.logger.info('Validating...')
 
         val_losses = utils.RunningAverage()
-        val_errors = utils.RunningAverage()
+        val_accuracy = utils.RunningAverage()
 
         self.model.eval()
         try:
@@ -206,19 +206,19 @@ class UNet3DTrainer:
                     loss = self.loss_criterion(output, target)
                     if target.dim() == 4:
                         target = self._expand_target(target, output.size()[1])
-                    error = self.error_criterion(output, target)
+                    accuracy = self.accuracy_criterion(output, target)
 
                     val_losses.update(loss.item(), input.size(0))
-                    val_errors.update(error.item(), input.size(0))
+                    val_accuracy.update(accuracy.item(), input.size(0))
 
                     if i == self.validate_iters:
                         # stop validation
                         break
 
-                self._log_stats('val', val_losses.avg, val_errors.avg)
+                self._log_stats('val', val_losses.avg, val_accuracy.avg)
                 self.logger.info(
-                    f'Validation finished. Loss {val_losses.avg}. Error {val_errors.avg}')
-                return val_errors.avg
+                    f'Validation finished. Loss: {val_losses.avg}. Accuracy: {val_accuracy.avg}')
+                return val_accuracy.avg
         finally:
             self.model.train()
 
@@ -236,12 +236,12 @@ class UNet3DTrainer:
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = new_lr
 
-    def _is_best_val_error(self, val_error):
-        is_best = val_error > self.best_val_error
+    def _is_best_val_accuracy(self, val_accuracy):
+        is_best = val_accuracy > self.best_val_accuracy
         if is_best:
             self.logger.info(
-                f'Saving new best validation error: {val_error}')
-        self.best_val_error = max(val_error, self.best_val_error)
+                f'Saving new best validation accuracy: {val_accuracy}')
+        self.best_val_accuracy = max(val_accuracy, self.best_val_accuracy)
         return is_best
 
     def _save_checkpoint(self, is_best):
@@ -249,16 +249,16 @@ class UNet3DTrainer:
             'epoch': self.num_epoch + 1,
             'num_iterations': self.num_iterations,
             'model_state_dict': self.model.state_dict(),
-            'best_val_error': self.best_val_error,
+            'best_val_accuracy': self.best_val_accuracy,
             'optimizer_state_dict': self.optimizer.state_dict(),
             'device': str(self.device)
         }, is_best, checkpoint_dir=self.checkpoint_dir,
             logger=self.logger)
 
-    def _log_stats(self, phase, loss_avg, error_avg):
+    def _log_stats(self, phase, loss_avg, accuracy_avg):
         tag_value = {
             f'{phase}_loss_avg': loss_avg,
-            f'{phase}_error_avg': error_avg
+            f'{phase}_accuracy_avg': accuracy_avg
         }
 
         for tag, value in tag_value.items():
