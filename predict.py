@@ -34,6 +34,7 @@ def predict(model, dataset, dataset_shape, device):
     else:
         volume_shape = dataset_shape[1:]
     probability_maps_shape = (out_channels,) + volume_shape
+    logger.info(f'Shape of the output probability map: {probability_maps_shape}')
     # initialize the output prediction array
     probability_maps = np.zeros(probability_maps_shape, dtype='float32')
 
@@ -65,46 +66,27 @@ def predict(model, dataset, dataset_shape, device):
     return probability_maps / normalization_mask
 
 
-def save_predictions(probability_maps, output_file, average_all_channels=True):
+def save_predictions(probability_maps, output_file, average_channels):
     """
-    Saving probability maps to a given output H5 file. If 'average_all_channels'
-    is set to True average the probability_maps across the the channel axis,
-    otherwise average out 3 consecutive channels from probability_maps
-    (this is because the output channels from the model predict edge affinities
-    in different axis and different offsets, e.g. for two offsets 'd1' and 'd2'
-    we would have 6 channels corresponding to different axis/offset combination:
-    x_d1, y_d1, z_d1, x_d2, y_d2, z_d2. When averaged it would produce output
-    channels one for 'd1' and one for 'd2') and write them to separate datasets
-    in the output H5 file.
+    Saving probability maps to a given output H5 file. If 'average_channels'
+    is set to True average the probability_maps across the the channel axis
+    (useful in case where each channel predicts semantically the same thing).
 
     Args:
         probability_maps (numpy.ndarray): numpy array containing probability
-            maps in separate channels
+            maps for each class in separate channels
         output_file (string): path to the output H5 file
-        average_all_channels (bool): if True average of the channels in the
-            probability_maps otherwise average 3 consecutive channels from
-            probability_maps
+        average_channels (bool): if True average out the channels in the probability_maps otherwise
+            keep the channels separate
     """
     logger.info(f'Saving predictions to: {output_file}')
 
-    def _dataset_dict():
-        result = {}
-        if average_all_channels:
-            result['probability_maps'] = np.mean(probability_maps, axis=0)
-        else:
-            out_channels = probability_maps.shape[0]
-            # iterate 3 channels at a time
-            for i, c in enumerate(range(0, out_channels, 3)):
-                # average 3 consecutive channels
-                avg_probs = np.mean(probability_maps[c:c + 3, ...], axis=0)
-                result[f'probability_maps{i}'] = avg_probs
-        return result
-
     with h5py.File(output_file, "w") as output_h5:
-        for k, v in _dataset_dict().items():
-            logger.info(f'Creating dataset {k}')
-            output_h5.create_dataset(k, data=v, dtype=v.dtype,
-                                     compression="gzip")
+        if average_channels:
+            probability_maps = np.mean(probability_maps, axis=0)
+        dataset_name = 'probability_maps'
+        logger.info(f"Creating dataset '{dataset_name}'")
+        output_h5.create_dataset(dataset_name, data=probability_maps, dtype=probability_maps.dtype, compression="gzip")
 
 
 def _final_sigmoid(loss):
@@ -122,6 +104,9 @@ def main():
                         help='number of output channels')
     parser.add_argument('--interpolate',
                         help='use F.interpolate instead of ConvTranspose3d',
+                        action='store_true')
+    parser.add_argument('--average-channels',
+                        help='average the probability_maps across the the channel axis (use only if your channels refer to the same semantic class)',
                         action='store_true')
     parser.add_argument('--layer-order', type=str,
                         help="Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm",
@@ -165,9 +150,9 @@ def main():
     dataset = HDF5Dataset(args.test_path, patch, stride, phase='test')
     probability_maps = predict(model, dataset, dataset.raw.shape, device)
 
-    output_file = os.path.join(os.path.split(args.model_path)[0], 'probabilities.h5')
+    output_file = f'{os.path.splitext(args.test_path)[0]}_probabilities.h5'
 
-    save_predictions(probability_maps, output_file)
+    save_predictions(probability_maps, output_file, args.average_channels)
 
 
 if __name__ == '__main__':
