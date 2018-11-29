@@ -131,7 +131,9 @@ Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 86
 ![3dunet-training](https://user-images.githubusercontent.com/706781/45916217-9626d580-be62-11e8-95c3-508e2719c915.png)
 
 ### IMPORTANT
-In order to train with `BinaryCrossEntropy` or `GeneralizedDiceLoss` the label data has to be 4D! (one target binary mask per channel).
+In order to train with `BinaryCrossEntropy` the label data has to be 4D! (one target binary mask per channel).
+
+`GeneralizedDiceLoss` supports both 3D and 4D target (if the target is 3D it will be automatically expanded to 4D, i.e. each class in separate channel, before applying the loss).
 
 E.g. fit to randomly generated 3D volume and random 4D target volume (3 target channels containing random 3D binary masks) from [random_label4D.h5](resources/random_label4D.h5):
 ```

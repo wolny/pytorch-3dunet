@@ -62,7 +62,7 @@ class TestUNet3DTrainer:
         loss_criterion, final_sigmoid = self._get_loss_criterion(loss)
         model = self._create_model(final_sigmoid, conv_layer_order)
         accuracy_criterion = DiceCoefficient(not final_sigmoid)
-        channel_per_class = loss in ['bce', 'dice']
+        channel_per_class = loss == 'bce'
         if loss in ['bce', 'dice']:
             label_dtype = 'float32'
         else:
