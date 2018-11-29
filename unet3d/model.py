@@ -59,7 +59,7 @@ class UNet3D(nn.Module):
         if final_sigmoid:
             self.final_activation = nn.Sigmoid()
         else:
-            self.final_activation = nn.LogSoftmax()
+            self.final_activation = None
 
     def forward(self, x):
         # encoder part
@@ -81,7 +81,8 @@ class UNet3D(nn.Module):
 
         x = self.final_conv(x)
 
-        x = self.final_activation(x)
+        if self.final_activation is not None:
+            x = self.final_activation(x)
 
         return x
 

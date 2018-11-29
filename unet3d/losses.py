@@ -18,18 +18,25 @@ def flatten(tensor):
     return transposed.view(C, -1)
 
 
-class DiceCoefficient(nn.Module):
-    """Computes Dice Coefficient
+class DiceCoefficient:
+    """Computes Dice Coefficient.
     Generalized to multiple channels by computing per-channel Dice Score
     (as described in https://arxiv.org/pdf/1707.03237.pdf) and then simply taking the average.
+    Since it's not a loss function, no need to compute gradients and thus no need to subclass nn.Module.
     """
 
-    def __init__(self, epsilon=1e-5):
-        super(DiceCoefficient, self).__init__()
+    def __init__(self, should_normalize=False, epsilon=1e-5):
+        if should_normalize:
+            self.normalizer = nn.Softmax()
+        else:
+            self.normalizer = None
         self.epsilon = epsilon
 
-    def forward(self, input, target):
+    def __call__(self, input, target):
         assert input.size() == target.size(), "'input' and 'target' must have the same shape"
+
+        if self.normalizer is not None:
+            input = self.normalizer(input)
 
         input = flatten(input)
         target = flatten(target)
@@ -41,12 +48,13 @@ class DiceCoefficient(nn.Module):
         return torch.mean(2. * intersect / denominator)
 
 
-class GeneralizedDiceLoss(DiceCoefficient):
+class GeneralizedDiceLoss(nn.Module):
     """Computes Generalized Dice Loss (GDL) as described in https://arxiv.org/pdf/1707.03237.pdf
     """
 
     def __init__(self, epsilon=1e-5):
-        super(GeneralizedDiceLoss, self).__init__(epsilon)
+        super(GeneralizedDiceLoss, self).__init__()
+        self.epsilon = epsilon
 
     def forward(self, input, target):
         assert input.size() == target.size(), "'input' and 'target' must have the same shape"
@@ -64,13 +72,20 @@ class GeneralizedDiceLoss(DiceCoefficient):
         return 1 - 2. * intersect / denominator
 
 
-class WeightedNLLLoss(nn.Module):
+class WeightedCrossEntropyLoss(nn.Module):
     def __init__(self):
-        super(WeightedNLLLoss, self).__init__()
+        super(WeightedCrossEntropyLoss, self).__init__()
 
     def forward(self, input, target):
+        class_weights = self._class_weights(input)
+        return F.cross_entropy(input, target, weight=class_weights)
+
+    @staticmethod
+    def _class_weights(input):
+        # normalize the input first
+        input = F.softmax(input, _stacklevel=5)
         flattened = flatten(input)
         nominator = (1. - flattened).sum(-1)
         denominator = flattened.sum(-1)
         class_weights = Variable(nominator / denominator, requires_grad=False)
-        return F.nll_loss(input, target, weight=class_weights)
+        return class_weights

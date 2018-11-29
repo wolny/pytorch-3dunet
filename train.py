@@ -6,7 +6,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from datasets.hdf5 import AugmentedHDF5Dataset, HDF5Dataset
-from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedNLLLoss
+from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedCrossEntropyLoss
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger
@@ -28,9 +28,9 @@ def _arg_parser():
                         help="Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm",
                         default='crg')
     parser.add_argument('--loss', type=str, required=True,
-                        help='Which loss function to use. Possible values: [bce, nll, wnll, dice]. Where bce - BinaryCrossEntropy (binary classification only), nll - NegativeLogLikelihood (multi-class classification), wnll - WeightedNegativeLogLikelihood (multi-class classification), dice - GeneralizedDiceLoss (multi-class classification)')
+                        help='Which loss function to use. Possible values: [bce, ce, wce, dice]. Where bce - BinaryCrossEntropyLoss (binary classification only), ce - CrossEntropyLoss (multi-class classification), wce - WeightedCrossEntropyLoss (multi-class classification), dice - GeneralizedDiceLoss (multi-class classification)')
     parser.add_argument('--loss-weight', type=float, nargs='+', default=None,
-                        help='A manual rescaling weight given to each class in case of NLLLoss or BCELoss. E.g. --loss-weight 0.3 0.3 0.4')
+                        help='A manual rescaling weight given to each class. Can be used with CrossEntropy or BCELoss. E.g. --loss-weight 0.3 0.3 0.4')
     parser.add_argument('--epochs', default=500, type=int,
                         help='max number of epochs (default: 500)')
     parser.add_argument('--iters', default=1e5, type=int,
@@ -97,15 +97,15 @@ def _get_loss_criterion(loss_str, weight=None):
     Returns the loss function together with boolean flag which indicates
     whether to apply an element-wise Sigmoid on the network output
     """
-    LOSSES = ['bce', 'nll', 'wnll', 'dice']
+    LOSSES = ['ce', 'bce', 'wce', 'dice']
     assert loss_str in LOSSES, f'Invalid loss string: {loss_str}'
 
     if loss_str == 'bce':
         return nn.BCELoss(weight), True
-    elif loss_str == 'nll':
-        return nn.NLLLoss(weight), False
-    elif loss_str == 'wnll':
-        return WeightedNLLLoss(), False
+    elif loss_str == 'ce':
+        return nn.CrossEntropyLoss(weight), False
+    elif loss_str == 'wce':
+        return WeightedCrossEntropyLoss(), False
     else:
         return GeneralizedDiceLoss(), True
 
@@ -147,7 +147,7 @@ def main():
     logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
 
     # Create accuracy metric
-    accuracy_criterion = DiceCoefficient()
+    accuracy_criterion = _get_accuracy_criterion(not final_sigmoid)
 
     # Get data loaders. If 'bce' or 'dice' loss is used, convert labels to float
     train_path, val_path = args.train_path, args.val_path
@@ -187,6 +187,16 @@ def main():
                                 logger=logger)
 
     trainer.fit()
+
+
+def _get_accuracy_criterion(should_normalize):
+    """
+    Returns the segmentation's accuracy metric. Specify whether the criterion's input (model's output) should be normalized
+    with nn.Softmax in order to obtain a valid probability distribution.
+    :param should_normalize: whether or not to normalize the input
+    :return: Dice coefficient callable
+    """
+    return DiceCoefficient(should_normalize)
 
 
 if __name__ == '__main__':

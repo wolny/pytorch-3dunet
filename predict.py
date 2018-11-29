@@ -108,13 +108,8 @@ def save_predictions(probability_maps, output_file, average_all_channels=True):
 
 
 def _final_sigmoid(loss):
-    assert loss in ['bce', 'nll', 'dice']
-    if loss == 'bce':
-        return True
-    elif loss == 'nll':
-        return False
-    else:
-        return True
+    assert loss in ['ce', 'bce', 'wce', 'dice']
+    return loss in ['bce', 'dice']
 
 
 def main():
@@ -132,7 +127,7 @@ def main():
                         help="Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm",
                         default='crg')
     parser.add_argument('--loss', type=str, required=True,
-                        help='Loss function used for training. Possible values: [bce, nll, dice]. Has to be provided cause loss determines the final activation of the model.')
+                        help='Loss function used for training. Possible values: [ce, bce, wce, dice]. Has to be provided cause loss determines the final activation of the model.')
     parser.add_argument('--test-path', type=str, required=True, help='path to the test dataset')
     parser.add_argument('--patch', required=True, type=int, nargs='+', default=None,
                         help='Patch shape for used for prediction on the test set')

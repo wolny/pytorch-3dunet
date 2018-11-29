@@ -10,25 +10,25 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from datasets.hdf5 import HDF5Dataset
-from unet3d.losses import DiceCoefficient, WeightedNLLLoss, GeneralizedDiceLoss
+from unet3d.losses import DiceCoefficient, WeightedCrossEntropyLoss, GeneralizedDiceLoss
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger
 
 
 class TestUNet3DTrainer:
-    def test_nll_loss(self, tmpdir, capsys):
+    def test_ce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'nll')
+            trainer = self._train_save_load(tmpdir, 'ce')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
             assert trainer.validate_after_iters == 2
             assert trainer.max_num_iterations == 4
 
-    def test_wnll_loss(self, tmpdir, capsys):
+    def test_wce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'wnll')
+            trainer = self._train_save_load(tmpdir, 'wce')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -61,7 +61,7 @@ class TestUNet3DTrainer:
         conv_layer_order = 'crg'
         loss_criterion, final_sigmoid = self._get_loss_criterion(loss)
         model = self._create_model(final_sigmoid, conv_layer_order)
-        accuracy_criterion = DiceCoefficient()
+        accuracy_criterion = DiceCoefficient(not final_sigmoid)
         channel_per_class = loss in ['bce', 'dice']
         if loss in ['bce', 'dice']:
             label_dtype = 'float32'
@@ -92,10 +92,10 @@ class TestUNet3DTrainer:
     def _get_loss_criterion(loss):
         if loss == 'bce':
             return nn.BCELoss(), True
-        elif loss == 'nll':
-            return nn.NLLLoss(), False
-        elif loss == 'wnll':
-            return WeightedNLLLoss(), False
+        elif loss == 'ce':
+            return nn.CrossEntropyLoss(), False
+        elif loss == 'wce':
+            return WeightedCrossEntropyLoss(), False
         else:
             return GeneralizedDiceLoss(), True
 
