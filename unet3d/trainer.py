@@ -108,6 +108,7 @@ class UNet3DTrainer:
                 # adjust learning rate when reaching half of the max_patience
                 if self.patience == self.max_patience // 2:
                     self._adjust_learning_rate()
+                    self.patience = self.max_patience
 
             self.num_epoch += 1
 
