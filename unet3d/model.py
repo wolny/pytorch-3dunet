@@ -185,8 +185,7 @@ class Encoder(nn.Module):
                  is_max_pool=True,
                  max_pool_kernel_size=(2, 2, 2), conv_layer_order='crg'):
         super(Encoder, self).__init__()
-        self.max_pool = nn.MaxPool3d(
-            kernel_size=max_pool_kernel_size) if is_max_pool else None
+        self.max_pool = nn.MaxPool3d(kernel_size=max_pool_kernel_size, padding=1) if is_max_pool else None
         self.double_conv = DoubleConv(in_channels, out_channels,
                                       kernel_size=conv_kernel_size,
                                       order=conv_layer_order)
