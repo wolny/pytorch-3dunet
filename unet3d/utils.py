@@ -51,7 +51,9 @@ def load_checkpoint(checkpoint_path, model, optimizer=None):
     """
     if not os.path.exists(checkpoint_path):
         raise IOError(f"Checkpoint '{checkpoint_path}' does not exist")
-    state = torch.load(checkpoint_path)
+
+    device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+    state = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(state['model_state_dict'])
 
     if optimizer is not None:
@@ -114,3 +116,35 @@ def find_maximum_patch_size(model, device):
 
         logger.info(f"Current patch size: {shape}")
         model(patch)
+
+
+def unpad(probs, index, shape, pad_width=4):
+    def _new_slices(slicing, max_size):
+        if slicing.start == 0:
+            p_start = 0
+            i_start = 0
+        else:
+            p_start = pad_width
+            i_start = slicing.start + pad_width
+
+        if slicing.stop == max_size:
+            p_stop = None
+            i_stop = max_size
+        else:
+            p_stop = -pad_width
+            i_stop = slicing.stop - pad_width
+
+        return slice(p_start, p_stop), slice(i_start, i_stop)
+
+    D, H, W = shape
+
+    i_c, i_z, i_y, i_x = index
+    p_c = slice(0, probs.shape[0])
+
+    p_z, i_z = _new_slices(i_z, D)
+    p_y, i_y = _new_slices(i_y, H)
+    p_x, i_x = _new_slices(i_x, W)
+
+    probs_index = (p_c, p_z, p_y, p_x)
+    index = (i_c, i_z, i_y, i_x)
+    return probs[probs_index], index

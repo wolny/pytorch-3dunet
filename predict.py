@@ -43,12 +43,12 @@ def predict(model, dataset, dataset_shape, device):
     normalization_mask = np.zeros(probability_maps_shape, dtype='float32')
 
     with torch.no_grad():
-        for patch, index_spec in dataset:
-            logger.info(f'Predicting slice:{index_spec}')
+        for patch, index in dataset:
+            logger.info(f'Predicting slice:{index}')
 
             # save patch index: (C,) + (D,H,W)
             channel_slice = slice(0, out_channels)
-            index = (channel_slice,) + index_spec
+            index = (channel_slice,) + index
 
             # convert patch to torch tensor NxCxDxHxW and send to device
             # we're using batch size of 1
@@ -58,6 +58,8 @@ def predict(model, dataset, dataset_shape, device):
             probs = model(patch)
             # convert back to numpy array
             probs = probs.squeeze().cpu().numpy()
+            # unpad in order to avoid block artifacts in the output probability maps
+            probs, index = utils.unpad(probs, index, volume_shape)
             # accumulate probabilities into the output prediction array
             probability_maps[index] += probs
             # count voxel visits for normalization
