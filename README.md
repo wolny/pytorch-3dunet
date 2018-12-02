@@ -21,7 +21,7 @@ PyTorch implementation of 3D U-Net based on:
 
 Setup a new conda environment with the required dependencies via:
 ```
-conda create -n 3dunet pytorch torchvision tensorboardx h5py pytest -c conda-forge
+conda create -n 3dunet pytorch torchvision tensorboardx h5py pytest -c conda-forge -c pytorch
 ``` 
 Activate newly created conda environment via:
 ```
