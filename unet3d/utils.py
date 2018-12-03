@@ -118,7 +118,7 @@ def find_maximum_patch_size(model, device):
         model(patch)
 
 
-def unpad(probs, index, shape, pad_width=4):
+def unpad(probs, index, shape, pad_width=8):
     def _new_slices(slicing, max_size):
         if slicing.start == 0:
             p_start = 0

@@ -170,7 +170,7 @@ optional arguments:
 Test on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/random_label3D.h5). 
 See [predict.py](predict.py) for more info.
 ```
-python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --loss ce --interpolate --layer-order crg --test-path resources/random_label3D.h5 --patch 64 128 128 --stride 50 100 100
+python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --loss ce --interpolate --test-path resources/random_label3D.h5 --patch 64 128 128 --stride 32 64 64
 ```
 Prediction masks will be saved to `~/3dunet/probabilities.h5`.
 
@@ -178,8 +178,8 @@ In order to predict your own raw dataset provide the path to your HDF5 test data
 
 In order to predict with the network trained with `BinaryCrossEntropy` or `GeneralizedDiceLoss` on the randomly generated 3D volume:
 ```
-python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 3 --interpolate --loss bce --test-path resources/random_label4D.h5 -patch 64 128 128 --stride 50 100 100
+python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 3 --interpolate --loss bce --test-path resources/random_label4D.h5 -patch 64 128 128 --stride 32 64 64
 ```
 
 ### IMPORTANT
-In order to avoid block artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `--patch 64 128 128 --stride 50 114 114` will give you a 'halo' of 14 voxels in each direction
+In order to avoid block artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `--patch 64 128 128 --stride 32 96 96` will give you a 'halo' of 32 voxels in each direction.
