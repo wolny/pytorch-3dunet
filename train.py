@@ -15,8 +15,7 @@ from unet3d.utils import get_number_of_learnable_parameters
 
 def _arg_parser():
     parser = argparse.ArgumentParser(description='UNet3D training')
-    parser.add_argument('--checkpoint-dir', required=True,
-                        help='checkpoint directory')
+    parser.add_argument('--checkpoint-dir', help='checkpoint directory')
     parser.add_argument('--in-channels', required=True, type=int,
                         help='number of input channels')
     parser.add_argument('--out-channels', required=True, type=int,
