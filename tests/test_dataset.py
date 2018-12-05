@@ -56,6 +56,20 @@ class TestHDF5Dataset:
             for i in range(label.shape[0]):
                 assert np.allclose(img, label[i])
 
+    def test_label_to_boundary(self):
+        size = 20
+        label = np.ones((size, size, size), dtype=np.int)
+        for i in range(size):
+            for j in range(size):
+                for k in range(size):
+                    if i + j > 2 * k:
+                        label[i, j, k] = 3
+
+        transform = transforms.LabelToBoundary(axes=(0, 1, 2), offsets=(1, 2, 4))
+        result = transform(label)
+        assert result.shape == label.shape
+        assert np.array_equal(np.unique(result), [0, 1])
+
 
 class CustomAugmentation(HDF5Dataset):
     def get_transforms(self, phase):
@@ -63,11 +77,13 @@ class CustomAugmentation(HDF5Dataset):
         raw_transform = Compose([
             transforms.RandomFlip(np.random.RandomState(seed)),
             transforms.RandomRotate90(np.random.RandomState(seed)),
+            transforms.RandomRotate(np.random.RandomState(seed), angle_spectrum=30),
             transforms.ToTensor(expand_dims=True)
         ])
         label_transform = Compose([
             transforms.RandomFlip(np.random.RandomState(seed)),
             transforms.RandomRotate90(np.random.RandomState(seed)),
+            transforms.RandomRotate(np.random.RandomState(seed), angle_spectrum=30),
             transforms.ToTensor(expand_dims=False)
         ])
 
