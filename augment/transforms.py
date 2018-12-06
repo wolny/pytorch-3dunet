@@ -200,7 +200,7 @@ class BaseTransformer:
     Base transformer class used for data augmentation.
     """
 
-    def __init__(self, mean, std, phase, label_dtype):
+    def __init__(self, mean, std, phase, label_dtype, **kwargs):
         self.mean = mean
         self.std = std
         self.phase = phase
@@ -223,8 +223,8 @@ class BaseTransformer:
         return raw_transform, label_transform
 
     @classmethod
-    def create(cls, mean, std, phase, label_dtype):
-        return cls(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
+    def create(cls, mean, std, phase, label_dtype, **kwargs):
+        return cls(mean, std, phase, label_dtype, **kwargs)
 
 
 class StandardTransformer(BaseTransformer):
@@ -248,6 +248,11 @@ class StandardTransformer(BaseTransformer):
 
 
 class ExtendedTransformer(BaseTransformer):
+    def __init__(self, mean, std, phase, label_dtype, **kwargs):
+        super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
+        assert 'angle_spectrum' in kwargs, "'angle_spectrum' argument required"
+        self.angle_spectrum = kwargs['angle_spectrum']
+
     def get_transforms(self):
         seed = 47
         if self.phase == 'train':
@@ -255,13 +260,13 @@ class ExtendedTransformer(BaseTransformer):
                 Normalize(self.mean, self.std),
                 RandomFlip(np.random.RandomState(seed)),
                 RandomRotate90(np.random.RandomState(seed)),
-                RandomRotate(np.random.RandomState(seed), angle_spectrum=30),
+                RandomRotate(np.random.RandomState(seed), angle_spectrum=self.angle_spectrum),
                 ToTensor(expand_dims=True)
             ])
             label_transform = Compose([
                 RandomFlip(np.random.RandomState(seed)),
                 RandomRotate90(np.random.RandomState(seed)),
-                RandomRotate(np.random.RandomState(seed), angle_spectrum=30),
+                RandomRotate(np.random.RandomState(seed), angle_spectrum=self.angle_spectrum),
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])
             return raw_transform, label_transform

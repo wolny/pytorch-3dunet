@@ -39,8 +39,10 @@ class HDF5Dataset(Dataset):
 
         # create raw and label transforms
         mean, std = self.calculate_mean_std()
+        angle_spectrum = 15
         self.raw_transform, self.label_transform = transformer.create(mean=mean, std=std, phase=phase,
-                                                                      label_dtype=label_dtype).get_transforms()
+                                                                      label_dtype=label_dtype,
+                                                                      angle_spectrum=angle_spectrum).get_transforms()
 
         # 'test' phase used only for predictions so ignore the label dataset
         if phase != 'test':
