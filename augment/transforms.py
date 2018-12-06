@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from scipy.ndimage import rotate
 from scipy.ndimage.filters import convolve
+from torchvision.transforms import Compose
 
 
 class RandomFlip:
@@ -190,3 +191,79 @@ class ToTensor:
 class Identity:
     def __call__(self, m):
         return m
+
+
+# Helper Transformer classes
+
+class BaseTransformer:
+    """
+    Base transformer class used for data augmentation.
+    """
+
+    def __init__(self, mean, std, phase, label_dtype):
+        self.mean = mean
+        self.std = std
+        self.phase = phase
+        self.label_dtype = label_dtype
+
+    def get_transforms(self):
+        """
+        Returns transforms for both raw and label patches. It's up to the implementor to make the transforms consistent
+        between raw and labels.
+        :return: (raw_transform, label_transform)
+        """
+        raw_transform = Compose([
+            Normalize(self.mean, self.std),
+            ToTensor(expand_dims=True)
+        ])
+        label_transform = Compose([
+            ToTensor(expand_dims=False, dtype=self.label_dtype)
+        ])
+
+        return raw_transform, label_transform
+
+    @classmethod
+    def create(cls, mean, std, phase, label_dtype):
+        return cls(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
+
+
+class StandardTransformer(BaseTransformer):
+    def get_transforms(self):
+        seed = 47
+        if self.phase == 'train':
+            raw_transform = Compose([
+                Normalize(self.mean, self.std),
+                RandomFlip(np.random.RandomState(seed)),
+                RandomRotate90(np.random.RandomState(seed)),
+                ToTensor(expand_dims=True)
+            ])
+            label_transform = Compose([
+                RandomFlip(np.random.RandomState(seed)),
+                RandomRotate90(np.random.RandomState(seed)),
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+            return raw_transform, label_transform
+        else:
+            return super().get_transforms()
+
+
+class ExtendedTransformer(BaseTransformer):
+    def get_transforms(self):
+        seed = 47
+        if self.phase == 'train':
+            raw_transform = Compose([
+                Normalize(self.mean, self.std),
+                RandomFlip(np.random.RandomState(seed)),
+                RandomRotate90(np.random.RandomState(seed)),
+                RandomRotate(np.random.RandomState(seed), angle_spectrum=30),
+                ToTensor(expand_dims=True)
+            ])
+            label_transform = Compose([
+                RandomFlip(np.random.RandomState(seed)),
+                RandomRotate90(np.random.RandomState(seed)),
+                RandomRotate(np.random.RandomState(seed), angle_spectrum=30),
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+            return raw_transform, label_transform
+        else:
+            return super().get_transforms()

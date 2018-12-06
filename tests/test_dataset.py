@@ -50,7 +50,8 @@ class TestHDF5Dataset:
         f.create_dataset('label', data=label)
         f.close()
 
-        dataset = CustomAugmentation(tmp_path, patch_shape=(16, 64, 64), stride_shape=(8, 32, 32), phase='train')
+        dataset = HDF5Dataset(tmp_path, patch_shape=(16, 64, 64), stride_shape=(8, 32, 32), phase='train',
+                              transformer=CustomTransformer)
 
         for (img, label) in dataset:
             for i in range(label.shape[0]):
@@ -71,8 +72,18 @@ class TestHDF5Dataset:
         assert np.array_equal(np.unique(result), [0, 1])
 
 
-class CustomAugmentation(HDF5Dataset):
-    def get_transforms(self, phase):
+def create_random_dataset(shape):
+    tmp_file = NamedTemporaryFile(delete=False)
+
+    with h5py.File(tmp_file.name, 'w') as f:
+        f.create_dataset('raw', data=np.random.rand(*shape))
+        f.create_dataset('label', data=np.random.randint(0, 2, shape))
+
+    return tmp_file.name
+
+
+class CustomTransformer(transforms.BaseTransformer):
+    def get_transforms(self):
         seed = 47
         raw_transform = Compose([
             transforms.RandomFlip(np.random.RandomState(seed)),
@@ -88,13 +99,3 @@ class CustomAugmentation(HDF5Dataset):
         ])
 
         return raw_transform, label_transform
-
-
-def create_random_dataset(shape):
-    tmp_file = NamedTemporaryFile(delete=False)
-
-    with h5py.File(tmp_file.name, 'w') as f:
-        f.create_dataset('raw', data=np.random.rand(*shape))
-        f.create_dataset('label', data=np.random.randint(0, 2, shape))
-
-    return tmp_file.name

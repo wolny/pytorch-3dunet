@@ -1,7 +1,6 @@
 import h5py
 import numpy as np
 from torch.utils.data import Dataset
-from torchvision.transforms import Compose
 
 import augment.transforms as transforms
 
@@ -15,7 +14,7 @@ class HDF5Dataset(Dataset):
     """
 
     def __init__(self, raw_file_path, patch_shape, stride_shape, phase, label_file_path=None, raw_internal_path='raw',
-                 label_internal_path='label', label_dtype=np.long):
+                 label_internal_path='label', label_dtype=np.long, transformer=transforms.BaseTransformer):
         """
         Creates transformers for raw and label datasets and builds the index to slice mapping for raw and label datasets.
         :param raw_file_path: path to H5 file containing raw data
@@ -38,7 +37,10 @@ class HDF5Dataset(Dataset):
         # build index->slice mapping
         self.raw_slices = self._build_slices(self.raw.shape, patch_shape, stride_shape)
 
-        self.raw_transform, self.label_transform = self.get_transforms(phase)
+        # create raw and label transforms
+        mean, std = self.calculate_mean_std()
+        self.raw_transform, self.label_transform = transformer.create(mean=mean, std=std, phase=phase,
+                                                                      label_dtype=label_dtype).get_transforms()
 
         # 'test' phase used only for predictions so ignore the label dataset
         if phase != 'test':
@@ -79,23 +81,6 @@ class HDF5Dataset(Dataset):
         self.raw_file.close()
         if self.raw_file != self.label_file:
             self.label_file.close()
-
-    def get_transforms(self, phase):
-        """
-        Returns transforms for both raw and label patches. It's up to the implementor to make the transforms consistent
-        between raw and labels.
-        :param phase: model execution phase ('train', 'val', 'test')
-        :return: tuple of (raw_transform, label_transform)
-        """
-        mean, std = self.calculate_mean_std()
-        raw_transform = Compose([
-            transforms.Normalize(mean, std),
-            transforms.ToTensor(expand_dims=True)
-        ])
-        label_transform = Compose([
-            transforms.ToTensor(expand_dims=False, dtype=self.label_dtype)
-        ])
-        return raw_transform, label_transform
 
     def calculate_mean_std(self):
         """
@@ -177,31 +162,3 @@ class HDF5Dataset(Dataset):
         assert len(patch_shape) == 3, 'patch_shape must be a 3D tuple'
         assert patch_shape[1] >= 64 and patch_shape[2] >= 64, 'Height and Width must be greater or equal 64'
         assert patch_shape[0] >= 16, 'Depth must be greater or equal 16'
-
-
-class AugmentedHDF5Dataset(HDF5Dataset):
-    def get_transforms(self, phase):
-        mean, std = self.calculate_mean_std()
-        seed = 47
-        if phase == 'train':
-            raw_transform = Compose([
-                transforms.Normalize(mean, std),
-                transforms.RandomFlip(np.random.RandomState(seed)),
-                transforms.RandomRotate90(np.random.RandomState(seed)),
-                transforms.ToTensor(expand_dims=True)
-            ])
-            label_transform = Compose([
-                transforms.RandomFlip(np.random.RandomState(seed)),
-                transforms.RandomRotate90(np.random.RandomState(seed)),
-                transforms.ToTensor(expand_dims=False, dtype=self.label_dtype)
-            ])
-        else:
-            raw_transform = Compose([
-                transforms.Normalize(mean, std),
-                transforms.ToTensor(expand_dims=True)
-            ])
-            label_transform = Compose([
-                transforms.ToTensor(expand_dims=False, dtype=self.label_dtype)
-            ])
-
-        return raw_transform, label_transform

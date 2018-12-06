@@ -126,6 +126,8 @@ Sometimes the problem to be solved requires to predict multiple channel binary m
 /raw - dataset containing the raw 3D/4D stack. The axis order has to be DxHxW/CxDxHxW
 /label - dataset containing the label 4D stack with values 0..1 (binary classification with C channels). The axis order has to be CxDxHxW.
 ```
+Data augmentation is performed by default (see e.g. `ExtendedTransformer` in [transforms.py](augment/transforms.py) for more info).
+If one wants to change/prevent data augmentation, one should provide their own implementation of `BaseTransformer`/use `BaseTransformer` (no augmentation).
 
 Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 8666` (you need `tensorboard` installed in your conda env).
 ![3dunet-training](https://user-images.githubusercontent.com/706781/45916217-9626d580-be62-11e8-95c3-508e2719c915.png)

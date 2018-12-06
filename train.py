@@ -5,7 +5,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from datasets.hdf5 import AugmentedHDF5Dataset, HDF5Dataset
+from augment.transforms import ExtendedTransformer
+from datasets.hdf5 import HDF5Dataset
 from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedCrossEntropyLoss
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
@@ -80,7 +81,8 @@ def _get_loaders(train_path, val_path, label_dtype, train_patch, train_stride, v
     """
 
     # create H5 backed training dataset with data augmentation
-    train_dataset = AugmentedHDF5Dataset(train_path, train_patch, train_stride, phase='train', label_dtype=label_dtype)
+    train_dataset = HDF5Dataset(train_path, train_patch, train_stride, phase='train', label_dtype=label_dtype,
+                                transformer=ExtendedTransformer)
 
     # create H5 backed validation dataset
     val_dataset = HDF5Dataset(val_path, val_patch, val_stride, phase='val', label_dtype=label_dtype)
