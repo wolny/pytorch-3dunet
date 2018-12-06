@@ -104,9 +104,9 @@ def _get_loss_criterion(loss_str, weight=None):
     if loss_str == 'bce':
         return nn.BCELoss(weight), True
     elif loss_str == 'ce':
-        return nn.CrossEntropyLoss(weight), False
+        return nn.CrossEntropyLoss(weight, ignore_index=-1), False
     elif loss_str == 'wce':
-        return WeightedCrossEntropyLoss(), False
+        return WeightedCrossEntropyLoss(ignore_index=-1), False
     else:
         return GeneralizedDiceLoss(), True
 

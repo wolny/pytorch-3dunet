@@ -73,12 +73,13 @@ class GeneralizedDiceLoss(nn.Module):
 
 
 class WeightedCrossEntropyLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, ignore_index=-1):
         super(WeightedCrossEntropyLoss, self).__init__()
+        self.ignore_index = ignore_index
 
     def forward(self, input, target):
         class_weights = self._class_weights(input)
-        return F.cross_entropy(input, target, weight=class_weights)
+        return F.cross_entropy(input, target, weight=class_weights, ignore_index=self.ignore_index)
 
     @staticmethod
     def _class_weights(input):
