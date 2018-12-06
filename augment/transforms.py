@@ -277,3 +277,33 @@ class ExtendedTransformer(BaseTransformer):
             return raw_transform, label_transform
         else:
             return super().get_transforms()
+
+
+class AnisotropicTransformer(BaseTransformer):
+    def __init__(self, mean, std, phase, label_dtype, **kwargs):
+        super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
+        assert 'angle_spectrum' in kwargs, "'angle_spectrum' argument required"
+        self.angle_spectrum = kwargs['angle_spectrum']
+
+    def get_transforms(self):
+        seed = 47
+        if self.phase == 'train':
+            raw_transform = Compose([
+                Normalize(self.mean, self.std),
+                RandomFlip(np.random.RandomState(seed)),
+                RandomRotate90(np.random.RandomState(seed)),
+                RandomRotate(np.random.RandomState(seed), angle_spectrum=5, axes=[(2, 1)]),
+                RandomRotate(np.random.RandomState(seed), angle_spectrum=self.angle_spectrum, axes=[(1, 0)]),
+                ToTensor(expand_dims=True)
+            ])
+            label_transform = Compose([
+                RandomFlip(np.random.RandomState(seed)),
+                RandomRotate90(np.random.RandomState(seed)),
+                RandomRotate(np.random.RandomState(seed), angle_spectrum=5, axes=[(2, 1)]),
+                RandomRotate(np.random.RandomState(seed), angle_spectrum=self.angle_spectrum, axes=[(1, 0)]),
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+            return raw_transform, label_transform
+        else:
+            return super().get_transforms()
+
