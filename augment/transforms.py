@@ -61,13 +61,18 @@ class RandomRotate90:
 class RandomRotate:
     """
     Rotate an array by a random degrees from taken from (-angle_spectrum, angle_spectrum) interval.
-    Rotation axis is picked at random as well
+    Rotation axis is picked at random from the list of provided axes.
     """
 
-    def __init__(self, random_state, angle_spectrum=45):
+    def __init__(self, random_state, angle_spectrum=45, axes=None):
+        if axes is None:
+            axes = [(1, 0), (2, 1), (2, 0)]
+        else:
+            assert isinstance(axes, list) and len(axes) > 0
+
         self.random_state = random_state
         self.angle_spectrum = angle_spectrum
-        self.axes = [(1, 0), (2, 1), (2, 0)]
+        self.axes = axes
 
     def __call__(self, m):
         axis = self.axes[self.random_state.randint(len(self.axes))]

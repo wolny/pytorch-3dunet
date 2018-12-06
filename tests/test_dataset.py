@@ -88,13 +88,15 @@ class CustomTransformer(transforms.BaseTransformer):
         raw_transform = Compose([
             transforms.RandomFlip(np.random.RandomState(seed)),
             transforms.RandomRotate90(np.random.RandomState(seed)),
-            transforms.RandomRotate(np.random.RandomState(seed), angle_spectrum=30),
+            transforms.RandomRotate(np.random.RandomState(seed), angle_spectrum=30, axes=[(1, 0)]),
+            transforms.RandomRotate(np.random.RandomState(seed), angle_spectrum=5, axes=[(2, 1)]),
             transforms.ToTensor(expand_dims=True)
         ])
         label_transform = Compose([
             transforms.RandomFlip(np.random.RandomState(seed)),
             transforms.RandomRotate90(np.random.RandomState(seed)),
-            transforms.RandomRotate(np.random.RandomState(seed), angle_spectrum=30),
+            transforms.RandomRotate(np.random.RandomState(seed), angle_spectrum=30, axes=[(1, 0)]),
+            transforms.RandomRotate(np.random.RandomState(seed), angle_spectrum=5, axes=[(2, 1)]),
             transforms.ToTensor(expand_dims=False)
         ])
 
