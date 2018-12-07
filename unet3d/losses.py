@@ -52,9 +52,10 @@ class GeneralizedDiceLoss(nn.Module):
     """Computes Generalized Dice Loss (GDL) as described in https://arxiv.org/pdf/1707.03237.pdf
     """
 
-    def __init__(self, epsilon=1e-5):
+    def __init__(self, epsilon=1e-5, weight=None):
         super(GeneralizedDiceLoss, self).__init__()
         self.epsilon = epsilon
+        self.register_buffer('weight', weight)
 
     def forward(self, input, target):
         assert input.size() == target.size(), "'input' and 'target' must have the same shape"
@@ -65,10 +66,13 @@ class GeneralizedDiceLoss(nn.Module):
         target_sum = target.sum(-1)
         class_weights = 1. / (target_sum * target_sum + self.epsilon)
 
-        # Compute per channel Dice Coefficient
-        intersect = ((input * target).sum(-1) * class_weights).sum() + self.epsilon
+        intersect = (input * target).sum(-1) * class_weights
+        if self.weight is not None:
+            weight = Variable(self.weight, requires_grad=False)
+            intersect = weight * intersect
+        intersect = intersect.sum() + self.epsilon
+
         denominator = ((input + target).sum(-1) * class_weights).sum() + self.epsilon
-        # Average across channels in order to get the final score
         return 1 - 2. * intersect / denominator
 
 

@@ -102,13 +102,13 @@ def _get_loss_criterion(loss_str, weight=None):
     assert loss_str in LOSSES, f'Invalid loss string: {loss_str}'
 
     if loss_str == 'bce':
-        return nn.BCELoss(weight), True
+        return nn.BCELoss(weight=weight), True
     elif loss_str == 'ce':
-        return nn.CrossEntropyLoss(weight, ignore_index=-1), False
+        return nn.CrossEntropyLoss(weight=weight, ignore_index=-1), False
     elif loss_str == 'wce':
         return WeightedCrossEntropyLoss(ignore_index=-1), False
     else:
-        return GeneralizedDiceLoss(), True
+        return GeneralizedDiceLoss(weight=weight), True
 
 
 def _create_optimizer(args, model):
