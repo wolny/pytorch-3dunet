@@ -59,7 +59,7 @@ class TestUNet3DTrainer:
         device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
         # conv-relu-groupnorm
         conv_layer_order = 'crg'
-        loss_criterion, final_sigmoid = self._get_loss_criterion(loss)
+        loss_criterion, final_sigmoid = self._get_loss_criterion(loss, weight=torch.rand(2).to(device))
         model = self._create_model(final_sigmoid, conv_layer_order)
         accuracy_criterion = DiceCoefficient(not final_sigmoid)
         channel_per_class = loss == 'bce'
@@ -89,15 +89,15 @@ class TestUNet3DTrainer:
         return trainer
 
     @staticmethod
-    def _get_loss_criterion(loss):
+    def _get_loss_criterion(loss, weight):
         if loss == 'bce':
             return nn.BCELoss(), True
         elif loss == 'ce':
-            return nn.CrossEntropyLoss(), False
+            return nn.CrossEntropyLoss(weight=weight), False
         elif loss == 'wce':
             return WeightedCrossEntropyLoss(), False
         else:
-            return GeneralizedDiceLoss(), True
+            return GeneralizedDiceLoss(weight=weight), True
 
     @staticmethod
     def _create_model(final_sigmoid, layer_order):
