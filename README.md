@@ -37,7 +37,7 @@ Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
 - **wce** - _WeightedCrossEntropyLoss_ (see 'Weighted cross-entropy (WCE)' in the above paper for a detailed explanation)
 - **ce** - _CrossEntropyLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)
 - **bce** - _BCELoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)
-- **dice** - _GeneralizedDiceLoss_ (see 'Generalized Dice Loss (GDL)' in the above paper for a detailed explanation)
+- **dice** - _GeneralizedDiceLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)(see 'Generalized Dice Loss (GDL)' in the above paper for a detailed explanation)
 
 ## Train
 ```
