@@ -14,7 +14,7 @@ class HDF5Dataset(Dataset):
     """
 
     def __init__(self, raw_file_path, patch_shape, stride_shape, phase, label_file_path=None, raw_internal_path='raw',
-                 label_internal_path='label', label_dtype=np.long, transformer=transforms.BaseTransformer):
+                 label_internal_path='label', label_dtype=np.long, transformer=transforms.BaseTransformer, **kwargs):
         """
         Creates transformers for raw and label datasets and builds the index to slice mapping for raw and label datasets.
         :param raw_file_path: path to H5 file containing raw data
@@ -26,6 +26,7 @@ class HDF5Dataset(Dataset):
         H5 file
         :param raw_internal_path: H5 internal path to the raw dataset
         :param label_internal_path: H5 internal path to the label dataset
+        :param kwargs: additional context parameters
         """
         assert phase in ['train', 'val', 'test']
         self._check_patch_shape(patch_shape)
@@ -39,7 +40,10 @@ class HDF5Dataset(Dataset):
 
         # create raw and label transforms
         mean, std = self.calculate_mean_std()
-        angle_spectrum = 30
+        if 'angle_spectrum' in kwargs:
+            angle_spectrum = kwargs['angle_spectrum']
+        else:
+            angle_spectrum = 15
         self.raw_transform, self.label_transform = transformer.create(mean=mean, std=std, phase=phase,
                                                                       label_dtype=label_dtype,
                                                                       angle_spectrum=angle_spectrum).get_transforms()
