@@ -88,3 +88,17 @@ class TestCriterion:
         target[1, 1] = 1.
         output = loss(input, target)
         assert output.item() == 0
+
+    def test_ignore_index_loss_with_dice_coeff(self):
+        loss = IgnoreIndexLossWrapper(DiceCoefficient(), ignore_index=-1)
+        input = torch.zeros((3, 3))
+        input[1, 1] = 1.
+        target = -1. * torch.ones((3, 3))
+        target[1, 1] = 1.
+
+        actual = loss(input, target)
+
+        target = input.clone()
+        expected = loss(input, target)
+
+        assert expected == actual

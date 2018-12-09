@@ -41,11 +41,12 @@ Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
 
 ## Train
 ```
-usage: train.py [-h] --checkpoint-dir CHECKPOINT_DIR --in-channels IN_CHANNELS
-                --out-channels OUT_CHANNELS [--interpolate]
+usage: train.py [-h] [--checkpoint-dir CHECKPOINT_DIR] --in-channels
+                IN_CHANNELS --out-channels OUT_CHANNELS [--interpolate]
                 [--layer-order LAYER_ORDER] --loss LOSS
                 [--loss-weight LOSS_WEIGHT [LOSS_WEIGHT ...]]
-                [--epochs EPOCHS] [--iters ITERS] [--patience PATIENCE]
+                [--ignore-index IGNORE_INDEX] [--epochs EPOCHS]
+                [--iters ITERS] [--patience PATIENCE]
                 [--learning-rate LEARNING_RATE] [--weight-decay WEIGHT_DECAY]
                 [--validate-after-iters VALIDATE_AFTER_ITERS]
                 [--log-after-iters LOG_AFTER_ITERS] [--resume RESUME]
@@ -78,6 +79,9 @@ optional arguments:
                         A manual rescaling weight given to each class. Can be
                         used with CrossEntropy or BCELoss. E.g. --loss-weight
                         0.3 0.3 0.4
+  --ignore-index IGNORE_INDEX
+                        Specifies a target value that is ignored and does not
+                        contribute to the input gradient
   --epochs EPOCHS       max number of epochs (default: 500)
   --iters ITERS         max number of iterations (default: 1e5)
   --patience PATIENCE   number of epochs with no loss improvement after which

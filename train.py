@@ -5,9 +5,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from augment.transforms import ExtendedTransformer, AnisotropicTransformer
+from augment.transforms import AnisotropicTransformer
 from datasets.hdf5 import HDF5Dataset
-from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedCrossEntropyLoss
+from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger
@@ -31,6 +31,8 @@ def _arg_parser():
                         help='Which loss function to use. Possible values: [bce, ce, wce, dice]. Where bce - BinaryCrossEntropyLoss (binary classification only), ce - CrossEntropyLoss (multi-class classification), wce - WeightedCrossEntropyLoss (multi-class classification), dice - GeneralizedDiceLoss (multi-class classification)')
     parser.add_argument('--loss-weight', type=float, nargs='+', default=None,
                         help='A manual rescaling weight given to each class. Can be used with CrossEntropy or BCELoss. E.g. --loss-weight 0.3 0.3 0.4')
+    parser.add_argument('--ignore-index', type=int, default=None,
+                        help='Specifies a target value that is ignored and does not contribute to the input gradient')
     parser.add_argument('--epochs', default=500, type=int,
                         help='max number of epochs (default: 500)')
     parser.add_argument('--iters', default=1e5, type=int,
@@ -93,7 +95,7 @@ def _get_loaders(train_path, val_path, label_dtype, train_patch, train_stride, v
     }
 
 
-def _get_loss_criterion(loss_str, weight=None):
+def _get_loss_criterion(loss_str, weight=None, ignore_index=None):
     """
     Returns the loss function together with boolean flag which indicates
     whether to apply an element-wise Sigmoid on the network output
@@ -102,13 +104,23 @@ def _get_loss_criterion(loss_str, weight=None):
     assert loss_str in LOSSES, f'Invalid loss string: {loss_str}'
 
     if loss_str == 'bce':
-        return nn.BCELoss(weight=weight), True
+        if ignore_index is None:
+            return nn.BCELoss(weight=weight), True
+        else:
+            return IgnoreIndexLossWrapper(nn.BCELoss(weight=weight), ignore_index=ignore_index), True
     elif loss_str == 'ce':
-        return nn.CrossEntropyLoss(weight=weight, ignore_index=-1), False
+        if ignore_index is None:
+            ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
+        return nn.CrossEntropyLoss(weight=weight, ignore_index=ignore_index), False
     elif loss_str == 'wce':
-        return WeightedCrossEntropyLoss(ignore_index=-1), False
+        if ignore_index is None:
+            ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
+        return WeightedCrossEntropyLoss(weight=weight, ignore_index=ignore_index), False
     else:
-        return GeneralizedDiceLoss(weight=weight), True
+        if ignore_index is None:
+            return GeneralizedDiceLoss(weight=weight), True
+        else:
+            return IgnoreIndexLossWrapper(GeneralizedDiceLoss(weight=weight), ignore_index=ignore_index), True
 
 
 def _create_optimizer(args, model):
@@ -190,14 +202,17 @@ def main():
     trainer.fit()
 
 
-def _get_accuracy_criterion(should_normalize):
+def _get_accuracy_criterion(should_normalize, ignore_index=None):
     """
     Returns the segmentation's accuracy metric. Specify whether the criterion's input (model's output) should be normalized
     with nn.Softmax in order to obtain a valid probability distribution.
     :param should_normalize: whether or not to normalize the input
     :return: Dice coefficient callable
     """
-    return DiceCoefficient(should_normalize)
+    if ignore_index is not None:
+        return IgnoreIndexLossWrapper(DiceCoefficient(should_normalize), ignore_index=ignore_index)
+    else:
+        return DiceCoefficient(should_normalize)
 
 
 if __name__ == '__main__':
