@@ -95,7 +95,7 @@ class TestUNet3DTrainer:
         elif loss == 'ce':
             return nn.CrossEntropyLoss(weight=weight), False
         elif loss == 'wce':
-            return WeightedCrossEntropyLoss(), False
+            return WeightedCrossEntropyLoss(weight=weight), False
         else:
             return GeneralizedDiceLoss(weight=weight), True
 
