@@ -91,8 +91,7 @@ class LabelToBoundary:
     """
     Converts a given volumetric label array to binary mask corresponding to borders between labels.
     One specify the offsets (thickness) of the border as well as the axes (direction) across which the boundary
-    will be computed via the convolution operator. The convolved images are averaged and the final boundary
-    is placed where the average value is larger than 0.5
+    will be computed via the convolution operator. The convolved images are stacked across the channel dimension (CxDxHxW)
     """
 
     AXES = {
@@ -101,7 +100,7 @@ class LabelToBoundary:
         2: (2, 0, 1)
     }
 
-    def __init__(self, axes, offsets):
+    def __init__(self, axes, offsets, ignore_index=None):
         if isinstance(axes, int):
             assert axes in [0, 1, 2], "Axis must be one of [0, 1, 2]"
             axes = [self.AXES[axes]]
@@ -121,13 +120,16 @@ class LabelToBoundary:
         else:
             raise ValueError(f"Unsupported 'offsets' type {type(offsets)}")
 
+        self.ignore_index = ignore_index
+
         self.kernels = []
         # create kernel for every axis-offset pair
         for axis in axes:
             for offset in offsets:
                 self.kernels.append(self._create_kernel(axis, offset))
 
-    def _create_kernel(self, axis, offset):
+    @staticmethod
+    def _create_kernel(axis, offset):
         # create conv kernel
         k_size = offset + 1
         k = np.zeros((1, 1, k_size), dtype=np.int)
@@ -139,24 +141,23 @@ class LabelToBoundary:
         """
         Extract boundaries from a given 3D label tensor.
         :param m: input 3D tensor
-        :return: 3D binary mask of the same size as 'm', with 1-label corresponding to the boundary
-            and 0-label corresponding to the background
+        :return: 4D binary mask, with 1-label corresponding to the boundary and 0-label corresponding to the background
         """
+
+        def _recover_ignore_index(input, mask):
+            if mask is not None:
+                input[mask] = self.ignore_index
+            return input
+
         assert m.ndim == 3
-        result = np.zeros_like(m, dtype=np.float)
-        for kernel in self.kernels:
-            # convolve the input tensor with a given kernel
-            convolved = np.abs(convolve(m, kernel))
-            # convert to binary mask
-            convolved[convolved > 0] = 1
-            # accumulate
-            result = result + convolved
-        # compute the average
-        result = result / len(self.kernels)
-        # threshold
-        result[result > 0.5] = 1
-        result[result <= 0.5] = 0
-        return result.astype(m.dtype)
+        mask = None
+        if self.ignore_index is not None:
+            mask = m == self.ignore_index
+
+        channels = [_recover_ignore_index(np.abs(convolve(m, k)), mask) for k in self.kernels]
+        result = np.stack(channels, axis=0)
+        result[result > 0] = 1
+        return result
 
 
 class Normalize:
@@ -306,4 +307,3 @@ class AnisotropicTransformer(BaseTransformer):
             return raw_transform, label_transform
         else:
             return super().get_transforms()
-

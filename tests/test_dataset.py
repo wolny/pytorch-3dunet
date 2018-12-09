@@ -59,17 +59,31 @@ class TestHDF5Dataset:
 
     def test_label_to_boundary(self):
         size = 20
-        label = np.ones((size, size, size), dtype=np.int)
+        label = self._diagonal_label_volume(size)
+
+        transform = transforms.LabelToBoundary(axes=(0, 1, 2), offsets=(1, 2, 4))
+        result = transform(label)
+        assert result.shape == (9,) + label.shape
+        assert np.array_equal(np.unique(result), [0, 1])
+
+    def test_label_to_boundary_with_ignore(self):
+        size = 20
+        label = self._diagonal_label_volume(size, init=-1)
+
+        transform = transforms.LabelToBoundary(axes=(0, 1, 2), offsets=(1, 2, 4), ignore_index=-1)
+        result = transform(label)
+        assert result.shape == (9,) + label.shape
+        assert np.array_equal(np.unique(result), [-1, 0, 1])
+
+    @staticmethod
+    def _diagonal_label_volume(size, init=1):
+        label = init * np.ones((size, size, size), dtype=np.int)
         for i in range(size):
             for j in range(size):
                 for k in range(size):
                     if i + j > 2 * k:
                         label[i, j, k] = 3
-
-        transform = transforms.LabelToBoundary(axes=(0, 1, 2), offsets=(1, 2, 4))
-        result = transform(label)
-        assert result.shape == label.shape
-        assert np.array_equal(np.unique(result), [0, 1])
+        return label
 
 
 def create_random_dataset(shape):
