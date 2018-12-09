@@ -1,7 +1,9 @@
 import numpy as np
+import pytest
 import torch
+import torch.nn as nn
 
-from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedCrossEntropyLoss
+from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper
 
 
 def _compute_criterion(criterion, n_times=100):
@@ -73,3 +75,16 @@ class TestCriterion:
 
         results = np.array(results)
         assert np.all(results >= 0)
+
+    def test_ignore_index_loss_wrapper_unsupported_loss(self):
+        with pytest.raises(RuntimeError):
+            IgnoreIndexLossWrapper(nn.CrossEntropyLoss())
+
+    def test_ignore_index_loss(self):
+        loss = IgnoreIndexLossWrapper(nn.BCELoss(), ignore_index=-1)
+        input = torch.zeros((3, 3))
+        input[1, 1] = 1.
+        target = -1. * torch.ones((3, 3))
+        target[1, 1] = 1.
+        output = loss(input, target)
+        assert output.item() == 0

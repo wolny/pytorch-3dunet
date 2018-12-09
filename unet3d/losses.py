@@ -98,3 +98,23 @@ class WeightedCrossEntropyLoss(nn.Module):
         denominator = flattened.sum(-1)
         class_weights = Variable(nominator / denominator, requires_grad=False)
         return class_weights
+
+
+class IgnoreIndexLossWrapper(nn.Module):
+    """
+    Wrapper around loss functions which do not support 'ignore_index', e.g. BCELoss.
+    Throws exception if the wrapped loss supports the 'ignore_index' option.
+    """
+
+    def __init__(self, loss_criterion, ignore_index=-1):
+        super(IgnoreIndexLossWrapper, self).__init__()
+        if hasattr(loss_criterion, 'ignore_index'):
+            raise RuntimeError(f"Cannot wrap {type(loss_criterion)}. 'Use ignore_index' attribute instead")
+        self.loss_criterion = loss_criterion
+        self.ignore_index = ignore_index
+
+    def forward(self, input, target):
+        mask = Variable(target.data.ne(self.ignore_index).float(), requires_grad=False)
+        masked_input = target * mask
+        masked_target = input * mask
+        return self.loss_criterion(masked_input, masked_target)
