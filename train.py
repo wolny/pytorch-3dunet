@@ -147,7 +147,7 @@ def main():
     else:
         loss_weight = None
 
-    loss_criterion, final_sigmoid = _get_loss_criterion(args.loss, loss_weight)
+    loss_criterion, final_sigmoid = _get_loss_criterion(args.loss, loss_weight, args.ignore_index)
 
     model = _create_model(args.in_channels, args.out_channels,
                           layer_order=args.layer_order,
@@ -160,7 +160,7 @@ def main():
     logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
 
     # Create accuracy metric
-    accuracy_criterion = _get_accuracy_criterion(not final_sigmoid)
+    accuracy_criterion = _get_accuracy_criterion(not final_sigmoid, args.ignore_index)
 
     # Get data loaders. If 'bce' or 'dice' loss is used, convert labels to float
     train_path, val_path = args.train_path, args.val_path
