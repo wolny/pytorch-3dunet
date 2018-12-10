@@ -42,7 +42,7 @@ class DiceCoefficient:
         target = flatten(target)
 
         # Compute per channel Dice Coefficient
-        intersect = (input * target).sum(-1) + self.epsilon
+        intersect = (input * target).sum(-1)
         denominator = (input + target).sum(-1) + self.epsilon
         # Average across channels in order to get the final score
         return torch.mean(2. * intersect / denominator)
@@ -70,7 +70,7 @@ class GeneralizedDiceLoss(nn.Module):
         if self.weight is not None:
             weight = Variable(self.weight, requires_grad=False)
             intersect = weight * intersect
-        intersect = intersect.sum() + self.epsilon
+        intersect = intersect.sum()
 
         denominator = ((input + target).sum(-1) * class_weights).sum() + self.epsilon
         return 1 - 2. * intersect / denominator
