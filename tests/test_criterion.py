@@ -31,6 +31,15 @@ def _eval_criterion(criterion, batch_shape, n_times=100):
 
 
 class TestCriterion:
+    def test_dice_simple(self):
+        input = torch.zeros(10, 10).random_(2)
+        target = input.clone()
+        criterion = DiceCoefficient()
+        assert 1. - criterion(input, target).item() < 0.01
+
+        criterion = IgnoreIndexLossWrapper(DiceCoefficient(), ignore_index=-1)
+        assert 1. - criterion(input, target).item() < 0.01
+
     def test_dice_coefficient(self):
         results = _compute_criterion(DiceCoefficient())
         # check that all of the coefficients belong to [0, 1]

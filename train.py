@@ -5,7 +5,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from augment.transforms import AnisotropicTransformer
+from augment.transforms import AnisotropicTransformer, LabelToBoundaryTransformer, ExtendedTransformer, \
+    StandardTransformer, BaseTransformer
 from datasets.hdf5 import HDF5Dataset
 from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper
 from unet3d.model import UNet3D
@@ -59,9 +60,12 @@ def _arg_parser():
                         help='Patch shape for used for validation')
     parser.add_argument('--val-stride', required=True, type=int, nargs='+', default=None,
                         help='Patch stride for used for validation')
+    parser.add_argument('--raw-internal-path', type=str, default='raw')
+    parser.add_argument('--label-internal-path', type=str, default='label')
     parser.add_argument('--skip-empty-patch',
                         help='skip patches with a single label only (train, val)',
                         action='store_true')
+    parser.add_argument('--transformer', type=str, default='StandardTransformer', help='data augmentation class')
 
     return parser
 
@@ -71,26 +75,45 @@ def _create_model(in_channels, out_channels, layer_order, interpolate, final_sig
                   conv_layer_order=layer_order)
 
 
-def _get_loaders(train_path, val_path, label_dtype, train_patch, train_stride, val_patch, val_stride):
+def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, label_dtype, train_patch, train_stride, val_patch, val_stride, transformer):
     """
     Returns dictionary containing the  training and validation loaders
     (torch.utils.data.DataLoader) backed by the datasets.hdf5.HDF5Dataset
 
     :param train_path: path to the H5 file containing the training set
     :param val_path: path to the H5 file containing the validation set
+    :param raw_internal_path:
+    :param label_internal_path:
     :param label_dtype: target type of the label dataset
+    :param train_patch:
+    :param train_stride:
+    :param val_path:
+    :param val_stride:
+    :param transformer:
     :return: dict {
         'train': <train_loader>
         'val': <val_loader>
     }
     """
+    transformers = {
+        'LabelToBoundaryTransformer': LabelToBoundaryTransformer,
+        'AnisotropicTransformer': AnisotropicTransformer,
+        'ExtendedTransformer': ExtendedTransformer,
+        'StandardTransformer': StandardTransformer,
+        'BaseTransformer': BaseTransformer
+    }
+
+    assert transformer in transformers
 
     # create H5 backed training dataset with data augmentation
     train_dataset = HDF5Dataset(train_path, train_patch, train_stride, phase='train', label_dtype=label_dtype,
-                                transformer=AnisotropicTransformer)
+                                raw_internal_path=raw_internal_path, label_internal_path=label_internal_path,
+                                transformer=transformers[transformer])
 
     # create H5 backed validation dataset
-    val_dataset = HDF5Dataset(val_path, val_patch, val_stride, phase='val', label_dtype=label_dtype)
+    val_dataset = HDF5Dataset(val_path, val_patch, val_stride, phase='val', label_dtype=label_dtype,
+                              raw_internal_path=raw_internal_path, label_internal_path=label_internal_path,
+                              transformer=transformers[transformer])
 
     return {
         'train': DataLoader(train_dataset, batch_size=1, shuffle=True),
@@ -180,8 +203,11 @@ def main():
     logger.info(f'Train patch/stride: {train_patch}/{train_stride}')
     logger.info(f'Val patch/stride: {val_patch}/{val_stride}')
 
-    loaders = _get_loaders(train_path, val_path, label_dtype=label_dtype, train_patch=train_patch,
-                           train_stride=train_stride, val_patch=val_patch, val_stride=val_stride)
+    loaders = _get_loaders(train_path, val_path, label_dtype=label_dtype,
+                           raw_internal_path=args.raw_internal_path, label_internal_path=args.label_internal_path,
+                           train_patch=train_patch, train_stride=train_stride,
+                           val_patch=val_patch, val_stride=val_stride,
+                           transformer=args.transformer)
 
     # Create the optimizer
     optimizer = _create_optimizer(args, model)

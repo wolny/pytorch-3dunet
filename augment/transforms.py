@@ -307,3 +307,41 @@ class AnisotropicTransformer(BaseTransformer):
             return raw_transform, label_transform
         else:
             return super().get_transforms()
+
+
+# FIXME: do not use random rotations (except RandomRotate90) together with LabelToBoundary, cause it will create
+# artificial boundary signal; consider using different mode, e.g. mode='reflect' when doing rotations.
+class LabelToBoundaryTransformer(BaseTransformer):
+    def __init__(self, mean, std, phase, label_dtype, **kwargs):
+        super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
+        assert 'angle_spectrum' in kwargs, "'angle_spectrum' argument required"
+        self.angle_spectrum = kwargs['angle_spectrum']
+
+    def get_transforms(self):
+        seed = 47
+        if self.phase == 'train':
+            raw_transform = Compose([
+                Normalize(self.mean, self.std),
+                RandomFlip(np.random.RandomState(seed)),
+                RandomRotate90(np.random.RandomState(seed)),
+                ToTensor(expand_dims=True)
+            ])
+            label_transform = Compose([
+                RandomFlip(np.random.RandomState(seed)),
+                RandomRotate90(np.random.RandomState(seed)),
+                # this will give us 6 output channels with boundary signal
+                LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=-1),
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+            return raw_transform, label_transform
+        else:
+            raw_transform = Compose([
+                Normalize(self.mean, self.std),
+                ToTensor(expand_dims=True)
+            ])
+            label_transform = Compose([
+                LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=-1),
+                # this will give us 6 output channels with boundary signal
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+            return raw_transform, label_transform
