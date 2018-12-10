@@ -23,7 +23,7 @@ class UNet3DTrainer:
         checkpoint_dir (string): dir for saving checkpoints and tensorboard logs
         max_num_epochs (int): maximum number of epochs
         max_num_iterations (int): maximum number of iterations
-        max_patience (int): number of EPOCHS with no improvement
+        max_patience (int): number of validation runs with no improvement
             after which the training will be stopped
         validate_after_iters (int): validate after that many iterations
         log_after_iters (int): number of iterations before logging to tensorboard
@@ -96,21 +96,10 @@ class UNet3DTrainer:
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
             # train for one epoch
-            best_model_found = self.train(self.loaders['train'])
+            should_terminate = self.train(self.loaders['train'])
 
-            if best_model_found:
-                self.patience = self.max_patience
-            else:
-                self.patience -= 1
-                if self.patience <= 0:
-                    # early stop the training
-                    self.logger.info(
-                        f'Validation accuracy did not improve for the last {self.max_patience} epochs. Early stopping...')
-                    break
-                # adjust learning rate when reaching half of the max_patience
-                if self.patience == self.max_patience // 2:
-                    self._adjust_learning_rate()
-                    self.patience = self.max_patience
+            if should_terminate:
+                break
 
             self.num_epoch += 1
 
@@ -121,17 +110,13 @@ class UNet3DTrainer:
             train_loader (torch.utils.data.DataLoader): training data loader
 
         Returns:
-            True if the best performing model was found within this epoch,
-            False otherwise
+            True if the training should be terminated immediately, False otherwise
         """
         train_losses = utils.RunningAverage()
         train_accuracy = utils.RunningAverage()
 
         # sets the model in training mode
         self.model.train()
-
-        # initialize the return value
-        best_model_found = False
 
         for i, (input, target) in enumerate(train_loader):
             if self.skip_empty_patch and torch.unique(target).size()[0] == 1:
@@ -186,16 +171,21 @@ class UNet3DTrainer:
 
                 # remember best validation metric
                 is_best = self._is_best_val_accuracy(val_accuracy)
-                # update the return value
-                best_model_found |= is_best
 
                 # save checkpoint
                 self._save_checkpoint(is_best)
 
+                if self._check_early_stopping(is_best):
+                    self.logger.info(
+                        f'Validation accuracy did not improve for the last {self.max_patience} validation runs. Early stopping...')
+                    return True
+
             if self.max_num_iterations < self.num_iterations:
                 self.logger.info(
                     f'Maximum number of iterations {self.max_num_iterations} exceeded. Finishing training...')
-                break
+                return True
+
+        return False
 
     def validate(self, val_loader):
         self.logger.info('Validating...')
@@ -244,6 +234,25 @@ class UNet3DTrainer:
                 return val_accuracy.avg
         finally:
             self.model.train()
+
+    def _check_early_stopping(self, best_model_found):
+        """
+        Check patience and adjust the learning rate if necessary.
+        :param best_model_found: is current model the best one according to validation criterion
+        :return: True if the training should be terminated, False otherwise
+        """
+        if best_model_found:
+            self.patience = self.max_patience
+        else:
+            self.patience -= 1
+            if self.patience <= 0:
+                # early stop the training
+                return True
+            # adjust learning rate when reaching half of the max_patience
+            if self.patience == self.max_patience // 2:
+                self._adjust_learning_rate()
+                self.patience = self.max_patience
+        return False
 
     def _adjust_learning_rate(self, decay_rate=0.75):
         """Sets the learning rate to the initial LR decayed by 'decay_rate'"""
