@@ -89,6 +89,14 @@ class TestCriterion:
         output = loss(input, target)
         assert output.item() == 0
 
+    def test_ignore_index_loss_backward(self):
+        loss = IgnoreIndexLossWrapper(nn.BCELoss(), ignore_index=-1)
+        input = torch.zeros((3, 3), requires_grad=True)
+        target = -1. * torch.ones((3, 3))
+        output = loss(input, target)
+        output.backward()
+        assert output.item() == 0
+
     def test_ignore_index_loss_with_dice_coeff(self):
         loss = IgnoreIndexLossWrapper(DiceCoefficient(), ignore_index=-1)
         input = torch.zeros((3, 3))
