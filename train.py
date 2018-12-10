@@ -59,6 +59,9 @@ def _arg_parser():
                         help='Patch shape for used for validation')
     parser.add_argument('--val-stride', required=True, type=int, nargs='+', default=None,
                         help='Patch stride for used for validation')
+    parser.add_argument('--skip-empty-patch',
+                        help='skip patches with a single label only (train, val)',
+                        action='store_true')
 
     return parser
 
@@ -187,7 +190,7 @@ def main():
         trainer = UNet3DTrainer.from_checkpoint(args.resume, model,
                                                 optimizer, loss_criterion,
                                                 accuracy_criterion, loaders,
-                                                logger=logger)
+                                                logger=logger, skip_empty_patch=args.skip_empty_patch)
     else:
         trainer = UNet3DTrainer(model, optimizer, loss_criterion,
                                 accuracy_criterion,
@@ -197,7 +200,8 @@ def main():
                                 max_patience=args.patience,
                                 validate_after_iters=args.validate_after_iters,
                                 log_after_iters=args.log_after_iters,
-                                logger=logger)
+                                logger=logger,
+                                skip_empty_patch=args.skip_empty_patch)
 
     trainer.fit()
 

@@ -108,6 +108,7 @@ optional arguments:
                         Patch shape for used for validation
   --val-stride VAL_STRIDE [VAL_STRIDE ...]
                         Patch stride for used for validation
+  --skip-empty-patch    skip patches with a single label only (train, val)
 ```
 
 

@@ -39,7 +39,7 @@ class UNet3DTrainer:
                  max_num_epochs=200, max_num_iterations=1e5, max_patience=20,
                  validate_after_iters=100, log_after_iters=100,
                  validate_iters=None, best_val_accuracy=float('-inf'),
-                 num_iterations=0, num_epoch=0, logger=None):
+                 num_iterations=0, num_epoch=0, logger=None, skip_empty_patch=False):
         if logger is None:
             self.logger = utils.get_logger('UNet3DTrainer', level=logging.DEBUG)
         else:
@@ -69,10 +69,11 @@ class UNet3DTrainer:
         # used for early stopping
         self.max_patience = max_patience
         self.patience = max_patience
+        self.skip_empty_patch = skip_empty_patch
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path, model, optimizer, loss_criterion, accuracy_criterion, loaders,
-                        logger=None):
+                        logger=None, skip_empty_patch=False):
         logger.info(f"Loading checkpoint '{checkpoint_path}'...")
         state = utils.load_checkpoint(checkpoint_path, model, optimizer)
         logger.info(
@@ -89,7 +90,8 @@ class UNet3DTrainer:
                    validate_after_iters=state['validate_after_iters'],
                    log_after_iters=state['log_after_iters'],
                    validate_iters=state['validate_iters'],
-                   logger=logger)
+                   logger=logger,
+                   skip_empty_patch=skip_empty_patch)
 
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
@@ -132,6 +134,10 @@ class UNet3DTrainer:
         best_model_found = False
 
         for i, (input, target) in enumerate(train_loader):
+            if self.skip_empty_patch and torch.unique(target).size()[0] == 1:
+                self.logger.info(f'Skipping training batch {i} (empty patch)...')
+                continue
+
             self.logger.info(
                 f'Training iteration {self.num_iterations}. Batch {i}. Epoch [{self.num_epoch}/{self.max_num_epochs - 1}]')
 
@@ -201,6 +207,10 @@ class UNet3DTrainer:
         try:
             with torch.no_grad():
                 for i, (input, target) in enumerate(val_loader):
+                    if self.skip_empty_patch and torch.unique(target).size()[0] == 1:
+                        self.logger.info(f'Skipping validation batch {i} (empty patch)...')
+                        continue
+
                     self.logger.info(f'Validation iteration {i}')
                     input, target = input.to(self.device), target.to(
                         self.device)
@@ -224,7 +234,7 @@ class UNet3DTrainer:
                     val_losses.update(loss.item(), input.size(0))
                     val_accuracy.update(accuracy.item(), input.size(0))
 
-                    if i == self.validate_iters:
+                    if i >= self.validate_iters:
                         # stop validation
                         break
 
