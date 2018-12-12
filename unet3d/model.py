@@ -21,8 +21,8 @@ class UNet3D(nn.Module):
         interpolate (bool): if True use F.interpolate for upsampling otherwise
             use ConvTranspose3d
         final_sigmoid (bool): if True apply element-wise nn.Sigmoid after the
-            final 1x1x1 convolution, otherwise apply nn.LogSoftmax. MUST be True if nn.BCELoss (two-class) is used
-            to train the model. MUST be False if nn.NLLLoss (multi-class) is used to train the model.
+            final 1x1x1 convolution, otherwise apply nn.Softmax. MUST be True if nn.BCELoss (two-class) is used
+            to train the model. MUST be False if nn.CrossEntropyLoss (multi-class) is used to train the model.
         conv_layer_order (string): determines the order of layers
             in `DoubleConv` module. e.g. 'crg' stands for Conv3d+ReLU+GroupNorm3d.
             See `DoubleConv` for more info.
@@ -59,7 +59,7 @@ class UNet3D(nn.Module):
         if final_sigmoid:
             self.final_activation = nn.Sigmoid()
         else:
-            self.final_activation = None
+            self.final_activation = nn.Softmax(dim=1)
 
     def forward(self, x):
         # encoder part
@@ -81,7 +81,9 @@ class UNet3D(nn.Module):
 
         x = self.final_conv(x)
 
-        if self.final_activation is not None:
+        # apply final_activation (i.e. Sigmoid or Softmax) only for prediction. Unfortunately pytorch's CrossEntropyLoss
+        # automatically applies LogSoftmax on the input, that's why we cannot use it during the training phase.
+        if not self.training:
             x = self.final_activation(x)
 
         return x

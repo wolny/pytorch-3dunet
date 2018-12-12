@@ -4,8 +4,9 @@ import os
 import numpy as np
 import torch
 from tensorboardX import SummaryWriter
+from torch.nn import BCELoss, CrossEntropyLoss
 
-from unet3d.losses import GeneralizedDiceLoss
+from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss
 from . import utils
 
 
@@ -128,24 +129,7 @@ class UNet3DTrainer:
 
             input, target = input.to(self.device), target.to(self.device)
 
-            # forward pass
-            output = self.model(input)
-
-            # if the labels in the target are stored in the single channel (e.g. when CrossEntropyLoss is used)
-            # put the in the separate channels for accuracy criterion computation and tensorboard logging
-            if target.dim() == 4:
-                expanded_target = self._expand_target(target, output.size()[1])
-            else:
-                expanded_target = target
-
-            # compute the loss
-            if isinstance(self.loss_criterion, GeneralizedDiceLoss):
-                loss = self.loss_criterion(output, expanded_target)
-            else:
-                loss = self.loss_criterion(output, target)
-
-            # compute the accuracy criterion
-            accuracy = self.accuracy_criterion(output, expanded_target)
+            output, loss, accuracy, expanded_target = self._forward_pass(input, target)
 
             train_losses.update(loss.item(), input.size(0))
             train_accuracy.update(accuracy.item(), input.size(0))
@@ -163,6 +147,8 @@ class UNet3DTrainer:
                     f'Training stats. Loss: {train_losses.avg}. Accuracy: {train_accuracy.avg}')
                 self._log_stats('train', train_losses.avg, train_accuracy.avg)
                 self._log_params()
+                if isinstance(self.loss_criterion, (WeightedCrossEntropyLoss, CrossEntropyLoss)):
+                    output = self.model.final_activation(output)
                 self._log_images(input, expanded_target, output)
 
             if self.num_iterations % self.validate_after_iters == 0:
@@ -193,7 +179,6 @@ class UNet3DTrainer:
         val_losses = utils.RunningAverage()
         val_accuracy = utils.RunningAverage()
 
-        self.model.eval()
         try:
             with torch.no_grad():
                 for i, (input, target) in enumerate(val_loader):
@@ -202,24 +187,9 @@ class UNet3DTrainer:
                         continue
 
                     self.logger.info(f'Validation iteration {i}')
-                    input, target = input.to(self.device), target.to(
-                        self.device)
+                    input, target = input.to(self.device), target.to(self.device)
 
-                    # forward pass
-                    output = self.model(input)
-
-                    if target.dim() == 4:
-                        expanded_target = self._expand_target(target, output.size()[1])
-                    else:
-                        expanded_target = target
-
-                    # compute the loss
-                    if isinstance(self.loss_criterion, GeneralizedDiceLoss):
-                        loss = self.loss_criterion(output, expanded_target)
-                    else:
-                        loss = self.loss_criterion(output, target)
-
-                    accuracy = self.accuracy_criterion(output, expanded_target)
+                    output, loss, accuracy, expanded_target = self._forward_pass(input, target)
 
                     val_losses.update(loss.item(), input.size(0))
                     val_accuracy.update(accuracy.item(), input.size(0))
@@ -234,6 +204,35 @@ class UNet3DTrainer:
                 return val_accuracy.avg
         finally:
             self.model.train()
+
+    def _forward_pass(self, input, target):
+        # forward pass
+        output = self.model(input)
+        # if the labels in the target are stored in the single channel (e.g. when CrossEntropyLoss is used)
+        # put the in the separate channels for accuracy criterion computation and later tensorboard logging
+        if target.dim() == 4:
+            expanded_target = self._expand_target(target, C=output.size()[1])
+        else:
+            expanded_target = target
+
+        normalized_output = False
+        # compute the loss
+        if isinstance(self.loss_criterion, (GeneralizedDiceLoss, BCELoss)):
+            # explicitly apply the normalization layer in case of GDL or BCE loss
+            output = self.model.final_activation(output)
+            normalized_output = True
+            loss = self.loss_criterion(output, expanded_target)
+        else:
+            # since CE, WCE applies the Softmax internally, normalization is not necessary
+            loss = self.loss_criterion(output, target)
+
+        # compute the accuracy criterion
+        if normalized_output:
+            accuracy = self.accuracy_criterion(output, expanded_target)
+        else:
+            accuracy = self.accuracy_criterion(self.model.final_activation(output), expanded_target)
+
+        return output, loss, accuracy, expanded_target
 
     def _check_early_stopping(self, best_model_found):
         """

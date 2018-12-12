@@ -25,18 +25,11 @@ class DiceCoefficient:
     Since it's not a loss function, no need to compute gradients and thus no need to subclass nn.Module.
     """
 
-    def __init__(self, should_normalize=False, epsilon=1e-5):
-        if should_normalize:
-            self.normalizer = nn.Softmax()
-        else:
-            self.normalizer = None
+    def __init__(self, epsilon=1e-5):
         self.epsilon = epsilon
 
     def __call__(self, input, target):
         assert input.size() == target.size(), "'input' and 'target' must have the same shape"
-
-        if self.normalizer is not None:
-            input = self.normalizer(input)
 
         input = flatten(input)
         target = flatten(target)

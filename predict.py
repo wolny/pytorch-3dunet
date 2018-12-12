@@ -42,6 +42,8 @@ def predict(model, dataset, dataset_shape, device):
     # of overlapping patches
     normalization_mask = np.zeros(probability_maps_shape, dtype='float32')
 
+    # Sets the module in evaluation mode explicitly, otherwise the final Softmax/Sigmoid won't be applied!
+    model.eval()
     with torch.no_grad():
         for patch, index in dataset:
             logger.info(f'Predicting slice:{index}')

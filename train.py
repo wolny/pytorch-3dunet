@@ -186,7 +186,7 @@ def main():
     logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
 
     # Create accuracy metric
-    accuracy_criterion = _get_accuracy_criterion(not final_sigmoid, args.ignore_index)
+    accuracy_criterion = _get_accuracy_criterion(args.ignore_index)
 
     # Get data loaders. If 'bce' or 'dice' loss is used, convert labels to float
     train_path, val_path = args.train_path, args.val_path
@@ -232,17 +232,16 @@ def main():
     trainer.fit()
 
 
-def _get_accuracy_criterion(should_normalize, ignore_index=None):
+def _get_accuracy_criterion(ignore_index=None):
     """
     Returns the segmentation's accuracy metric. Specify whether the criterion's input (model's output) should be normalized
     with nn.Softmax in order to obtain a valid probability distribution.
-    :param should_normalize: whether or not to normalize the input
     :return: Dice coefficient callable
     """
     if ignore_index is not None:
-        return IgnoreIndexLossWrapper(DiceCoefficient(should_normalize), ignore_index=ignore_index)
+        return IgnoreIndexLossWrapper(DiceCoefficient(), ignore_index=ignore_index)
     else:
-        return DiceCoefficient(should_normalize)
+        return DiceCoefficient()
 
 
 if __name__ == '__main__':
