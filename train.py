@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from augment.transforms import AnisotropicTransformer, LabelToBoundaryTransformer, ExtendedTransformer, \
+from augment.transforms import AnisotropicRotationTransformer, LabelToBoundaryTransformer, IsotropicRotationTransformer, \
     StandardTransformer, BaseTransformer
 from datasets.hdf5 import HDF5Dataset
 from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper
@@ -97,8 +97,8 @@ def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, l
     """
     transformers = {
         'LabelToBoundaryTransformer': LabelToBoundaryTransformer,
-        'AnisotropicTransformer': AnisotropicTransformer,
-        'ExtendedTransformer': ExtendedTransformer,
+        'AnisotropicRotationTransformer': AnisotropicRotationTransformer,
+        'IsotropicRotationTransformer': IsotropicRotationTransformer,
         'StandardTransformer': StandardTransformer,
         'BaseTransformer': BaseTransformer
     }

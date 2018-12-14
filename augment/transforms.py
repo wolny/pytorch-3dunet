@@ -26,8 +26,8 @@ class RandomFlip:
                 if m.ndim == 3:
                     m = np.flip(m, axis)
                 else:
-                    for c in range(m.shape[0]):
-                        m[c] = np.flip(m[c], axis)
+                    channels = [np.flip(m[c], axis) for c in range(m.shape[0])]
+                    m = np.stack(channels, axis=0)
 
         return m
 
@@ -47,13 +47,13 @@ class RandomRotate90:
         assert m.ndim in [3, 4], 'Supports only 3D (DxHxW) or 4D (CxDxHxW) images'
 
         # pick number of rotations at random
-        k = self.random_state.randint(0, 3)
+        k = self.random_state.randint(0, 4)
         # rotate k times around a given plane
         if m.ndim == 3:
-            m = np.rot90(m, k, (1, 2))
+            m = np.rot90(m, k)
         else:
-            for c in range(m.shape[0]):
-                m[c] = np.rot90(m[c], k, (1, 2))
+            channels = [np.rot90(m[c], k) for c in range(m.shape[0])]
+            m = np.stack(channels, axis=0)
 
         return m
 
@@ -64,7 +64,7 @@ class RandomRotate:
     Rotation axis is picked at random from the list of provided axes.
     """
 
-    def __init__(self, random_state, angle_spectrum=45, axes=None):
+    def __init__(self, random_state, angle_spectrum=15, axes=None):
         if axes is None:
             axes = [(1, 0), (2, 1), (2, 0)]
         else:
@@ -81,8 +81,9 @@ class RandomRotate:
         if m.ndim == 3:
             m = rotate(m, angle, axes=axis, reshape=False, order=0, mode='constant', cval=-1)
         else:
-            for c in range(m.shape[0]):
-                m[c] = rotate(m[c], angle, axes=axis, reshape=False, order=0, mode='constant', cval=-1)
+            channels = [rotate(m[c], angle, axes=axis, reshape=False, order=0, mode='constant', cval=-1) for c in
+                        range(m.shape[0])]
+            m = np.stack(channels, axis=0)
 
         return m
 
@@ -234,6 +235,11 @@ class BaseTransformer:
 
 
 class StandardTransformer(BaseTransformer):
+    """
+    Standard data augmentation: random flips across randomly picked axis + random 90 degrees rotations.
+
+    """
+
     def get_transforms(self):
         seed = 47
         if self.phase == 'train':
@@ -253,7 +259,12 @@ class StandardTransformer(BaseTransformer):
             return super().get_transforms()
 
 
-class ExtendedTransformer(BaseTransformer):
+class IsotropicRotationTransformer(BaseTransformer):
+    """
+    Data augmentation to be used with isotropic 3D volumes: random flips across randomly picked axis + random 90 deg
+    rotations + random angle rotations across randomly picked axis.
+    """
+
     def __init__(self, mean, std, phase, label_dtype, **kwargs):
         super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
         assert 'angle_spectrum' in kwargs, "'angle_spectrum' argument required"
@@ -280,7 +291,12 @@ class ExtendedTransformer(BaseTransformer):
             return super().get_transforms()
 
 
-class AnisotropicTransformer(BaseTransformer):
+class AnisotropicRotationTransformer(BaseTransformer):
+    """
+    Data augmentation to be used with anisotropic 3D volumes: random flips across randomly picked axis + random 90 deg
+    rotations + random angle rotations across (1,0) axis.
+    """
+
     def __init__(self, mean, std, phase, label_dtype, **kwargs):
         super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
         assert 'angle_spectrum' in kwargs, "'angle_spectrum' argument required"
@@ -293,14 +309,12 @@ class AnisotropicTransformer(BaseTransformer):
                 Normalize(self.mean, self.std),
                 RandomFlip(np.random.RandomState(seed)),
                 RandomRotate90(np.random.RandomState(seed)),
-                RandomRotate(np.random.RandomState(seed), angle_spectrum=5, axes=[(2, 1)]),
                 RandomRotate(np.random.RandomState(seed), angle_spectrum=self.angle_spectrum, axes=[(1, 0)]),
                 ToTensor(expand_dims=True)
             ])
             label_transform = Compose([
                 RandomFlip(np.random.RandomState(seed)),
                 RandomRotate90(np.random.RandomState(seed)),
-                RandomRotate(np.random.RandomState(seed), angle_spectrum=5, axes=[(2, 1)]),
                 RandomRotate(np.random.RandomState(seed), angle_spectrum=self.angle_spectrum, axes=[(1, 0)]),
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])
