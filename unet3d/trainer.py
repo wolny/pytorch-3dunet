@@ -6,7 +6,7 @@ import torch
 from tensorboardX import SummaryWriter
 from torch.nn import BCELoss, CrossEntropyLoss
 
-from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss
+from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper
 from . import utils
 
 
@@ -216,8 +216,12 @@ class UNet3DTrainer:
             expanded_target = target
 
         normalized_output = False
+        loss_instance = self.loss_criterion
+        if isinstance(loss_instance, IgnoreIndexLossWrapper):
+            loss_instance = self.loss_criterion.loss_criterion
+
         # compute the loss
-        if isinstance(self.loss_criterion, (GeneralizedDiceLoss, BCELoss)):
+        if isinstance(loss_instance, (GeneralizedDiceLoss, BCELoss)):
             # explicitly apply the normalization layer in case of GDL or BCE loss
             output = self.model.final_activation(output)
             normalized_output = True
