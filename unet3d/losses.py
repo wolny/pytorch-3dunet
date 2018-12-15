@@ -99,14 +99,43 @@ class IgnoreIndexLossWrapper:
     Throws exception if the wrapped loss supports the 'ignore_index' option.
     """
 
-    def __init__(self, loss_criterion, ignore_index=-1):
+    def __init__(self, loss_criterion, ignore_index=-1, expand=True):
         if hasattr(loss_criterion, 'ignore_index'):
             raise RuntimeError(f"Cannot wrap {type(loss_criterion)}. 'Use ignore_index' attribute instead")
         self.loss_criterion = loss_criterion
         self.ignore_index = ignore_index
+        self.expand = expand
 
     def __call__(self, input, target):
+        if self.expand and target.dim() == 4:
+            target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
+
         mask = Variable(target.data.ne(self.ignore_index).float(), requires_grad=False)
         masked_input = input * mask
         masked_target = target * mask
         return self.loss_criterion(masked_input, masked_target)
+
+
+def expand_target(input, C, ignore_index=None):
+    """
+    Converts NxDxHxW label image to NxCxDxHxW, where each label is stored in a separate channel
+    :param input: 4D input image (NxDxHxW)
+    :param C: number of channels/labels
+    :return: 5D output image (NxCxDxHxW)
+    """
+    assert input.dim() == 4
+    shape = input.size()
+    shape = list(shape)
+    shape.insert(1, C)
+    shape = tuple(shape)
+
+    result = torch.zeros(shape)
+    # for each batch instance
+    for i in range(input.size()[0]):
+        # iterate over channel axis and create corresponding binary mask in the target
+        for c in range(C):
+            mask = result[i, c]
+            mask[input[i] == c] = 1
+            if ignore_index is not None:
+                mask[input[i] == ignore_index] = ignore_index
+    return result.to(input.device)

@@ -129,7 +129,7 @@ class UNet3DTrainer:
 
             input, target = input.to(self.device), target.to(self.device)
 
-            output, loss, accuracy, expanded_target = self._forward_pass(input, target)
+            output, loss, accuracy = self._forward_pass(input, target)
 
             train_losses.update(loss.item(), input.size(0))
             train_accuracy.update(accuracy.item(), input.size(0))
@@ -149,7 +149,7 @@ class UNet3DTrainer:
                 self._log_params()
                 if isinstance(self.loss_criterion, (WeightedCrossEntropyLoss, CrossEntropyLoss)):
                     output = self.model.final_activation(output)
-                self._log_images(input, expanded_target, output)
+                self._log_images(input, target, output)
 
             if self.num_iterations % self.validate_after_iters == 0:
                 # evaluate on validation set
@@ -189,7 +189,7 @@ class UNet3DTrainer:
                     self.logger.info(f'Validation iteration {i}')
                     input, target = input.to(self.device), target.to(self.device)
 
-                    output, loss, accuracy, expanded_target = self._forward_pass(input, target)
+                    output, loss, accuracy = self._forward_pass(input, target)
 
                     val_losses.update(loss.item(), input.size(0))
                     val_accuracy.update(accuracy.item(), input.size(0))
@@ -208,35 +208,27 @@ class UNet3DTrainer:
     def _forward_pass(self, input, target):
         # forward pass
         output = self.model(input)
-        # if the labels in the target are stored in the single channel (e.g. when CrossEntropyLoss is used)
-        # put the in the separate channels for accuracy criterion computation and later tensorboard logging
-        if target.dim() == 4:
-            expanded_target = self._expand_target(target, C=output.size()[1])
-        else:
-            expanded_target = target
 
         normalized_output = False
         loss_instance = self.loss_criterion
         if isinstance(loss_instance, IgnoreIndexLossWrapper):
             loss_instance = self.loss_criterion.loss_criterion
 
-        # compute the loss
         if isinstance(loss_instance, (GeneralizedDiceLoss, BCELoss)):
             # explicitly apply the normalization layer in case of GDL or BCE loss
             output = self.model.final_activation(output)
             normalized_output = True
-            loss = self.loss_criterion(output, expanded_target)
-        else:
-            # since CE, WCE applies the Softmax internally, normalization is not necessary
-            loss = self.loss_criterion(output, target)
+
+        # compute the loss
+        loss = self.loss_criterion(output, target)
 
         # compute the accuracy criterion
         if normalized_output:
-            accuracy = self.accuracy_criterion(output, expanded_target)
+            accuracy = self.accuracy_criterion(output, target)
         else:
-            accuracy = self.accuracy_criterion(self.model.final_activation(output), expanded_target)
+            accuracy = self.accuracy_criterion(self.model.final_activation(output), target)
 
-        return output, loss, accuracy, expanded_target
+        return output, loss, accuracy
 
     def _check_early_stopping(self, best_model_found):
         """
@@ -327,13 +319,20 @@ class UNet3DTrainer:
     def _images_from_batch(self, name, batch):
         tag_template = '{}/batch_{}/channel_{}/slice_{}'
 
-        slice_idx = batch.shape[2] // 2  # get the middle slice
         tagged_images = []
-        for batch_idx in range(batch.shape[0]):
-            for channel_idx in range(batch.shape[1]):
-                tag = tag_template.format(name, batch_idx, channel_idx,
-                                          slice_idx)
-                img = batch[batch_idx, channel_idx, slice_idx, ...]
+
+        if batch.ndim == 5:
+            slice_idx = batch.shape[2] // 2  # get the middle slice
+            for batch_idx in range(batch.shape[0]):
+                for channel_idx in range(batch.shape[1]):
+                    tag = tag_template.format(name, batch_idx, channel_idx, slice_idx)
+                    img = batch[batch_idx, channel_idx, slice_idx, ...]
+                    tagged_images.append((tag, (self._normalize_img(img))))
+        else:
+            slice_idx = batch.shape[1] // 2  # get the middle slice
+            for batch_idx in range(batch.shape[0]):
+                tag = tag_template.format(name, batch_idx, 0, slice_idx)
+                img = batch[batch_idx, slice_idx, ...]
                 tagged_images.append((tag, (self._normalize_img(img))))
 
         return tagged_images
@@ -341,25 +340,3 @@ class UNet3DTrainer:
     @staticmethod
     def _normalize_img(img):
         return (img - np.min(img)) / np.ptp(img)
-
-    def _expand_target(self, input, C):
-        """
-        Converts NxDxHxW label image to NxCxDxHxW, where each label is stored in a separate channel
-        :param input: 4D input image (NxDxHxW)
-        :param C: number of channels/labels
-        :return: 5D output image (NxCxDxHxW)
-        """
-        assert input.dim() == 4
-        shape = input.size()
-        shape = list(shape)
-        shape.insert(1, C)
-        shape = tuple(shape)
-
-        result = torch.zeros(shape)
-        # for each batch instance
-        for i in range(input.size()[0]):
-            # iterate over channel axis and create corresponding binary mask in the target
-            for c in range(C):
-                mask = result[i, c]
-                mask[input[i] == c] = 1
-        return result.to(self.device)

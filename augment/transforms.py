@@ -38,6 +38,8 @@ class RandomRotate90:
 
     When creating make sure that the provided RandomStates are consistent between raw and labeled datasets,
     otherwise the models won't converge.
+
+    IMPORTANT: assumes DHW axis order (that's why rotation is performed across (1,2) axis)
     """
 
     def __init__(self, random_state):
@@ -50,9 +52,9 @@ class RandomRotate90:
         k = self.random_state.randint(0, 4)
         # rotate k times around a given plane
         if m.ndim == 3:
-            m = np.rot90(m, k)
+            m = np.rot90(m, k, (1, 2))
         else:
-            channels = [np.rot90(m[c], k) for c in range(m.shape[0])]
+            channels = [np.rot90(m[c], k, (1, 2)) for c in range(m.shape[0])]
             m = np.stack(channels, axis=0)
 
         return m
@@ -309,13 +311,13 @@ class AnisotropicRotationTransformer(BaseTransformer):
                 Normalize(self.mean, self.std),
                 RandomFlip(np.random.RandomState(seed)),
                 RandomRotate90(np.random.RandomState(seed)),
-                RandomRotate(np.random.RandomState(seed), angle_spectrum=self.angle_spectrum, axes=[(1, 0)]),
+                RandomRotate(np.random.RandomState(seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)]),
                 ToTensor(expand_dims=True)
             ])
             label_transform = Compose([
                 RandomFlip(np.random.RandomState(seed)),
                 RandomRotate90(np.random.RandomState(seed)),
-                RandomRotate(np.random.RandomState(seed), angle_spectrum=self.angle_spectrum, axes=[(1, 0)]),
+                RandomRotate(np.random.RandomState(seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)]),
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])
             return raw_transform, label_transform
