@@ -97,21 +97,20 @@ def create_random_dataset(shape):
 
 
 class CustomTransformer(transforms.BaseTransformer):
-    def get_transforms(self):
-        seed = 47
-        raw_transform = Compose([
-            transforms.RandomFlip(np.random.RandomState(seed)),
-            transforms.RandomRotate90(np.random.RandomState(seed)),
-            transforms.RandomRotate(np.random.RandomState(seed), angle_spectrum=30, axes=[(1, 0)]),
-            transforms.RandomRotate(np.random.RandomState(seed), angle_spectrum=5, axes=[(2, 1)]),
+    def raw_transform(self):
+        return Compose([
+            transforms.RandomFlip(np.random.RandomState(self.seed)),
+            transforms.RandomRotate90(np.random.RandomState(self.seed)),
+            transforms.RandomRotate(np.random.RandomState(self.seed), angle_spectrum=30, axes=[(1, 0)]),
+            transforms.RandomRotate(np.random.RandomState(self.seed), angle_spectrum=5, axes=[(2, 1)]),
             transforms.ToTensor(expand_dims=True)
         ])
-        label_transform = Compose([
-            transforms.RandomFlip(np.random.RandomState(seed)),
-            transforms.RandomRotate90(np.random.RandomState(seed)),
-            transforms.RandomRotate(np.random.RandomState(seed), angle_spectrum=30, axes=[(1, 0)]),
-            transforms.RandomRotate(np.random.RandomState(seed), angle_spectrum=5, axes=[(2, 1)]),
+
+    def label_transform(self):
+        return Compose([
+            transforms.RandomFlip(np.random.RandomState(self.seed)),
+            transforms.RandomRotate90(np.random.RandomState(self.seed)),
+            transforms.RandomRotate(np.random.RandomState(self.seed), angle_spectrum=30, axes=[(1, 0)]),
+            transforms.RandomRotate(np.random.RandomState(self.seed), angle_spectrum=5, axes=[(2, 1)]),
             transforms.ToTensor(expand_dims=False)
         ])
-
-        return raw_transform, label_transform
