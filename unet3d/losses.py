@@ -25,11 +25,22 @@ class DiceCoefficient:
     Since it's not a loss function, no need to compute gradients and thus no need to subclass nn.Module.
     """
 
-    def __init__(self, epsilon=1e-5):
+    def __init__(self, epsilon=1e-5, ignore_index=None):
         self.epsilon = epsilon
+        self.ignore_index = ignore_index
 
     def __call__(self, input, target):
+        # input and target shapes must match
+        if target.dim() == 4:
+            target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
+
         assert input.size() == target.size(), "'input' and 'target' must have the same shape"
+
+        # mask ignore_index if present
+        if self.ignore_index is not None:
+            mask = Variable(target.data.ne(self.ignore_index).float(), requires_grad=False)
+            input = input * mask
+            target = target * mask
 
         input = flatten(input)
         target = flatten(target)
@@ -45,13 +56,24 @@ class GeneralizedDiceLoss(nn.Module):
     """Computes Generalized Dice Loss (GDL) as described in https://arxiv.org/pdf/1707.03237.pdf
     """
 
-    def __init__(self, epsilon=1e-5, weight=None):
+    def __init__(self, epsilon=1e-5, weight=None, ignore_index=None):
         super(GeneralizedDiceLoss, self).__init__()
         self.epsilon = epsilon
         self.register_buffer('weight', weight)
+        self.ignore_index = ignore_index
 
     def forward(self, input, target):
+        # input and target shapes must match
+        if target.dim() == 4:
+            target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
+
         assert input.size() == target.size(), "'input' and 'target' must have the same shape"
+
+        # mask ignore_index if present
+        if self.ignore_index is not None:
+            mask = Variable(target.data.ne(self.ignore_index).float(), requires_grad=False)
+            input = input * mask
+            target = target * mask
 
         input = flatten(input)
         target = flatten(target)
@@ -70,6 +92,9 @@ class GeneralizedDiceLoss(nn.Module):
 
 
 class WeightedCrossEntropyLoss(nn.Module):
+    """WeightedCrossEntropyLoss (WCE) as described in https://arxiv.org/pdf/1707.03237.pdf
+    """
+
     def __init__(self, weight=None, ignore_index=-1):
         super(WeightedCrossEntropyLoss, self).__init__()
         self.register_buffer('weight', weight)
@@ -99,21 +124,52 @@ class IgnoreIndexLossWrapper:
     Throws exception if the wrapped loss supports the 'ignore_index' option.
     """
 
-    def __init__(self, loss_criterion, ignore_index=-1, expand=True):
+    def __init__(self, loss_criterion, ignore_index=-1):
         if hasattr(loss_criterion, 'ignore_index'):
-            raise RuntimeError(f"Cannot wrap {type(loss_criterion)}. 'Use ignore_index' attribute instead")
+            raise RuntimeError(f"Cannot wrap {type(loss_criterion)}. Use 'ignore_index' attribute instead")
         self.loss_criterion = loss_criterion
         self.ignore_index = ignore_index
-        self.expand = expand
 
     def __call__(self, input, target):
-        if self.expand and target.dim() == 4:
+        # always expand target tensor, so that input.size() == target.size()
+        if target.dim() == 4:
             target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
+
+        assert input.size() == target.size()
 
         mask = Variable(target.data.ne(self.ignore_index).float(), requires_grad=False)
         masked_input = input * mask
         masked_target = target * mask
         return self.loss_criterion(masked_input, masked_target)
+
+
+class PixelWiseCrossEntropyLoss(nn.Module):
+    def __init__(self, class_weights=None, ignore_index=None):
+        super().__init__()
+        self.register_buffer('class_weights', class_weights)
+        self.ignore_index = ignore_index
+        self.log_softmax = nn.LogSoftmax()
+
+    def forward(self, input, target, weights):
+        assert target.size() == weights.size()
+        # normalize the input
+        log_probabilities = self.log_softmax(input)
+        # standard CrossEntropyLoss requires the target to be (NxDxHxW), so we need to expand it to (NxCxDxHxW)
+        target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
+        # mask ignore_index if present
+        if self.ignore_index is not None:
+            mask = Variable(target.data.ne(self.ignore_index).float(), requires_grad=False)
+            log_probabilities = log_probabilities * mask
+            target = target * mask
+        # compute the losses (this works cause the weights (NxDxHxW) will be brodcasted onto targets (NxCxDxHxW))
+        result = -weights * target * log_probabilities
+        # apply class_weights if present
+        if self.class_weights is not None:
+            result = flatten(result)
+            class_weights = Variable(self.class_weights.unsqueeze(1), requires_grad=False)
+            assert result.size()[0] == class_weights.size()[0]
+        # average the losses
+        return result.mean()
 
 
 def expand_target(input, C, ignore_index=None):

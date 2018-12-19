@@ -75,7 +75,8 @@ def _create_model(in_channels, out_channels, layer_order, interpolate, final_sig
                   conv_layer_order=layer_order)
 
 
-def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, label_dtype, train_patch, train_stride, val_patch, val_stride, transformer):
+def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, label_dtype, train_patch, train_stride,
+                 val_patch, val_stride, transformer):
     """
     Returns dictionary containing the  training and validation loaders
     (torch.utils.data.DataLoader) backed by the datasets.hdf5.HDF5Dataset
@@ -143,10 +144,7 @@ def _get_loss_criterion(loss_str, weight=None, ignore_index=None):
             ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
         return WeightedCrossEntropyLoss(weight=weight, ignore_index=ignore_index), False
     else:
-        if ignore_index is None:
-            return GeneralizedDiceLoss(weight=weight), True
-        else:
-            return IgnoreIndexLossWrapper(GeneralizedDiceLoss(weight=weight), ignore_index=ignore_index), True
+        return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index), True
 
 
 def _create_optimizer(args, model):
@@ -186,7 +184,7 @@ def main():
     logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
 
     # Create accuracy metric
-    accuracy_criterion = _get_accuracy_criterion(args.ignore_index)
+    accuracy_criterion = DiceCoefficient(ignore_index=args.ignore_index)
 
     # Get data loaders. If 'bce' or 'dice' loss is used, convert labels to float
     train_path, val_path = args.train_path, args.val_path
@@ -230,18 +228,6 @@ def main():
                                 skip_empty_patch=args.skip_empty_patch)
 
     trainer.fit()
-
-
-def _get_accuracy_criterion(ignore_index=None):
-    """
-    Returns the segmentation's accuracy metric. Specify whether the criterion's input (model's output) should be normalized
-    with nn.Softmax in order to obtain a valid probability distribution.
-    :return: Dice coefficient callable
-    """
-    if ignore_index is not None:
-        return IgnoreIndexLossWrapper(DiceCoefficient(), ignore_index=ignore_index)
-    else:
-        return DiceCoefficient()
 
 
 if __name__ == '__main__':
