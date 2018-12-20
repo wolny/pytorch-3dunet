@@ -6,7 +6,8 @@ import torch
 from tensorboardX import SummaryWriter
 from torch.nn import BCELoss, CrossEntropyLoss
 
-from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper
+from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper, \
+    PixelWiseCrossEntropyLoss
 from . import utils
 
 
@@ -153,7 +154,8 @@ class UNet3DTrainer:
                     f'Training stats. Loss: {train_losses.avg}. Accuracy: {train_accuracy.avg}')
                 self._log_stats('train', train_losses.avg, train_accuracy.avg)
                 self._log_params()
-                if isinstance(self.loss_criterion, (WeightedCrossEntropyLoss, CrossEntropyLoss)):
+                if isinstance(self.loss_criterion,
+                              (WeightedCrossEntropyLoss, CrossEntropyLoss, PixelWiseCrossEntropyLoss)):
                     output = self.model.final_activation(output)
                 self._log_images(input, target, output)
 
