@@ -94,7 +94,7 @@ def save_predictions(probability_maps, output_file, average_channels):
 
 
 def _final_sigmoid(loss):
-    assert loss in ['ce', 'bce', 'wce', 'dice']
+    assert loss in ['ce', 'bce', 'wce', 'pce', 'dice']
     return loss in ['bce', 'dice']
 
 
