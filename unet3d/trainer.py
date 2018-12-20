@@ -4,10 +4,7 @@ import os
 import numpy as np
 import torch
 from tensorboardX import SummaryWriter
-from torch.nn import BCELoss, CrossEntropyLoss
 
-from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper, \
-    PixelWiseCrossEntropyLoss
 from . import utils
 
 
@@ -154,9 +151,8 @@ class UNet3DTrainer:
                     f'Training stats. Loss: {train_losses.avg}. Accuracy: {train_accuracy.avg}')
                 self._log_stats('train', train_losses.avg, train_accuracy.avg)
                 self._log_params()
-                if isinstance(self.loss_criterion,
-                              (WeightedCrossEntropyLoss, CrossEntropyLoss, PixelWiseCrossEntropyLoss)):
-                    output = self.model.final_activation(output)
+                # normalize output (during training the network outputs logits only)
+                output = self.model.final_activation(output)
                 self._log_images(input, target, output)
 
             if self.num_iterations % self.validate_after_iters == 0:
@@ -214,8 +210,7 @@ class UNet3DTrainer:
                         break
 
                 self._log_stats('val', val_losses.avg, val_accuracy.avg)
-                self.logger.info(
-                    f'Validation finished. Loss: {val_losses.avg}. Accuracy: {val_accuracy.avg}')
+                self.logger.info(f'Validation finished. Loss: {val_losses.avg}. Accuracy: {val_accuracy.avg}')
                 return val_accuracy.avg
         finally:
             self.model.train()
@@ -224,27 +219,14 @@ class UNet3DTrainer:
         # forward pass
         output = self.model(input)
 
-        normalized_output = False
-        loss_instance = self.loss_criterion
-        if isinstance(loss_instance, IgnoreIndexLossWrapper):
-            loss_instance = self.loss_criterion.loss_criterion
-
-        if isinstance(loss_instance, (GeneralizedDiceLoss, BCELoss)):
-            # explicitly apply the normalization layer in case of GDL or BCE loss
-            output = self.model.final_activation(output)
-            normalized_output = True
-
         # compute the loss
         if weight is None:
             loss = self.loss_criterion(output, target)
         else:
             loss = self.loss_criterion(output, target, weight)
 
-        # compute the accuracy criterion
-        if normalized_output:
-            accuracy = self.accuracy_criterion(output, target)
-        else:
-            accuracy = self.accuracy_criterion(self.model.final_activation(output), target)
+        # normalize logits and compute the accuracy criterion
+        accuracy = self.accuracy_criterion(self.model.final_activation(output), target)
 
         return output, loss, accuracy
 

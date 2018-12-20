@@ -51,6 +51,14 @@ class HDF5Dataset(Dataset):
         self.raw_transform = self.transformer.raw_transform()
         self.label_transform = self.transformer.label_transform()
 
+        # check if voxel weight map is available
+        if 'weighted' in kwargs:
+            # look for the weight map in the raw file
+            self.weight_map = self.raw_file['weight_map']
+            self.weight_transform = self.transformer.weight_transform()
+        else:
+            self.weight_map = None
+
         # 'test' phase used only for predictions so ignore the label dataset
         if phase != 'test':
             # if label_file_path is None assume that labels are stored in the raw_file_path as well
@@ -78,7 +86,12 @@ class HDF5Dataset(Dataset):
         if self.phase != 'test':
             label_idx = self.label_slices[idx]
             label_slice_tensor = self.label_transform(self.label[label_idx])
-            return img_slice_tensor, label_slice_tensor
+            if self.weight_map is None:
+                return img_slice_tensor, label_slice_tensor
+            else:
+                # return voxel weight map for a given patch together with raw and label data
+                weight_slice_tensor = self.weight_transform(self.weight_map[raw_idx])
+                return img_slice_tensor, label_slice_tensor, weight_slice_tensor
         else:
             # if in the 'test' phase return the slice metadata as well
             return img_slice_tensor, raw_idx
@@ -171,28 +184,3 @@ class HDF5Dataset(Dataset):
         assert len(patch_shape) == 3, 'patch_shape must be a 3D tuple'
         assert patch_shape[1] >= 64 and patch_shape[2] >= 64, 'Height and Width must be greater or equal 64'
         assert patch_shape[0] >= 16, 'Depth must be greater or equal 16'
-
-
-class WeightedHDF5Dataset(HDF5Dataset):
-    def __init__(self, raw_file_path, patch_shape, stride_shape, phase, label_file_path=None, raw_internal_path='raw',
-                 label_internal_path='label', label_dtype=np.long, **kwargs):
-        super().__init__(raw_file_path, patch_shape, stride_shape, phase, label_file_path, raw_internal_path,
-                         label_internal_path, label_dtype, transforms.StandardTransformerWithWeights, **kwargs)
-        self.weight_map = self.raw_file['weight_map']
-        self.weight_transform = self.transformer.get_weight_transform()
-
-    def __getitem__(self, idx):
-        if idx >= len(self):
-            raise StopIteration
-
-        raw_idx = self.raw_slices[idx]
-        img_slice_tensor = self.raw_transform(self.raw[raw_idx])
-
-        if self.phase != 'test':
-            label_idx = self.label_slices[idx]
-            label_slice_tensor = self.label_transform(self.label[label_idx])
-            weight_slice_tensor = self.weight_transform(self.weight_map[raw_idx])
-            return img_slice_tensor, label_slice_tensor, weight_slice_tensor
-        else:
-            # if in the 'test' phase return the slice metadata as well
-            return img_slice_tensor, raw_idx

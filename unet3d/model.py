@@ -81,8 +81,8 @@ class UNet3D(nn.Module):
 
         x = self.final_conv(x)
 
-        # apply final_activation (i.e. Sigmoid or Softmax) only for prediction. Unfortunately pytorch's CrossEntropyLoss
-        # automatically applies LogSoftmax on the input, that's why we cannot use it during the training phase.
+        # apply final_activation (i.e. Sigmoid or Softmax) only for prediction. During training the network outputs
+        # logits and it's up to the user to normalize it before visualising with tensorboard or computing accuracy
         if not self.training:
             x = self.final_activation(x)
 

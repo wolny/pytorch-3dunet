@@ -1,15 +1,13 @@
 import argparse
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
 from augment.transforms import AnisotropicRotationTransformer, LabelToBoundaryTransformer, IsotropicRotationTransformer, \
     StandardTransformer, BaseTransformer
-from datasets.hdf5 import HDF5Dataset, WeightedHDF5Dataset
-from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper, \
-    PixelWiseCrossEntropyLoss
+from datasets.hdf5 import HDF5Dataset
+from unet3d.losses import DiceCoefficient, get_loss_criterion
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger
@@ -107,63 +105,26 @@ def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, l
 
     assert transformer in transformers
 
-    if not pixel_wise_weight:
-        # create H5 backed training and validation dataset with data augmentation
-        train_dataset = HDF5Dataset(train_path, train_patch, train_stride,
-                                    phase='train',
-                                    label_dtype=label_dtype,
-                                    raw_internal_path=raw_internal_path,
-                                    label_internal_path=label_internal_path,
-                                    transformer=transformers[transformer])
-        val_dataset = HDF5Dataset(val_path, val_patch, val_stride,
-                                  phase='val',
-                                  label_dtype=label_dtype,
-                                  raw_internal_path=raw_internal_path,
-                                  label_internal_path=label_internal_path,
-                                  transformer=transformers[transformer])
-    else:
-        train_dataset = WeightedHDF5Dataset(train_path, train_patch, train_stride,
-                                            phase='train',
-                                            label_dtype=label_dtype,
-                                            raw_internal_path=raw_internal_path,
-                                            label_internal_path=label_internal_path)
-        val_dataset = WeightedHDF5Dataset(val_path, val_patch, val_stride,
-                                          phase='val',
-                                          label_dtype=label_dtype,
-                                          raw_internal_path=raw_internal_path,
-                                          label_internal_path=label_internal_path)
+    # create H5 backed training and validation dataset with data augmentation
+    train_dataset = HDF5Dataset(train_path, train_patch, train_stride,
+                                phase='train',
+                                label_dtype=label_dtype,
+                                raw_internal_path=raw_internal_path,
+                                label_internal_path=label_internal_path,
+                                transformer=transformers[transformer],
+                                weighted=pixel_wise_weight)
+    val_dataset = HDF5Dataset(val_path, val_patch, val_stride,
+                              phase='val',
+                              label_dtype=label_dtype,
+                              raw_internal_path=raw_internal_path,
+                              label_internal_path=label_internal_path,
+                              transformer=transformers[transformer],
+                              weighted=pixel_wise_weight)
 
     return {
         'train': DataLoader(train_dataset, batch_size=1, shuffle=True),
         'val': DataLoader(val_dataset, batch_size=1, shuffle=True)
     }
-
-
-def _get_loss_criterion(loss_str, weight=None, ignore_index=None):
-    """
-    Returns the loss function together with boolean flag which indicates
-    whether to apply an element-wise Sigmoid on the network output
-    """
-    LOSSES = ['ce', 'bce', 'wce', 'pce', 'dice']
-    assert loss_str in LOSSES, f'Invalid loss string: {loss_str}'
-
-    if loss_str == 'bce':
-        if ignore_index is None:
-            return nn.BCELoss(weight=weight), True
-        else:
-            return IgnoreIndexLossWrapper(nn.BCELoss(weight=weight), ignore_index=ignore_index), True
-    elif loss_str == 'ce':
-        if ignore_index is None:
-            ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
-        return nn.CrossEntropyLoss(weight=weight, ignore_index=ignore_index), False
-    elif loss_str == 'wce':
-        if ignore_index is None:
-            ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
-        return WeightedCrossEntropyLoss(weight=weight, ignore_index=ignore_index), False
-    elif loss_str == 'pce':
-        return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index), False
-    else:
-        return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index), True
 
 
 def _create_optimizer(args, model):
@@ -190,7 +151,7 @@ def main():
     else:
         loss_weight = None
 
-    loss_criterion, final_sigmoid = _get_loss_criterion(args.loss, loss_weight, args.ignore_index)
+    loss_criterion, final_sigmoid = get_loss_criterion(args.loss, loss_weight, args.ignore_index)
 
     model = _create_model(args.in_channels, args.out_channels,
                           layer_order=args.layer_order,

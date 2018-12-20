@@ -3,25 +3,14 @@ import torch.nn.functional as F
 from torch import nn as nn
 from torch.autograd import Variable
 
-
-def flatten(tensor):
-    """Flattens a given tensor such that the channel axis is first.
-    The shapes are transformed as follows:
-       (N, C, D, H, W) -> (C, N * D * H * W)
-    """
-    C = tensor.size(1)
-    # new axis order
-    axis_order = (1, 0) + tuple(range(2, tensor.dim()))
-    # Transpose: (N, C, D, H, W) -> (C, N, D, H, W)
-    transposed = tensor.permute(axis_order)
-    # Flatten: (C, N, D, H, W) -> (C, N * D * H * W)
-    return transposed.view(C, -1)
+SUPPORTED_LOSSES = ['ce', 'bce', 'wce', 'pce', 'dice']
 
 
 class DiceCoefficient:
     """Computes Dice Coefficient.
     Generalized to multiple channels by computing per-channel Dice Score
     (as described in https://arxiv.org/pdf/1707.03237.pdf) and then simply taking the average.
+    Expects normalized probabilities as input (not logits)!
     Since it's not a loss function, no need to compute gradients and thus no need to subclass nn.Module.
     """
 
@@ -54,6 +43,7 @@ class DiceCoefficient:
 
 class GeneralizedDiceLoss(nn.Module):
     """Computes Generalized Dice Loss (GDL) as described in https://arxiv.org/pdf/1707.03237.pdf
+    Combines a `Softmax` layer with the GDL, so it expects logits as input.
     """
 
     def __init__(self, epsilon=1e-5, weight=None, ignore_index=None):
@@ -61,8 +51,11 @@ class GeneralizedDiceLoss(nn.Module):
         self.epsilon = epsilon
         self.register_buffer('weight', weight)
         self.ignore_index = ignore_index
+        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, input, target):
+        # get probabilities from logits
+        input = self.softmax(input)
         # input and target shapes must match
         if target.dim() == 4:
             target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
@@ -148,7 +141,7 @@ class PixelWiseCrossEntropyLoss(nn.Module):
         super(PixelWiseCrossEntropyLoss, self).__init__()
         self.register_buffer('class_weights', class_weights)
         self.ignore_index = ignore_index
-        self.log_softmax = nn.LogSoftmax()
+        self.log_softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, input, target, weights):
         assert target.size() == weights.size()
@@ -182,6 +175,20 @@ class PixelWiseCrossEntropyLoss(nn.Module):
         return result.mean()
 
 
+def flatten(tensor):
+    """Flattens a given tensor such that the channel axis is first.
+    The shapes are transformed as follows:
+       (N, C, D, H, W) -> (C, N * D * H * W)
+    """
+    C = tensor.size(1)
+    # new axis order
+    axis_order = (1, 0) + tuple(range(2, tensor.dim()))
+    # Transpose: (N, C, D, H, W) -> (C, N, D, H, W)
+    transposed = tensor.permute(axis_order)
+    # Flatten: (C, N, D, H, W) -> (C, N * D * H * W)
+    return transposed.view(C, -1)
+
+
 def expand_target(input, C, ignore_index=None):
     """
     Converts NxDxHxW label image to NxCxDxHxW, where each label is stored in a separate channel
@@ -205,3 +212,29 @@ def expand_target(input, C, ignore_index=None):
             if ignore_index is not None:
                 mask[input[i] == ignore_index] = ignore_index
     return result.to(input.device)
+
+
+def get_loss_criterion(loss_str, weight=None, ignore_index=None):
+    """
+    Returns the loss function together with boolean flag which indicates
+    whether to apply an element-wise Sigmoid on the network output
+    """
+    assert loss_str in SUPPORTED_LOSSES, f'Invalid loss string: {loss_str}'
+
+    if loss_str == 'bce':
+        if ignore_index is None:
+            return nn.BCEWithLogitsLoss(), True
+        else:
+            return IgnoreIndexLossWrapper(nn.BCEWithLogitsLoss(), ignore_index=ignore_index), True
+    elif loss_str == 'ce':
+        if ignore_index is None:
+            ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
+        return nn.CrossEntropyLoss(weight=weight, ignore_index=ignore_index), False
+    elif loss_str == 'wce':
+        if ignore_index is None:
+            ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
+        return WeightedCrossEntropyLoss(weight=weight, ignore_index=ignore_index), False
+    elif loss_str == 'pce':
+        return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index), False
+    else:
+        return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index), False

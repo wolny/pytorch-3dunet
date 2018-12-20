@@ -5,12 +5,11 @@ from tempfile import NamedTemporaryFile
 import h5py
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from datasets.hdf5 import HDF5Dataset, WeightedHDF5Dataset
-from unet3d.losses import DiceCoefficient, WeightedCrossEntropyLoss, GeneralizedDiceLoss, PixelWiseCrossEntropyLoss
+from datasets.hdf5 import HDF5Dataset
+from unet3d.losses import DiceCoefficient, get_loss_criterion
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger
@@ -69,7 +68,7 @@ class TestUNet3DTrainer:
         device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
         # conv-relu-groupnorm
         conv_layer_order = 'crg'
-        loss_criterion, final_sigmoid = self._get_loss_criterion(loss, weight=torch.rand(2).to(device))
+        loss_criterion, final_sigmoid = get_loss_criterion(loss, weight=torch.rand(2).to(device))
         model = self._create_model(final_sigmoid, conv_layer_order)
         accuracy_criterion = DiceCoefficient()
         channel_per_class = loss == 'bce'
@@ -99,19 +98,6 @@ class TestUNet3DTrainer:
             model, optimizer, loss_criterion, accuracy_criterion, loaders,
             logger=logger)
         return trainer
-
-    @staticmethod
-    def _get_loss_criterion(loss, weight):
-        if loss == 'bce':
-            return nn.BCELoss(), True
-        elif loss == 'ce':
-            return nn.CrossEntropyLoss(weight=weight), False
-        elif loss == 'wce':
-            return WeightedCrossEntropyLoss(weight=weight), False
-        elif loss == 'pce':
-            return PixelWiseCrossEntropyLoss(class_weights=weight), False
-        else:
-            return GeneralizedDiceLoss(weight=weight), True
 
     @staticmethod
     def _create_model(final_sigmoid, layer_order):
@@ -146,18 +132,10 @@ class TestUNet3DTrainer:
     def _get_loaders(channel_per_class, label_dtype, pixel_wise_weight=False):
         train, val = TestUNet3DTrainer._create_random_dataset((128, 128, 128), (64, 64, 64), channel_per_class,
                                                               pixel_wise_weight)
-        if not pixel_wise_weight:
-            train_dataset = HDF5Dataset(train, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32), phase='train',
-                                        label_dtype=label_dtype)
-            val_dataset = HDF5Dataset(val, patch_shape=(64, 64, 64), stride_shape=(64, 64, 64), phase='val',
-                                      label_dtype=label_dtype)
-        else:
-            train_dataset = WeightedHDF5Dataset(train, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32),
-                                                phase='train',
-                                                label_dtype=label_dtype)
-            val_dataset = WeightedHDF5Dataset(val, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32),
-                                              phase='val',
-                                              label_dtype=label_dtype)
+        train_dataset = HDF5Dataset(train, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32), phase='train',
+                                    label_dtype=label_dtype, weighted=pixel_wise_weight)
+        val_dataset = HDF5Dataset(val, patch_shape=(64, 64, 64), stride_shape=(64, 64, 64), phase='val',
+                                  label_dtype=label_dtype, weighted=pixel_wise_weight)
 
         return {
             'train': DataLoader(train_dataset, batch_size=1, shuffle=True),

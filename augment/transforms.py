@@ -227,6 +227,11 @@ class BaseTransformer:
             ToTensor(expand_dims=False, dtype=self.label_dtype)
         ])
 
+    def weight_transform(self):
+        return Compose([
+            ToTensor(expand_dims=False)
+        ])
+
     @classmethod
     def create(cls, mean, std, phase, label_dtype, **kwargs):
         return cls(mean, std, phase, label_dtype, **kwargs)
@@ -259,9 +264,7 @@ class StandardTransformer(BaseTransformer):
         else:
             return super().label_transform()
 
-
-class StandardTransformerWithWeights(BaseTransformer):
-    def get_weight_transform(self):
+    def weight_transform(self):
         if self.phase == 'train':
             return Compose([
                 RandomFlip(np.random.RandomState(self.seed)),
@@ -269,9 +272,7 @@ class StandardTransformerWithWeights(BaseTransformer):
                 ToTensor(expand_dims=False)
             ])
         else:
-            return Compose([
-                ToTensor(expand_dims=False)
-            ])
+            return super().weight_transform()
 
 
 class IsotropicRotationTransformer(BaseTransformer):
@@ -308,6 +309,17 @@ class IsotropicRotationTransformer(BaseTransformer):
         else:
             return super().label_transform()
 
+    def weight_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum),
+                ToTensor(expand_dims=False)
+            ])
+        else:
+            return super().weight_transform()
+
 
 class AnisotropicRotationTransformer(BaseTransformer):
     """
@@ -342,6 +354,17 @@ class AnisotropicRotationTransformer(BaseTransformer):
             ])
         else:
             return super().label_transform()
+
+    def weight_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)]),
+                ToTensor(expand_dims=False)
+            ])
+        else:
+            return super().weight_transform()
 
 
 # FIXME: do not use random rotations (except RandomRotate90) together with LabelToBoundary, cause it will create
@@ -378,3 +401,13 @@ class LabelToBoundaryTransformer(BaseTransformer):
                 # this will give us 6 output channels with boundary signal
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])
+
+    def weight_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                ToTensor(expand_dims=False)
+            ])
+        else:
+            return super().weight_transform()

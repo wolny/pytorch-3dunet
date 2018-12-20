@@ -7,6 +7,7 @@ import torch
 
 from datasets.hdf5 import HDF5Dataset
 from unet3d import utils
+from unet3d.losses import SUPPORTED_LOSSES
 from unet3d.model import UNet3D
 
 logger = utils.get_logger('UNet3DPredictor')
@@ -94,8 +95,8 @@ def save_predictions(probability_maps, output_file, average_channels):
 
 
 def _final_sigmoid(loss):
-    assert loss in ['ce', 'bce', 'wce', 'pce', 'dice']
-    return loss in ['bce', 'dice']
+    assert loss in SUPPORTED_LOSSES
+    return loss == 'bce'
 
 
 def main():
