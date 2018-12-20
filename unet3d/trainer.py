@@ -119,7 +119,7 @@ class UNet3DTrainer:
         # sets the model in training mode
         self.model.train()
 
-        for i, (input, target) in enumerate(train_loader):
+        for i, t in enumerate(train_loader):
             if self.skip_empty_patch and torch.unique(target).size()[0] == 1:
                 self.logger.info(f'Skipping training batch {i} (empty patch)...')
                 continue
@@ -127,9 +127,15 @@ class UNet3DTrainer:
             self.logger.info(
                 f'Training iteration {self.num_iterations}. Batch {i}. Epoch [{self.num_epoch}/{self.max_num_epochs - 1}]')
 
-            input, target = input.to(self.device), target.to(self.device)
+            if len(t) == 2:
+                input, target = t
+                input, target = input.to(self.device), target.to(self.device)
+                weight = None
+            else:
+                input, target, weight = t
+                input, target, weight = input.to(self.device), target.to(self.device), weight.to(self.device)
 
-            output, loss, accuracy = self._forward_pass(input, target)
+            output, loss, accuracy = self._forward_pass(input, target, weight)
 
             train_losses.update(loss.item(), input.size(0))
             train_accuracy.update(accuracy.item(), input.size(0))
@@ -181,15 +187,22 @@ class UNet3DTrainer:
 
         try:
             with torch.no_grad():
-                for i, (input, target) in enumerate(val_loader):
+                for i, t in enumerate(val_loader):
                     if self.skip_empty_patch and torch.unique(target).size()[0] == 1:
                         self.logger.info(f'Skipping validation batch {i} (empty patch)...')
                         continue
 
                     self.logger.info(f'Validation iteration {i}')
-                    input, target = input.to(self.device), target.to(self.device)
 
-                    output, loss, accuracy = self._forward_pass(input, target)
+                    if len(t) == 2:
+                        input, target = t
+                        input, target = input.to(self.device), target.to(self.device)
+                        weight = None
+                    else:
+                        input, target, weight = t
+                        input, target, weight = input.to(self.device), target.to(self.device), weight.to(self.device)
+
+                    output, loss, accuracy = self._forward_pass(input, target, weight)
 
                     val_losses.update(loss.item(), input.size(0))
                     val_accuracy.update(accuracy.item(), input.size(0))
@@ -205,7 +218,7 @@ class UNet3DTrainer:
         finally:
             self.model.train()
 
-    def _forward_pass(self, input, target):
+    def _forward_pass(self, input, target, weight=None):
         # forward pass
         output = self.model(input)
 
@@ -220,7 +233,10 @@ class UNet3DTrainer:
             normalized_output = True
 
         # compute the loss
-        loss = self.loss_criterion(output, target)
+        if weight is None:
+            loss = self.loss_criterion(output, target)
+        else:
+            loss = self.loss_criterion(output, target, weight)
 
         # compute the accuracy criterion
         if normalized_output:

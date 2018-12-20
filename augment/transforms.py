@@ -260,9 +260,18 @@ class StandardTransformer(BaseTransformer):
             return super().label_transform()
 
 
-class StandardTransformerWithWeights(StandardTransformer):
+class StandardTransformerWithWeights(BaseTransformer):
     def get_weight_transform(self):
-        return super().label_transform()
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                ToTensor(expand_dims=False)
+            ])
+        else:
+            return Compose([
+                ToTensor(expand_dims=False)
+            ])
 
 
 class IsotropicRotationTransformer(BaseTransformer):

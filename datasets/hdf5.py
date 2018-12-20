@@ -187,11 +187,11 @@ class WeightedHDF5Dataset(HDF5Dataset):
 
         raw_idx = self.raw_slices[idx]
         img_slice_tensor = self.raw_transform(self.raw[raw_idx])
-        weight_slice_tensor = self.weight_transform(self.weight_map[raw_idx])
 
         if self.phase != 'test':
             label_idx = self.label_slices[idx]
             label_slice_tensor = self.label_transform(self.label[label_idx])
+            weight_slice_tensor = self.weight_transform(self.weight_map[raw_idx])
             return img_slice_tensor, label_slice_tensor, weight_slice_tensor
         else:
             # if in the 'test' phase return the slice metadata as well

@@ -145,7 +145,7 @@ class IgnoreIndexLossWrapper:
 
 class PixelWiseCrossEntropyLoss(nn.Module):
     def __init__(self, class_weights=None, ignore_index=None):
-        super().__init__()
+        super(PixelWiseCrossEntropyLoss, self).__init__()
         self.register_buffer('class_weights', class_weights)
         self.ignore_index = ignore_index
         self.log_softmax = nn.LogSoftmax()
@@ -156,18 +156,28 @@ class PixelWiseCrossEntropyLoss(nn.Module):
         log_probabilities = self.log_softmax(input)
         # standard CrossEntropyLoss requires the target to be (NxDxHxW), so we need to expand it to (NxCxDxHxW)
         target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
+        # expand weights
+        weights = weights.unsqueeze(0)
+        weights = weights.expand_as(input)
+
         # mask ignore_index if present
         if self.ignore_index is not None:
             mask = Variable(target.data.ne(self.ignore_index).float(), requires_grad=False)
             log_probabilities = log_probabilities * mask
             target = target * mask
-        # compute the losses (this works cause the weights (NxDxHxW) will be brodcasted onto targets (NxCxDxHxW))
+
+        # apply class weights
+        if self.class_weights is None:
+            class_weights = torch.ones(input.size()[1]).float().to(input.device)
+        else:
+            class_weights = self.class_weights
+        class_weights = class_weights.view(1, input.size()[1], 1, 1, 1)
+        class_weights = Variable(class_weights, requires_grad=False)
+        # add class_weights to each channel
+        weights = class_weights + weights
+
+        # compute the losses
         result = -weights * target * log_probabilities
-        # apply class_weights if present
-        if self.class_weights is not None:
-            result = flatten(result)
-            class_weights = Variable(self.class_weights.unsqueeze(1), requires_grad=False)
-            assert result.size()[0] == class_weights.size()[0]
         # average the losses
         return result.mean()
 

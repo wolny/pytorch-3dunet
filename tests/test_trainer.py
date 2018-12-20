@@ -9,8 +9,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from datasets.hdf5 import HDF5Dataset
-from unet3d.losses import DiceCoefficient, WeightedCrossEntropyLoss, GeneralizedDiceLoss
+from datasets.hdf5 import HDF5Dataset, WeightedHDF5Dataset
+from unet3d.losses import DiceCoefficient, WeightedCrossEntropyLoss, GeneralizedDiceLoss, PixelWiseCrossEntropyLoss
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger
@@ -53,6 +53,16 @@ class TestUNet3DTrainer:
             assert trainer.validate_after_iters == 2
             assert trainer.max_num_iterations == 4
 
+    # @pytest.mark.skip
+    def test_pce_loss(self, tmpdir, capsys):
+        with capsys.disabled():
+            trainer = self._train_save_load(tmpdir, 'pce')
+
+            assert trainer.max_num_epochs == 1
+            assert trainer.log_after_iters == 2
+            assert trainer.validate_after_iters == 2
+            assert trainer.max_num_iterations == 4
+
     def _train_save_load(self, tmpdir, loss, max_num_epochs=1, log_after_iters=2, validate_after_iters=2,
                          max_num_iterations=4):
         # get device to train on
@@ -67,7 +77,9 @@ class TestUNet3DTrainer:
             label_dtype = 'float32'
         else:
             label_dtype = 'long'
-        loaders = self._get_loaders(channel_per_class=channel_per_class, label_dtype=label_dtype)
+        pixel_wise_weight = loss == 'pce'
+        loaders = self._get_loaders(channel_per_class=channel_per_class, label_dtype=label_dtype,
+                                    pixel_wise_weight=pixel_wise_weight)
         learning_rate = 2e-4
         weight_decay = 0.0001
         optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -96,6 +108,8 @@ class TestUNet3DTrainer:
             return nn.CrossEntropyLoss(weight=weight), False
         elif loss == 'wce':
             return WeightedCrossEntropyLoss(weight=weight), False
+        elif loss == 'pce':
+            return PixelWiseCrossEntropyLoss(class_weights=weight), False
         else:
             return GeneralizedDiceLoss(weight=weight), True
 
@@ -108,7 +122,7 @@ class TestUNet3DTrainer:
                       conv_layer_order=layer_order)
 
     @staticmethod
-    def _create_random_dataset(train_shape, val_shape, channel_per_class):
+    def _create_random_dataset(train_shape, val_shape, channel_per_class, pixel_wise_weight):
         result = []
 
         for shape in [train_shape, val_shape]:
@@ -121,18 +135,29 @@ class TestUNet3DTrainer:
                     l_shape = shape
                 f.create_dataset('raw', data=np.random.rand(*shape))
                 f.create_dataset('label', data=np.random.randint(0, 2, l_shape))
+                if pixel_wise_weight:
+                    f.create_dataset('weight_map', data=np.random.rand(*shape))
 
             result.append(tmp.name)
 
         return result
 
     @staticmethod
-    def _get_loaders(channel_per_class, label_dtype):
-        train, val = TestUNet3DTrainer._create_random_dataset((128, 128, 128), (64, 64, 64), channel_per_class)
-        train_dataset = HDF5Dataset(train, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32), phase='train',
-                                    label_dtype=label_dtype)
-        val_dataset = HDF5Dataset(val, patch_shape=(64, 64, 64), stride_shape=(64, 64, 64), phase='val',
-                                  label_dtype=label_dtype)
+    def _get_loaders(channel_per_class, label_dtype, pixel_wise_weight=False):
+        train, val = TestUNet3DTrainer._create_random_dataset((128, 128, 128), (64, 64, 64), channel_per_class,
+                                                              pixel_wise_weight)
+        if not pixel_wise_weight:
+            train_dataset = HDF5Dataset(train, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32), phase='train',
+                                        label_dtype=label_dtype)
+            val_dataset = HDF5Dataset(val, patch_shape=(64, 64, 64), stride_shape=(64, 64, 64), phase='val',
+                                      label_dtype=label_dtype)
+        else:
+            train_dataset = WeightedHDF5Dataset(train, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32),
+                                                phase='train',
+                                                label_dtype=label_dtype)
+            val_dataset = WeightedHDF5Dataset(val, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32),
+                                              phase='val',
+                                              label_dtype=label_dtype)
 
         return {
             'train': DataLoader(train_dataset, batch_size=1, shuffle=True),
