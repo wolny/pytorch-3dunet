@@ -52,7 +52,7 @@ class HDF5Dataset(Dataset):
         self.label_transform = self.transformer.label_transform()
 
         # check if voxel weight map is available
-        if 'weighted' in kwargs:
+        if 'weighted' in kwargs and kwargs['weighted']:
             # look for the weight map in the raw file
             self.weight_map = self.raw_file['weight_map']
             self.weight_transform = self.transformer.weight_transform()

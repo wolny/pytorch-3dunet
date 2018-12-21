@@ -108,7 +108,7 @@ class TestUNet3DTrainer:
                       conv_layer_order=layer_order)
 
     @staticmethod
-    def _create_random_dataset(train_shape, val_shape, channel_per_class, pixel_wise_weight):
+    def _create_random_dataset(train_shape, val_shape, channel_per_class):
         result = []
 
         for shape in [train_shape, val_shape]:
@@ -121,8 +121,7 @@ class TestUNet3DTrainer:
                     l_shape = shape
                 f.create_dataset('raw', data=np.random.rand(*shape))
                 f.create_dataset('label', data=np.random.randint(0, 2, l_shape))
-                if pixel_wise_weight:
-                    f.create_dataset('weight_map', data=np.random.rand(*shape))
+                f.create_dataset('weight_map', data=np.random.rand(*shape))
 
             result.append(tmp.name)
 
@@ -130,8 +129,7 @@ class TestUNet3DTrainer:
 
     @staticmethod
     def _get_loaders(channel_per_class, label_dtype, pixel_wise_weight=False):
-        train, val = TestUNet3DTrainer._create_random_dataset((128, 128, 128), (64, 64, 64), channel_per_class,
-                                                              pixel_wise_weight)
+        train, val = TestUNet3DTrainer._create_random_dataset((128, 128, 128), (64, 64, 64), channel_per_class)
         train_dataset = HDF5Dataset(train, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32), phase='train',
                                     label_dtype=label_dtype, weighted=pixel_wise_weight)
         val_dataset = HDF5Dataset(val, patch_shape=(64, 64, 64), stride_shape=(64, 64, 64), phase='val',
