@@ -103,8 +103,8 @@ class TestUNet3DTrainer:
     def _create_model(final_sigmoid, layer_order):
         in_channels = 1
         out_channels = 2
-        # use F.interpolate for upsampling
-        return UNet3D(in_channels, out_channels, final_sigmoid=final_sigmoid, interpolate=True,
+        # use F.interpolate for upsampling and 16 initial feature maps to speed up the tests
+        return UNet3D(in_channels, out_channels, init_channel_number=16, final_sigmoid=final_sigmoid, interpolate=True,
                       conv_layer_order=layer_order)
 
     @staticmethod

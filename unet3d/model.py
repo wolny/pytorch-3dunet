@@ -28,33 +28,38 @@ class UNet3D(nn.Module):
             See `DoubleConv` for more info.
     """
 
-    def __init__(self, in_channels, out_channels, final_sigmoid, interpolate=True, conv_layer_order='crg'):
+    def __init__(self, in_channels, out_channels, final_sigmoid, interpolate=True, conv_layer_order='crg',
+                 init_channel_number=64):
         super(UNet3D, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
+
+        # number of groups for the GroupNorm
+        num_groups = min(init_channel_number // 2, 32)
 
         # encoder path consist of 4 subsequent Encoder modules
         # the number of features maps is the same as in the paper
         self.encoders = nn.ModuleList([
-            Encoder(in_channels, 64, is_max_pool=False,
-                    conv_layer_order=conv_layer_order),
-            Encoder(64, 128, conv_layer_order=conv_layer_order),
-            Encoder(128, 256, conv_layer_order=conv_layer_order),
-            Encoder(256, 512, conv_layer_order=conv_layer_order)
+            Encoder(in_channels, init_channel_number, is_max_pool=False, conv_layer_order=conv_layer_order,
+                    num_groups=num_groups),
+            Encoder(init_channel_number, 2 * init_channel_number, conv_layer_order=conv_layer_order,
+                    num_groups=num_groups),
+            Encoder(2 * init_channel_number, 4 * init_channel_number, conv_layer_order=conv_layer_order,
+                    num_groups=num_groups),
+            Encoder(4 * init_channel_number, 8 * init_channel_number, conv_layer_order=conv_layer_order,
+                    num_groups=num_groups)
         ])
 
         self.decoders = nn.ModuleList([
-            Decoder(256 + 512, 256, interpolate,
-                    conv_layer_order=conv_layer_order),
-            Decoder(128 + 256, 128, interpolate,
-                    conv_layer_order=conv_layer_order),
-            Decoder(64 + 128, 64, interpolate,
-                    conv_layer_order=conv_layer_order)
+            Decoder(4 * init_channel_number + 8 * init_channel_number, 4 * init_channel_number, interpolate,
+                    conv_layer_order=conv_layer_order, num_groups=num_groups),
+            Decoder(2 * init_channel_number + 4 * init_channel_number, 2 * init_channel_number, interpolate,
+                    conv_layer_order=conv_layer_order, num_groups=num_groups),
+            Decoder(init_channel_number + 2 * init_channel_number, init_channel_number, interpolate,
+                    conv_layer_order=conv_layer_order, num_groups=num_groups)
         ])
 
         # in the last layer a 1×1×1 convolution reduces the number of output
         # channels to the number of labels
-        self.final_conv = nn.Conv3d(64, out_channels, 1)
+        self.final_conv = nn.Conv3d(init_channel_number, out_channels, 1)
 
         if final_sigmoid:
             self.final_activation = nn.Sigmoid()
@@ -105,9 +110,10 @@ class DoubleConv(nn.Sequential):
         order (string): determines the order of layers, e.g.
             'cr' -> conv + ReLU
             'crg' -> conv + ReLU + groupnorm
+        num_groups (int): number of groups for the GroupNorm
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size=3, order='crg'):
+    def __init__(self, in_channels, out_channels, kernel_size=3, order='crg', num_groups=32):
         super(DoubleConv, self).__init__()
         if in_channels < out_channels:
             # if in_channels < out_channels we're in the encoder path
@@ -119,13 +125,11 @@ class DoubleConv(nn.Sequential):
             conv2_in_channels, conv2_out_channels = out_channels, out_channels
 
         # conv1
-        self._add_conv(1, conv1_in_channels, conv1_out_channels,
-                       kernel_size, order)
+        self._add_conv(1, conv1_in_channels, conv1_out_channels, kernel_size, order, num_groups)
         # conv2
-        self._add_conv(2, conv2_in_channels, conv2_out_channels,
-                       kernel_size, order)
+        self._add_conv(2, conv2_in_channels, conv2_out_channels, kernel_size, order, num_groups)
 
-    def _add_conv(self, pos, in_channels, out_channels, kernel_size, order):
+    def _add_conv(self, pos, in_channels, out_channels, kernel_size, order, num_groups):
         """Add the conv layer with non-linearity and optional batchnorm
 
         Args:
@@ -135,6 +139,7 @@ class DoubleConv(nn.Sequential):
             order (string): order of things, e.g.
                 'cr' -> conv + ReLU
                 'crg' -> conv + ReLU + groupnorm
+            num_groups (int): number of groups for the GroupNorm
         """
         assert pos in [1, 2], 'pos MUST be either 1 or 2'
         assert 'c' in order, "'c' (conv layer) MUST be present"
@@ -153,8 +158,7 @@ class DoubleConv(nn.Sequential):
             elif char == 'g':
                 is_before_conv = i < order.index('c')
                 assert not is_before_conv, 'GroupNorm3d MUST go after the Conv3d'
-                self.add_module(f'norm{pos}',
-                                groupnorm.GroupNorm3d(out_channels))
+                self.add_module(f'norm{pos}', groupnorm.GroupNorm3d(out_channels, num_groups=num_groups))
             elif char == 'b':
                 is_before_conv = i < order.index('c')
                 if is_before_conv:
@@ -181,16 +185,17 @@ class Encoder(nn.Module):
         max_pool_kernel_size (tuple): the size of the window to take a max over
         conv_layer_order (string): determines the order of layers
             in `DoubleConv` module. See `DoubleConv` for more info.
+        num_groups (int): number of groups for the GroupNorm
     """
 
-    def __init__(self, in_channels, out_channels, conv_kernel_size=3,
-                 is_max_pool=True,
-                 max_pool_kernel_size=(2, 2, 2), conv_layer_order='crg'):
+    def __init__(self, in_channels, out_channels, conv_kernel_size=3, is_max_pool=True,
+                 max_pool_kernel_size=(2, 2, 2), conv_layer_order='crg', num_groups=32):
         super(Encoder, self).__init__()
         self.max_pool = nn.MaxPool3d(kernel_size=max_pool_kernel_size, padding=1) if is_max_pool else None
         self.double_conv = DoubleConv(in_channels, out_channels,
                                       kernel_size=conv_kernel_size,
-                                      order=conv_layer_order)
+                                      order=conv_layer_order,
+                                      num_groups=num_groups)
 
     def forward(self, x):
         if self.max_pool is not None:
@@ -215,10 +220,11 @@ class Decoder(nn.Module):
             case of nn.Upsample or as stride in case of ConvTranspose3d
         conv_layer_order (string): determines the order of layers
             in `DoubleConv` module. See `DoubleConv` for more info.
+        num_groups (int): number of groups for the GroupNorm
     """
 
     def __init__(self, in_channels, out_channels, interpolate, kernel_size=3,
-                 scale_factor=(2, 2, 2), conv_layer_order='crg'):
+                 scale_factor=(2, 2, 2), conv_layer_order='crg', num_groups=32):
         super(Decoder, self).__init__()
         if interpolate:
             self.upsample = None
@@ -233,7 +239,8 @@ class Decoder(nn.Module):
                                                output_padding=1)
         self.double_conv = DoubleConv(in_channels, out_channels,
                                       kernel_size=kernel_size,
-                                      order=conv_layer_order)
+                                      order=conv_layer_order,
+                                      num_groups=num_groups)
 
     def forward(self, encoder_features, x):
         if self.upsample is None:
@@ -241,7 +248,7 @@ class Decoder(nn.Module):
             x = F.interpolate(x, size=output_size, mode='nearest')
         else:
             x = self.upsample(x)
-        # concatenate encoder_features (encoder path) with the upsampled input
+        # concatenate encoder_features (encoder path) with the upsampled input across channel dimension
         x = torch.cat((encoder_features, x), dim=1)
         x = self.double_conv(x)
         return x

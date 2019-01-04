@@ -107,6 +107,8 @@ def main():
                         help='number of input channels')
     parser.add_argument('--out-channels', required=True, type=int,
                         help='number of output channels')
+    parser.add_argument('--init-channel-number', type=int, default=64,
+                        help='Initial number of feature maps in the encoder path which gets doubled on every stage (default: 64)')
     parser.add_argument('--interpolate',
                         help='use F.interpolate instead of ConvTranspose3d',
                         action='store_true')
@@ -133,7 +135,10 @@ def main():
     interpolate = args.interpolate
     layer_order = args.layer_order
     final_sigmoid = _final_sigmoid(args.loss)
-    model = UNet3D(in_channels, out_channels, final_sigmoid=final_sigmoid, interpolate=interpolate,
+    model = UNet3D(in_channels, out_channels,
+                   init_channel_number=args.init_channel_number,
+                   final_sigmoid=final_sigmoid,
+                   interpolate=interpolate,
                    conv_layer_order=layer_order)
 
     logger.info(f'Loading model from {args.model_path}...')

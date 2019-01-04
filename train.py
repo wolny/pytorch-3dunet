@@ -21,6 +21,8 @@ def _arg_parser():
                         help='number of input channels')
     parser.add_argument('--out-channels', required=True, type=int,
                         help='number of output channels')
+    parser.add_argument('--init-channel-number', type=int, default=64,
+                        help='Initial number of feature maps in the encoder path which gets doubled on every stage (default: 64)')
     parser.add_argument('--interpolate',
                         help='use F.interpolate instead of ConvTranspose3d',
                         action='store_true')
@@ -67,11 +69,6 @@ def _arg_parser():
     parser.add_argument('--transformer', type=str, default='StandardTransformer', help='data augmentation class')
 
     return parser
-
-
-def _create_model(in_channels, out_channels, layer_order, interpolate, final_sigmoid):
-    return UNet3D(in_channels, out_channels, final_sigmoid=final_sigmoid, interpolate=interpolate,
-                  conv_layer_order=layer_order)
 
 
 def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, label_dtype, train_patch, train_stride,
@@ -153,10 +150,11 @@ def main():
 
     loss_criterion, final_sigmoid = get_loss_criterion(args.loss, loss_weight, args.ignore_index)
 
-    model = _create_model(args.in_channels, args.out_channels,
-                          layer_order=args.layer_order,
-                          interpolate=args.interpolate,
-                          final_sigmoid=final_sigmoid)
+    model = UNet3D(args.in_channels, args.out_channels,
+                   init_channel_number=args.init_channel_number,
+                   conv_layer_order=args.layer_order,
+                   interpolate=args.interpolate,
+                   final_sigmoid=final_sigmoid)
 
     model = model.to(device)
 

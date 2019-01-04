@@ -42,7 +42,8 @@ Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
 ## Train
 ```
 usage: train.py [-h] [--checkpoint-dir CHECKPOINT_DIR] --in-channels
-                IN_CHANNELS --out-channels OUT_CHANNELS [--interpolate]
+                IN_CHANNELS --out-channels OUT_CHANNELS
+                [--init-channel-number INIT_CHANNEL_NUMBER] [--interpolate]
                 [--layer-order LAYER_ORDER] --loss LOSS
                 [--loss-weight LOSS_WEIGHT [LOSS_WEIGHT ...]]
                 [--ignore-index IGNORE_INDEX] [--epochs EPOCHS]
@@ -54,6 +55,9 @@ usage: train.py [-h] [--checkpoint-dir CHECKPOINT_DIR] --in-channels
                 TRAIN_PATCH [TRAIN_PATCH ...] --train-stride TRAIN_STRIDE
                 [TRAIN_STRIDE ...] --val-patch VAL_PATCH [VAL_PATCH ...]
                 --val-stride VAL_STRIDE [VAL_STRIDE ...]
+                [--raw-internal-path RAW_INTERNAL_PATH]
+                [--label-internal-path LABEL_INTERNAL_PATH]
+                [--skip-empty-patch] [--transformer TRANSFORMER]
 
 UNet3D training
 
@@ -65,6 +69,9 @@ optional arguments:
                         number of input channels
   --out-channels OUT_CHANNELS
                         number of output channels
+  --init-channel-number INIT_CHANNEL_NUMBER
+                        Initial number of feature maps in the encoder path
+                        which gets doubled on every stage (default: 64)
   --interpolate         use F.interpolate instead of ConvTranspose3d
   --layer-order LAYER_ORDER
                         Conv layer ordering, e.g. 'crg' ->
@@ -108,7 +115,11 @@ optional arguments:
                         Patch shape for used for validation
   --val-stride VAL_STRIDE [VAL_STRIDE ...]
                         Patch stride for used for validation
+  --raw-internal-path RAW_INTERNAL_PATH
+  --label-internal-path LABEL_INTERNAL_PATH
   --skip-empty-patch    skip patches with a single label only (train, val)
+  --transformer TRANSFORMER
+                        data augmentation class
 ```
 
 
@@ -150,8 +161,11 @@ python train.py --checkpoint-dir /home/adrian/workspace/pytorch-3dunet --in-chan
 ## Test
 ```
 usage: predict.py [-h] --model-path MODEL_PATH --in-channels IN_CHANNELS
-                  --out-channels OUT_CHANNELS [--interpolate]
-                  [--layer-order LAYER_ORDER] --loss LOSS
+                  --out-channels OUT_CHANNELS
+                  [--init-channel-number INIT_CHANNEL_NUMBER] [--interpolate]
+                  [--average-channels] [--layer-order LAYER_ORDER] --loss LOSS
+                  --test-path TEST_PATH --patch PATCH [PATCH ...] --stride
+                  STRIDE [STRIDE ...]
 
 3D U-Net predictions
 
@@ -163,15 +177,25 @@ optional arguments:
                         number of input channels
   --out-channels OUT_CHANNELS
                         number of output channels
+  --init-channel-number INIT_CHANNEL_NUMBER
+                        Initial number of feature maps in the encoder path
+                        which gets doubled on every stage (default: 64)
   --interpolate         use F.interpolate instead of ConvTranspose3d
+  --average-channels    average the probability_maps across the the channel
+                        axis (use only if your channels refer to the same
+                        semantic class)
   --layer-order LAYER_ORDER
                         Conv layer ordering, e.g. 'crg' ->
                         Conv3D+ReLU+GroupNorm
-  --loss LOSS           Loss function used for training. Possible values:
-                        [bce, ce, wce, dice]. Has to be provided cause loss
+  --loss LOSS           Loss function used for training. Possible values: [ce,
+                        bce, wce, dice]. Has to be provided cause loss
                         determines the final activation of the model.
   --test-path TEST_PATH
                         path to the test dataset
+  --patch PATCH [PATCH ...]
+                        Patch shape for used for prediction on the test set
+  --stride STRIDE [STRIDE ...]
+                        Patch stride for used for prediction on the test set
 ```
 
 Test on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/random_label3D.h5). 

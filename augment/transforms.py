@@ -66,7 +66,7 @@ class RandomRotate:
     Rotation axis is picked at random from the list of provided axes.
     """
 
-    def __init__(self, random_state, angle_spectrum=15, axes=None):
+    def __init__(self, random_state, angle_spectrum=10, axes=None, mode='constant'):
         if axes is None:
             axes = [(1, 0), (2, 1), (2, 0)]
         else:
@@ -75,15 +75,16 @@ class RandomRotate:
         self.random_state = random_state
         self.angle_spectrum = angle_spectrum
         self.axes = axes
+        self.mode = mode
 
     def __call__(self, m):
         axis = self.axes[self.random_state.randint(len(self.axes))]
         angle = self.random_state.randint(-self.angle_spectrum, self.angle_spectrum)
 
         if m.ndim == 3:
-            m = rotate(m, angle, axes=axis, reshape=False, order=0, mode='constant', cval=-1)
+            m = rotate(m, angle, axes=axis, reshape=False, order=0, mode=self.mode, cval=-1)
         else:
-            channels = [rotate(m[c], angle, axes=axis, reshape=False, order=0, mode='constant', cval=-1) for c in
+            channels = [rotate(m[c], angle, axes=axis, reshape=False, order=0, mode=self.mode, cval=-1) for c in
                         range(m.shape[0])]
             m = np.stack(channels, axis=0)
 
@@ -338,6 +339,7 @@ class AnisotropicRotationTransformer(BaseTransformer):
                 Normalize(self.mean, self.std),
                 RandomFlip(np.random.RandomState(self.seed)),
                 RandomRotate90(np.random.RandomState(self.seed)),
+                # rotate in XY only (ZYX axis order is assumed)
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)]),
                 ToTensor(expand_dims=True)
             ])
@@ -349,6 +351,7 @@ class AnisotropicRotationTransformer(BaseTransformer):
             return Compose([
                 RandomFlip(np.random.RandomState(self.seed)),
                 RandomRotate90(np.random.RandomState(self.seed)),
+                # rotate in XY only (ZYX axis order is assumed)
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)]),
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])
@@ -367,8 +370,7 @@ class AnisotropicRotationTransformer(BaseTransformer):
             return super().weight_transform()
 
 
-# FIXME: do not use random rotations (except RandomRotate90) together with LabelToBoundary, cause it will create
-# artificial boundary signal; consider using different mode, e.g. mode='reflect' when doing rotations.
+# Make sure to use mode='reflect' when doing RandomRotate otherwise the transform will produce unwanted boundary signal
 class LabelToBoundaryTransformer(BaseTransformer):
     def __init__(self, mean, std, phase, label_dtype, **kwargs):
         super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
@@ -381,6 +383,9 @@ class LabelToBoundaryTransformer(BaseTransformer):
                 Normalize(self.mean, self.std),
                 RandomFlip(np.random.RandomState(self.seed)),
                 RandomRotate90(np.random.RandomState(self.seed)),
+                # rotate in XY only and make sure mode='reflect' is used in order to prevent boundary artifacts
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
+                             mode='reflect'),
                 ToTensor(expand_dims=True)
             ])
         else:
@@ -391,6 +396,9 @@ class LabelToBoundaryTransformer(BaseTransformer):
             return Compose([
                 RandomFlip(np.random.RandomState(self.seed)),
                 RandomRotate90(np.random.RandomState(self.seed)),
+                # rotate in XY only and make sure mode='reflect' is used in order to prevent boundary artifacts
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
+                             mode='reflect'),
                 # this will give us 6 output channels with boundary signal
                 LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=-1),
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
@@ -407,6 +415,8 @@ class LabelToBoundaryTransformer(BaseTransformer):
             return Compose([
                 RandomFlip(np.random.RandomState(self.seed)),
                 RandomRotate90(np.random.RandomState(self.seed)),
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
+                             mode='reflect'),
                 ToTensor(expand_dims=False)
             ])
         else:
