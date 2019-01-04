@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 from augment.transforms import AnisotropicRotationTransformer, LabelToBoundaryTransformer, IsotropicRotationTransformer, \
     StandardTransformer, BaseTransformer
-from datasets.hdf5 import HDF5Dataset
+from datasets.hdf5 import HDF5Dataset, CurriculumLearningSliceBuilder, SliceBuilder
 from unet3d.losses import DiceCoefficient, get_loss_criterion
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
@@ -35,6 +35,9 @@ def _arg_parser():
                         help='A manual rescaling weight given to each class. Can be used with CrossEntropy or BCELoss. E.g. --loss-weight 0.3 0.3 0.4')
     parser.add_argument('--ignore-index', type=int, default=None,
                         help='Specifies a target value that is ignored and does not contribute to the input gradient')
+    parser.add_argument('--curriculum',
+                        help='use simple Curriculum Learning scheme if ignore_index is present',
+                        action='store_true')
     parser.add_argument('--epochs', default=500, type=int,
                         help='max number of epochs (default: 500)')
     parser.add_argument('--iters', default=1e5, type=int,
@@ -63,16 +66,13 @@ def _arg_parser():
                         help='Patch stride for used for validation')
     parser.add_argument('--raw-internal-path', type=str, default='raw')
     parser.add_argument('--label-internal-path', type=str, default='label')
-    parser.add_argument('--skip-empty-patch',
-                        help='skip patches with a single label only (train, val)',
-                        action='store_true')
     parser.add_argument('--transformer', type=str, default='StandardTransformer', help='data augmentation class')
 
     return parser
 
 
 def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, label_dtype, train_patch, train_stride,
-                 val_patch, val_stride, transformer, pixel_wise_weight=False):
+                 val_patch, val_stride, transformer, pixel_wise_weight=False, curriculum_learning=False):
     """
     Returns dictionary containing the  training and validation loaders
     (torch.utils.data.DataLoader) backed by the datasets.hdf5.HDF5Dataset
@@ -102,6 +102,11 @@ def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, l
 
     assert transformer in transformers
 
+    if curriculum_learning:
+        slice_builder_cls = CurriculumLearningSliceBuilder
+    else:
+        slice_builder_cls = SliceBuilder
+
     # create H5 backed training and validation dataset with data augmentation
     train_dataset = HDF5Dataset(train_path, train_patch, train_stride,
                                 phase='train',
@@ -109,7 +114,9 @@ def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, l
                                 raw_internal_path=raw_internal_path,
                                 label_internal_path=label_internal_path,
                                 transformer=transformers[transformer],
-                                weighted=pixel_wise_weight)
+                                weighted=pixel_wise_weight,
+                                slice_builder_cls=slice_builder_cls)
+
     val_dataset = HDF5Dataset(val_path, val_patch, val_stride,
                               phase='val',
                               label_dtype=label_dtype,
@@ -118,9 +125,10 @@ def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, l
                               transformer=transformers[transformer],
                               weighted=pixel_wise_weight)
 
+    # shuffle only if curriculum_learning scheme is not used
     return {
-        'train': DataLoader(train_dataset, batch_size=1, shuffle=True),
-        'val': DataLoader(val_dataset, batch_size=1, shuffle=True)
+        'train': DataLoader(train_dataset, batch_size=1, shuffle=not curriculum_learning),
+        'val': DataLoader(val_dataset, batch_size=1, shuffle=not curriculum_learning)
     }
 
 
@@ -184,7 +192,8 @@ def main():
                            raw_internal_path=args.raw_internal_path, label_internal_path=args.label_internal_path,
                            train_patch=train_patch, train_stride=train_stride,
                            val_patch=val_patch, val_stride=val_stride,
-                           transformer=args.transformer, pixel_wise_weight=pixel_wise_weight)
+                           transformer=args.transformer, pixel_wise_weight=pixel_wise_weight,
+                           curriculum_learning=args.curriculum)
 
     # Create the optimizer
     optimizer = _create_optimizer(args, model)
@@ -193,7 +202,7 @@ def main():
         trainer = UNet3DTrainer.from_checkpoint(args.resume, model,
                                                 optimizer, loss_criterion,
                                                 accuracy_criterion, loaders,
-                                                logger=logger, skip_empty_patch=args.skip_empty_patch)
+                                                logger=logger)
     else:
         trainer = UNet3DTrainer(model, optimizer, loss_criterion,
                                 accuracy_criterion,
@@ -203,8 +212,7 @@ def main():
                                 max_patience=args.patience,
                                 validate_after_iters=args.validate_after_iters,
                                 log_after_iters=args.log_after_iters,
-                                logger=logger,
-                                skip_empty_patch=args.skip_empty_patch)
+                                logger=logger)
 
     trainer.fit()
 

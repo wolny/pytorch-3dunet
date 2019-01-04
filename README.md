@@ -57,7 +57,6 @@ usage: train.py [-h] [--checkpoint-dir CHECKPOINT_DIR] --in-channels
                 --val-stride VAL_STRIDE [VAL_STRIDE ...]
                 [--raw-internal-path RAW_INTERNAL_PATH]
                 [--label-internal-path LABEL_INTERNAL_PATH]
-                [--skip-empty-patch] [--transformer TRANSFORMER]
 
 UNet3D training
 
@@ -117,7 +116,6 @@ optional arguments:
                         Patch stride for used for validation
   --raw-internal-path RAW_INTERNAL_PATH
   --label-internal-path LABEL_INTERNAL_PATH
-  --skip-empty-patch    skip patches with a single label only (train, val)
   --transformer TRANSFORMER
                         data augmentation class
 ```

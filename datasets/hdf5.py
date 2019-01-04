@@ -5,6 +5,92 @@ from torch.utils.data import Dataset
 import augment.transforms as transforms
 
 
+class SliceBuilder:
+    def __init__(self, raw_dataset, label_dataset, patch_shape, stride_shape):
+        self._raw_slices = self._build_slices(raw_dataset, patch_shape, stride_shape)
+        if label_dataset is None:
+            self._label_slices = None
+        else:
+            self._label_slices = self._build_slices(label_dataset, patch_shape, stride_shape)
+            assert len(self._raw_slices) == len(self._label_slices)
+
+    @property
+    def raw_slices(self):
+        return self._raw_slices
+
+    @property
+    def label_slices(self):
+        return self._label_slices
+
+    @staticmethod
+    def _build_slices(dataset, patch_shape, stride_shape):
+        """Iterates over a given n-dim dataset patch-by-patch with a given stride
+        and builds an array of slice positions.
+
+        Returns:
+            list of slices, i.e.
+            [(slice, slice, slice, slice), ...] if len(shape) == 4
+            [(slice, slice, slice), ...] if len(shape) == 3
+        """
+        slices = []
+        if dataset.ndim == 4:
+            in_channels, i_z, i_y, i_x = dataset.shape
+        else:
+            i_z, i_y, i_x = dataset.shape
+
+        k_z, k_y, k_x = patch_shape
+        s_z, s_y, s_x = stride_shape
+        z_steps = SliceBuilder._gen_indices(i_z, k_z, s_z)
+        for z in z_steps:
+            y_steps = SliceBuilder._gen_indices(i_y, k_y, s_y)
+            for y in y_steps:
+                x_steps = SliceBuilder._gen_indices(i_x, k_x, s_x)
+                for x in x_steps:
+                    slice_idx = (
+                        slice(z, z + k_z),
+                        slice(y, y + k_y),
+                        slice(x, x + k_x)
+                    )
+                    if dataset.ndim == 4:
+                        slice_idx = (slice(0, in_channels),) + slice_idx
+                    slices.append(slice_idx)
+        return slices
+
+    @staticmethod
+    def _gen_indices(i, k, s):
+        assert i >= k, 'Sample size has to be bigger than the patch size'
+        for j in range(0, i - k + 1, s):
+            yield j
+        if j + k < i:
+            yield i - k
+
+
+class CurriculumLearningSliceBuilder(SliceBuilder):
+    """
+    Simple Curriculum Learning strategy when we show patches with less volume of 'ignore_index' (label patch) first.
+    The hypothesis is that having less 'ignore_index' patches at the beginning of the epoch will lead to faster
+    convergence and better local minima.
+    """
+
+    def __init__(self, raw_dataset, label_dataset, patch_shape, stride_shape, ignore_index=-1):
+        super().__init__(raw_dataset, label_dataset, patch_shape, stride_shape)
+        if label_dataset is None:
+            return
+
+        def ignore_index_volume(raw_label_idx):
+            _, label_idx = raw_label_idx
+            label_patch = label_dataset[label_idx]
+            return np.count_nonzero(label_patch == ignore_index)
+
+        # after computing the patches sort them so that patches with less ignore_index volume come first
+        zipped_slices = zip(self.raw_slices, self.label_slices)
+        sorted_slices = sorted(zipped_slices, key=ignore_index_volume)
+        # unzip as save
+        raw_slices, label_slices = zip(*sorted_slices)
+        self._raw_slices = list(raw_slices)
+        self._label_slices = list(label_slices)
+
+
 class HDF5Dataset(Dataset):
     """
     Implementation of torch.utils.data.Dataset backed by the H5(files), which iterates over the raw and label datasets
@@ -14,7 +100,8 @@ class HDF5Dataset(Dataset):
     """
 
     def __init__(self, raw_file_path, patch_shape, stride_shape, phase, label_file_path=None, raw_internal_path='raw',
-                 label_internal_path='label', label_dtype=np.long, transformer=transforms.BaseTransformer, **kwargs):
+                 label_internal_path='label', label_dtype=np.long, transformer=transforms.BaseTransformer,
+                 slice_builder_cls=SliceBuilder, **kwargs):
         """
         Creates transformers for raw and label datasets and builds the index to slice mapping for raw and label datasets.
         :param raw_file_path: path to H5 file containing raw data
@@ -35,8 +122,6 @@ class HDF5Dataset(Dataset):
 
         self.raw_file = h5py.File(raw_file_path, 'r')
         self.raw = self.raw_file[raw_internal_path]
-        # build index->slice mapping
-        self.raw_slices = self._build_slices(self.raw.shape, patch_shape, stride_shape)
 
         # create raw and label transforms
         mean, std = self.calculate_mean_std()
@@ -69,10 +154,12 @@ class HDF5Dataset(Dataset):
 
             self.label = self.label_file[label_internal_path]
             self._check_dimensionality(self.raw, self.label)
-            self.label_slices = self._build_slices(self.label.shape, patch_shape, stride_shape)
-            assert len(self.raw_slices) == len(self.label_slices)
         else:
             self.label = None
+
+        slice_builder = slice_builder_cls(self.raw, self.label, patch_shape, stride_shape)
+        self.raw_slices = slice_builder.raw_slices
+        self.label_slices = slice_builder.label_slices
 
         self.patch_count = len(self.raw_slices)
 
@@ -113,55 +200,6 @@ class HDF5Dataset(Dataset):
         """
 
         return self.raw[...].mean(keepdims=True), self.raw[...].std(keepdims=True)
-
-    @staticmethod
-    def _build_slices(shape, patch_shape, stride_shape):
-        """Iterates over the 3-dimensional array patch-by-patch with a given stride
-        and builds the mapping from index to slice position.
-
-        Args:
-            shape (tuple): shape of the n-dim array
-            patch_shape (tuple): patch shape
-            stride_shape (tuple): stride shape
-
-        Returns:
-            index to slice mapping
-            (int -> (slice, slice, slice, slice)) if len(shape) == 4
-            (int -> (slice, slice, slice)) if len(shape) == 3
-        """
-        slices = {}
-        if len(shape) == 4:
-            in_channels, i_z, i_y, i_x = shape
-        else:
-            i_z, i_y, i_x = shape
-
-        k_z, k_y, k_x = patch_shape
-        s_z, s_y, s_x = stride_shape
-        idx = 0
-        z_steps = HDF5Dataset._gen_indices(i_z, k_z, s_z)
-        for z in z_steps:
-            y_steps = HDF5Dataset._gen_indices(i_y, k_y, s_y)
-            for y in y_steps:
-                x_steps = HDF5Dataset._gen_indices(i_x, k_x, s_x)
-                for x in x_steps:
-                    slice_idx = (
-                        slice(z, z + k_z),
-                        slice(y, y + k_y),
-                        slice(x, x + k_x)
-                    )
-                    if len(shape) == 4:
-                        slice_idx = (slice(0, in_channels),) + slice_idx
-                    slices[idx] = slice_idx
-                    idx += 1
-        return slices
-
-    @staticmethod
-    def _gen_indices(i, k, s):
-        assert i >= k, 'Sample size has to be bigger than the patch size'
-        for j in range(0, i - k + 1, s):
-            yield j
-        if j + k < i:
-            yield i - k
 
     @staticmethod
     def _check_dimensionality(raw, label):

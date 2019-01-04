@@ -5,7 +5,7 @@ import numpy as np
 from torchvision.transforms import Compose
 
 import augment.transforms as transforms
-from datasets.hdf5 import HDF5Dataset
+from datasets.hdf5 import HDF5Dataset, CurriculumLearningSliceBuilder
 
 
 class TestHDF5Dataset:
@@ -75,6 +75,22 @@ class TestHDF5Dataset:
         assert result.shape == (9,) + label.shape
         assert np.array_equal(np.unique(result), [-1, 0, 1])
 
+    def test_cl_slice_builder(self):
+        path = create_random_dataset((128, 128, 128), ignore_index=True)
+
+        patch_shape = (32, 64, 64)
+        stride_shape = (32, 64, 64)
+
+        ignore_label_volumes = []
+        with h5py.File(path, 'r') as f:
+            dataset = HDF5Dataset(path, patch_shape, stride_shape, 'train',
+                                  slice_builder_cls=CurriculumLearningSliceBuilder)
+
+            for _, label in dataset:
+                ignore_label_volumes.append(np.count_nonzero(label == -1))
+
+        assert all(ignore_label_volumes[i] <= ignore_label_volumes[i + 1] for i in range(len(ignore_label_volumes) - 1))
+
     @staticmethod
     def _diagonal_label_volume(size, init=1):
         label = init * np.ones((size, size, size), dtype=np.int)
@@ -86,12 +102,15 @@ class TestHDF5Dataset:
         return label
 
 
-def create_random_dataset(shape):
+def create_random_dataset(shape, ignore_index=False):
     tmp_file = NamedTemporaryFile(delete=False)
 
     with h5py.File(tmp_file.name, 'w') as f:
         f.create_dataset('raw', data=np.random.rand(*shape))
-        f.create_dataset('label', data=np.random.randint(0, 2, shape))
+        if ignore_index:
+            f.create_dataset('label', data=np.random.randint(-1, 2, shape))
+        else:
+            f.create_dataset('label', data=np.random.randint(0, 2, shape))
 
     return tmp_file.name
 
