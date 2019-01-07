@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch import nn as nn
 from torch.autograd import Variable
 
-SUPPORTED_LOSSES = ['ce', 'bce', 'wce', 'pce', 'dice']
+SUPPORTED_LOSSES = ['ce', 'bce', 'wce', 'pce', 'dice', 'gdl']
 
 
 class DiceCoefficient:
@@ -19,6 +19,8 @@ class DiceCoefficient:
         self.ignore_index = ignore_index
 
     def __call__(self, input, target):
+        # assumes that input is already normalized probability
+
         # input and target shapes must match
         if target.dim() == 4:
             target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
@@ -36,9 +38,53 @@ class DiceCoefficient:
 
         # Compute per channel Dice Coefficient
         intersect = (input * target).sum(-1)
-        denominator = (input + target).sum(-1) + self.epsilon
+        denominator = (input + target).sum(-1)
         # Average across channels in order to get the final score
-        return torch.mean(2. * intersect / denominator)
+        return torch.mean(2. * intersect / denominator.clamp(min=self.epsilon))
+
+
+class DiceLoss(nn.Module):
+    """Computes Dice Loss. Follows the implementation of the above DiceCoefficient (DSC),
+    but additionally allows per-class weights to be provided.
+    """
+
+    def __init__(self, epsilon=1e-5, weight=None, ignore_index=None, softmax=True):
+        super(DiceLoss, self).__init__()
+        self.epsilon = epsilon
+        self.register_buffer('weight', weight)
+        self.ignore_index = ignore_index
+        if softmax:
+            self.normalization = nn.Softmax(dim=1)
+        else:
+            self.normalization = nn.Sigmoid()
+
+    def forward(self, input, target):
+        # get probabilities from logits
+        input = self.normalization(input)
+        # input and target shapes must match
+        if target.dim() == 4:
+            target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
+
+        assert input.size() == target.size(), "'input' and 'target' must have the same shape"
+
+        # mask ignore_index if present
+        if self.ignore_index is not None:
+            mask = Variable(target.data.ne(self.ignore_index).float(), requires_grad=False)
+            input = input * mask
+            target = target * mask
+
+        input = flatten(input)
+        target = flatten(target)
+
+        # Compute per channel Dice Coefficient
+        intersect = (input * target).sum(-1)
+        if self.weight is not None:
+            weight = Variable(self.weight, requires_grad=False)
+            intersect = weight * intersect
+
+        denominator = (input + target).sum(-1)
+        # Average across channels in order to get the final score
+        return 1. - torch.mean(2. * intersect / denominator.clamp(min=self.epsilon))
 
 
 class GeneralizedDiceLoss(nn.Module):
@@ -46,16 +92,19 @@ class GeneralizedDiceLoss(nn.Module):
     Combines a `Softmax` layer with the GDL, so it expects logits as input.
     """
 
-    def __init__(self, epsilon=1e-5, weight=None, ignore_index=None):
+    def __init__(self, epsilon=1e-5, weight=None, ignore_index=None, softmax=True):
         super(GeneralizedDiceLoss, self).__init__()
         self.epsilon = epsilon
         self.register_buffer('weight', weight)
         self.ignore_index = ignore_index
-        self.softmax = nn.Softmax(dim=1)
+        if softmax:
+            self.normalization = nn.Softmax(dim=1)
+        else:
+            self.normalization = nn.Sigmoid()
 
     def forward(self, input, target):
         # get probabilities from logits
-        input = self.softmax(input)
+        input = self.normalization(input)
         # input and target shapes must match
         if target.dim() == 4:
             target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
@@ -72,16 +121,16 @@ class GeneralizedDiceLoss(nn.Module):
         target = flatten(target)
 
         target_sum = target.sum(-1)
-        class_weights = 1. / (target_sum * target_sum + self.epsilon)
+        class_weights = 1. / (target_sum * target_sum).clamp(min=self.epsilon)
 
         intersect = (input * target).sum(-1) * class_weights
         if self.weight is not None:
             weight = Variable(self.weight, requires_grad=False)
             intersect = weight * intersect
-        intersect = intersect.sum()
 
-        denominator = ((input + target).sum(-1) * class_weights).sum() + self.epsilon
-        return 1 - 2. * intersect / denominator
+        denominator = (input + target).sum(-1) * class_weights
+
+        return 1. - 2. * intersect.sum() / denominator.sum().clamp(min=self.epsilon)
 
 
 class WeightedCrossEntropyLoss(nn.Module):
@@ -214,7 +263,7 @@ def expand_target(input, C, ignore_index=None):
     return result.to(input.device)
 
 
-def get_loss_criterion(loss_str, weight=None, ignore_index=None):
+def get_loss_criterion(loss_str, weight=None, ignore_index=None, dice_sigmoid_normalization=False):
     """
     Returns the loss function together with boolean flag which indicates
     whether to apply an element-wise Sigmoid on the network output
@@ -236,5 +285,9 @@ def get_loss_criterion(loss_str, weight=None, ignore_index=None):
         return WeightedCrossEntropyLoss(weight=weight, ignore_index=ignore_index), False
     elif loss_str == 'pce':
         return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index), False
+    elif loss_str == 'gdl':
+        return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index,
+                                   softmax=not dice_sigmoid_normalization), dice_sigmoid_normalization
     else:
-        return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index), False
+        return DiceLoss(weight=weight, ignore_index=ignore_index,
+                        softmax=not dice_sigmoid_normalization), dice_sigmoid_normalization

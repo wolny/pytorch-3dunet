@@ -3,7 +3,8 @@ import pytest
 import torch
 import torch.nn as nn
 
-from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper
+from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper, \
+    DiceLoss
 
 
 def _compute_criterion(criterion, n_times=100):
@@ -40,6 +41,13 @@ class TestCriterion:
 
     def test_generalized_dice_loss(self):
         results = _compute_criterion(GeneralizedDiceLoss())
+        # check that all of the coefficients belong to [0, 1]
+        results = np.array(results)
+        assert np.all(results > 0)
+        assert np.all(results < 1)
+
+    def test_dice_loss(self):
+        results = _compute_criterion(DiceLoss())
         # check that all of the coefficients belong to [0, 1]
         results = np.array(results)
         assert np.all(results > 0)
