@@ -1,6 +1,7 @@
 .idea
 .pytest_cache
 .ipynb_checkpoints
+*.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
