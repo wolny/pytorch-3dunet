@@ -69,7 +69,9 @@ class DiceLoss(nn.Module):
 
         # mask ignore_index if present
         if self.ignore_index is not None:
-            mask = Variable(target.data.ne(self.ignore_index).float(), requires_grad=False)
+            mask = target.clone().ne_(self.ignore_index)
+            mask.requires_grad = False
+            
             input = input * mask
             target = target * mask
 
@@ -113,7 +115,9 @@ class GeneralizedDiceLoss(nn.Module):
 
         # mask ignore_index if present
         if self.ignore_index is not None:
-            mask = Variable(target.data.ne(self.ignore_index).float(), requires_grad=False)
+            mask = target.clone().ne_(self.ignore_index)
+            mask.requires_grad = False
+
             input = input * mask
             target = target * mask
 
@@ -179,7 +183,9 @@ class IgnoreIndexLossWrapper:
 
         assert input.size() == target.size()
 
-        mask = Variable(target.data.ne(self.ignore_index).float(), requires_grad=False)
+        mask = target.clone().ne_(self.ignore_index)
+        mask.requires_grad = False
+
         masked_input = input * mask
         masked_target = target * mask
         return self.loss_criterion(masked_input, masked_target)
