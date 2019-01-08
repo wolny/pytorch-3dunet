@@ -376,6 +376,10 @@ class LabelToBoundaryTransformer(BaseTransformer):
         super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
         assert 'angle_spectrum' in kwargs, "'angle_spectrum' argument required"
         self.angle_spectrum = kwargs['angle_spectrum']
+        if 'ignore_index' in kwargs:
+            self.ignore_index = kwargs['ignore_index']
+        else:
+            self.ignore_index = None
 
     def raw_transform(self):
         if self.phase == 'train':
@@ -400,12 +404,12 @@ class LabelToBoundaryTransformer(BaseTransformer):
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
                              mode='reflect'),
                 # this will give us 6 output channels with boundary signal
-                LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=-1),
+                LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=self.ignore_index),
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])
         else:
             return Compose([
-                LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=-1),
+                LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=self.ignore_index),
                 # this will give us 6 output channels with boundary signal
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])

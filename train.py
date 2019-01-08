@@ -75,7 +75,8 @@ def _arg_parser():
 
 
 def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, label_dtype, train_patch, train_stride,
-                 val_patch, val_stride, transformer, pixel_wise_weight=False, curriculum_learning=False):
+                 val_patch, val_stride, transformer, pixel_wise_weight=False, curriculum_learning=False,
+                 ignore_index=None):
     """
     Returns dictionary containing the  training and validation loaders
     (torch.utils.data.DataLoader) backed by the datasets.hdf5.HDF5Dataset
@@ -118,6 +119,7 @@ def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, l
                                 label_internal_path=label_internal_path,
                                 transformer=transformers[transformer],
                                 weighted=pixel_wise_weight,
+                                ignore_index=ignore_index,
                                 slice_builder_cls=slice_builder_cls)
 
     val_dataset = HDF5Dataset(val_path, val_patch, val_stride,
@@ -126,7 +128,8 @@ def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, l
                               raw_internal_path=raw_internal_path,
                               label_internal_path=label_internal_path,
                               transformer=transformers[transformer],
-                              weighted=pixel_wise_weight)
+                              weighted=pixel_wise_weight,
+                              ignore_index=ignore_index)
 
     # shuffle only if curriculum_learning scheme is not used
     return {
@@ -196,7 +199,7 @@ def main():
                            train_patch=train_patch, train_stride=train_stride,
                            val_patch=val_patch, val_stride=val_stride,
                            transformer=args.transformer, pixel_wise_weight=pixel_wise_weight,
-                           curriculum_learning=args.curriculum)
+                           curriculum_learning=args.curriculum, ignore_index=args.ignore_index)
 
     # Create the optimizer
     optimizer = _create_optimizer(args, model)

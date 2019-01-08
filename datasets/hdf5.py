@@ -128,10 +128,15 @@ class HDF5Dataset(Dataset):
         if 'angle_spectrum' in kwargs:
             angle_spectrum = kwargs['angle_spectrum']
         else:
-            angle_spectrum = 10
+            angle_spectrum = 15
+
+        if 'ignore_index' in kwargs:
+            ignore_index = kwargs['ignore_index']
+        else:
+            ignore_index = None
 
         self.transformer = transformer.create(mean=mean, std=std, phase=phase, label_dtype=label_dtype,
-                                              angle_spectrum=angle_spectrum)
+                                              angle_spectrum=angle_spectrum, ignore_index=ignore_index)
 
         self.raw_transform = self.transformer.raw_transform()
         self.label_transform = self.transformer.label_transform()
