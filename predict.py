@@ -13,23 +13,22 @@ from unet3d.model import UNet3D
 logger = utils.get_logger('UNet3DPredictor')
 
 
-def predict(model, dataset, dataset_shape, device):
+def predict(model, dataset, out_channels, device):
     """
     Return prediction masks by applying the model on the given dataset
 
     Args:
         model (Unet3D): trained 3D UNet model used for prediction
         dataset (torch.utils.data.Dataset): input dataset
-        dataset_shape (tuple): 3D (DxHxW) or 4D (CxDxHxW) dataset
+        out_channels (int): number of channels in the network output
         device (torch.Device): device to run the prediction on
 
     Returns:
          probability_maps (numpy array): prediction masks for given dataset
     """
     logger.info(f'Running prediction on {len(dataset)} patches...')
-    # number of output channels the model predicts
-    out_channels = model.out_channels
     # dimensionality of the the output (CxDxHxW)
+    dataset_shape = dataset.raw.shape
     if len(dataset_shape) == 3:
         volume_shape = dataset_shape
     else:
@@ -158,7 +157,7 @@ def main():
     stride = tuple(args.stride)
 
     dataset = HDF5Dataset(args.test_path, patch, stride, phase='test')
-    probability_maps = predict(model, dataset, dataset.raw.shape, device)
+    probability_maps = predict(model, dataset, out_channels, device)
 
     output_file = f'{os.path.splitext(args.test_path)[0]}_probabilities.h5'
 
