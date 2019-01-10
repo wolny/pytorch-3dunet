@@ -120,6 +120,7 @@ def main():
     parser.add_argument('--loss', type=str, required=True,
                         help='Loss function used for training. Possible values: [ce, bce, wce, dice]. Has to be provided cause loss determines the final activation of the model.')
     parser.add_argument('--test-path', type=str, required=True, help='path to the test dataset')
+    parser.add_argument('--raw-internal-path', type=str, default='raw')
     parser.add_argument('--patch', required=True, type=int, nargs='+', default=None,
                         help='Patch shape for used for prediction on the test set')
     parser.add_argument('--stride', required=True, type=int, nargs='+', default=None,
@@ -156,7 +157,7 @@ def main():
     patch = tuple(args.patch)
     stride = tuple(args.stride)
 
-    dataset = HDF5Dataset(args.test_path, patch, stride, phase='test')
+    dataset = HDF5Dataset(args.test_path, patch, stride, phase='test', raw_internal_path=args.raw_internal_path)
     probability_maps = predict(model, dataset, out_channels, device)
 
     output_file = f'{os.path.splitext(args.test_path)[0]}_probabilities.h5'
