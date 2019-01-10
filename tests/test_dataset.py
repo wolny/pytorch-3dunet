@@ -57,22 +57,41 @@ class TestHDF5Dataset:
             for i in range(label.shape[0]):
                 assert np.allclose(img, label[i])
 
+    def test_random_label_to_boundary(self):
+        size = 20
+        label = self._diagonal_label_volume(size)
+
+        transform = transforms.RandomLabelToBoundary()
+        result = transform(label)
+        assert result.shape == label.shape
+        assert np.array_equal(np.unique(result), [0, 1])
+
+    def test_random_label_to_boundary_with_ignore(self):
+        size = 20
+        label = self._diagonal_label_volume(size, init=-1)
+
+        transform = transforms.RandomLabelToBoundary(ignore_index=-1)
+        result = transform(label)
+        assert result.shape == label.shape
+        assert np.array_equal(np.unique(result), [-1, 0, 1])
+
     def test_label_to_boundary(self):
         size = 20
         label = self._diagonal_label_volume(size)
 
-        transform = transforms.LabelToBoundary(axes=(0, 1, 2), offsets=(1, 2, 4))
+        # this transform will produce 3 channels
+        transform = transforms.LabelToBoundary(offsets=2)
         result = transform(label)
-        assert result.shape == (9,) + label.shape
+        assert result.shape == (3,) + label.shape
         assert np.array_equal(np.unique(result), [0, 1])
 
     def test_label_to_boundary_with_ignore(self):
         size = 20
         label = self._diagonal_label_volume(size, init=-1)
 
-        transform = transforms.LabelToBoundary(axes=(0, 1, 2), offsets=(1, 2, 4), ignore_index=-1)
+        transform = transforms.LabelToBoundary(offsets=2, ignore_index=-1)
         result = transform(label)
-        assert result.shape == (9,) + label.shape
+        assert result.shape == (3,) + label.shape
         assert np.array_equal(np.unique(result), [-1, 0, 1])
 
     def test_cl_slice_builder(self):

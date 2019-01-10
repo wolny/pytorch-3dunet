@@ -4,8 +4,9 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from augment.transforms import AnisotropicRotationTransformer, LabelToBoundaryTransformer, IsotropicRotationTransformer, \
-    StandardTransformer, BaseTransformer
+from augment.transforms import AnisotropicRotationTransformer, RandomLabelToBoundaryTransformer, \
+    IsotropicRotationTransformer, \
+    StandardTransformer, BaseTransformer, LabelToBoundaryTransformer
 from datasets.hdf5 import HDF5Dataset, CurriculumLearningSliceBuilder, SliceBuilder
 from unet3d.losses import DiceCoefficient, get_loss_criterion
 from unet3d.model import UNet3D
@@ -98,6 +99,7 @@ def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, l
     """
     transformers = {
         'LabelToBoundaryTransformer': LabelToBoundaryTransformer,
+        'RandomLabelToBoundaryTransformer': RandomLabelToBoundaryTransformer,
         'AnisotropicRotationTransformer': AnisotropicRotationTransformer,
         'IsotropicRotationTransformer': IsotropicRotationTransformer,
         'StandardTransformer': StandardTransformer,
