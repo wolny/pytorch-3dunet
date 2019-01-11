@@ -152,14 +152,12 @@ Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 86
 ![3dunet-training](https://user-images.githubusercontent.com/706781/45916217-9626d580-be62-11e8-95c3-508e2719c915.png)
 
 ### IMPORTANT
-In order to train with `BinaryCrossEntropy` the label data has to be 4D! (one target binary mask per channel).
+In order to train with `BinaryCrossEntropy` the label data has to be 4D! (one target binary mask per channel). `--final-sigmoid` has to be given when training the network with `BinaryCrossEntropy`
+(and similarly `--final-sigmoid` has to be passed to the `predict.py` if the network was trained with `--final-sigmoid`)
 
-`GeneralizedDiceLoss` supports both 3D and 4D target (if the target is 3D it will be automatically expanded to 4D, i.e. each class in separate channel, before applying the loss).
+`DiceLoss` and `GeneralizedDiceLoss` support both 3D and 4D target (if the target is 3D it will be automatically expanded to 4D, i.e. each class in separate channel, before applying the loss).
 
-E.g. fit to randomly generated 3D volume and random 4D target volume (3 target channels containing random 3D binary masks) from [random_label4D.h5](resources/random_label4D.h5):
-```
-python train.py --checkpoint-dir /home/adrian/workspace/pytorch-3dunet --in-channels 1 --out-channels 3 --loss bce --validate-after-iters 100 --log-after-iters 50 --interpolate --train-path resources/random_label4D.h5 --val-path resources/random_label4D.h5 --train-patch 32 64 64 --train-stride 8 16 16 --val-patch 64 128 128 --val-stride 64 128 128
-```
+
 
 ## Test
 ```
@@ -201,16 +199,11 @@ optional arguments:
 Test on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/random_label3D.h5). 
 See [predict.py](predict.py) for more info.
 ```
-python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --loss ce --interpolate --test-path resources/random_label3D.h5 --patch 64 128 128 --stride 32 64 64
+python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --interpolate --test-path resources/random_label3D.h5 --patch 64 128 128 --stride 32 64 64
 ```
 Prediction masks will be saved to `~/3dunet/probabilities.h5`.
 
-In order to predict your own raw dataset provide the path to your HDF5 test dataset (see [predict.py](predict.py)). 
-
-In order to predict with the network trained with `BinaryCrossEntropy` or `GeneralizedDiceLoss` on the randomly generated 3D volume:
-```
-python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 3 --interpolate --loss bce --test-path resources/random_label4D.h5 -patch 64 128 128 --stride 32 64 64
-```
+In order to predict your own raw dataset provide the path to your HDF5 test dataset (see [predict.py](predict.py)).
 
 ### IMPORTANT
 In order to avoid block artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `--patch 64 128 128 --stride 32 96 96` will give you a 'halo' of 32 voxels in each direction.
