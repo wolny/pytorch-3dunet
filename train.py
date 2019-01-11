@@ -38,9 +38,9 @@ def _arg_parser():
     parser.add_argument('--curriculum',
                         help='use simple Curriculum Learning scheme if ignore_index is present',
                         action='store_true')
-    parser.add_argument('--dice-sigmoid',
-                        help='use sigmoid normalization for Dice Coefficient, otherwise use softmax',
-                        action='store_true')
+    parser.add_argument('--final-sigmoid',
+                        action='store_true',
+                        help='if True apply element-wise nn.Sigmoid after the last layer otherwise apply nn.Softmax')
     parser.add_argument('--epochs', default=500, type=int,
                         help='max number of epochs (default: 500)')
     parser.add_argument('--iters', default=1e5, type=int,
@@ -162,13 +162,13 @@ def main():
     else:
         loss_weight = None
 
-    loss_criterion, final_sigmoid = get_loss_criterion(args.loss, loss_weight, args.ignore_index, args.dice_sigmoid)
+    loss_criterion = get_loss_criterion(args.loss, args.final_sigmoid, loss_weight, args.ignore_index)
 
     model = UNet3D(args.in_channels, args.out_channels,
                    init_channel_number=args.init_channel_number,
                    conv_layer_order=args.layer_order,
                    interpolate=args.interpolate,
-                   final_sigmoid=final_sigmoid)
+                   final_sigmoid=args.final_sigmoid)
 
     model = model.to(device)
 

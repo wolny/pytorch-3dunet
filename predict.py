@@ -7,7 +7,6 @@ import torch
 
 from datasets.hdf5 import HDF5Dataset
 from unet3d import utils
-from unet3d.losses import SUPPORTED_LOSSES
 from unet3d.model import UNet3D
 
 logger = utils.get_logger('UNet3DPredictor')
@@ -96,11 +95,6 @@ def save_predictions(probability_maps, output_file, average_channels):
         output_h5.create_dataset(dataset_name, data=probability_maps, dtype=probability_maps.dtype, compression="gzip")
 
 
-def _final_sigmoid(loss):
-    assert loss in SUPPORTED_LOSSES
-    return loss == 'bce'
-
-
 def main():
     parser = argparse.ArgumentParser(description='3D U-Net predictions')
     parser.add_argument('--model-path', required=True, type=str,
@@ -114,14 +108,12 @@ def main():
     parser.add_argument('--interpolate',
                         help='use F.interpolate instead of ConvTranspose3d',
                         action='store_true')
-    parser.add_argument('--average-channels',
-                        help='average the probability_maps across the the channel axis (use only if your channels refer to the same semantic class)',
-                        action='store_true')
     parser.add_argument('--layer-order', type=str,
                         help="Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm",
                         default='crg')
-    parser.add_argument('--loss', type=str, required=True,
-                        help='Loss function used for training. Possible values: [ce, bce, wce, dice]. Has to be provided cause loss determines the final activation of the model.')
+    parser.add_argument('--final-sigmoid',
+                        action='store_true',
+                        help='if True apply element-wise nn.Sigmoid after the last layer otherwise apply nn.Softmax')
     parser.add_argument('--test-path', type=str, required=True, help='path to the test dataset')
     parser.add_argument('--raw-internal-path', type=str, default='raw')
     parser.add_argument('--patch', required=True, type=int, nargs='+', default=None,
@@ -137,7 +129,7 @@ def main():
     # use F.interpolate for upsampling
     interpolate = args.interpolate
     layer_order = args.layer_order
-    final_sigmoid = _final_sigmoid(args.loss)
+    final_sigmoid = args.final_sigmoid
     model = UNet3D(in_channels, out_channels,
                    init_channel_number=args.init_channel_number,
                    final_sigmoid=final_sigmoid,
@@ -165,7 +157,8 @@ def main():
 
     output_file = f'{os.path.splitext(args.test_path)[0]}_probabilities.h5'
 
-    save_predictions(probability_maps, output_file, args.average_channels)
+    # average channels only in case of final_sigmoid
+    save_predictions(probability_maps, output_file, final_sigmoid)
 
 
 if __name__ == '__main__':

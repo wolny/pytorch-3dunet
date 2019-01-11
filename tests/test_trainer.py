@@ -68,7 +68,8 @@ class TestUNet3DTrainer:
         device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
         # conv-relu-groupnorm
         conv_layer_order = 'crg'
-        loss_criterion, final_sigmoid = get_loss_criterion(loss, weight=torch.rand(2).to(device))
+        final_sigmoid = loss == 'bce'
+        loss_criterion = get_loss_criterion(loss, final_sigmoid, weight=torch.rand(2).to(device))
         model = self._create_model(final_sigmoid, conv_layer_order)
         accuracy_criterion = DiceCoefficient()
         channel_per_class = loss == 'bce'

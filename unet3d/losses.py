@@ -71,7 +71,7 @@ class DiceLoss(nn.Module):
         if self.ignore_index is not None:
             mask = target.clone().ne_(self.ignore_index)
             mask.requires_grad = False
-            
+
             input = input * mask
             target = target * mask
 
@@ -269,31 +269,36 @@ def expand_target(input, C, ignore_index=None):
     return result.to(input.device)
 
 
-def get_loss_criterion(loss_str, weight=None, ignore_index=None, dice_sigmoid_normalization=False):
+def get_loss_criterion(loss_str, final_sigmoid, weight=None, ignore_index=None):
     """
-    Returns the loss function together with boolean flag which indicates
-    whether to apply an element-wise Sigmoid on the network output
+    Returns the loss function based on the loss_str.
+    :param loss_str: specifies the loss function to be used
+    :param final_sigmoid: used only with Dice-based losses. If True the Sigmoid normalization will be applied
+        before computing the loss otherwise it will use the Softmax.
+    :param weight: a manual rescaling weight given to each class
+    :param ignore_index: specifies a target value that is ignored and does not contribute to the input gradient
+    :return: an instance of the loss function
     """
     assert loss_str in SUPPORTED_LOSSES, f'Invalid loss string: {loss_str}'
+    if loss_str in ['ce', 'wce', 'pce']:
+        assert not final_sigmoid, 'Sigmoid normalization can only be used with BCELoss, DiceLoss or GeneralizedDiceLoss'
 
     if loss_str == 'bce':
         if ignore_index is None:
-            return nn.BCEWithLogitsLoss(), True
+            return nn.BCEWithLogitsLoss()
         else:
-            return IgnoreIndexLossWrapper(nn.BCEWithLogitsLoss(), ignore_index=ignore_index), True
+            return IgnoreIndexLossWrapper(nn.BCEWithLogitsLoss(), ignore_index=ignore_index)
     elif loss_str == 'ce':
         if ignore_index is None:
             ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
-        return nn.CrossEntropyLoss(weight=weight, ignore_index=ignore_index), False
+        return nn.CrossEntropyLoss(weight=weight, ignore_index=ignore_index)
     elif loss_str == 'wce':
         if ignore_index is None:
             ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
-        return WeightedCrossEntropyLoss(weight=weight, ignore_index=ignore_index), False
+        return WeightedCrossEntropyLoss(weight=weight, ignore_index=ignore_index)
     elif loss_str == 'pce':
-        return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index), False
+        return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index)
     elif loss_str == 'gdl':
-        return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index,
-                                   softmax=not dice_sigmoid_normalization), dice_sigmoid_normalization
+        return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index, softmax=not final_sigmoid)
     else:
-        return DiceLoss(weight=weight, ignore_index=ignore_index,
-                        softmax=not dice_sigmoid_normalization), dice_sigmoid_normalization
+        return DiceLoss(weight=weight, ignore_index=ignore_index, softmax=not final_sigmoid)

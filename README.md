@@ -46,8 +46,8 @@ usage: train.py [-h] [--checkpoint-dir CHECKPOINT_DIR] --in-channels
                 [--init-channel-number INIT_CHANNEL_NUMBER] [--interpolate]
                 [--layer-order LAYER_ORDER] --loss LOSS
                 [--loss-weight LOSS_WEIGHT [LOSS_WEIGHT ...]]
-                [--ignore-index IGNORE_INDEX] [--epochs EPOCHS]
-                [--iters ITERS] [--patience PATIENCE]
+                [--ignore-index IGNORE_INDEX] [--curriculum] [--final-sigmoid]
+                [--epochs EPOCHS] [--iters ITERS] [--patience PATIENCE]
                 [--learning-rate LEARNING_RATE] [--weight-decay WEIGHT_DECAY]
                 [--validate-after-iters VALIDATE_AFTER_ITERS]
                 [--log-after-iters LOG_AFTER_ITERS] [--resume RESUME]
@@ -57,6 +57,7 @@ usage: train.py [-h] [--checkpoint-dir CHECKPOINT_DIR] --in-channels
                 --val-stride VAL_STRIDE [VAL_STRIDE ...]
                 [--raw-internal-path RAW_INTERNAL_PATH]
                 [--label-internal-path LABEL_INTERNAL_PATH]
+                [--transformer TRANSFORMER]
 
 UNet3D training
 
@@ -88,6 +89,10 @@ optional arguments:
   --ignore-index IGNORE_INDEX
                         Specifies a target value that is ignored and does not
                         contribute to the input gradient
+  --curriculum          use simple Curriculum Learning scheme if ignore_index
+                        is present
+  --final-sigmoid       if True apply element-wise nn.Sigmoid after the last
+                        layer otherwise apply nn.Softmax
   --epochs EPOCHS       max number of epochs (default: 500)
   --iters ITERS         max number of iterations (default: 1e5)
   --patience PATIENCE   number of epochs with no loss improvement after which
@@ -161,9 +166,9 @@ python train.py --checkpoint-dir /home/adrian/workspace/pytorch-3dunet --in-chan
 usage: predict.py [-h] --model-path MODEL_PATH --in-channels IN_CHANNELS
                   --out-channels OUT_CHANNELS
                   [--init-channel-number INIT_CHANNEL_NUMBER] [--interpolate]
-                  [--average-channels] [--layer-order LAYER_ORDER] --loss LOSS
-                  --test-path TEST_PATH --patch PATCH [PATCH ...] --stride
-                  STRIDE [STRIDE ...]
+                  [--layer-order LAYER_ORDER] [--final-sigmoid] --test-path
+                  TEST_PATH [--raw-internal-path RAW_INTERNAL_PATH] --patch
+                  PATCH [PATCH ...] --stride STRIDE [STRIDE ...]
 
 3D U-Net predictions
 
@@ -179,17 +184,14 @@ optional arguments:
                         Initial number of feature maps in the encoder path
                         which gets doubled on every stage (default: 64)
   --interpolate         use F.interpolate instead of ConvTranspose3d
-  --average-channels    average the probability_maps across the the channel
-                        axis (use only if your channels refer to the same
-                        semantic class)
   --layer-order LAYER_ORDER
                         Conv layer ordering, e.g. 'crg' ->
                         Conv3D+ReLU+GroupNorm
-  --loss LOSS           Loss function used for training. Possible values: [ce,
-                        bce, wce, dice]. Has to be provided cause loss
-                        determines the final activation of the model.
+  --final-sigmoid       if True apply element-wise nn.Sigmoid after the last
+                        layer otherwise apply nn.Softmax
   --test-path TEST_PATH
                         path to the test dataset
+  --raw-internal-path RAW_INTERNAL_PATH
   --patch PATCH [PATCH ...]
                         Patch shape for used for prediction on the test set
   --stride STRIDE [STRIDE ...]
