@@ -60,6 +60,9 @@ def predict(model, dataset, out_channels, device):
             probs = model(patch)
             # convert back to numpy array
             probs = probs.squeeze().cpu().numpy()
+            # for out_channel == 1 we need to expand back to 4D
+            if probs.ndim == 3:
+                probs = np.expand_dims(probs, axis=0)
             # unpad in order to avoid block artifacts in the output probability maps
             probs, index = utils.unpad(probs, index, volume_shape)
             # accumulate probabilities into the output prediction array
