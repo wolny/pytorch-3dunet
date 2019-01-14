@@ -1,8 +1,10 @@
 import h5py
 import numpy as np
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader, ConcatDataset
 
 import augment.transforms as transforms
+from augment.transforms import LabelToBoundaryTransformer, RandomLabelToBoundaryTransformer, \
+    AnisotropicRotationTransformer, IsotropicRotationTransformer, StandardTransformer, BaseTransformer
 
 
 class SliceBuilder:
@@ -227,3 +229,74 @@ class HDF5Dataset(Dataset):
         assert len(patch_shape) == 3, 'patch_shape must be a 3D tuple'
         assert patch_shape[1] >= 64 and patch_shape[2] >= 64, 'Height and Width must be greater or equal 64'
         assert patch_shape[0] >= 16, 'Depth must be greater or equal 16'
+
+
+def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, label_dtype, train_patch, train_stride,
+                val_patch, val_stride, transformer, pixel_wise_weight=False, curriculum_learning=False,
+                ignore_index=None):
+    """
+    Returns dictionary containing the  training and validation loaders
+    (torch.utils.data.DataLoader) backed by the datasets.hdf5.HDF5Dataset
+
+    :param train_path: path to the H5 file containing the training set
+    :param val_path: path to the H5 file containing the validation set
+    :param raw_internal_path:
+    :param label_internal_path:
+    :param label_dtype: target type of the label dataset
+    :param train_patch:
+    :param train_stride:
+    :param val_path:
+    :param val_stride:
+    :param transformer:
+    :return: dict {
+        'train': <train_loader>
+        'val': <val_loader>
+    }
+    """
+    transformers = {
+        'LabelToBoundaryTransformer': LabelToBoundaryTransformer,
+        'RandomLabelToBoundaryTransformer': RandomLabelToBoundaryTransformer,
+        'AnisotropicRotationTransformer': AnisotropicRotationTransformer,
+        'IsotropicRotationTransformer': IsotropicRotationTransformer,
+        'StandardTransformer': StandardTransformer,
+        'BaseTransformer': BaseTransformer
+    }
+
+    assert transformer in transformers
+
+    if curriculum_learning:
+        slice_builder_cls = CurriculumLearningSliceBuilder
+    else:
+        slice_builder_cls = SliceBuilder
+
+    train_datasets = []
+    for train_path in train_paths:
+        # create H5 backed training and validation dataset with data augmentation
+        train_dataset = HDF5Dataset(train_path, train_patch, train_stride,
+                                    phase='train',
+                                    label_dtype=label_dtype,
+                                    raw_internal_path=raw_internal_path,
+                                    label_internal_path=label_internal_path,
+                                    transformer=transformers[transformer],
+                                    weighted=pixel_wise_weight,
+                                    ignore_index=ignore_index,
+                                    slice_builder_cls=slice_builder_cls)
+        train_datasets.append(train_dataset)
+
+    val_datasets = []
+    for val_path in val_paths:
+        val_dataset = HDF5Dataset(val_path, val_patch, val_stride,
+                                  phase='val',
+                                  label_dtype=label_dtype,
+                                  raw_internal_path=raw_internal_path,
+                                  label_internal_path=label_internal_path,
+                                  transformer=transformers[transformer],
+                                  weighted=pixel_wise_weight,
+                                  ignore_index=ignore_index)
+        val_datasets.append(val_dataset)
+
+    # shuffle only if curriculum_learning scheme is not used
+    return {
+        'train': DataLoader(ConcatDataset(train_datasets), batch_size=1, shuffle=not curriculum_learning),
+        'val': DataLoader(ConcatDataset(val_datasets), batch_size=1, shuffle=not curriculum_learning)
+    }
