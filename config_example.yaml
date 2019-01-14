@@ -14,8 +14,8 @@ loss: 'ce' # Which loss function to use. Possible values: ['bce', 'ce', 'wce', '
 
 
 # Data loader:  Mandatory fields
-train-path: resources/random_label3D.h5 # path to the train dataset
-val-path: resources/random_label3D.h5 # path to the validation dataset
+train-path: resources/random_label3D.h5 # Path to the train dataset
+val-path: resources/random_label3D.h5 # Path to the validation dataset
 train-patch: # Patch shape for used for validation. Order (z, x, y)
   - 32
   - 64
@@ -38,7 +38,7 @@ raw-internal-path: "raw" # HDF5 file internal path to raw data
 label-internal-path: "label" # HDF5 file internal path to labels
 transformer: 'StandardTransformer' # Data augmentation class
 
-#Optional fields
+# Optional fields
 layer-order: 'crg' # Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm"
 loss-weight: # A manual rescaling weight given to each class. Can be used with CrossEntropy or BCELoss. E.g. loss-weight: -0.3 -0.3 -0.4
 ignore-index: # Specifies a target value that is ignored and does not contribute to the input gradient
@@ -48,7 +48,7 @@ epochs: 500 # Max number of epochs
 iters: 100000 # Max number of iterations
 patience: 20 # Number of epochs with no loss improvement after which the training will be stopped
 learning-rate: 0.0002 # Initial learning rate
-weight-decay: 0.0001 # weight decay (L2 penalty on weights)
-validate-after-iters: 100 # how many iterations between validations
-log-after-iters: 1 # how many iterations between tensorboard logging
-resume: # path to latest checkpoint (default: none); if provided the training will be resumed from that checkpoint
+weight-decay: 0.0001 # Weight decay (L2 penalty on weights)
+validate-after-iters: 100 # How many iterations between validations
+log-after-iters: 1 # How many iterations between tensorboard logging
+resume: # Path to latest checkpoint (default: none); if provided the training will be resumed from that checkpoint
