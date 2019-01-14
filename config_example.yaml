@@ -40,7 +40,7 @@ transformer: 'StandardTransformer' # Data augmentation class
 
 #Optional fields
 layer-order: 'crg' # Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm"
-loss-weight: # A manual rescaling weight given to each class. Can be used with CrossEntropy or BCELoss. E.g. --loss-weight 0.3 0.3 0.4
+loss-weight: # A manual rescaling weight given to each class. Can be used with CrossEntropy or BCELoss. E.g. loss-weight: -0.3 -0.3 -0.4
 ignore-index: # Specifies a target value that is ignored and does not contribute to the input gradient
 curriculum: # Ise simple Curriculum Learning scheme if ignore_index is present TODO action store
 final-sigmoid: False # If True apply element-wise nn.Sigmoid after the last layer otherwise apply nn.Softmax TODO action store
@@ -50,5 +50,5 @@ patience: 20 # Number of epochs with no loss improvement after which the trainin
 learning-rate: 0.0002 # Initial learning rate
 weight-decay: 0.0001 # weight decay (L2 penalty on weights)
 validate-after-iters: 100 # how many iterations between validations
-log-after-iters: 100 # how many iterations between tensorboard logging
+log-after-iters: 1 # how many iterations between tensorboard logging
 resume: # path to latest checkpoint (default: none); if provided the training will be resumed from that checkpoint
