@@ -1,12 +1,12 @@
 #UNet3D config file example
 
 # Mandatory fields
-checkpoint-dir: "./test_experiment" # Checkpoint directory
+checkpoint-dir: ./test_experiment # Checkpoint directory
 in-channels: 1 # Number of input channels
 out-channels: 2 # Number of output channels
 init-channel-number: 16 # Initial number of feature maps in the encoder path which gets doubled on every stage (default: 64)
 interpolate: interpolate # Use F.interpolate instead of ConvTranspose3d TODO action store
-loss: 'ce' # Which loss function to use. Possible values: ['bce', 'ce', 'wce', 'dice']
+loss: ce # Which loss function to use. Possible values: ['bce', 'ce', 'wce', 'dice']
 #  - bce: BinaryCrossEntropyLoss (binary classification only)
 #  - ce: CrossEntropyLoss (multi-class classification)
 #  - wce: WeightedCrossEntropyLoss (multi-class classification)
@@ -34,12 +34,12 @@ val-stride: # Patch stride for used for validation. Order (z, x, y)
   - 128
 
 # Data loader:  Optional fields
-raw-internal-path: "raw" # HDF5 file internal path to raw data
-label-internal-path: "label" # HDF5 file internal path to labels
-transformer: 'StandardTransformer' # Data augmentation class
+raw-internal-path: raw # HDF5 file internal path to raw data
+label-internal-path: label # HDF5 file internal path to labels
+transformer: StandardTransformer # Data augmentation class
 
 # Optional fields
-layer-order: 'crg' # Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm"
+layer-order: crg # Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm"
 loss-weight: # A manual rescaling weight given to each class. Can be used with CrossEntropy or BCELoss. E.g. loss-weight: -0.3 -0.3 -0.4
 ignore-index: # Specifies a target value that is ignored and does not contribute to the input gradient
 curriculum: # Ise simple Curriculum Learning scheme if ignore_index is present TODO action store
