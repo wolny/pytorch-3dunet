@@ -12,7 +12,6 @@ loss: ce # Which loss function to use. Possible values: ['bce', 'ce', 'wce', 'di
 #  - wce: WeightedCrossEntropyLoss (multi-class classification)
 #  - dice: GeneralizedDiceLoss (multi-class classification)
 
-
 # Data loader:  Mandatory fields
 train-path: resources/random_label3D.h5 # Path to the train dataset
 val-path: resources/random_label3D.h5 # Path to the validation dataset
