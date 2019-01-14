@@ -6,6 +6,8 @@ from scipy.ndimage import rotate
 from scipy.ndimage.filters import convolve
 from torchvision.transforms import Compose
 
+from .Seg2StuffTools import *
+
 
 class RandomFlip:
     """
@@ -454,9 +456,13 @@ class LabelToBoundaryTransformer(BaseTransformer):
                 # rotate in XY only and make sure mode='reflect' is used in order to prevent boundary artifacts
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
                              mode='reflect'),
+
+                # removed in favour of Segmentation2Pmap3D
                 # this will give us 6 output channels with boundary signal
-                LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=self.ignore_index),
-                ToTensor(expand_dims=False, dtype=self.label_dtype)
+                # LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=self.ignore_index),
+
+                ToTensor(expand_dims=False, dtype=self.label_dtype),
+                Segmentation2Pmap3D(offset=(1, 4))
             ])
         else:
             return Compose([
