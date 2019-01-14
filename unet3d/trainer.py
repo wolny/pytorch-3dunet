@@ -316,7 +316,7 @@ class UNet3DTrainer:
         }
         for name, batch in sources.items():
             for tag, image in self._images_from_batch(name, batch):
-                self.writer.add_image(tag, image, self.num_iterations)
+                self.writer.add_image(tag, image, self.num_iterations, dataformats='HW')
 
     def _images_from_batch(self, name, batch):
         tag_template = '{}/batch_{}/channel_{}/slice_{}'
