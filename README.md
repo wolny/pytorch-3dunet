@@ -54,11 +54,11 @@ usage: train.py [-h] [--checkpoint-dir CHECKPOINT_DIR] --in-channels
                 [--learning-rate LEARNING_RATE] [--weight-decay WEIGHT_DECAY]
                 [--validate-after-iters VALIDATE_AFTER_ITERS]
                 [--log-after-iters LOG_AFTER_ITERS] [--resume RESUME]
-                --train-path TRAIN_PATH --val-path VAL_PATH --train-patch
-                TRAIN_PATCH [TRAIN_PATCH ...] --train-stride TRAIN_STRIDE
-                [TRAIN_STRIDE ...] --val-patch VAL_PATCH [VAL_PATCH ...]
-                --val-stride VAL_STRIDE [VAL_STRIDE ...]
-                [--raw-internal-path RAW_INTERNAL_PATH]
+                --train-path TRAIN_PATH [TRAIN_PATH ...] --val-path VAL_PATH
+                [VAL_PATH ...] --train-patch TRAIN_PATCH [TRAIN_PATCH ...]
+                --train-stride TRAIN_STRIDE [TRAIN_STRIDE ...] --val-patch
+                VAL_PATCH [VAL_PATCH ...] --val-stride VAL_STRIDE
+                [VAL_STRIDE ...] [--raw-internal-path RAW_INTERNAL_PATH]
                 [--label-internal-path LABEL_INTERNAL_PATH]
                 [--transformer TRANSFORMER]
 
@@ -111,9 +111,10 @@ optional arguments:
                         (default: 100)
   --resume RESUME       path to latest checkpoint (default: none); if provided
                         the training will be resumed from that checkpoint
-  --train-path TRAIN_PATH
-                        path to the train dataset
-  --val-path VAL_PATH   path to the val dataset
+  --train-path TRAIN_PATH [TRAIN_PATH ...]
+                        paths to the training datasets, e.g. --train-path <path1> <path2>
+  --val-path VAL_PATH [VAL_PATH ...]
+                        paths to the validation datasets, e.g. --val-path <path1> <path2>
   --train-patch TRAIN_PATCH [TRAIN_PATCH ...]
                         Patch shape for used for training
   --train-stride TRAIN_STRIDE [TRAIN_STRIDE ...]
