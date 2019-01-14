@@ -38,7 +38,7 @@ label-internal-path: label # HDF5 file internal path to labels
 transformer: StandardTransformer # Data augmentation class
 
 # Optional fields
-layer-order: crg # Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm"
+layer-order: crg # Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm
 loss-weight: # A manual rescaling weight given to each class. Can be used with CrossEntropy or BCELoss. E.g. loss-weight: -0.3 -0.3 -0.4
 ignore-index: # Specifies a target value that is ignored and does not contribute to the input gradient
 curriculum: # Ise simple Curriculum Learning scheme if ignore_index is present TODO action store
