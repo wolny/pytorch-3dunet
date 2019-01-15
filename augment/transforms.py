@@ -462,7 +462,7 @@ class LabelToBoundaryTransformer(BaseTransformer):
                 # LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=self.ignore_index),
 
                 ToTensor(expand_dims=False, dtype=self.label_dtype),
-                Segmentation2Pmap3D(offset=(1, 4))
+                Segmentation2Pmap3D(offset=(1, ))
             ])
         else:
             return Compose([
