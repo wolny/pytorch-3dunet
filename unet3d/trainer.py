@@ -68,6 +68,7 @@ class UNet3DTrainer:
         # used for early stopping
         self.max_patience = max_patience
         self.patience = max_patience
+        self.eps = 1e-16
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path, model, optimizer, loss_criterion, accuracy_criterion, loaders,
@@ -339,6 +340,5 @@ class UNet3DTrainer:
 
         return tagged_images
 
-    @staticmethod
-    def _normalize_img(img):
-        return (img - np.min(img)) / np.ptp(img)
+    def _normalize_img(self, img):
+        return (img - np.min(img)) / (np.ptp(img) + self.eps)
