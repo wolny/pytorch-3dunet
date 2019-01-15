@@ -1,5 +1,7 @@
 import h5py
 import numpy as np
+import os
+import glob
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 
 import augment.transforms as transforms
@@ -268,6 +270,17 @@ def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, 
         slice_builder_cls = CurriculumLearningSliceBuilder
     else:
         slice_builder_cls = SliceBuilder
+
+    # Generalised to accept directory or single files
+    if os.path.isdir(train_paths):
+        train_paths = glob.glob(train_paths + '**/*.h5', recursive=True)
+    elif os.path.isfile(train_paths):
+        train_paths = [train_paths]
+
+    if os.path.isdir(val_paths):
+        val_paths = glob.glob(val_paths + '**/*.h5', recursive=True)
+    elif os.path.isfile(val_paths):
+        val_paths = [val_paths]
 
     train_datasets = []
     for train_path in train_paths:
