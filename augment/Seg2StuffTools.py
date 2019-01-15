@@ -30,8 +30,17 @@ class Segmentation2Affinities3D:
         self.kernel = kernel
 
     def __call__(self, segmentation):
-        labels = torch.empty(segmentation.size(0),
-                             3 * len(self.offset),
+        # TODO now support only batch size of 1
+        if len(segmentation.size()) == 3:
+            segmentation = segmentation.view(-1, 1,
+                                             segmentation.size(0),
+                                             segmentation.size(1),
+                                             segmentation.size(2))
+        else:
+            print("wrong batch size, input must be 3D")
+            exit(1)
+
+        labels = torch.empty(3 * len(self.offset),
                              segmentation.size(2),
                              segmentation.size(3),
                              segmentation.size(4))
@@ -43,7 +52,7 @@ class Segmentation2Affinities3D:
                                         dilation=effective_offset,
                                         padding=effective_offset)
 
-            labels[:, i * 3:i * 3 + 3] = ~(torch.abs(mask) < 1)
+            labels[i * 3:i * 3 + 3] = ~(torch.abs(mask) < 1)
         return labels
 
 
@@ -69,8 +78,17 @@ class Segmentation2Pmap3D:
         self.kernel = kernel
 
     def __call__(self, segmentation):
-        labels = torch.empty(segmentation.size(0),
-                             len(self.offset),
+        # TODO now support only batch size of 1
+        if len(segmentation.size()) == 3:
+            segmentation = segmentation.view(-1, 1,
+                                             segmentation.size(0),
+                                             segmentation.size(1),
+                                             segmentation.size(2))
+        else:
+            print("wrong batch size, input must be 3D")
+            exit(1)
+
+        labels = torch.empty(len(self.offset),
                              segmentation.size(2),
                              segmentation.size(3),
                              segmentation.size(4))
@@ -79,13 +97,18 @@ class Segmentation2Pmap3D:
             effective_offset = list((offset * self.scale).astype(np.int))
 
             segmentation = segmentation.float()
-            segmentation = nn.functional.pad(segmentation, (int(effective_offset[1]), int(effective_offset[1]),
-                                                            int(effective_offset[2]), int(effective_offset[2]),
-                                                            int(effective_offset[0]), int(effective_offset[0])),
+            pad_size = [int(effective_offset[1]), int(effective_offset[1]),
+                        int(effective_offset[2]), int(effective_offset[2]),
+                        int(effective_offset[0]), int(effective_offset[0])]
+
+            segmentation = nn.functional.pad(segmentation,
+                                             pad_size,
                                              mode='replicate')
+
             mask = nn.functional.conv3d(segmentation.float(),
                                         self.kernel,
                                         dilation=effective_offset)
 
-            labels[:, i] = ~(torch.abs(mask) < 1)
-        return labels
+            labels[i] = ~(torch.abs(mask[0]) < 1)
+        # TODO lost of generality, this works only for length of offset 1
+        return labels[0].long()
