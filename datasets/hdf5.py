@@ -285,6 +285,7 @@ def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, 
     train_datasets = []
     for train_path in train_paths:
         # create H5 backed training and validation dataset with data augmentation
+        print("Loading Train Dataset: " + train_path)
         train_dataset = HDF5Dataset(train_path, train_patch, train_stride,
                                     phase='train',
                                     label_dtype=label_dtype,
@@ -298,6 +299,7 @@ def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, 
 
     val_datasets = []
     for val_path in val_paths:
+        print("Loading Val Dataset: " + train_path)
         val_dataset = HDF5Dataset(val_path, val_patch, val_stride,
                                   phase='val',
                                   label_dtype=label_dtype,

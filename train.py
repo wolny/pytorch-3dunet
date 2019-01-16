@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from augment.transforms import AnisotropicRotationTransformer, RandomLabelToBoundaryTransformer, \
     IsotropicRotationTransformer, \
     StandardTransformer, BaseTransformer, LabelToBoundaryTransformer
-from datasets.hdf5 import HDF5Dataset, CurriculumLearningSliceBuilder, SliceBuilder
+from datasets.hdf5 import HDF5Dataset, CurriculumLearningSliceBuilder, SliceBuilder, get_loaders
 from unet3d.losses import DiceCoefficient, get_loss_criterion
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
@@ -100,6 +100,7 @@ def main():
     config = _load_config()
     logger = get_logger('UNet3DTrainer')
     # Get device to train on
+    print(torch.cuda.is_available())
     device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
     logger.info(config)
@@ -147,7 +148,7 @@ def main():
     logger.info(f'Val patch/stride: {val_patch}/{val_stride}')
 
     pixel_wise_weight = config['loss'] == 'pce'
-    loaders = _get_loaders(train_path, val_path, label_dtype=label_dtype,
+    loaders = get_loaders(train_path, val_path, label_dtype=label_dtype,
                            raw_internal_path=config['raw-internal-path'],
                            label_internal_path=config['label-internal-path'],
                            train_patch=train_patch, train_stride=train_stride,
