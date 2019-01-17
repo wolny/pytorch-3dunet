@@ -114,7 +114,7 @@ def main():
 
     loss_criterion = get_loss_criterion(config['loss'],
                                         config['final-sigmoid'],
-                                        config['loss-weight'],
+                                        loss_weight,
                                         config['ignore-index'])
 
     model = UNet3D(config['in-channels'],

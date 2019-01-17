@@ -433,7 +433,7 @@ class LabelToBoundaryTransformer(BaseTransformer):
             self.ignore_index = kwargs['ignore_index']
         else:
             self.ignore_index = None
-        self.offset = [4]
+        self.offset = [2]
 
     def raw_transform(self):
         if self.phase == 'train':
