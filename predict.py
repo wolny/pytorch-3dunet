@@ -1,5 +1,6 @@
 import argparse
 import os
+import yaml
 
 import h5py
 import numpy as np
@@ -97,47 +98,35 @@ def save_predictions(probability_maps, output_file, average_channels):
 
 def main():
     parser = argparse.ArgumentParser(description='3D U-Net predictions')
-    parser.add_argument('--model-path', required=True, type=str,
-                        help='path to the model')
-    parser.add_argument('--in-channels', required=True, type=int,
-                        help='number of input channels')
-    parser.add_argument('--out-channels', required=True, type=int,
-                        help='number of output channels')
-    parser.add_argument('--init-channel-number', type=int, default=64,
-                        help='Initial number of feature maps in the encoder path which gets doubled on every stage (default: 64)')
-    parser.add_argument('--interpolate',
-                        help='use F.interpolate instead of ConvTranspose3d',
-                        action='store_true')
-    parser.add_argument('--layer-order', type=str,
-                        help="Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm",
-                        default='crg')
-    parser.add_argument('--final-sigmoid',
-                        action='store_true',
-                        help='if True apply element-wise nn.Sigmoid after the last layer otherwise apply nn.Softmax')
-    parser.add_argument('--test-path', type=str, required=True, help='path to the test dataset')
-    parser.add_argument('--raw-internal-path', type=str, default='raw')
-    parser.add_argument('--patch', required=True, type=int, nargs='+', default=None,
-                        help='Patch shape for used for prediction on the test set')
-    parser.add_argument('--stride', required=True, type=int, nargs='+', default=None,
-                        help='Patch stride for used for prediction on the test set')
-
+    parser.add_argument('--config', required=True, type=str, help='Config file path')
+    parser.add_argument('--test-path', type=str, required=True, help='Path to the test dataset')
+    parser.add_argument('--model-path', type=str, required=False, help='Path to saved model')
+    parser.add_argument('--save-path', type=str, default="./", help='Path to saving directory')
     args = parser.parse_args()
 
+    config = yaml.load(open(parser.parse_args().config))
+
     # make sure those values correspond to the ones used during training
-    in_channels = args.in_channels
-    out_channels = args.out_channels
+    in_channels = config['in-channels']
+    out_channels = config['out-channels']
+
     # use F.interpolate for upsampling
-    interpolate = args.interpolate
-    layer_order = args.layer_order
-    final_sigmoid = args.final_sigmoid
+    interpolate = config['interpolate']
+    layer_order = config['layer-order']
+    final_sigmoid = config['final-sigmoid']
     model = UNet3D(in_channels, out_channels,
-                   init_channel_number=args.init_channel_number,
+                   init_channel_number=config['init-channel-number'],
                    final_sigmoid=final_sigmoid,
                    interpolate=interpolate,
                    conv_layer_order=layer_order)
 
-    logger.info(f'Loading model from {args.model_path}...')
-    utils.load_checkpoint(args.model_path, model)
+    if args.model_path is None:
+        model_path = config['checkpoint-dir'] + "/last_checkpoint.pytorch"
+    else:
+        model_path = args.model_path
+
+    logger.info(f'Loading model from {model_path}...')
+    utils.load_checkpoint(model_path, model)
 
     logger.info('Loading datasets...')
 
@@ -149,13 +138,13 @@ def main():
 
     model = model.to(device)
 
-    patch = tuple(args.patch)
-    stride = tuple(args.stride)
+    patch = tuple(config['val-patch'])
+    stride = tuple(config['val-stride'])
 
-    dataset = HDF5Dataset(args.test_path, patch, stride, phase='test', raw_internal_path=args.raw_internal_path)
+    dataset = HDF5Dataset(args.save_path, patch, stride, phase='test', raw_internal_path=args.raw_internal_path)
     probability_maps = predict(model, dataset, out_channels, device)
 
-    output_file = f'{os.path.splitext(args.test_path)[0]}_probabilities.h5'
+    output_file = f'{os.path.splitext(args.save_path)[0]}_probabilities.h5'
 
     # average channels only in case of final_sigmoid
     save_predictions(probability_maps, output_file, final_sigmoid)
