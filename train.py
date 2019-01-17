@@ -100,7 +100,7 @@ def main():
     config = _load_config()
     logger = get_logger('UNet3DTrainer')
     # Get device to train on
-    print(torch.cuda.is_available())
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
     logger.info(config)
