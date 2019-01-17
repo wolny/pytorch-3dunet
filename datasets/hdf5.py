@@ -271,7 +271,7 @@ def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, 
     else:
         slice_builder_cls = SliceBuilder
 
-    # Generalised to accept directory or single files
+    #  Generalised to accept directory or single files
     if os.path.isdir(train_paths):
         train_paths = glob.glob(train_paths + '**/*.h5', recursive=True)
     elif os.path.isfile(train_paths):
@@ -279,6 +279,7 @@ def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, 
 
     if os.path.isdir(val_paths):
         val_paths = glob.glob(val_paths + '**/*.h5', recursive=True)
+
     elif os.path.isfile(val_paths):
         val_paths = [val_paths]
 
@@ -299,7 +300,7 @@ def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, 
 
     val_datasets = []
     for val_path in val_paths:
-        print("Loading Val Dataset: " + train_path)
+        print("Loading Val Dataset: " + val_path)
         val_dataset = HDF5Dataset(val_path, val_patch, val_stride,
                                   phase='val',
                                   label_dtype=label_dtype,
