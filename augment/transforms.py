@@ -470,7 +470,7 @@ class LabelToBoundaryTransformer(BaseTransformer):
                 # removed in favour of Segmentation2Pmap3D
                 # LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=self.ignore_index),
                 # this will give us 6 output channels with boundary signal
-                ToTensor(expand_dims=False, dtype=self.label_dtype)
+                ToTensor(expand_dims=False, dtype=self.label_dtype),
                 Segmentation2Pmap3D(offset=self.offset)
             ])
 
