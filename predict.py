@@ -93,6 +93,10 @@ def save_predictions(probability_maps, output_file, average_channels):
             probability_maps = np.mean(probability_maps, axis=0)
         dataset_name = 'probability_maps'
         logger.info(f"Creating dataset '{dataset_name}'")
+
+        # cast to uint8
+        probability_maps = (255 * probability_maps / np.max(probability_maps)).astype(np.uint8)
+
         output_h5.create_dataset(dataset_name, data=probability_maps, dtype=probability_maps.dtype, compression="gzip")
 
 
@@ -141,7 +145,7 @@ def main():
     patch = tuple(config['val-patch'])
     stride = tuple(config['val-stride'])
 
-    dataset = HDF5Dataset(args.save_path, patch, stride, phase='test', raw_internal_path=args.raw_internal_path)
+    dataset = HDF5Dataset(args.test_path, patch, stride, phase='test', raw_internal_path=config['raw-internal-path'])
     probability_maps = predict(model, dataset, out_channels, device)
 
     output_file = f'{os.path.splitext(args.save_path)[0]}_probabilities.h5'
