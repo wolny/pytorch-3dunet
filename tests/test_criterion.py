@@ -118,7 +118,3 @@ class TestCriterion:
         expected = loss(input, target)
 
         assert expected == actual
-
-    def test_get_loss_criterion_fails_with_ce_and_final_sigmoid(self):
-        with pytest.raises(AssertionError):
-            get_loss_criterion('ce', True)

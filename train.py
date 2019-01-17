@@ -95,7 +95,7 @@ def main():
     else:
         loss_weight = None
 
-    loss_criterion = get_loss_criterion(args.loss, args.final_sigmoid, loss_weight, args.ignore_index)
+    loss_criterion = get_loss_criterion(args.loss, loss_weight, args.ignore_index)
 
     model = UNet3D(args.in_channels, args.out_channels,
                    init_channel_number=args.init_channel_number,
@@ -113,7 +113,7 @@ def main():
 
     # Get data loaders. If 'bce' or 'dice' loss is used, convert labels to float
     train_path, val_path = args.train_path, args.val_path
-    if args.loss in ['bce', 'dice']:
+    if args.loss in ['bce']:
         label_dtype = 'float32'
     else:
         label_dtype = 'long'

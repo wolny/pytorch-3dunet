@@ -10,8 +10,7 @@ class DiceCoefficient:
     """Computes Dice Coefficient.
     Generalized to multiple channels by computing per-channel Dice Score
     (as described in https://arxiv.org/pdf/1707.03237.pdf) and then simply taking the average.
-    Expects normalized probabilities as input (not logits)!
-    Since it's not a loss function, no need to compute gradients and thus no need to subclass nn.Module.
+    Input is expected to be probabilities instead of logits.
     """
 
     def __init__(self, epsilon=1e-5, ignore_index=None):
@@ -23,13 +22,15 @@ class DiceCoefficient:
 
         # input and target shapes must match
         if target.dim() == 4:
-            target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
+            target = expand_as_one_hot(target, C=input.size()[1], ignore_index=self.ignore_index)
 
         assert input.size() == target.size(), "'input' and 'target' must have the same shape"
 
         # mask ignore_index if present
         if self.ignore_index is not None:
-            mask = Variable(target.data.ne(self.ignore_index).float(), requires_grad=False)
+            mask = target.clone().ne_(self.ignore_index)
+            mask.requires_grad = False
+
             input = input * mask
             target = target * mask
 
@@ -48,22 +49,27 @@ class DiceLoss(nn.Module):
     but additionally allows per-class weights to be provided.
     """
 
-    def __init__(self, epsilon=1e-5, weight=None, ignore_index=None, softmax=True):
+    def __init__(self, epsilon=1e-5, weight=None, ignore_index=None, sigmoid_normalization=True):
         super(DiceLoss, self).__init__()
         self.epsilon = epsilon
         self.register_buffer('weight', weight)
         self.ignore_index = ignore_index
-        if softmax:
-            self.normalization = nn.Softmax(dim=1)
-        else:
+        # The output from the network during training is assumed to be un-normalized probabilities and we would
+        # like to normalize the logits. Since Dice (or soft Dice in this case) is usually used for binary data,
+        # normalizing the channels with Sigmoid is the default choice even for multi-class segmentation problems.
+        # However if one would like to apply Softmax in order to get the proper probability distribution from the
+        # output, just specify sigmoid_normalization=False.
+        if sigmoid_normalization:
             self.normalization = nn.Sigmoid()
+        else:
+            self.normalization = nn.Softmax(dim=1)
 
     def forward(self, input, target):
         # get probabilities from logits
         input = self.normalization(input)
         # input and target shapes must match
         if target.dim() == 4:
-            target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
+            target = expand_as_one_hot(target, C=input.size()[1], ignore_index=self.ignore_index)
 
         assert input.size() == target.size(), "'input' and 'target' must have the same shape"
 
@@ -85,8 +91,8 @@ class DiceLoss(nn.Module):
             intersect = weight * intersect
 
         denominator = (input + target).sum(-1)
-        # Average across channels in order to get the final score
-        return 1. - torch.mean(2. * intersect / denominator.clamp(min=self.epsilon))
+        # Average the Dice score across all channels/classes
+        return torch.mean(1. - 2. * intersect / denominator.clamp(min=self.epsilon))
 
 
 class GeneralizedDiceLoss(nn.Module):
@@ -94,22 +100,22 @@ class GeneralizedDiceLoss(nn.Module):
     Combines a `Softmax` layer with the GDL, so it expects logits as input.
     """
 
-    def __init__(self, epsilon=1e-5, weight=None, ignore_index=None, softmax=True):
+    def __init__(self, epsilon=1e-5, weight=None, ignore_index=None, sigmoid_normalization=True):
         super(GeneralizedDiceLoss, self).__init__()
         self.epsilon = epsilon
         self.register_buffer('weight', weight)
         self.ignore_index = ignore_index
-        if softmax:
-            self.normalization = nn.Softmax(dim=1)
-        else:
+        if sigmoid_normalization:
             self.normalization = nn.Sigmoid()
+        else:
+            self.normalization = nn.Softmax(dim=1)
 
     def forward(self, input, target):
         # get probabilities from logits
         input = self.normalization(input)
         # input and target shapes must match
         if target.dim() == 4:
-            target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
+            target = expand_as_one_hot(target, C=input.size()[1], ignore_index=self.ignore_index)
 
         assert input.size() == target.size(), "'input' and 'target' must have the same shape"
 
@@ -179,7 +185,7 @@ class IgnoreIndexLossWrapper:
     def __call__(self, input, target):
         # always expand target tensor, so that input.size() == target.size()
         if target.dim() == 4:
-            target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
+            target = expand_as_one_hot(target, C=input.size()[1], ignore_index=self.ignore_index)
 
         assert input.size() == target.size()
 
@@ -203,7 +209,7 @@ class PixelWiseCrossEntropyLoss(nn.Module):
         # normalize the input
         log_probabilities = self.log_softmax(input)
         # standard CrossEntropyLoss requires the target to be (NxDxHxW), so we need to expand it to (NxCxDxHxW)
-        target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
+        target = expand_as_one_hot(target, C=input.size()[1], ignore_index=self.ignore_index)
         # expand weights
         weights = weights.unsqueeze(0)
         weights = weights.expand_as(input)
@@ -244,32 +250,42 @@ def flatten(tensor):
     return transposed.view(C, -1)
 
 
-def expand_target(input, C, ignore_index=None):
+def expand_as_one_hot(input, C, ignore_index=None):
     """
     Converts NxDxHxW label image to NxCxDxHxW, where each label is stored in a separate channel
     :param input: 4D input image (NxDxHxW)
     :param C: number of channels/labels
+    :param ignore_index: ignore index to be kept during the expansion
     :return: 5D output image (NxCxDxHxW)
     """
     assert input.dim() == 4
+
     shape = input.size()
     shape = list(shape)
     shape.insert(1, C)
     shape = tuple(shape)
 
-    result = torch.zeros(shape)
-    # for each batch instance
-    for i in range(input.size()[0]):
-        # iterate over channel axis and create corresponding binary mask in the target
-        for c in range(C):
-            mask = result[i, c]
-            mask[input[i] == c] = 1
-            if ignore_index is not None:
-                mask[input[i] == ignore_index] = ignore_index
-    return result.to(input.device)
+    # expand the input tensor to Nx1xDxHxW
+    src = input.unsqueeze(0)
+
+    if ignore_index is not None:
+        # create ignore_index mask for the result
+        expanded_src = src.expand(shape)
+        mask = expanded_src == ignore_index
+        # clone the src tensor and zero out ignore_index in the input
+        src = src.clone()
+        src[src == ignore_index] = 0
+        # scatter to get the one-hot tensor
+        result = torch.zeros(shape).to(input.device).scatter_(1, src, 1)
+        # bring back the ignore_index in the result
+        result[mask] = ignore_index
+        return result
+    else:
+        # scatter to get the one-hot tensor
+        return torch.zeros(shape).to(input.device).scatter_(1, src, 1)
 
 
-def get_loss_criterion(loss_str, final_sigmoid, weight=None, ignore_index=None):
+def get_loss_criterion(loss_str, weight=None, ignore_index=None):
     """
     Returns the loss function based on the loss_str.
     :param loss_str: specifies the loss function to be used
@@ -280,8 +296,6 @@ def get_loss_criterion(loss_str, final_sigmoid, weight=None, ignore_index=None):
     :return: an instance of the loss function
     """
     assert loss_str in SUPPORTED_LOSSES, f'Invalid loss string: {loss_str}'
-    if loss_str in ['ce', 'wce', 'pce']:
-        assert not final_sigmoid, 'Sigmoid normalization can only be used with BCELoss, DiceLoss or GeneralizedDiceLoss'
 
     if loss_str == 'bce':
         if ignore_index is None:
@@ -299,6 +313,6 @@ def get_loss_criterion(loss_str, final_sigmoid, weight=None, ignore_index=None):
     elif loss_str == 'pce':
         return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index)
     elif loss_str == 'gdl':
-        return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index, softmax=not final_sigmoid)
+        return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index)
     else:
-        return DiceLoss(weight=weight, ignore_index=ignore_index, softmax=not final_sigmoid)
+        return DiceLoss(weight=weight, ignore_index=ignore_index)
