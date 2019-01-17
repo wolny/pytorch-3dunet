@@ -433,6 +433,7 @@ class LabelToBoundaryTransformer(BaseTransformer):
             self.ignore_index = kwargs['ignore_index']
         else:
             self.ignore_index = None
+        self.offset = [4]
 
     def raw_transform(self):
         if self.phase == 'train':
@@ -462,13 +463,15 @@ class LabelToBoundaryTransformer(BaseTransformer):
                 # LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=self.ignore_index),
 
                 ToTensor(expand_dims=False, dtype=self.label_dtype),
-                Segmentation2Pmap3D(offset=(1, ))
+                Segmentation2Pmap3D(offset=self.offset)
             ])
         else:
             return Compose([
-                LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=self.ignore_index),
+                # removed in favour of Segmentation2Pmap3D
+                # LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=self.ignore_index),
                 # this will give us 6 output channels with boundary signal
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
+                Segmentation2Pmap3D(offset=self.offset)
             ])
 
     def weight_transform(self):
