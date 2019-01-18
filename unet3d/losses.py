@@ -88,7 +88,6 @@ class DiceLoss(nn.Module):
 
 class GeneralizedDiceLoss(nn.Module):
     """Computes Generalized Dice Loss (GDL) as described in https://arxiv.org/pdf/1707.03237.pdf
-    TODO: double-check the equations in the paper and the current implementation
     """
 
     def __init__(self, epsilon=1e-5, weight=None, ignore_index=None, sigmoid_normalization=True):
@@ -104,19 +103,35 @@ class GeneralizedDiceLoss(nn.Module):
     def forward(self, input, target):
         # get probabilities from logits
         input = self.normalization(input)
+        # input and target shapes must match
+        if target.dim() == 4:
+            target = expand_as_one_hot(target, C=input.size()[1], ignore_index=self.ignore_index)
+
+        assert input.size() == target.size(), "'input' and 'target' must have the same shape"
+
+        # mask ignore_index if present
+        if self.ignore_index is not None:
+            mask = target.clone().ne_(self.ignore_index)
+            mask.requires_grad = False
+
+            input = input * mask
+            target = target * mask
+
+        input = flatten(input)
+        target = flatten(target)
+
         target = target.float()
         target_sum = target.sum(-1)
-        class_weights = 1. / (target_sum * target_sum).clamp(min=self.epsilon)
+        class_weights = Variable(1. / (target_sum * target_sum).clamp(min=self.epsilon), requires_grad=False)
 
+        intersect = (input * target).sum(-1) * class_weights
         if self.weight is not None:
-            weight = Variable(self.weight * class_weights, requires_grad=False)
-        else:
-            weight = Variable(class_weights, requires_grad=False)
+            weight = Variable(self.weight, requires_grad=False)
+            intersect = weight * intersect
 
-        per_channel_dice = compute_per_channel_dice(input, target, epsilon=self.epsilon, ignore_index=self.ignore_index,
-                                                    weight=weight)
-        # Average the Dice score across all channels/classes
-        return torch.mean(1. - per_channel_dice)
+        denominator = (input + target).sum(-1) * class_weights
+
+        return torch.mean(1. - 2. * intersect / denominator.clamp(min=self.epsilon))
 
 
 class WeightedCrossEntropyLoss(nn.Module):
