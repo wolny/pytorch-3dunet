@@ -1,6 +1,7 @@
 import argparse
 import os
 import yaml
+import glob
 
 import h5py
 import numpy as np
@@ -70,10 +71,10 @@ def predict(model, dataset, out_channels, device):
             # count voxel visits for normalization
             normalization_mask[index] += 1
 
-    return probability_maps / normalization_mask
+    return probability_maps / (normalization_mask + 1e-16)
 
 
-def save_predictions(probability_maps, output_file, average_channels):
+def save_predictions(probability_maps, output_file, output_file_uint8, average_channels):
     """
     Saving probability maps to a given output H5 file. If 'average_channels'
     is set to True average the probability_maps across the the channel axis
@@ -94,10 +95,14 @@ def save_predictions(probability_maps, output_file, average_channels):
         dataset_name = 'probability_maps'
         logger.info(f"Creating dataset '{dataset_name}'")
 
-        # cast to uint8
-        probability_maps = (255 * probability_maps / np.max(probability_maps)).astype(np.uint8)
-
         output_h5.create_dataset(dataset_name, data=probability_maps, dtype=probability_maps.dtype, compression="gzip")
+
+    with h5py.File(output_file_uint8, "w") as output_h5:
+        # cast to uint8
+        dataset_name = 'prediction'
+        logger.info(f"Creating dataset '{dataset_name}'")
+        probability_image = (255 * probability_maps[1] / np.max(probability_maps[1])).astype(np.uint8)
+        output_h5.create_dataset(dataset_name, data=probability_image, dtype=np.uint8, compression="gzip")
 
 
 def main():
@@ -105,7 +110,12 @@ def main():
     parser.add_argument('--config', required=True, type=str, help='Config file path')
     parser.add_argument('--test-path', type=str, required=True, help='Path to the test dataset')
     parser.add_argument('--model-path', type=str, required=False, help='Path to saved model')
-    parser.add_argument('--save-path', type=str, default="./", help='Path to saving directory')
+    parser.add_argument('--save-path', type=str, help='Path to saving directory')
+
+    parser.add_argument('--patch', required=False, type=int, nargs='+', default=None,
+                        help='Patch shape for used for prediction on the test set')
+    parser.add_argument('--stride', required=False, type=int, nargs='+', default=None,
+                        help='Patch stride for used for prediction on the test set')
     args = parser.parse_args()
 
     config = yaml.load(open(parser.parse_args().config))
@@ -142,16 +152,40 @@ def main():
 
     model = model.to(device)
 
-    patch = tuple(config['val-patch'])
-    stride = tuple(config['val-stride'])
+    if args.patch is None:
+        patch = tuple(config['val-patch'])
+    else:
+        patch = tuple(args.patch)
 
-    dataset = HDF5Dataset(args.test_path, patch, stride, phase='test', raw_internal_path=config['raw-internal-path'])
-    probability_maps = predict(model, dataset, out_channels, device)
+    if args.patch is None:
+        stride = tuple(config['val-stride'])
+    else:
+        stride = tuple(args.stride)
 
-    output_file = f'{os.path.splitext(args.save_path)[0]}_probabilities.h5'
+    if os.path.isdir(args.test_path):
+        test_paths = glob.glob(args.test_path + '**/*.h5', recursive=True)
+    elif os.path.isfile(args.test_path):
+        test_paths = [args.test_path]
+    else:
+        test_paths = []
 
-    # average channels only in case of final_sigmoid
-    save_predictions(probability_maps, output_file, final_sigmoid)
+    for test_path in test_paths:
+        logger.info(f"Processing dataset '{test_path}'")
+        dataset = HDF5Dataset(test_path, patch, stride, phase='test', raw_internal_path=config['raw-internal-path'])
+        probability_maps = predict(model, dataset, out_channels, device)
+
+        if args.save_path is None:
+            output_file = f'{os.path.splitext(test_path)[0]}_probabilities.h5'
+        else:
+            output_file = args.save_path + '_probabilities.h5'
+
+        if args.save_path is None:
+            output_file_uint8 = f'{os.path.splitext(test_path)[0]}_prediction.h5'
+        else:
+            output_file_uint8 = args.save_path + '_prediction.h5'
+
+        # average channels only in case of final_sigmoid
+        save_predictions(probability_maps, output_file, output_file_uint8, final_sigmoid)
 
 
 if __name__ == '__main__':
