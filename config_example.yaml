@@ -12,8 +12,8 @@ loss: bce # Which loss function to use. Possible values: ['bce', 'wce', 'dice']
 #  - dice: GeneralizedDiceLoss (multi-class classification)
 
 # Data loader:  Mandatory fields
-train-path: /home/lcerrone/Desktop/val_ovules_h5/ # Path to the train dataset
-val-path: /home/lcerrone/Desktop/val_ovules_h5/ # Path to the validation dataset
+train-path: some_file # Path to the train dataset
+val-path: some_file # Path to the validation dataset
 train-patch: # Patch shape for used for validation. Order (z, x, y)
   - 32
   - 64
