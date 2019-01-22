@@ -13,7 +13,7 @@ from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger
 from unet3d.utils import get_number_of_learnable_parameters
-
+import shutil
 import yaml
 
 
@@ -21,6 +21,8 @@ def _load_config():
     parser = argparse.ArgumentParser(description='UNet3D training')
     parser.add_argument('--config', required=True, type=str, help='Config file path')
     config = yaml.load(open(parser.parse_args().config))
+
+    shutil.copy(parser.parse_args().config, config['checkpoint-dir'] + '/config_copy.yaml')
     return config
 
 
