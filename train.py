@@ -41,6 +41,8 @@ def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, l
     :param val_path:
     :param val_stride:
     :param transformer:
+    :param offset: list of int, defines the offsets in the LabeltoBoundary transform
+    :param scale: list of int, defines a scaling factor for z, x, y axis
     :return: dict {
         'train': <train_loader>
         'val': <val_loader>

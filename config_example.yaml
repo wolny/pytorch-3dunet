@@ -35,12 +35,12 @@ val-stride: # Patch stride for used for validation. Order (z, x, y)
 raw-internal-path: raw # HDF5 file internal path to raw data
 label-internal-path: label # HDF5 file internal path to labels
 transformer: LabelToBoundaryTransformer # Data augmentation class
-offset:
+offset: # List of int, defines the offsets in the LabeltoBoundary transform
   - 1
   - 4
-#  - 9
-#  - 27
-scale:
+  - 9
+  - 27
+scale: # List of int, defines a scaling factor for z, x, y axis
   - 1
   - 2
   - 2

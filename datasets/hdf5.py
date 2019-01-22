@@ -117,6 +117,8 @@ class HDF5Dataset(Dataset):
         H5 file
         :param raw_internal_path: H5 internal path to the raw dataset
         :param label_internal_path: H5 internal path to the label dataset
+        :param offset: list of int, defines the offsets in the LabeltoBoundary transform
+        :param scale: list of int, defines a scaling factor for z, x, y axis
         :param kwargs: additional context parameters
         """
         assert phase in ['train', 'val', 'test']
@@ -251,6 +253,8 @@ def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, 
     :param val_path:
     :param val_stride:
     :param transformer:
+    :param offset: list of int, defines the offsets in the LabeltoBoundary transform
+    :param scale: list of int, defines a scaling factor for z, x, y axis
     :return: dict {
         'train': <train_loader>
         'val': <val_loader>
