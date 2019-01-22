@@ -287,8 +287,8 @@ class BaseTransformer:
         ])
 
     @classmethod
-    def create(cls, mean, std, phase, label_dtype, **kwargs):
-        return cls(mean, std, phase, label_dtype, **kwargs)
+    def create(cls, mean, std, phase, label_dtype, offset, scale, **kwargs):
+        return cls(mean, std, phase, label_dtype, offset, scale, **kwargs)
 
 
 class StandardTransformer(BaseTransformer):
@@ -425,7 +425,7 @@ class AnisotropicRotationTransformer(BaseTransformer):
 
 # Make sure to use mode='reflect' when doing RandomRotate otherwise the transform will produce unwanted boundary signal
 class LabelToBoundaryTransformer(BaseTransformer):
-    def __init__(self, mean, std, phase, label_dtype, **kwargs):
+    def __init__(self, mean, std, phase, label_dtype, offset, scale, **kwargs):
         super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
         assert 'angle_spectrum' in kwargs, "'angle_spectrum' argument required"
         self.angle_spectrum = kwargs['angle_spectrum']
@@ -433,7 +433,9 @@ class LabelToBoundaryTransformer(BaseTransformer):
             self.ignore_index = kwargs['ignore_index']
         else:
             self.ignore_index = None
-        self.offset = [2] # TO DO check best size
+
+        self.offset = offset
+        self.scale = scale
 
     def raw_transform(self):
         if self.phase == 'train':
@@ -463,7 +465,7 @@ class LabelToBoundaryTransformer(BaseTransformer):
                 # LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=self.ignore_index),
 
                 ToTensor(expand_dims=False, dtype=self.label_dtype),
-                Segmentation2Pmap3D(offset=self.offset)
+                Segmentation2Pmap3D(offset=self.offset, scale=self.scale)
             ])
         else:
             return Compose([
@@ -471,7 +473,7 @@ class LabelToBoundaryTransformer(BaseTransformer):
                 # LabelToBoundary(axes=(0, 1, 2), offsets=(1, 4), ignore_index=self.ignore_index),
                 # this will give us 6 output channels with boundary signal
                 ToTensor(expand_dims=False, dtype=self.label_dtype),
-                Segmentation2Pmap3D(offset=self.offset)
+                Segmentation2Pmap3D(offset=self.offset, scale=self.scale)
             ])
 
     def weight_transform(self):

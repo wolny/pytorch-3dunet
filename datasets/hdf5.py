@@ -105,7 +105,7 @@ class HDF5Dataset(Dataset):
 
     def __init__(self, raw_file_path, patch_shape, stride_shape, phase, label_file_path=None, raw_internal_path='raw',
                  label_internal_path='label', label_dtype=np.long, transformer=transforms.BaseTransformer,
-                 slice_builder_cls=SliceBuilder, **kwargs):
+                 slice_builder_cls=SliceBuilder, offset=(1, ), scale=(1, 1, 1), **kwargs):
         """
         Creates transformers for raw and label datasets and builds the index to slice mapping for raw and label datasets.
         :param raw_file_path: path to H5 file containing raw data
@@ -140,7 +140,8 @@ class HDF5Dataset(Dataset):
             ignore_index = None
 
         self.transformer = transformer.create(mean=mean, std=std, phase=phase, label_dtype=label_dtype,
-                                              angle_spectrum=angle_spectrum, ignore_index=ignore_index)
+                                              angle_spectrum=angle_spectrum, ignore_index=ignore_index,
+                                              offset=offset, scale=scale)
 
         self.raw_transform = self.transformer.raw_transform()
         self.label_transform = self.transformer.label_transform()
@@ -235,7 +236,7 @@ class HDF5Dataset(Dataset):
 
 def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, label_dtype, train_patch, train_stride,
                 val_patch, val_stride, transformer, pixel_wise_weight=False, curriculum_learning=False,
-                ignore_index=None):
+                ignore_index=None, offset=(1, ), scale=(1, 1, 1)):
     """
     Returns dictionary containing the  training and validation loaders
     (torch.utils.data.DataLoader) backed by the datasets.hdf5.HDF5Dataset
@@ -295,7 +296,9 @@ def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, 
                                     transformer=transformers[transformer],
                                     weighted=pixel_wise_weight,
                                     ignore_index=ignore_index,
-                                    slice_builder_cls=slice_builder_cls)
+                                    slice_builder_cls=slice_builder_cls,
+                                    offset=offset,
+                                    scale=scale)
         train_datasets.append(train_dataset)
 
     val_datasets = []
@@ -308,7 +311,9 @@ def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, 
                                   label_internal_path=label_internal_path,
                                   transformer=transformers[transformer],
                                   weighted=pixel_wise_weight,
-                                  ignore_index=ignore_index)
+                                  ignore_index=ignore_index,
+                                  offset=offset,
+                                  scale=scale)
         val_datasets.append(val_dataset)
 
     # shuffle only if curriculum_learning scheme is not used

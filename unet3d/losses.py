@@ -65,6 +65,7 @@ class DiceLoss(nn.Module):
         if target.dim() == 4:
             target = expand_target(target, C=input.size()[1], ignore_index=self.ignore_index)
 
+        print(input.size(), target.size())
         assert input.size() == target.size(), "'input' and 'target' must have the same shape"
 
         # mask ignore_index if present

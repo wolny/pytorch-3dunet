@@ -26,7 +26,7 @@ def _load_config():
 
 def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, label_dtype, train_patch, train_stride,
                  val_patch, val_stride, transformer, pixel_wise_weight=False, curriculum_learning=False,
-                 ignore_index=None):
+                 ignore_index=None, offset=(1, ), scale=(1, 1, 1)):
     """
     Returns dictionary containing the  training and validation loaders
     (torch.utils.data.DataLoader) backed by the datasets.hdf5.HDF5Dataset
@@ -71,7 +71,9 @@ def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, l
                                 transformer=transformers[transformer],
                                 weighted=pixel_wise_weight,
                                 ignore_index=ignore_index,
-                                slice_builder_cls=slice_builder_cls)
+                                slice_builder_cls=slice_builder_cls,
+                                offset=offset,
+                                scale=scale)
 
     val_dataset = HDF5Dataset(val_path, val_patch, val_stride,
                               phase='val',
@@ -80,7 +82,9 @@ def _get_loaders(train_path, val_path, raw_internal_path, label_internal_path, l
                               label_internal_path=label_internal_path,
                               transformer=transformers[transformer],
                               weighted=pixel_wise_weight,
-                              ignore_index=ignore_index)
+                              ignore_index=ignore_index,
+                              offset=offset,
+                              scale=scale)
 
     # shuffle only if curriculum_learning scheme is not used
     return {
@@ -154,7 +158,8 @@ def main():
                            train_patch=train_patch, train_stride=train_stride,
                            val_patch=val_patch, val_stride=val_stride,
                            transformer=config['transformer'], pixel_wise_weight=pixel_wise_weight,
-                           curriculum_learning=config['curriculum'], ignore_index=config['ignore-index'])
+                           curriculum_learning=config['curriculum'], ignore_index=config['ignore-index'],
+                           offset=config['offset'], scale=config['scale'])
 
     # Create the optimizer
     optimizer = _create_optimizer(config, model)
