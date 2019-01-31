@@ -44,7 +44,7 @@ def parse_train_config():
     parser.add_argument('--iters', default=1e5, type=int,
                         help='max number of iterations (default: 1e5)')
     parser.add_argument('--patience', default=20, type=int,
-                        help='number of epochs with no loss improvement after which the training '
+                        help='number of validation rounds with no improvement after which the training '
                              'will be stopped (default: 20)')
     parser.add_argument('--learning-rate', default=0.0002, type=float,
                         help='initial learning rate (default: 0.0002)')

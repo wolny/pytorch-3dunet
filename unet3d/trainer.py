@@ -234,7 +234,7 @@ class UNet3DTrainer:
 
     def _check_early_stopping(self, best_model_found):
         """
-        Check patience and adjust the learning rate if necessary.
+        Check current patience value and terminate if patience reached 0
         :param best_model_found: is current model the best one according to validation criterion
         :return: True if the training should be terminated, False otherwise
         """
@@ -245,25 +245,7 @@ class UNet3DTrainer:
             if self.patience <= 0:
                 # early stop the training
                 return True
-            # adjust learning rate when reaching half of the max_patience
-            if self.patience == self.max_patience // 2:
-                self._adjust_learning_rate()
-                self.patience = self.max_patience
         return False
-
-    def _adjust_learning_rate(self, decay_rate=0.75):
-        """Sets the learning rate to the initial LR decayed by 'decay_rate'"""
-
-        def get_lr(optimizer):
-            for param_group in optimizer.param_groups:
-                return param_group['lr']
-
-        old_lr = get_lr(self.optimizer)
-        assert old_lr > 0
-        new_lr = decay_rate * old_lr
-        self.logger.info(f'Changing learning rate from {old_lr} to {new_lr}')
-        for param_group in self.optimizer.param_groups:
-            param_group['lr'] = new_lr
 
     def _is_best_val_accuracy(self, val_accuracy):
         is_best = val_accuracy > self.best_val_accuracy
