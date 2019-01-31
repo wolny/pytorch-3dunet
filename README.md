@@ -21,7 +21,7 @@ PyTorch implementation of 3D U-Net based on:
 
 Setup a new conda environment with the required dependencies via:
 ```
-conda create -n 3dunet pytorch torchvision tensorboardx h5py pytest -c conda-forge -c pytorch
+conda create -n 3dunet pytorch torchvision tensorboardx h5py pyyaml pytest -c conda-forge -c pytorch
 ``` 
 Activate newly created conda environment via:
 ```
@@ -86,9 +86,8 @@ optional arguments:
                         (multi-class classification), dice -
                         GeneralizedDiceLoss (multi-class classification)
   --loss-weight LOSS_WEIGHT [LOSS_WEIGHT ...]
-                        A manual rescaling weight given to each class. Can be
-                        used with CrossEntropy or BCELoss. E.g. --loss-weight
-                        0.3 0.3 0.4
+                        A manual rescaling weight given to each class. 
+                        E.g. --loss-weight 0.3 0.3 0.4
   --ignore-index IGNORE_INDEX
                         Specifies a target value that is ignored and does not
                         contribute to the input gradient
@@ -132,27 +131,23 @@ optional arguments:
 
 E.g. fit to randomly generated 3D volume and random segmentation mask from [random_label3D.h5](resources/random_label3D.h5) (see [train.py](train.py)):
 ```
-python train.py --checkpoint-dir ~/3dunet --in-channels 1 --out-channels 2 --layer-order crg --loss ce --validate-after-iters 100 --log-after-iters 50 --epoch 50 --learning-rate 0.0002 --interpolate --train-path resources/random_label3D.h5 --val-path resources/random_label3D.h5 --train-patch 32 64 64 --train-stride 8 16 16 --val-patch 64 128 128 --val-stride 64 128 128     
+python train.py --checkpoint-dir ./3dunet --in-channels 1 --out-channels 2 --layer-order crg --loss ce --validate-after-iters 100 --log-after-iters 50 --epochs 50 --learning-rate 0.0002 --interpolate --train-path resources/random_label3D.h5 --val-path resources/random_label3D.h5 --train-patch 32 64 64 --train-stride 8 16 16 --val-patch 64 128 128 --val-stride 64 128 128     
 ```
 In order to resume training from the last checkpoint:
 ```
-python train.py --resume ~/3dunet/last_checkpoint.pytorch --in-channels 1 --out-channels 2 --layer-order crg --loss ce --validate-after-iters 100 --log-after-iters 50 --epoch 50 --learning-rate 0.0002 --interpolate --train-path resources/random_label3D.h5 --val-path resources/random_label3D.h5 --train-patch 32 64 64 --train-stride 8 16 16 --val-patch 64 128 128 --val-stride 64 128 128       
+python train.py --resume ./3dunet/last_checkpoint.pytorch --in-channels 1 --out-channels 2 --layer-order crg --loss ce --validate-after-iters 100 --log-after-iters 50 --epochs 50 --learning-rate 0.0002 --interpolate --train-path resources/random_label3D.h5 --val-path resources/random_label3D.h5 --train-patch 32 64 64 --train-stride 8 16 16 --val-patch 64 128 128 --val-stride 64 128 128       
 ```
-In order to train on your own data just provide the paths to your HDF5 training and validation datasets (see [train.py](train.py)).
-The HDF5 files should have the following scheme:
+One may also use a config file to do all of the above:
 ```
-/raw - dataset containing the raw 3D/4D stack. The axis order has to be DxHxW/CxDxHxW
-/label - dataset containing the label 3D stack with values 0..C (C - number of classes). The axis order has to be DxHxW.
+python train.py --config resources/train_config.yaml
 ```
-Sometimes the problem to be solved requires to predict multiple channel binary masks. In that case the `label` dataset should be 4D and Binary Cross Entropy loss should be used during training:
-```
-/raw - dataset containing the raw 3D/4D stack. The axis order has to be DxHxW/CxDxHxW
-/label - dataset containing the label 4D stack with values 0..1 (binary classification with C channels). The axis order has to be CxDxHxW.
-```
-Data augmentation is performed by default (see e.g. `ExtendedTransformer` in [transforms.py](augment/transforms.py) for more info).
+In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the [train_config.yaml](resources/train_config.yaml) or via the command line args.
+The HDF5 files should contain the raw/labal datasets in the following axis order: `DHW` (in case of 3D) `CDHW` (in case of 4D)
+
+Data augmentation is performed by default (see e.g. `StandardTransformer` in [transforms.py](augment/transforms.py) for more info).
 If one wants to change/prevent data augmentation, one should provide their own implementation of `BaseTransformer`/use `BaseTransformer` (no augmentation).
 
-Monitor progress with Tensorboard `tensorboard --logdir ~/3dunet/logs/ --port 8666` (you need `tensorboard` installed in your conda env).
+Monitor progress with Tensorboard `tensorboard --logdir ./3dunet/logs/ --port 8666` (you need `tensorboard` installed in your conda env).
 ![3dunet-training](https://user-images.githubusercontent.com/706781/45916217-9626d580-be62-11e8-95c3-508e2719c915.png)
 
 ### IMPORTANT
@@ -203,11 +198,15 @@ optional arguments:
 Test on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/random_label3D.h5). 
 See [predict.py](predict.py) for more info.
 ```
-python predict.py --model-path ~/3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --interpolate --test-path resources/random_label3D.h5 --patch 64 128 128 --stride 32 64 64
+python predict.py --model-path ./3dunet/best_checkpoint.pytorch --in-channels 1 --out-channels 2 --interpolate --test-path resources/random_label3D.h5 --patch 64 128 128 --stride 32 64 64
 ```
-Prediction masks will be saved to `~/3dunet/probabilities.h5`.
+Or use the config file:
+```
+python predict.py --config resources/test_config.yaml
+```
+Prediction masks will be saved to `./3dunet/random_label3D_probabilities.h5`.
 
-In order to predict your own raw dataset provide the path to your HDF5 test dataset (see [predict.py](predict.py)).
+In order to predict your own raw dataset provide the paths to your HDF5 test datasets in the [test_config.yaml](resources/test_config.yaml) or via the command line.
 
 ### IMPORTANT
 In order to avoid block artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `--patch 64 128 128 --stride 32 96 96` will give you a 'halo' of 32 voxels in each direction.

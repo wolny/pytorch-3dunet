@@ -1,0 +1,58 @@
+# path to the checkpoint directory
+checkpoint_dir: 3dunet
+# path to latest checkpoint; if provided the training will be resumed from that checkpoint
+resume: false
+# number of input channels to the model
+in_channels: 1
+# number of output channels
+out_channels: 2
+# determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
+layer_order: crg
+# loss function to be used during training (ce - CrossEntropy)
+loss: ce
+# A manual rescaling weight given to each class.
+loss_weight: null
+# initial learning rate
+learning_rate: 0.0002
+# weight decay
+weight_decay: 0.0001
+# a target value that is ignored and does not contribute to the input gradient
+ignore_index: null
+# use simple Curriculum Learning scheme if ignore_index is present
+curriculum: false
+# use nn.Upsample for upsampling in the decoder path instead of ConvTranspose3d
+interpolate: true
+# number of feature maps in the 1st encoder layer
+init_channel_number: 32
+# apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
+final_sigmoid: false
+# how many iterations between validations
+validate_after_iters: 50
+# how many iterations between tensorboard logging
+log_after_iters: 50
+# max number of epochs
+epochs: 50
+# max number of iterations
+iters: 100000
+# number of epochs with no loss improvement after which the training will be stopped
+patience: 20
+# train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+train_patch: [32, 64, 64]
+# train stride between patches (make sure that the training patches overlap)
+train_stride: [8, 16, 16]
+# validation patch (can be bigger than train patch since there is no backprop)
+val_patch: [64, 128, 128]
+# validation stride (validation patches doesn't need to overlap)
+val_stride: [64, 128, 128]
+# path to the raw data within the H5
+raw_internal_path: raw
+# path to the the label data withtin the H5
+label_internal_path: label
+# paths to the training datasets
+train_path:
+  - 'resources/random_label3D.h5'
+# paths to the validation datasets
+val_path:
+  - 'resources/random_label3D.h5'
+# data augmentation
+transformer: StandardTransformer

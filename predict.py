@@ -1,4 +1,3 @@
-import argparse
 import os
 
 import h5py
@@ -7,6 +6,7 @@ import torch
 
 from datasets.hdf5 import HDF5Dataset
 from unet3d import utils
+from unet3d.config import parse_test_config
 from unet3d.model import UNet3D
 
 logger = utils.get_logger('UNet3DPredictor')
@@ -90,49 +90,23 @@ def save_predictions(probability_maps, output_file, dataset_name='probability_ma
 
 
 def main():
-    parser = argparse.ArgumentParser(description='3D U-Net predictions')
-    parser.add_argument('--model-path', required=True, type=str,
-                        help='path to the model')
-    parser.add_argument('--in-channels', required=True, type=int,
-                        help='number of input channels')
-    parser.add_argument('--out-channels', required=True, type=int,
-                        help='number of output channels')
-    parser.add_argument('--init-channel-number', type=int, default=64,
-                        help='Initial number of feature maps in the encoder path; '
-                             'the number gets doubled on every stage (default: 64)')
-    parser.add_argument('--interpolate',
-                        help='use F.interpolate instead of ConvTranspose3d',
-                        action='store_true')
-    parser.add_argument('--layer-order', type=str,
-                        help="Conv layer ordering, e.g. 'crg' -> Conv3D+ReLU+GroupNorm",
-                        default='crg')
-    parser.add_argument('--final-sigmoid',
-                        action='store_true',
-                        help='if True apply element-wise nn.Sigmoid after the last layer otherwise apply nn.Softmax')
-    parser.add_argument('--test-path', type=str, required=True, help='path to the test dataset')
-    parser.add_argument('--raw-internal-path', type=str, default='raw')
-    parser.add_argument('--patch', required=True, type=int, nargs='+', default=None,
-                        help='Patch shape for used for prediction on the test set')
-    parser.add_argument('--stride', required=True, type=int, nargs='+', default=None,
-                        help='Patch stride for used for prediction on the test set')
-
-    args = parser.parse_args()
+    config = parse_test_config()
 
     # make sure those values correspond to the ones used during training
-    in_channels = args.in_channels
-    out_channels = args.out_channels
+    in_channels = config.in_channels
+    out_channels = config.out_channels
     # use F.interpolate for upsampling
-    interpolate = args.interpolate
-    layer_order = args.layer_order
-    final_sigmoid = args.final_sigmoid
+    interpolate = config.interpolate
+    layer_order = config.layer_order
+    final_sigmoid = config.final_sigmoid
     model = UNet3D(in_channels, out_channels,
-                   init_channel_number=args.init_channel_number,
+                   init_channel_number=config.init_channel_number,
                    final_sigmoid=final_sigmoid,
                    interpolate=interpolate,
                    conv_layer_order=layer_order)
 
-    logger.info(f'Loading model from {args.model_path}...')
-    utils.load_checkpoint(args.model_path, model)
+    logger.info(f'Loading model from {config.model_path}...')
+    utils.load_checkpoint(config.model_path, model)
 
     logger.info('Loading datasets...')
 
@@ -144,15 +118,16 @@ def main():
 
     model = model.to(device)
 
-    patch = tuple(args.patch)
-    stride = tuple(args.stride)
+    patch = tuple(config.patch)
+    stride = tuple(config.stride)
 
-    dataset = HDF5Dataset(args.test_path, patch, stride, phase='test', raw_internal_path=args.raw_internal_path)
-    probability_maps = predict(model, dataset, out_channels, device)
+    for test_path in config.test_path:
+        dataset = HDF5Dataset(test_path, patch, stride, phase='test', raw_internal_path=config.raw_internal_path)
+        probability_maps = predict(model, dataset, out_channels, device)
 
-    output_file = f'{os.path.splitext(args.test_path)[0]}_probabilities.h5'
+        output_file = f'{os.path.splitext(test_path)[0]}_probabilities.h5'
 
-    save_predictions(probability_maps, output_file)
+        save_predictions(probability_maps, output_file)
 
 
 if __name__ == '__main__':
