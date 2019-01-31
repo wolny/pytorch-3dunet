@@ -33,7 +33,7 @@ def predict(model, dataset, out_channels, device):
     else:
         volume_shape = dataset_shape[1:]
     probability_maps_shape = (out_channels,) + volume_shape
-    logger.info(f'Shape of the output probability map: {probability_maps_shape}')
+    logger.info(f'The shape of the output probability maps (CDHW): {probability_maps_shape}')
     # initialize the output prediction array
     probability_maps = np.zeros(probability_maps_shape, dtype='float32')
 
@@ -43,25 +43,23 @@ def predict(model, dataset, out_channels, device):
 
     # Sets the module in evaluation mode explicitly, otherwise the final Softmax/Sigmoid won't be applied!
     model.eval()
+    # Run predictions on the entire input dataset
     with torch.no_grad():
         for patch, index in dataset:
             logger.info(f'Predicting slice:{index}')
 
-            # save patch index: (C,) + (D,H,W)
+            # save patch index: (C,D,H,W)
             channel_slice = slice(0, out_channels)
             index = (channel_slice,) + index
 
             # convert patch to torch tensor NxCxDxHxW and send to device
             # we're using batch size of 1
-            patch = patch.view((1,) + patch.shape).to(device)
+            patch = patch.unsqueeze(dim=0).to(device)
 
             # forward pass
             probs = model(patch)
-            # convert back to numpy array
-            probs = probs.squeeze().cpu().numpy()
-            # for out_channel == 1 we need to expand back to 4D
-            if probs.ndim == 3:
-                probs = np.expand_dims(probs, axis=0)
+            # squeeze batch dimension and convert back to numpy array
+            probs = probs.squeeze(dim=0).cpu().numpy()
             # unpad in order to avoid block artifacts in the output probability maps
             probs, index = utils.unpad(probs, index, volume_shape)
             # accumulate probabilities into the output prediction array
@@ -72,7 +70,7 @@ def predict(model, dataset, out_channels, device):
     return probability_maps / normalization_mask
 
 
-def save_predictions(probability_maps, output_file, average_channels):
+def save_predictions(probability_maps, output_file, dataset_name='probability_maps'):
     """
     Saving probability maps to a given output H5 file. If 'average_channels'
     is set to True average the probability_maps across the the channel axis
@@ -82,17 +80,13 @@ def save_predictions(probability_maps, output_file, average_channels):
         probability_maps (numpy.ndarray): numpy array containing probability
             maps for each class in separate channels
         output_file (string): path to the output H5 file
-        average_channels (bool): if True average out the channels in the probability_maps otherwise
-            keep the channels separate
+        dataset_name (string): name of the dataset inside H5 file where the probability_maps will be saved
     """
-    logger.info(f'Saving predictions to: {output_file}')
+    logger.info(f'Saving predictions to: {output_file}...')
 
     with h5py.File(output_file, "w") as output_h5:
-        if average_channels:
-            probability_maps = np.mean(probability_maps, axis=0)
-        dataset_name = 'probability_maps'
-        logger.info(f"Creating dataset '{dataset_name}'")
-        output_h5.create_dataset(dataset_name, data=probability_maps, dtype=probability_maps.dtype, compression="gzip")
+        logger.info(f"Creating dataset '{dataset_name}'...")
+        output_h5.create_dataset(dataset_name, data=probability_maps, compression="gzip")
 
 
 def main():
@@ -104,7 +98,8 @@ def main():
     parser.add_argument('--out-channels', required=True, type=int,
                         help='number of output channels')
     parser.add_argument('--init-channel-number', type=int, default=64,
-                        help='Initial number of feature maps in the encoder path which gets doubled on every stage (default: 64)')
+                        help='Initial number of feature maps in the encoder path; '
+                             'the number gets doubled on every stage (default: 64)')
     parser.add_argument('--interpolate',
                         help='use F.interpolate instead of ConvTranspose3d',
                         action='store_true')
@@ -144,7 +139,7 @@ def main():
     if torch.cuda.is_available():
         device = torch.device('cuda:0')
     else:
-        logger.warning('No CUDA device available. Using CPU for predictions')
+        logger.warning('No CUDA device available. Using CPU for prediction...')
         device = torch.device('cpu')
 
     model = model.to(device)
@@ -157,8 +152,7 @@ def main():
 
     output_file = f'{os.path.splitext(args.test_path)[0]}_probabilities.h5'
 
-    # average channels only in case of final_sigmoid
-    save_predictions(probability_maps, output_file, final_sigmoid)
+    save_predictions(probability_maps, output_file)
 
 
 if __name__ == '__main__':
