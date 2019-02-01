@@ -6,9 +6,8 @@ import h5py
 import numpy as np
 import torch
 import torch.optim as optim
-from torch.utils.data import DataLoader
 
-from datasets.hdf5 import HDF5Dataset
+from datasets.hdf5 import get_loaders
 from unet3d.losses import DiceCoefficient, get_loss_criterion
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
@@ -78,8 +77,14 @@ class TestUNet3DTrainer:
         else:
             label_dtype = 'long'
         pixel_wise_weight = loss == 'pce'
-        loaders = self._get_loaders(channel_per_class=channel_per_class, label_dtype=label_dtype,
-                                    pixel_wise_weight=pixel_wise_weight)
+
+        patch = (32, 64, 64)
+        stride = (32, 64, 64)
+        train, val = TestUNet3DTrainer._create_random_dataset((128, 128, 128), (64, 64, 64), channel_per_class)
+        loaders = get_loaders([train], [val], 'raw', 'label', label_dtype=label_dtype, train_patch=patch,
+                              train_stride=stride, val_patch=patch, val_stride=stride, transformer='BaseTransformer',
+                              pixel_wise_weight=pixel_wise_weight)
+
         learning_rate = 2e-4
         weight_decay = 0.0001
         optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -127,16 +132,3 @@ class TestUNet3DTrainer:
             result.append(tmp.name)
 
         return result
-
-    @staticmethod
-    def _get_loaders(channel_per_class, label_dtype, pixel_wise_weight=False):
-        train, val = TestUNet3DTrainer._create_random_dataset((128, 128, 128), (64, 64, 64), channel_per_class)
-        train_dataset = HDF5Dataset(train, patch_shape=(32, 64, 64), stride_shape=(16, 32, 32), phase='train',
-                                    label_dtype=label_dtype, weighted=pixel_wise_weight)
-        val_dataset = HDF5Dataset(val, patch_shape=(64, 64, 64), stride_shape=(64, 64, 64), phase='val',
-                                  label_dtype=label_dtype, weighted=pixel_wise_weight)
-
-        return {
-            'train': DataLoader(train_dataset, batch_size=1, shuffle=True),
-            'val': DataLoader(val_dataset, batch_size=1, shuffle=True)
-        }

@@ -1,10 +1,10 @@
+import importlib
+
 import h5py
 import numpy as np
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 
 import augment.transforms as transforms
-from augment.transforms import LabelToBoundaryTransformer, RandomLabelToBoundaryTransformer, \
-    AnisotropicRotationTransformer, IsotropicRotationTransformer, StandardTransformer, BaseTransformer
 
 
 class SliceBuilder:
@@ -100,10 +100,16 @@ class HDF5Dataset(Dataset):
     If one would like to add on the fly data augmentation to the patches they should subclass and override
     the 'get_transforms()' method.
     """
+    DEFAULT_TRANSFORMER_BUILDER = transforms.TransformerBuilder(transforms.BaseTransformer,
+                                                                {
+                                                                    'label_dtype': 'long',
+                                                                    'angle_spectrum': 10
+                                                                })
 
-    def __init__(self, raw_file_path, patch_shape, stride_shape, phase, label_file_path=None, raw_internal_path='raw',
-                 label_internal_path='label', label_dtype=np.long, transformer=transforms.BaseTransformer,
-                 slice_builder_cls=SliceBuilder, **kwargs):
+    def __init__(self, raw_file_path, patch_shape, stride_shape, phase,
+                 transformer_builder=DEFAULT_TRANSFORMER_BUILDER,
+                 label_file_path=None, raw_internal_path='raw', label_internal_path='label',
+                 slice_builder_cls=SliceBuilder, pixel_wise_weight=False):
         """
         Creates transformers for raw and label datasets and builds the index to slice mapping for raw and label datasets.
         :param raw_file_path: path to H5 file containing raw data
@@ -115,36 +121,26 @@ class HDF5Dataset(Dataset):
         H5 file
         :param raw_internal_path: H5 internal path to the raw dataset
         :param label_internal_path: H5 internal path to the label dataset
-        :param kwargs: additional context parameters
         """
         assert phase in ['train', 'val', 'test']
         self._check_patch_shape(patch_shape)
         self.phase = phase
-        self.label_dtype = label_dtype
 
         self.raw_file = h5py.File(raw_file_path, 'r')
         self.raw = self.raw_file[raw_internal_path]
 
         # create raw and label transforms
         mean, std = self.calculate_mean_std()
-        if 'angle_spectrum' in kwargs:
-            angle_spectrum = kwargs['angle_spectrum']
-        else:
-            angle_spectrum = 15
+        transformer_builder.mean = mean
+        transformer_builder.std = std
+        transformer_builder.phase = phase
 
-        if 'ignore_index' in kwargs:
-            ignore_index = kwargs['ignore_index']
-        else:
-            ignore_index = None
-
-        self.transformer = transformer.create(mean=mean, std=std, phase=phase, label_dtype=label_dtype,
-                                              angle_spectrum=angle_spectrum, ignore_index=ignore_index)
+        self.transformer = transformer_builder.build()
 
         self.raw_transform = self.transformer.raw_transform()
         self.label_transform = self.transformer.label_transform()
 
-        # check if voxel weight map is available
-        if 'weighted' in kwargs and kwargs['weighted']:
+        if pixel_wise_weight:
             # look for the weight map in the raw file
             self.weight_map = self.raw_file['weight_map']
             self.weight_transform = self.transformer.weight_transform()
@@ -238,8 +234,8 @@ def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, 
     Returns dictionary containing the  training and validation loaders
     (torch.utils.data.DataLoader) backed by the datasets.hdf5.HDF5Dataset
 
-    :param train_path: path to the H5 file containing the training set
-    :param val_path: path to the H5 file containing the validation set
+    :param train_paths: paths to the H5 file containing the training set
+    :param val_paths: paths to the H5 file containing the validation set
     :param raw_internal_path:
     :param label_internal_path:
     :param label_dtype: target type of the label dataset
@@ -253,16 +249,28 @@ def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, 
         'val': <val_loader>
     }
     """
-    transformers = {
-        'LabelToBoundaryTransformer': LabelToBoundaryTransformer,
-        'RandomLabelToBoundaryTransformer': RandomLabelToBoundaryTransformer,
-        'AnisotropicRotationTransformer': AnisotropicRotationTransformer,
-        'IsotropicRotationTransformer': IsotropicRotationTransformer,
-        'StandardTransformer': StandardTransformer,
-        'BaseTransformer': BaseTransformer
-    }
+    assert isinstance(train_paths, list)
+    assert isinstance(val_paths, list)
 
-    assert transformer in transformers
+    def _transformer_class(class_name):
+        m = importlib.import_module('augment.transforms')
+        clazz = getattr(m, class_name)
+        return clazz
+
+    if isinstance(transformer, str):
+        transformer_class = _transformer_class(transformer)
+        config = {'label_dtype': label_dtype, 'angle_spectrum': 10}
+        if ignore_index is not None:
+            config['ignore_index'] = ignore_index
+        transformer_builder = transforms.TransformerBuilder(transformer_class, config)
+    elif isinstance(transformer, dict):
+        transformer_class = _transformer_class(transformer['name'])
+        transformer['label_dtype'] = label_dtype
+        if ignore_index is not None:
+            transformer['ignore_index'] = ignore_index
+        transformer_builder = transforms.TransformerBuilder(transformer_class, transformer)
+    else:
+        raise ValueError("Unsupported 'transformer' type. Can be either str or dict")
 
     if curriculum_learning:
         slice_builder_cls = CurriculumLearningSliceBuilder
@@ -272,27 +280,17 @@ def get_loaders(train_paths, val_paths, raw_internal_path, label_internal_path, 
     train_datasets = []
     for train_path in train_paths:
         # create H5 backed training and validation dataset with data augmentation
-        train_dataset = HDF5Dataset(train_path, train_patch, train_stride,
-                                    phase='train',
-                                    label_dtype=label_dtype,
-                                    raw_internal_path=raw_internal_path,
-                                    label_internal_path=label_internal_path,
-                                    transformer=transformers[transformer],
-                                    weighted=pixel_wise_weight,
-                                    ignore_index=ignore_index,
-                                    slice_builder_cls=slice_builder_cls)
+        train_dataset = HDF5Dataset(train_path, train_patch, train_stride, phase='train',
+                                    transformer_builder=transformer_builder, raw_internal_path=raw_internal_path,
+                                    label_internal_path=label_internal_path, slice_builder_cls=slice_builder_cls,
+                                    pixel_wise_weight=pixel_wise_weight)
         train_datasets.append(train_dataset)
 
     val_datasets = []
     for val_path in val_paths:
-        val_dataset = HDF5Dataset(val_path, val_patch, val_stride,
-                                  phase='val',
-                                  label_dtype=label_dtype,
-                                  raw_internal_path=raw_internal_path,
-                                  label_internal_path=label_internal_path,
-                                  transformer=transformers[transformer],
-                                  weighted=pixel_wise_weight,
-                                  ignore_index=ignore_index)
+        val_dataset = HDF5Dataset(val_path, val_patch, val_stride, phase='val',
+                                  transformer_builder=transformer_builder, raw_internal_path=raw_internal_path,
+                                  label_internal_path=label_internal_path, pixel_wise_weight=pixel_wise_weight)
         val_datasets.append(val_dataset)
 
     # shuffle only if curriculum_learning scheme is not used

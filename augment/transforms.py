@@ -256,6 +256,46 @@ class Identity:
 
 # Helper Transformer classes
 
+class TransformerBuilder:
+    def __init__(self, transformer_class, config):
+        self.transformer_class = transformer_class
+        self.config = config
+        self.mean = None
+        self.std = None
+        self.phase = None
+
+    @property
+    def mean(self):
+        return self._mean
+
+    @mean.setter
+    def mean(self, mean):
+        self._mean = mean
+
+    @property
+    def std(self):
+        return self._std
+
+    @std.setter
+    def std(self, std):
+        self._std = std
+
+    @property
+    def phase(self):
+        return self._phase
+
+    @phase.setter
+    def phase(self, phase):
+        self._phase = phase
+
+    def build(self):
+        assert self.mean is not None
+        assert self.std is not None
+        assert self.phase is not None
+        assert 'label_dtype' in self.config
+        return self.transformer_class.create(self.mean, self.std, self.phase, **self.config)
+
+
 class BaseTransformer:
     """
     Base transformer class used for data augmentation.

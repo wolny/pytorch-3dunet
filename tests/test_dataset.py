@@ -51,47 +51,12 @@ class TestHDF5Dataset:
         f.close()
 
         dataset = HDF5Dataset(tmp_path, patch_shape=(16, 64, 64), stride_shape=(8, 32, 32), phase='train',
-                              transformer=CustomTransformer)
+                              transformer_builder=transforms.TransformerBuilder(CustomTransformer,
+                                                                                {'label_dtype': 'long'}))
 
         for (img, label) in dataset:
             for i in range(label.shape[0]):
                 assert np.allclose(img, label[i])
-
-    def test_random_label_to_boundary(self):
-        size = 20
-        label = self._diagonal_label_volume(size)
-
-        transform = transforms.RandomLabelToBoundary()
-        result = transform(label)
-        assert result.shape == label.shape
-
-    def test_random_label_to_boundary_with_ignore(self):
-        size = 20
-        label = self._diagonal_label_volume(size, init=-1)
-
-        transform = transforms.RandomLabelToBoundary(ignore_index=-1)
-        result = transform(label)
-        assert result.shape == label.shape
-        assert -1 in np.unique(result)
-
-    def test_label_to_boundary(self):
-        size = 20
-        label = self._diagonal_label_volume(size)
-
-        # this transform will produce 3 channels
-        transform = transforms.LabelToBoundary(offsets=2)
-        result = transform(label)
-        assert result.shape == (3,) + label.shape
-        assert np.array_equal(np.unique(result), [0, 1])
-
-    def test_label_to_boundary_with_ignore(self):
-        size = 20
-        label = self._diagonal_label_volume(size, init=-1)
-
-        transform = transforms.LabelToBoundary(offsets=2, ignore_index=-1)
-        result = transform(label)
-        assert result.shape == (3,) + label.shape
-        assert np.array_equal(np.unique(result), [-1, 0, 1])
 
     def test_cl_slice_builder(self):
         path = create_random_dataset((128, 128, 128), ignore_index=True)
@@ -100,24 +65,13 @@ class TestHDF5Dataset:
         stride_shape = (32, 64, 64)
 
         ignore_label_volumes = []
-        with h5py.File(path, 'r') as f:
-            dataset = HDF5Dataset(path, patch_shape, stride_shape, 'train',
-                                  slice_builder_cls=CurriculumLearningSliceBuilder)
+        dataset = HDF5Dataset(path, patch_shape, stride_shape, 'train',
+                              slice_builder_cls=CurriculumLearningSliceBuilder)
 
-            for _, label in dataset:
-                ignore_label_volumes.append(np.count_nonzero(label == -1))
+        for _, label in dataset:
+            ignore_label_volumes.append(np.count_nonzero(label == -1))
 
         assert all(ignore_label_volumes[i] <= ignore_label_volumes[i + 1] for i in range(len(ignore_label_volumes) - 1))
-
-    @staticmethod
-    def _diagonal_label_volume(size, init=1):
-        label = init * np.ones((size, size, size), dtype=np.int)
-        for i in range(size):
-            for j in range(size):
-                for k in range(size):
-                    if i + j > 2 * k:
-                        label[i, j, k] = 3
-        return label
 
 
 def create_random_dataset(shape, ignore_index=False):

@@ -122,11 +122,12 @@ def main():
     stride = tuple(config.stride)
 
     for test_path in config.test_path:
+        # create dataset for a given test file
         dataset = HDF5Dataset(test_path, patch, stride, phase='test', raw_internal_path=config.raw_internal_path)
+        # run the model prediction on the entire dataset
         probability_maps = predict(model, dataset, out_channels, device)
-
+        # save the resulting probability maps
         output_file = f'{os.path.splitext(test_path)[0]}_probabilities.h5'
-
         save_predictions(probability_maps, output_file)
 
 

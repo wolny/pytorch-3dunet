@@ -102,7 +102,7 @@ def parse_test_config():
     parser.add_argument('--final-sigmoid',
                         action='store_true',
                         help='if True apply element-wise nn.Sigmoid after the last layer otherwise apply nn.Softmax')
-    parser.add_argument('--test-path', type=str, help='path to the test dataset')
+    parser.add_argument('--test-path', type=str, nargs='+', help='paths to the test dataset')
     parser.add_argument('--raw-internal-path', type=str, default='raw')
     parser.add_argument('--patch', type=int, nargs='+', default=None,
                         help='Patch shape for used for prediction on the test set')
