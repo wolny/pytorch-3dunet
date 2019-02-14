@@ -105,14 +105,19 @@ class RandomContrast(object):
         self.random_state = random_state
 
     def __call__(self, m):
-        img_contrast = np.zeros(m.shape)
         factor = self.random_state.uniform(self.min_factor, self.max_factor)
 
-        mean_channels = np.mean(m, axis=(1, 2))
-        mean_channels = np.expand_dims(mean_channels, axis=1)
-        mean_channels = np.expand_dims(mean_channels, axis=1)
+        if m.ndim==3:
+            mean_intensity = np.mean(m)# take the mean intesity of the entire patch
+            
+            img_contrast = np.clip(mean_intensity + factor * (m - mean_intensity), 0, 1)
+        elif m.ndim==4:
+            mean_channels = np.mean(m, axis=(1, 2, 3)) # compute per channel mean intensity
+            mean_channels = np.expand_dims(mean_channels, axis=1)
+            mean_channels = np.expand_dims(mean_channels, axis=1)
+            mean_channels = np.expand_dims(mean_channels, axis=1)
 
-        img_contrast = np.clip(mean_channels + factor * (m - mean_channels), 0, 1)
+            img_contrast = np.clip(mean_channels + factor * (m - mean_channels), 0, 1)
 
         return img_contrast
 
@@ -141,6 +146,35 @@ class RandomBrightness(object):
 
         return img_brightness
 
+class RandomBrightnessContrast(object):
+    """
+        Adjust the brightness of an image by a random factor inside a the brigtess_range
+        Brightness range: tuple,float. If it's a tuple  the ranfom factor will be taken from (brighness_range[0],brightness_range[1])
+        If it's float then the random factor will be taken from (-brighness_range,brightness_range).
+        The intervals must be included in [-1,1]. If not, they would be clipped to [-1,1]
+    """
+
+    def __init__(self, random_state,brightness_range=None, contrast_range=None):
+        if contrast_range!=None:
+            self.rand_contrast=RandomContrast(random_state, contrast_range)
+        else:
+            self.rand_contrast=RandomContrast(random_state)
+        if brightness_range!=None:
+            self.rand_brightness=RandomBrightness(random_state, brightness_range)
+        else:
+            self.rand_brightness=RandomBrightness(random_state)
+        self.random_state = random_state
+
+    def __call__(self, m):
+        if self.random_state.uniform<0.5:#Alternates order of the Brightness and Contrast transforms
+            img_transformed = self.rand_brightness(m)
+            img_transformed = self.rand_contrast(img_transformed)
+        else:
+            img_transformed = self.rand_contrast(m)
+            img_transformed = self.rand_brightness(img_transformed)
+            
+
+        return img_transformed
 
 class AbstractLabelToBoundary:
     AXES = {
@@ -389,9 +423,7 @@ class Contrast_Brightness_StandardTransformer(BaseTransformer):
 
     def raw_transform(self):
         if self.phase == 'train':
-            return Compose([
-                RandomContrast(np.random.RandomState(self.seed), self.contrast_range),
-                RandomBrightness(np.random.RandomState(self.seed), self.brightness_range),
+            return Compose([RandomBrightnessContrast(np.random.RandomState(self.seed),self.brightness_range,self.contrast_range),
                 Normalize(self.mean, self.std),
                 RandomFlip(np.random.RandomState(self.seed)),
                 RandomRotate90(np.random.RandomState(self.seed)),
@@ -483,13 +515,10 @@ class Contrast_Brightness_IsotropicRotationTransformer(BaseTransformer):
 
     def raw_transform(self):
         if self.phase == 'train':
-            return Compose([
-                RandomContrast(np.random.RandomState(self.seed)),
-                RandomBrightness(np.random.RandomState(self.seed)),
+            return Compose([RandomBrightnessContrast(np.random.RandomState(self.seed),self.brightness_range,self.contrast_range),
                 Normalize(self.mean, self.std),
                 RandomFlip(np.random.RandomState(self.seed)),
                 RandomRotate90(np.random.RandomState(self.seed)),
-                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum),
                 ToTensor(expand_dims=True)
             ])
         else:
@@ -582,14 +611,10 @@ class Contrast_Brightness_AnisotropicRotationTransformer(BaseTransformer):
 
     def raw_transform(self):
         if self.phase == 'train':
-            return Compose([
-                RandomContrast(np.random.RandomState(self.seed)),
-                RandomBrightness(np.random.RandomState(self.seed)),
+            return Compose([RandomBrightnessContrast(np.random.RandomState(self.seed),self.brightness_range,self.contrast_range),
                 Normalize(self.mean, self.std),
                 RandomFlip(np.random.RandomState(self.seed)),
                 RandomRotate90(np.random.RandomState(self.seed)),
-                # rotate in XY only (ZYX axis order is assumed)
-                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)]),
                 ToTensor(expand_dims=True)
             ])
         else:
