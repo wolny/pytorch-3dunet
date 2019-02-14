@@ -93,7 +93,7 @@ class RandomRotate:
         return m
 
 
-class Random_contrast(object):
+class RandomContrast(object):
     """
        Adjust the contrast of an image by a random factor inside a the contrast_range
     """
@@ -117,7 +117,7 @@ class Random_contrast(object):
         return img_contrast
 
 
-class Random_brightness(object):
+class RandomBrightness(object):
     """
         Adjust the brightness of an image by a random factor inside a the brigtess_range
         Brightness range: tuple,float. If it's a tuple  the ranfom factor will be taken from (brighness_range[0],brightness_range[1])
@@ -390,8 +390,8 @@ class Contrast_Brightness_StandardTransformer(BaseTransformer):
     def raw_transform(self):
         if self.phase == 'train':
             return Compose([
-                Random_contrast(np.random.RandomState(self.seed), self.contrast_range),
-                Random_brightness(np.random.RandomState(self.seed), self.brightness_range),
+                RandomContrast(np.random.RandomState(self.seed), self.contrast_range),
+                RandomBrightness(np.random.RandomState(self.seed), self.brightness_range),
                 Normalize(self.mean, self.std),
                 RandomFlip(np.random.RandomState(self.seed)),
                 RandomRotate90(np.random.RandomState(self.seed)),
@@ -484,8 +484,8 @@ class Contrast_Brightness_IsotropicRotationTransformer(BaseTransformer):
     def raw_transform(self):
         if self.phase == 'train':
             return Compose([
-                Random_contrast(np.random.RandomState(self.seed)),
-                Random_brightness(np.random.RandomState(self.seed)),
+                RandomContrast(np.random.RandomState(self.seed)),
+                RandomBrightness(np.random.RandomState(self.seed)),
                 Normalize(self.mean, self.std),
                 RandomFlip(np.random.RandomState(self.seed)),
                 RandomRotate90(np.random.RandomState(self.seed)),
@@ -583,8 +583,8 @@ class Contrast_Brightness_AnisotropicRotationTransformer(BaseTransformer):
     def raw_transform(self):
         if self.phase == 'train':
             return Compose([
-                Random_contrast(np.random.RandomState(self.seed)),
-                Random_brightness(np.random.RandomState(self.seed)),
+                RandomContrast(np.random.RandomState(self.seed)),
+                RandomBrightness(np.random.RandomState(self.seed)),
                 Normalize(self.mean, self.std),
                 RandomFlip(np.random.RandomState(self.seed)),
                 RandomRotate90(np.random.RandomState(self.seed)),
