@@ -93,6 +93,89 @@ class RandomRotate:
         return m
 
 
+class RandomContrast(object):
+    """
+       Adjust the contrast of an image by a random factor inside a the contrast_range
+    """
+
+    def __init__(self, random_state, contrast_range=(0.2, 2)):
+        assert (len(contrast_range) == 2)
+        self.min_factor = contrast_range[0]
+        self.max_factor = contrast_range[1]
+        self.random_state = random_state
+
+    def __call__(self, m):
+        factor = self.random_state.uniform(self.min_factor, self.max_factor)
+
+        if m.ndim==3:
+            mean_intensity = np.mean(m)# take the mean intesity of the entire patch
+            
+            img_contrast = np.clip(mean_intensity + factor * (m - mean_intensity), 0, 1)
+        elif m.ndim==4:
+            mean_channels = np.mean(m, axis=(1, 2, 3)) # compute per channel mean intensity
+            mean_channels = np.expand_dims(mean_channels, axis=1)
+            mean_channels = np.expand_dims(mean_channels, axis=1)
+            mean_channels = np.expand_dims(mean_channels, axis=1)
+
+            img_contrast = np.clip(mean_channels + factor * (m - mean_channels), 0, 1)
+
+        return img_contrast
+
+
+class RandomBrightness(object):
+    """
+        Adjust the brightness of an image by a random factor inside a the brigtess_range
+        Brightness range: tuple,float. If it's a tuple  the ranfom factor will be taken from (brighness_range[0],brightness_range[1])
+        If it's float then the random factor will be taken from (-brighness_range,brightness_range).
+        The intervals must be included in [-1,1]. If not, they would be clipped to [-1,1]
+    """
+
+    def __init__(self, random_state, brightness_range=0.2):
+        if isinstance(brightness_range, tuple):
+            assert (len(brightness_range) == 2)
+            self.brightness_min = max(min(brightness_range[0], 1.0), -1.0)
+            self.brightness_max = max(min(brightness_range[1], 1.0), -1.0)
+        else:
+            self.brightness_min = self.value = max(min(brightness_range, 1.0), -1.0)
+            self.brightness_max = max(min(-brightness_range, 1.0), -1.0)
+        self.random_state = random_state
+
+    def __call__(self, m):
+        brightness = self.random_state.uniform(-self.brightness_min, self.brightness_max)
+        img_brightness = np.clip(m + brightness, 0, 1)
+
+        return img_brightness
+
+class RandomBrightnessContrast(object):
+    """
+        Adjust the brightness of an image by a random factor inside a the brigtess_range
+        Brightness range: tuple,float. If it's a tuple  the ranfom factor will be taken from (brighness_range[0],brightness_range[1])
+        If it's float then the random factor will be taken from (-brighness_range,brightness_range).
+        The intervals must be included in [-1,1]. If not, they would be clipped to [-1,1]
+    """
+
+    def __init__(self, random_state,brightness_range=None, contrast_range=None):
+        if contrast_range!=None:
+            self.rand_contrast=RandomContrast(random_state, contrast_range)
+        else:
+            self.rand_contrast=RandomContrast(random_state)
+        if brightness_range!=None:
+            self.rand_brightness=RandomBrightness(random_state, brightness_range)
+        else:
+            self.rand_brightness=RandomBrightness(random_state)
+        self.random_state = random_state
+
+    def __call__(self, m):
+        if self.random_state.uniform<0.5:#Alternates order of the Brightness and Contrast transforms
+            img_transformed = self.rand_brightness(m)
+            img_transformed = self.rand_contrast(img_transformed)
+        else:
+            img_transformed = self.rand_contrast(m)
+            img_transformed = self.rand_brightness(img_transformed)
+            
+
+        return img_transformed
+
 class AbstractLabelToBoundary:
     AXES = {
         0: (0, 1, 2),
@@ -367,6 +450,49 @@ class StandardTransformer(BaseTransformer):
             return super().weight_transform()
 
 
+class Contrast_Brightness_StandardTransformer(BaseTransformer):
+    """
+    Standard data augmentation: random adjust of Contrast and Brightness + random flips across randomly picked axis + random 90 degrees rotations.
+    """
+
+    def __init__(self, mean, std, phase, label_dtype, contrast_range=(0.2, 2), brightness_range=0.2, **kwargs):
+        super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
+        assert (len(contrast_range) == 2)
+        self.contrast_range = contrast_range
+        self.brightness_range = brightness_range
+
+    def raw_transform(self):
+        if self.phase == 'train':
+            return Compose([RandomBrightnessContrast(np.random.RandomState(self.seed),self.brightness_range,self.contrast_range),
+                Normalize(self.mean, self.std),
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                ToTensor(expand_dims=True)
+            ])
+        else:
+            return super().raw_transform()
+
+    def label_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+        else:
+            return super().label_transform()
+
+    def weight_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                ToTensor(expand_dims=False)
+            ])
+        else:
+            return super().weight_transform()
+
+
 class IsotropicRotationTransformer(BaseTransformer):
     """
     Data augmentation to be used with isotropic 3D volumes: random flips across randomly picked axis + random 90 deg
@@ -385,6 +511,54 @@ class IsotropicRotationTransformer(BaseTransformer):
                 RandomFlip(np.random.RandomState(self.seed)),
                 RandomRotate90(np.random.RandomState(self.seed)),
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum),
+                ToTensor(expand_dims=True)
+            ])
+        else:
+            return super().raw_transform()
+
+    def label_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum),
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+        else:
+            return super().label_transform()
+
+    def weight_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum),
+                ToTensor(expand_dims=False)
+            ])
+        else:
+            return super().weight_transform()
+
+
+class Contrast_Brightness_IsotropicRotationTransformer(BaseTransformer):
+    """
+    Data augmentation to be used with isotropic 3D volumes: random adjust of Contrast and Brightness + random flips across randomly picked axis + random 90 deg
+    rotations + random angle rotations across randomly picked axis.
+    """
+
+    def __init__(self, mean, std, phase, label_dtype, contrast_range=(0.2, 2), brightness_range=0.2, **kwargs):
+        super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
+        assert (len(contrast_range) == 2)
+        self.contrast_range = contrast_range
+        self.brightness_range = brightness_range
+        assert 'angle_spectrum' in kwargs, "'angle_spectrum' argument required"
+        self.angle_spectrum = kwargs['angle_spectrum']
+
+    def raw_transform(self):
+        if self.phase == 'train':
+            return Compose([RandomBrightnessContrast(np.random.RandomState(self.seed),self.brightness_range,self.contrast_range),
+                Normalize(self.mean, self.std),
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
                 ToTensor(expand_dims=True)
             ])
         else:
@@ -432,6 +606,55 @@ class AnisotropicRotationTransformer(BaseTransformer):
                 RandomRotate90(np.random.RandomState(self.seed)),
                 # rotate in XY only (ZYX axis order is assumed)
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)]),
+                ToTensor(expand_dims=True)
+            ])
+        else:
+            return super().raw_transform()
+
+    def label_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                # rotate in XY only (ZYX axis order is assumed)
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)]),
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+        else:
+            return super().label_transform()
+
+    def weight_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)]),
+                ToTensor(expand_dims=False)
+            ])
+        else:
+            return super().weight_transform()
+
+
+class Contrast_Brightness_AnisotropicRotationTransformer(BaseTransformer):
+    """
+    Data augmentation to be used with anisotropic 3D volumes: random flips across randomly picked axis + random 90 deg
+    rotations + random angle rotations across (1,0) axis.
+    """
+
+    def __init__(self, mean, std, phase, label_dtype, contrast_range=(0.2, 2), brightness_range=0.2, **kwargs):
+        super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
+        assert (len(contrast_range) == 2)
+        self.contrast_range = contrast_range
+        self.brightness_range = brightness_range
+        assert 'angle_spectrum' in kwargs, "'angle_spectrum' argument required"
+        self.angle_spectrum = kwargs['angle_spectrum']
+
+    def raw_transform(self):
+        if self.phase == 'train':
+            return Compose([RandomBrightnessContrast(np.random.RandomState(self.seed),self.brightness_range,self.contrast_range),
+                Normalize(self.mean, self.std),
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
                 ToTensor(expand_dims=True)
             ])
         else:
@@ -572,3 +795,5 @@ class RandomLabelToBoundaryTransformer(BaseTransformer):
             ])
         else:
             return super().weight_transform()
+
+
