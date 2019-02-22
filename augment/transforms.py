@@ -2,7 +2,7 @@ import random
 
 import numpy as np
 import torch
-from scipy.ndimage import rotate
+from scipy.ndimage import rotate, map_coordinates, gaussian_filter
 from scipy.ndimage.filters import convolve
 from torchvision.transforms import Compose
 
@@ -157,6 +157,36 @@ class RandomBrightnessContrast:
         else:
             m = self.rand_contrast(m)
             return self.rand_brightness(m)
+
+
+# it's relatively slow, i.e. ~1s per patch of size 64x200x200
+class ElasticDeformation:
+    """
+    Apply elasitc deformations of 3D patches on a per-voxel mesh. Assumes ZYX axis order!
+    Based on: https://github.com/fcalvet/image_tools/blob/master/image_augmentation.py#L62
+    """
+
+    def __init__(self, random_state, spline_order, alpha=15, sigma=3):
+        """
+        :param spline_order: the order of spline interpolation (use 0 for labeled images)
+        :param alpha: scaling factor for deformations
+        :param sigma: smothing factor for Gaussian filter
+        """
+        self.random_state = random_state
+        self.spline_order = spline_order
+        self.alpha = alpha
+        self.sigma = sigma
+
+    def __call__(self, m):
+        assert m.ndim == 3
+        dz = gaussian_filter(self.random_state.randn(*m.shape), self.sigma, mode="constant", cval=0) * self.alpha
+        dy = gaussian_filter(self.random_state.randn(*m.shape), self.sigma, mode="constant", cval=0) * self.alpha
+        dx = gaussian_filter(self.random_state.randn(*m.shape), self.sigma, mode="constant", cval=0) * self.alpha
+
+        z_dim, y_dim, x_dim = m.shape
+        z, y, x = np.meshgrid(np.arange(z_dim), np.arange(y_dim), np.arange(x_dim), indexing='ij')
+        indices = z + dz, y + dy, x + dx
+        return map_coordinates(m, indices, order=self.spline_order, mode='reflect')
 
 
 class AbstractLabelToBoundary:
@@ -537,6 +567,58 @@ class AnisotropicRotationTransformer(BaseTransformer):
             return super().weight_transform()
 
 
+class AnisotropicElasticRotationTransformer(BaseTransformer):
+    """
+    Data augmentation to be used with anisotropic 3D volumes: elastic deformations + random flips across randomly picked
+    axis + random 90 deg rotations + random angle rotations across (1,0)
+    """
+
+    def __init__(self, mean, std, phase, label_dtype, **kwargs):
+        super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
+        assert 'angle_spectrum' in kwargs, "'angle_spectrum' argument required"
+        self.angle_spectrum = kwargs['angle_spectrum']
+
+    def raw_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                Normalize(self.mean, self.std),
+                ElasticDeformation(np.random.RandomState(self.seed), spline_order=3),
+                RandomContrast(np.random.RandomState(self.seed)),
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                # rotate in XY only (ZYX axis order is assumed)
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)]),
+                ToTensor(expand_dims=True)
+            ])
+        else:
+            return super().raw_transform()
+
+    def label_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                ElasticDeformation(np.random.RandomState(self.seed), spline_order=0),
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                # rotate in XY only (ZYX axis order is assumed)
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)]),
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+        else:
+            return super().label_transform()
+
+    def weight_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                ElasticDeformation(np.random.RandomState(self.seed), spline_order=3),
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)]),
+                ToTensor(expand_dims=False)
+            ])
+        else:
+            return super().weight_transform()
+
+
 # Make sure to use mode='reflect' when doing RandomRotate otherwise the transform will produce unwanted boundary signal
 class LabelToBoundaryTransformer(BaseTransformer):
     def __init__(self, mean, std, phase, label_dtype, **kwargs):
@@ -596,6 +678,67 @@ class LabelToBoundaryTransformer(BaseTransformer):
 
 
 # Make sure to use mode='reflect' when doing RandomRotate otherwise the transform will produce unwanted boundary signal
+class LabelToBoundaryElasticTransformer(BaseTransformer):
+    def __init__(self, mean, std, phase, label_dtype, **kwargs):
+        super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
+        assert 'angle_spectrum' in kwargs, "'angle_spectrum' argument required"
+        self.angle_spectrum = kwargs['angle_spectrum']
+        if 'ignore_index' in kwargs:
+            self.ignore_index = kwargs['ignore_index']
+        else:
+            self.ignore_index = None
+
+    def raw_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                Normalize(self.mean, self.std),
+                RandomContrast(np.random.RandomState(self.seed)),
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                # rotate in XY only and make sure mode='reflect' is used in order to prevent boundary artifacts
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
+                             mode='reflect'),
+                ElasticDeformation(np.random.RandomState(self.seed), spline_order=3),
+                ToTensor(expand_dims=True)
+            ])
+        else:
+            return super().raw_transform()
+
+    def label_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                # rotate in XY only and make sure mode='reflect' is used in order to prevent boundary artifacts
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
+                             mode='reflect'),
+                # this will give us 9 output channels with boundary signal
+                LabelToBoundary(axes=(0, 1, 2), offsets=(2, 4, 6), z_scale=2, ignore_index=self.ignore_index),
+                ElasticDeformation(np.random.RandomState(self.seed), spline_order=0),
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+        else:
+            return Compose([
+                # this will give us 9 output channels with boundary signal
+                LabelToBoundary(axes=(0, 1, 2), offsets=(2, 4, 6), z_scale=2, ignore_index=self.ignore_index),
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+
+    def weight_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
+                             mode='reflect'),
+                ElasticDeformation(np.random.RandomState(self.seed), spline_order=3),
+                ToTensor(expand_dims=False)
+            ])
+        else:
+            return super().weight_transform()
+
+
+# Make sure to use mode='reflect' when doing RandomRotate otherwise the transform will produce unwanted boundary signal
 class RandomLabelToBoundaryTransformer(BaseTransformer):
     def __init__(self, mean, std, phase, label_dtype, **kwargs):
         super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
@@ -616,6 +759,7 @@ class RandomLabelToBoundaryTransformer(BaseTransformer):
                 # rotate in XY only and make sure mode='reflect' is used in order to prevent boundary artifacts
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
                              mode='reflect'),
+                ElasticDeformation(np.random.RandomState(self.seed), spline_order=3),
                 ToTensor(expand_dims=True)
             ])
         else:
@@ -630,6 +774,7 @@ class RandomLabelToBoundaryTransformer(BaseTransformer):
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
                              mode='reflect'),
                 RandomLabelToBoundary(ignore_index=self.ignore_index),
+                ElasticDeformation(np.random.RandomState(self.seed), spline_order=0),
                 ToTensor(expand_dims=True, dtype=self.label_dtype)
             ])
         else:
@@ -646,6 +791,7 @@ class RandomLabelToBoundaryTransformer(BaseTransformer):
                 RandomRotate90(np.random.RandomState(self.seed)),
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
                              mode='reflect'),
+                ElasticDeformation(np.random.RandomState(self.seed), spline_order=3),
                 ToTensor(expand_dims=False)
             ])
         else:
