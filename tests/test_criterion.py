@@ -3,8 +3,9 @@ import pytest
 import torch
 import torch.nn as nn
 
-from unet3d.losses import DiceCoefficient, GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper, \
-    DiceLoss, get_loss_criterion
+from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper, \
+    DiceLoss
+from unet3d.metrics import DiceCoefficient, MeanIoU
 
 
 def _compute_criterion(criterion, n_times=100):
@@ -15,7 +16,7 @@ def _compute_criterion(criterion, n_times=100):
         batch_shape = list(shape)
         batch_shape[1] = C
         batch_shape = tuple(batch_shape)
-        results = results + _eval_criterion(criterion, batch_shape, n_times)
+        results.append(_eval_criterion(criterion, batch_shape, n_times))
 
     return results
 
@@ -38,6 +39,28 @@ class TestCriterion:
         results = np.array(results)
         assert np.all(results > 0)
         assert np.all(results < 1)
+
+    def test_mean_iou_simple(self):
+        results = _compute_criterion(MeanIoU())
+        # check that all of the coefficients belong to [0, 1]
+        results = np.array(results)
+        assert np.all(results > 0)
+        assert np.all(results < 1)
+
+    def test_mean_iou(self):
+        criterion = MeanIoU()
+        x = torch.randn(3, 3, 3, 3)
+        _, index = torch.max(x, dim=0, keepdim=True)
+        # create target tensor
+        target = torch.zeros_like(x, dtype=torch.long).scatter_(0, index, 1)
+        pred = torch.zeros_like(target, dtype=torch.float)
+        mask = target == 1
+        # create prediction tensor
+        pred[mask] = torch.rand(1)
+        # make sure the dimensions are right
+        target = torch.unsqueeze(target, dim=0)
+        pred = torch.unsqueeze(pred, dim=0)
+        assert criterion(pred, target) == 1
 
     def test_generalized_dice_loss(self):
         results = _compute_criterion(GeneralizedDiceLoss())

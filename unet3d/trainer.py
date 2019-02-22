@@ -127,12 +127,6 @@ class UNet3DTrainer:
                 input, target, weight = t
                 input, target, weight = input.to(self.device), target.to(self.device), weight.to(self.device)
 
-            if hasattr(self.loss_criterion, 'ignore_index') and self.loss_criterion.ignore_index is not None:
-                unique_labels = torch.unique(target)
-                if len(unique_labels) == 1 and unique_labels.item() == self.loss_criterion.ignore_index:
-                    self.logger.info(f'Skipping training batch {i} (contains only ignore_index)...')
-                    continue
-
             output, loss, accuracy = self._forward_pass(input, target, weight)
 
             train_losses.update(loss.item(), input.size(0))
@@ -195,12 +189,6 @@ class UNet3DTrainer:
                     else:
                         input, target, weight = t
                         input, target, weight = input.to(self.device), target.to(self.device), weight.to(self.device)
-
-                    if hasattr(self.loss_criterion, 'ignore_index') and self.loss_criterion.ignore_index is not None:
-                        unique_labels = torch.unique(target)
-                        if len(unique_labels) == 1 and unique_labels.item() == self.loss_criterion.ignore_index:
-                            self.logger.info(f'Skipping validation batch {i} (contains only ignore_index)...')
-                            continue
 
                     output, loss, accuracy = self._forward_pass(input, target, weight)
 

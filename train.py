@@ -3,7 +3,8 @@ import torch.optim as optim
 
 from datasets.hdf5 import get_loaders
 from unet3d.config import parse_train_config
-from unet3d.losses import DiceCoefficient, get_loss_criterion
+from unet3d.losses import get_loss_criterion
+from unet3d.metrics import DiceCoefficient
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger

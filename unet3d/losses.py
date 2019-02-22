@@ -36,22 +36,6 @@ def compute_per_channel_dice(input, target, epsilon=1e-5, ignore_index=None, wei
     return 2. * intersect / denominator.clamp(min=epsilon)
 
 
-class DiceCoefficient:
-    """Computes Dice Coefficient.
-    Generalized to multiple channels by computing per-channel Dice Score
-    (as described in https://arxiv.org/pdf/1707.03237.pdf) and then simply taking the average.
-    Input is expected to be probabilities instead of logits.
-    """
-
-    def __init__(self, epsilon=1e-5, ignore_index=None):
-        self.epsilon = epsilon
-        self.ignore_index = ignore_index
-
-    def __call__(self, input, target):
-        # Average across channels in order to get the final score
-        return torch.mean(compute_per_channel_dice(input, target, epsilon=self.epsilon, ignore_index=self.ignore_index))
-
-
 class DiceLoss(nn.Module):
     """Computes Dice Loss, which just 1 - DiceCoefficient described above.
     Additionally allows per-class weights to be provided.
