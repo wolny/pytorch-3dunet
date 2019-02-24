@@ -87,7 +87,7 @@ class UNet3D(nn.Module):
         x = self.final_conv(x)
 
         # apply final_activation (i.e. Sigmoid or Softmax) only for prediction. During training the network outputs
-        # logits and it's up to the user to normalize it before visualising with tensorboard or computing accuracy
+        # logits and it's up to the user to normalize it before visualising with tensorboard or computing validation metric
         if not self.training:
             x = self.final_activation(x)
 

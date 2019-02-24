@@ -9,7 +9,7 @@ import torch.optim as optim
 
 from datasets.hdf5 import get_loaders
 from unet3d.losses import get_loss_criterion
-from unet3d.metrics import DiceCoefficient
+from unet3d.metrics import get_evaluation_metric
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger
@@ -18,7 +18,7 @@ from unet3d.utils import get_logger
 class TestUNet3DTrainer:
     def test_ce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'ce')
+            trainer = self._train_save_load(tmpdir, 'ce', 'iou')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -27,7 +27,7 @@ class TestUNet3DTrainer:
 
     def test_wce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'wce')
+            trainer = self._train_save_load(tmpdir, 'wce', 'iou')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -36,7 +36,7 @@ class TestUNet3DTrainer:
 
     def test_bce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'bce')
+            trainer = self._train_save_load(tmpdir, 'bce', 'dice')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -45,24 +45,23 @@ class TestUNet3DTrainer:
 
     def test_dice_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'dice')
+            trainer = self._train_save_load(tmpdir, 'dice', 'iou')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
             assert trainer.validate_after_iters == 2
             assert trainer.max_num_iterations == 4
 
-    # @pytest.mark.skip
     def test_pce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'pce')
+            trainer = self._train_save_load(tmpdir, 'pce', 'iou')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
             assert trainer.validate_after_iters == 2
             assert trainer.max_num_iterations == 4
 
-    def _train_save_load(self, tmpdir, loss, max_num_epochs=1, log_after_iters=2, validate_after_iters=2,
+    def _train_save_load(self, tmpdir, loss, val_metric, max_num_epochs=1, log_after_iters=2, validate_after_iters=2,
                          max_num_iterations=4):
         # get device to train on
         device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
@@ -70,8 +69,8 @@ class TestUNet3DTrainer:
         conv_layer_order = 'crg'
         final_sigmoid = loss == 'bce'
         loss_criterion = get_loss_criterion(loss, weight=torch.rand(2).to(device))
+        eval_criterion = get_evaluation_metric(val_metric)
         model = self._create_model(final_sigmoid, conv_layer_order)
-        accuracy_criterion = DiceCoefficient()
         channel_per_class = loss == 'bce'
         if loss in ['bce']:
             label_dtype = 'float32'
@@ -91,7 +90,7 @@ class TestUNet3DTrainer:
         optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
         logger = get_logger('UNet3DTrainer', logging.DEBUG)
         trainer = UNet3DTrainer(model, optimizer, loss_criterion,
-                                accuracy_criterion,
+                                eval_criterion,
                                 device, loaders, tmpdir,
                                 max_num_epochs=max_num_epochs,
                                 log_after_iters=log_after_iters,
@@ -102,7 +101,7 @@ class TestUNet3DTrainer:
         # test loading the trainer from the checkpoint
         trainer = UNet3DTrainer.from_checkpoint(
             os.path.join(tmpdir, 'last_checkpoint.pytorch'),
-            model, optimizer, loss_criterion, accuracy_criterion, loaders,
+            model, optimizer, loss_criterion, eval_criterion, loaders,
             logger=logger)
         return trainer
 

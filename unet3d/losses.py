@@ -260,34 +260,34 @@ def expand_as_one_hot(input, C, ignore_index=None):
         return torch.zeros(shape).to(input.device).scatter_(1, src, 1)
 
 
-def get_loss_criterion(loss_str, weight=None, ignore_index=None):
+def get_loss_criterion(name, weight=None, ignore_index=None):
     """
     Returns the loss function based on the loss_str.
-    :param loss_str: specifies the loss function to be used
+    :param name: specifies the loss function to be used
     :param final_sigmoid: used only with Dice-based losses. If True the Sigmoid normalization will be applied
         before computing the loss otherwise it will use the Softmax.
     :param weight: a manual rescaling weight given to each class
     :param ignore_index: specifies a target value that is ignored and does not contribute to the input gradient
     :return: an instance of the loss function
     """
-    assert loss_str in SUPPORTED_LOSSES, f'Invalid loss string: {loss_str}'
+    assert name in SUPPORTED_LOSSES, f'Invalid loss: {name}'
 
-    if loss_str == 'bce':
+    if name == 'bce':
         if ignore_index is None:
             return nn.BCEWithLogitsLoss()
         else:
             return IgnoreIndexLossWrapper(nn.BCEWithLogitsLoss(), ignore_index=ignore_index)
-    elif loss_str == 'ce':
+    elif name == 'ce':
         if ignore_index is None:
             ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
         return nn.CrossEntropyLoss(weight=weight, ignore_index=ignore_index)
-    elif loss_str == 'wce':
+    elif name == 'wce':
         if ignore_index is None:
             ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
         return WeightedCrossEntropyLoss(weight=weight, ignore_index=ignore_index)
-    elif loss_str == 'pce':
+    elif name == 'pce':
         return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index)
-    elif loss_str == 'gdl':
+    elif name == 'gdl':
         return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index)
     else:
         return DiceLoss(weight=weight, ignore_index=ignore_index)

@@ -2,6 +2,8 @@ import torch
 
 from unet3d.losses import compute_per_channel_dice, expand_as_one_hot
 
+SUPPORTED_METRICS = ['dice', 'iou', 'ap']
+
 
 class DiceCoefficient:
     """Computes Dice Coefficient.
@@ -85,3 +87,21 @@ class MeanIoU:
         :return:
         """
         return torch.sum(prediction & target).float() / torch.sum(prediction | target).float()
+
+
+class AveragePrecision:
+    def __init__(self, ignore_index=None):
+        self.ignore_index = ignore_index
+
+
+def get_evaluation_metric(name, ignore_index=None, **kwargs):
+    assert name in SUPPORTED_METRICS, f'Invalid validation metric: {name}'
+    if name == 'dice':
+        return DiceCoefficient(ignore_index=ignore_index)
+    elif name == 'iou':
+        skip_channels = ()
+        if 'skip_channels' in kwargs:
+            skip_channels = kwargs['skip_channels']
+        return MeanIoU(skip_channels=skip_channels, ignore_index=ignore_index)
+    elif name == 'ap':
+        return AveragePrecision(ignore_index=ignore_index)

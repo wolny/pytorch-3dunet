@@ -4,7 +4,7 @@ import torch.optim as optim
 from datasets.hdf5 import get_loaders
 from unet3d.config import parse_train_config
 from unet3d.losses import get_loss_criterion
-from unet3d.metrics import DiceCoefficient
+from unet3d.metrics import get_evaluation_metric
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger
@@ -47,8 +47,8 @@ def main():
     # Log the number of learnable parameters
     logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
 
-    # Create accuracy metric
-    accuracy_criterion = DiceCoefficient(ignore_index=config.ignore_index)
+    # Create evaluation metric
+    eval_criterion = get_evaluation_metric(config.eval_metric, ignore_index=config.ignore_index)
 
     # Get data loaders. If 'bce' or 'dice' loss is used, convert labels to float
     train_path, val_path = config.train_path, config.val_path
@@ -79,11 +79,11 @@ def main():
     if config.resume:
         trainer = UNet3DTrainer.from_checkpoint(config.resume, model,
                                                 optimizer, loss_criterion,
-                                                accuracy_criterion, loaders,
+                                                eval_criterion, loaders,
                                                 logger=logger)
     else:
         trainer = UNet3DTrainer(model, optimizer, loss_criterion,
-                                accuracy_criterion,
+                                eval_criterion,
                                 device, loaders, config.checkpoint_dir,
                                 max_num_epochs=config.epochs,
                                 max_num_iterations=config.iters,

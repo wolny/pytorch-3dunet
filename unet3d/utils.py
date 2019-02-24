@@ -13,7 +13,7 @@ def save_checkpoint(state, is_best, checkpoint_dir, logger=None):
 
     Args:
         state (dict): contains model's state_dict, optimizer's state_dict, epoch
-            and best validation accuracy so far
+            and best evaluation metric value so far
         is_best (bool): if True state contains the best model seen so far
         checkpoint_dir (string): directory where the checkpoint are to be saved
     """

@@ -42,23 +42,35 @@ Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
 e.g. one class having at lease 3 orders of magnitude more voxels than the other use this instead of `GDL` since it worked better in my experiments.
 - **gdl** - _GeneralizedDiceLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)(see 'Generalized Dice Loss (GDL)' in the above paper for a detailed explanation)
 
+
+## Supported Evaluation Metrics
+- **iou** - Mean intersection over union
+- **dice** - Dice Coefficient (computes per channel Dice Coefficient and returns the average)
+- **ap** - Average Precision (normally used for evaluating instance segmentation, however it can be used when the 3D UNet is used to predict the boundary signal from the instance segmentation ground truth)
+- **rand** - Adjusted Rand Score
+
+If not specified `iou` will be used by default.
+
 ## Train
 ```
-usage: train.py [-h] [--checkpoint-dir CHECKPOINT_DIR] --in-channels
-                IN_CHANNELS --out-channels OUT_CHANNELS
+usage: train.py [-h] [--config CONFIG] [--checkpoint-dir CHECKPOINT_DIR]
+                [--in-channels IN_CHANNELS] [--out-channels OUT_CHANNELS]
                 [--init-channel-number INIT_CHANNEL_NUMBER] [--interpolate]
-                [--layer-order LAYER_ORDER] --loss LOSS
+                [--layer-order LAYER_ORDER] [--loss LOSS]
                 [--loss-weight LOSS_WEIGHT [LOSS_WEIGHT ...]]
-                [--ignore-index IGNORE_INDEX] [--curriculum] [--final-sigmoid]
-                [--epochs EPOCHS] [--iters ITERS] [--patience PATIENCE]
+                [--ignore-index IGNORE_INDEX] [--eval-metric EVAL_METRIC]
+                [--curriculum] [--final-sigmoid] [--epochs EPOCHS]
+                [--iters ITERS] [--patience PATIENCE]
                 [--learning-rate LEARNING_RATE] [--weight-decay WEIGHT_DECAY]
                 [--validate-after-iters VALIDATE_AFTER_ITERS]
                 [--log-after-iters LOG_AFTER_ITERS] [--resume RESUME]
-                --train-path TRAIN_PATH [TRAIN_PATH ...] --val-path VAL_PATH
-                [VAL_PATH ...] --train-patch TRAIN_PATCH [TRAIN_PATCH ...]
-                --train-stride TRAIN_STRIDE [TRAIN_STRIDE ...] --val-patch
-                VAL_PATCH [VAL_PATCH ...] --val-stride VAL_STRIDE
-                [VAL_STRIDE ...] [--raw-internal-path RAW_INTERNAL_PATH]
+                [--train-path TRAIN_PATH [TRAIN_PATH ...]]
+                [--val-path VAL_PATH [VAL_PATH ...]]
+                [--train-patch TRAIN_PATCH [TRAIN_PATCH ...]]
+                [--train-stride TRAIN_STRIDE [TRAIN_STRIDE ...]]
+                [--val-patch VAL_PATCH [VAL_PATCH ...]]
+                [--val-stride VAL_STRIDE [VAL_STRIDE ...]]
+                [--raw-internal-path RAW_INTERNAL_PATH]
                 [--label-internal-path LABEL_INTERNAL_PATH]
                 [--transformer TRANSFORMER]
 
@@ -66,6 +78,7 @@ UNet3D training
 
 optional arguments:
   -h, --help            show this help message and exit
+  --config CONFIG       Path to the YAML config file
   --checkpoint-dir CHECKPOINT_DIR
                         checkpoint directory
   --in-channels IN_CHANNELS
@@ -86,23 +99,27 @@ optional arguments:
                         (multi-class classification), dice -
                         GeneralizedDiceLoss (multi-class classification)
   --loss-weight LOSS_WEIGHT [LOSS_WEIGHT ...]
-                        A manual rescaling weight given to each class. 
-                        E.g. --loss-weight 0.3 0.3 0.4
+                        A manual rescaling weight given to each class. Can be
+                        used with CrossEntropy or BCELoss. E.g. --loss-weight
+                        0.3 0.3 0.4
   --ignore-index IGNORE_INDEX
                         Specifies a target value that is ignored and does not
                         contribute to the input gradient
+  --eval-metric EVAL_METRIC
+                        Evaluation metric for semantic segmentation to be used
+                        (default: iou)
   --curriculum          use simple Curriculum Learning scheme if ignore_index
                         is present
   --final-sigmoid       if True apply element-wise nn.Sigmoid after the last
                         layer otherwise apply nn.Softmax
   --epochs EPOCHS       max number of epochs (default: 500)
   --iters ITERS         max number of iterations (default: 1e5)
-  --patience PATIENCE   number of epochs with no loss improvement after which
-                        the training will be stopped (default: 20)
+  --patience PATIENCE   number of validation rounds with no improvement after
+                        which the training will be stopped (default: 20)
   --learning-rate LEARNING_RATE
                         initial learning rate (default: 0.0002)
   --weight-decay WEIGHT_DECAY
-                        weight decay (default: 0.0001)
+                        weight decay (default: 0)
   --validate-after-iters VALIDATE_AFTER_ITERS
                         how many iterations between validations (default: 100)
   --log-after-iters LOG_AFTER_ITERS
@@ -111,9 +128,11 @@ optional arguments:
   --resume RESUME       path to latest checkpoint (default: none); if provided
                         the training will be resumed from that checkpoint
   --train-path TRAIN_PATH [TRAIN_PATH ...]
-                        paths to the training datasets, e.g. --train-path <path1> <path2>
+                        paths to the training datasets, e.g. --train-path
+                        <path1> <path2>
   --val-path VAL_PATH [VAL_PATH ...]
-                        paths to the validation datasets, e.g. --val-path <path1> <path2>
+                        paths to the validation datasets, e.g. --val-path
+                        <path1> <path2>
   --train-patch TRAIN_PATCH [TRAIN_PATCH ...]
                         Patch shape for used for training
   --train-stride TRAIN_STRIDE [TRAIN_STRIDE ...]

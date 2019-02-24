@@ -33,6 +33,8 @@ def parse_train_config():
                              'E.g. --loss-weight 0.3 0.3 0.4')
     parser.add_argument('--ignore-index', type=int, default=None,
                         help='Specifies a target value that is ignored and does not contribute to the input gradient')
+    parser.add_argument('--eval-metric', type=str, default='iou',
+                        help='Evaluation metric for semantic segmentation to be used (default: iou)')
     parser.add_argument('--curriculum',
                         help='use simple Curriculum Learning scheme if ignore_index is present',
                         action='store_true')
