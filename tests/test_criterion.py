@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 import torch
 import torch.nn as nn
+from skimage import measure
 
 from augment.transforms import LabelToBoundary
 from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper, \
@@ -64,14 +65,29 @@ class TestCriterion:
         pred = torch.unsqueeze(pred, dim=0)
         assert criterion(pred, target) == 1
 
-    def test_average_precision(self):
+    def test_average_precision_synthethic_data(self):
+        input = np.zeros((64, 200, 200), dtype=np.int)
+        for i in range(40, 200, 40):
+            input[:, :, i:i + 2] = 1
+        for i in range(40, 200, 40):
+            input[:, i:i + 2, :] = 1
+        for i in range(40, 64, 40):
+            input[i:i + 2, :, :] = 1
+
+        target = measure.label(np.logical_not(input).astype(np.int), background=0)
+        input = np.expand_dims(input, axis=0)
+        ap = AveragePrecision()
+        # expect perfect AP
+        assert ap(input, target) == 1.0
+
+    def test_average_precision_real_data(self):
         l_file = 'resources/sample_patch.h5'
         with h5py.File(l_file, 'r') as f:
             label = f['big_label'][...]
             ltb = LabelToBoundary((2, 4, 6, 8))
             pred = ltb(label)
             ap = AveragePrecision(min_instance_size=20000)
-            assert ap(pred, label) > 0
+            assert ap(pred, label) > 0.1
 
     def test_generalized_dice_loss(self):
         results = _compute_criterion(GeneralizedDiceLoss())

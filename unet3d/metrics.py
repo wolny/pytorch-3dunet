@@ -129,6 +129,10 @@ class AveragePrecision:
             assert target.dim() == 4
             # convert to numpy array
             target = target[0].cpu().numpy()  # 3D
+        if isinstance(input, np.ndarray):
+            assert input.ndim == 4
+        if isinstance(target, np.ndarray):
+            assert target.ndim == 3
 
         per_channel_ap = []
         n_channels = input.shape[0]
