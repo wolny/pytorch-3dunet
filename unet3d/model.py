@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from . import groupnorm
-
 
 class UNet3D(nn.Module):
     """
@@ -157,8 +155,8 @@ class DoubleConv(nn.Sequential):
                                                         padding=1))
             elif char == 'g':
                 is_before_conv = i < order.index('c')
-                assert not is_before_conv, 'GroupNorm3d MUST go after the Conv3d'
-                self.add_module(f'norm{pos}', groupnorm.GroupNorm3d(out_channels, num_groups=num_groups))
+                assert not is_before_conv, 'GroupNorm MUST go after the Conv3d'
+                self.add_module(f'norm{pos}', nn.GroupNorm(num_groups=num_groups, num_channels=out_channels))
             elif char == 'b':
                 is_before_conv = i < order.index('c')
                 if is_before_conv:
