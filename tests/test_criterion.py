@@ -87,7 +87,7 @@ class TestCriterion:
             ltb = LabelToBoundary((2, 4, 6, 8))
             pred = ltb(label)
             ap = AveragePrecision(min_instance_size=20000)
-            assert ap(pred, label) > 0.1
+            assert ap(pred, label) > 0.2
 
     def test_generalized_dice_loss(self):
         results = _compute_criterion(GeneralizedDiceLoss())

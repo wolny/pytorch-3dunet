@@ -134,6 +134,10 @@ class AveragePrecision:
         if isinstance(target, np.ndarray):
             assert target.ndim == 3
 
+        # get ground truth label set and discard 'ignore_index'
+        target_instances = set(np.unique(target))
+        target_instances.discard(self.ignore_index)
+
         per_channel_ap = []
         n_channels = input.shape[0]
         for c in range(n_channels):
@@ -143,9 +147,9 @@ class AveragePrecision:
             # for connected component analysis we need to treat boundary signal as background
             # assign 0-label to boundary mask
             predictions = np.logical_not(predictions).astype(np.uint8)
-            # run connected components on the predicted mask
-            predicted = measure.label(predictions, background=0)
-            ap = self._calculate_average_precision(predicted, target)
+            # run connected components on the predicted mask; consider only 1-connectivity
+            predicted = measure.label(predictions, background=0, connectivity=1)
+            ap = self._calculate_average_precision(predicted, target, target_instances)
             per_channel_ap.append(ap)
 
         # get maximum average precision across channels
@@ -153,8 +157,8 @@ class AveragePrecision:
         LOGGER.info(f'Max average precision: {max_ap}, channel: {c_index}')
         return max_ap
 
-    def _calculate_average_precision(self, predicted, target):
-        recall, precision = self._roc_curve(predicted, target)
+    def _calculate_average_precision(self, predicted, target, target_instances):
+        recall, precision = self._roc_curve(predicted, target, target_instances)
         recall.insert(0, 0.0)  # insert 0.0 at beginning of list
         recall.append(1.0)  # insert 1.0 at end of list
         precision.insert(0, 0.0)  # insert 0.0 at beginning of list
@@ -170,18 +174,14 @@ class AveragePrecision:
             ap += ((recall[i] - recall[i - 1]) * precision[i])
         return ap
 
-    def _roc_curve(self, predicted, target):
+    def _roc_curve(self, predicted, target, target_instances):
         ROC = []
-
-        # get ground truth label set and discard 'ignore_index
-        ground_truth_instances = set(np.unique(target))
-        ground_truth_instances.discard(self.ignore_index)
         predicted, predicted_instances = self._filter_instances(predicted)
 
         # compute precision/recall curve points for various IoU values from a given range
-        for min_iou in np.arange(self.iou_range[0], self.iou_range[1], 0.05):
+        for min_iou in np.arange(self.iou_range[0], self.iou_range[1], 0.1):
             # initialize false negatives set
-            false_negatives = set(ground_truth_instances)
+            false_negatives = set(target_instances)
             # initialize false positives set
             false_positives = set(predicted_instances)
             # initialize true positives set
@@ -191,9 +191,13 @@ class AveragePrecision:
                 target_label = self._find_overlapping_target(pred_label, predicted, target, min_iou)
                 if target_label is not None:
                     # update TP, FP and FN
-                    true_positives.add(pred_label)
-                    false_positives.discard(pred_label)
-                    false_negatives.discard(target_label)
+                    if target_label == self.ignore_index:
+                        # ignore if 'ignore_index' is the biggest overlapping
+                        false_positives.discard(pred_label)
+                    else:
+                        true_positives.add(pred_label)
+                        false_positives.discard(pred_label)
+                        false_negatives.discard(target_label)
 
             tp = len(true_positives)
             fp = len(false_positives)
@@ -216,10 +220,6 @@ class AveragePrecision:
         mask_predicted = predicted == predicted_label
         overlapping_labels = target[mask_predicted]
         labels, counts = np.unique(overlapping_labels, return_counts=True)
-        # ignore the counts for 'ignore_index'
-        if self.ignore_index in labels:
-            ind = np.argwhere(labels == self.ignore_index)[0][0]
-            counts[ind] = 0
         # retrieve the biggest overlapping label
         target_label_ind = np.argmax(counts)
         target_label = labels[target_label_ind]
