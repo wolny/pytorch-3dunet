@@ -1,11 +1,13 @@
+import h5py
 import numpy as np
 import pytest
 import torch
 import torch.nn as nn
 
+from augment.transforms import LabelToBoundary
 from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper, \
     DiceLoss
-from unet3d.metrics import DiceCoefficient, MeanIoU
+from unet3d.metrics import DiceCoefficient, MeanIoU, AveragePrecision
 
 
 def _compute_criterion(criterion, n_times=100):
@@ -61,6 +63,15 @@ class TestCriterion:
         target = torch.unsqueeze(target, dim=0)
         pred = torch.unsqueeze(pred, dim=0)
         assert criterion(pred, target) == 1
+
+    def test_average_precision(self):
+        l_file = 'resources/sample_patch.h5'
+        with h5py.File(l_file, 'r') as f:
+            label = f['big_label'][...]
+            ltb = LabelToBoundary((2, 4, 6, 8))
+            pred = ltb(label)
+            ap = AveragePrecision(min_instance_size=20000)
+            assert ap(pred, label) > 0
 
     def test_generalized_dice_loss(self):
         results = _compute_criterion(GeneralizedDiceLoss())

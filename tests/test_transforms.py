@@ -13,7 +13,7 @@ class TestTransforms:
         size = 20
         label = _diagonal_label_volume(size)
 
-        transform = RandomLabelToBoundary()
+        transform = RandomLabelToBoundary(np.random.RandomState())
         result = transform(label)
         assert result.shape == label.shape
 
@@ -21,7 +21,7 @@ class TestTransforms:
         size = 20
         label = _diagonal_label_volume(size, init=-1)
 
-        transform = RandomLabelToBoundary(ignore_index=-1)
+        transform = RandomLabelToBoundary(np.random.RandomState(), ignore_index=-1)
         result = transform(label)
         assert result.shape == label.shape
         assert -1 in np.unique(result)
@@ -30,19 +30,19 @@ class TestTransforms:
         size = 20
         label = _diagonal_label_volume(size)
 
-        # this transform will produce 3 channels
-        transform = LabelToBoundary(offsets=2)
+        # this transform will produce 2 channels
+        transform = LabelToBoundary(offsets=(2, 4))
         result = transform(label)
-        assert result.shape == (3,) + label.shape
+        assert result.shape == (2,) + label.shape
         assert np.array_equal(np.unique(result), [0, 1])
 
     def test_label_to_boundary_with_ignore(self):
         size = 20
         label = _diagonal_label_volume(size, init=-1)
 
-        transform = LabelToBoundary(offsets=2, ignore_index=-1)
+        transform = LabelToBoundary(offsets=(2, 4), ignore_index=-1)
         result = transform(label)
-        assert result.shape == (3,) + label.shape
+        assert result.shape == (2,) + label.shape
         assert np.array_equal(np.unique(result), [-1, 0, 1])
 
     def test_transformer_builder_build(self):

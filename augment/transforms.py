@@ -190,31 +190,17 @@ class ElasticDeformation:
 
 
 class AbstractLabelToBoundary:
-    AXES = {
-        # X
-        0: (0, 1, 2),
-        # Y
-        1: (0, 2, 1),
-        # Z
-        2: (2, 0, 1)
-    }
+    AXES_TRANSPOSE = [
+        (0, 1, 2),  # X
+        (0, 2, 1),  # Y
+        (2, 0, 1)  # Z
+    ]
 
-    def __init__(self, axes=(0, 1, 2), ignore_index=None):
+    def __init__(self, ignore_index=None):
         """
-        :param axes: axes across which the boundary will be computed
         :param ignore_index: label to be ignored in the output, i.e. after computing the boundary the label ignore_index
             will be restored where is was in the patch originally
         """
-        if isinstance(axes, int):
-            assert axes in [0, 1, 2], "Axis must be one of [0, 1, 2]"
-            axes = [self.AXES[axes]]
-        elif isinstance(axes, list) or isinstance(axes, tuple):
-            assert all(a in [0, 1, 2] for a in axes), "Axis must be one of [0, 1, 2]"
-            assert len(set(axes)) == len(axes), "'axes' must be unique"
-            axes = [self.AXES[a] for a in axes]
-        else:
-            raise ValueError(f"Unsupported 'axes' type {type(axes)}")
-        self.axes = axes
         self.ignore_index = ignore_index
 
     def __call__(self, m):
@@ -226,24 +212,24 @@ class AbstractLabelToBoundary:
         assert m.ndim == 3
 
         kernels = self.get_kernels()
+        assert len(kernels) % 3 == 0, "Number of kernels must be divided by 3 (one kernel per offset per Z,Y,X axes"
+        channels = np.stack([np.where(np.abs(convolve(m, kernel)) > 0, 1, 0) for kernel in kernels])
+        results = []
+        # aggregate affinities with the same offset
+        for i in range(0, len(kernels), 3):
+            xyz_aggregated_affinities = np.logical_or.reduce(channels[i:i + 3, ...]).astype(np.int)
+            xyz_aggregated_affinities = self._recover_ignore_index(xyz_aggregated_affinities, m)
+            results.append(xyz_aggregated_affinities)
 
-        channels = [self._recover_ignore_index(np.abs(convolve(m, kernel)), m) for kernel in kernels]
-
-        if len(channels) > 1:
+        if len(results) > 1:
             # stack if more than one channel
-            result = np.stack(channels, axis=0)
+            return np.stack(results, axis=0)
         else:
             # otherwise just take first channel
-            result = channels[0]
-
-        # binarize the result
-        result[result > 0] = 1
-        return result
+            return results[0]
 
     @staticmethod
-    def create_kernel(axis, offset, z_scale=1):
-        if axis == (2, 0, 1):
-            offset = max(1, offset // z_scale)
+    def create_kernel(axis, offset):
         # create conv kernel
         k_size = offset + 1
         k = np.zeros((1, 1, k_size), dtype=np.int)
@@ -265,40 +251,29 @@ class AbstractLabelToBoundary:
 class RandomLabelToBoundary(AbstractLabelToBoundary):
     """
     Converts a given volumetric label array to binary mask corresponding to borders between labels.
-    One specify the max_offset (thickness) of the border as well as the axes (direction) across which the boundary
-    will be computed via the convolution operator. The axes and offset is picked at random every time you call
-    the transformer (offset is picked form the range 1:max_offset), in order to make the network more robust against
-    various thickness of borders in the ground truth (think of it as a boundary denoising scheme).
+    One specify the max_offset (thickness) of the border. Then the offset is picked at random every time you call
+    the transformer (offset is picked form the range 1:max_offset) for each axis and the boundary computed.
+    One may use this scheme in order to make the network more robust against various thickness of borders in the ground
+    truth  (think of it as a boundary denoising scheme).
     """
 
-    def __init__(self, max_offset=8, axes=(0, 1, 2), z_scale=2, ignore_index=None):
-        """
-        :param max_offset: maximum offset in a given direction; in the runtime the offset will be randomly chosen
-            from [1:max_offset] so that the network gets more resilient to the noise in the labels
-        :param axes: axes across which the boundary will be computed
-        :param z_scale: take the offset along Z axis to be: offset // z_scale (useful for anisotropy in Z)
-        :param ignore_index: label to be ignored in the output, i.e. after computing the boundary the label ignore_index
-            will be restored where is was in the patch originally
-        """
-        super().__init__(axes, ignore_index)
+    def __init__(self, random_state, max_offset=8, ignore_index=None):
+        super().__init__(ignore_index)
+        self.random_state = random_state
         self.offsets = tuple(range(1, max_offset + 1))
-        self.z_scale = z_scale
 
     def get_kernels(self):
-        axis = random.choice(self.axes)
-        offset = random.choice(self.offsets)
-        return [self.create_kernel(axis, offset, self.z_scale)]
+        return [self.create_kernel(axis, random.choice(self.offsets)) for axis in self.AXES_TRANSPOSE]
 
 
 class LabelToBoundary(AbstractLabelToBoundary):
     """
     Converts a given volumetric label array to binary mask corresponding to borders between labels.
-    One specify the offsets (thickness) of the border as well as the axes (direction) across which the boundary
-    will be computed via the convolution operator. The convolved images are stacked across the channel dimension (CxDxHxW)
+    One specify the offsets (thickness) of the border. The boundary will be computed via the convolution operator.
     """
 
-    def __init__(self, offsets, axes=(0, 1, 2), z_scale=1, ignore_index=None):
-        super().__init__(axes, ignore_index)
+    def __init__(self, offsets, ignore_index=None):
+        super().__init__(ignore_index)
         if isinstance(offsets, int):
             assert offsets > 0, "'offset' must be positive"
             offsets = [offsets]
@@ -310,9 +285,10 @@ class LabelToBoundary(AbstractLabelToBoundary):
 
         self.kernels = []
         # create kernel for every axis-offset pair
-        for axis in self.axes:
-            for offset in offsets:
-                self.kernels.append(self.create_kernel(axis, offset, z_scale))
+        for offset in offsets:
+            for axis in self.AXES_TRANSPOSE:
+                # create kernels for a given offset in every direction
+                self.kernels.append(self.create_kernel(axis, offset))
 
     def get_kernels(self):
         return self.kernels
@@ -653,14 +629,14 @@ class LabelToBoundaryTransformer(BaseTransformer):
                 # rotate in XY only and make sure mode='reflect' is used in order to prevent boundary artifacts
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
                              mode='reflect'),
-                # this will give us 9 output channels with boundary signal
-                LabelToBoundary(axes=(0, 1, 2), offsets=(2, 4, 6), z_scale=2, ignore_index=self.ignore_index),
+                # this will give us 4 output channels with boundary signal
+                LabelToBoundary(offsets=(2, 4, 6, 8), ignore_index=self.ignore_index),
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])
         else:
             return Compose([
-                # this will give us 9 output channels with boundary signal
-                LabelToBoundary(axes=(0, 1, 2), offsets=(2, 4, 6), z_scale=2, ignore_index=self.ignore_index),
+                # this will give us 4 output channels with boundary signal
+                LabelToBoundary(offsets=(2, 4, 6, 8), ignore_index=self.ignore_index),
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])
 
@@ -712,15 +688,15 @@ class LabelToBoundaryElasticTransformer(BaseTransformer):
                 # rotate in XY only and make sure mode='reflect' is used in order to prevent boundary artifacts
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
                              mode='reflect'),
-                # this will give us 9 output channels with boundary signal
-                LabelToBoundary(axes=(0, 1, 2), offsets=(2, 4, 6), z_scale=2, ignore_index=self.ignore_index),
+                # this will give us 4 output channels (one per each offset) with boundary signal
+                LabelToBoundary(offsets=(2, 4, 6, 8), ignore_index=self.ignore_index),
                 ElasticDeformation(np.random.RandomState(self.seed), spline_order=0),
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])
         else:
             return Compose([
-                # this will give us 9 output channels with boundary signal
-                LabelToBoundary(axes=(0, 1, 2), offsets=(2, 4, 6), z_scale=2, ignore_index=self.ignore_index),
+                # this will give us 4 output channels (one per each offset) with boundary signal
+                LabelToBoundary(offsets=(2, 4, 6, 8), ignore_index=self.ignore_index),
                 ToTensor(expand_dims=False, dtype=self.label_dtype)
             ])
 
@@ -773,13 +749,13 @@ class RandomLabelToBoundaryTransformer(BaseTransformer):
                 # rotate in XY only and make sure mode='reflect' is used in order to prevent boundary artifacts
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
                              mode='reflect'),
-                RandomLabelToBoundary(ignore_index=self.ignore_index),
+                RandomLabelToBoundary(np.random.RandomState(self.seed), ignore_index=self.ignore_index),
                 ElasticDeformation(np.random.RandomState(self.seed), spline_order=0),
                 ToTensor(expand_dims=True, dtype=self.label_dtype)
             ])
         else:
             return Compose([
-                RandomLabelToBoundary(ignore_index=self.ignore_index),
+                RandomLabelToBoundary(np.random.RandomState(self.seed), ignore_index=self.ignore_index),
                 # this will give us 6 output channels with boundary signal
                 ToTensor(expand_dims=True, dtype=self.label_dtype)
             ])
@@ -792,6 +768,64 @@ class RandomLabelToBoundaryTransformer(BaseTransformer):
                 RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
                              mode='reflect'),
                 ElasticDeformation(np.random.RandomState(self.seed), spline_order=3),
+                ToTensor(expand_dims=False)
+            ])
+        else:
+            return super().weight_transform()
+
+
+# Use this transformer if you want to validate your model with AveragePrecision metric. Returns boundary signal during
+# training and original ground truth during validation
+class LabelToBoundaryAPTransformer(BaseTransformer):
+    def __init__(self, mean, std, phase, label_dtype, **kwargs):
+        super().__init__(mean=mean, std=std, phase=phase, label_dtype=label_dtype)
+        assert 'angle_spectrum' in kwargs, "'angle_spectrum' argument required"
+        self.angle_spectrum = kwargs['angle_spectrum']
+        if 'ignore_index' in kwargs:
+            self.ignore_index = kwargs['ignore_index']
+        else:
+            self.ignore_index = None
+
+    def raw_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                Normalize(self.mean, self.std),
+                RandomContrast(np.random.RandomState(self.seed)),
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                # rotate in XY only and make sure mode='reflect' is used in order to prevent boundary artifacts
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
+                             mode='reflect'),
+                ToTensor(expand_dims=True)
+            ])
+        else:
+            return super().raw_transform()
+
+    def label_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                # rotate in XY only and make sure mode='reflect' is used in order to prevent boundary artifacts
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
+                             mode='reflect'),
+                # this will give us 4 output channels with boundary signal
+                LabelToBoundary(offsets=(2, 4, 6, 8), ignore_index=self.ignore_index),
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+        else:
+            return Compose([
+                # just return the ground truth
+                ToTensor(expand_dims=False, dtype=self.label_dtype)
+            ])
+
+    def weight_transform(self):
+        if self.phase == 'train':
+            return Compose([
+                RandomFlip(np.random.RandomState(self.seed)),
+                RandomRotate90(np.random.RandomState(self.seed)),
+                RandomRotate(np.random.RandomState(self.seed), angle_spectrum=self.angle_spectrum, axes=[(2, 1)],
+                             mode='reflect'),
                 ToTensor(expand_dims=False)
             ])
         else:
