@@ -4,9 +4,9 @@ import h5py
 import numpy as np
 import torch
 
-from datasets.hdf5 import HDF5Dataset
+from datasets.hdf5 import get_test_datasets
 from unet3d import utils
-from unet3d.config import parse_test_config
+from unet3d.config import load_config
 from unet3d.model import UNet3D
 
 logger = utils.get_logger('UNet3DPredictor')
@@ -89,45 +89,42 @@ def save_predictions(probability_maps, output_file, dataset_name='probability_ma
         output_h5.create_dataset(dataset_name, data=probability_maps, compression="gzip")
 
 
+def _get_output_file(dataset):
+    return f'{os.path.splitext(dataset.raw_file_path)[0]}_probabilities.h5'
+
+
 def main():
-    config = parse_test_config()
+    config = load_config()
 
     # make sure those values correspond to the ones used during training
-    in_channels = config.in_channels
-    out_channels = config.out_channels
-    # use F.interpolate for upsampling
-    interpolate = config.interpolate
-    layer_order = config.layer_order
-    final_sigmoid = config.final_sigmoid
+    in_channels = config['in_channels']
+    out_channels = config['out_channels']
+    # use the same upsampling as during training
+    interpolate = config['interpolate']
+    # specify the layer ordering used during training
+    layer_order = config['layer_order']
+    # should sigmoid be used as a final activation layer
+    final_sigmoid = config['final_sigmoid']
+    init_channel_number = config['init_channel_number']
     model = UNet3D(in_channels, out_channels,
-                   init_channel_number=config.init_channel_number,
+                   init_channel_number=init_channel_number,
                    final_sigmoid=final_sigmoid,
                    interpolate=interpolate,
                    conv_layer_order=layer_order)
 
-    logger.info(f'Loading model from {config.model_path}...')
-    utils.load_checkpoint(config.model_path, model)
+    model_path = config['model_path']
+    logger.info(f'Loading model from {model_path}...')
+    utils.load_checkpoint(model_path, model)
 
-    logger.info('Loading datasets...')
-
-    if torch.cuda.is_available():
-        device = torch.device('cuda:0')
-    else:
-        logger.warning('No CUDA device available. Using CPU for prediction...')
-        device = torch.device('cpu')
-
+    device = config['device']
     model = model.to(device)
 
-    patch = tuple(config.patch)
-    stride = tuple(config.stride)
-
-    for test_path in config.test_path:
-        # create dataset for a given test file
-        dataset = HDF5Dataset(test_path, patch, stride, phase='test', raw_internal_path=config.raw_internal_path)
+    logger.info('Loading datasets...')
+    for test_dataset in get_test_datasets(config):
         # run the model prediction on the entire dataset
-        probability_maps = predict(model, dataset, out_channels, device)
+        probability_maps = predict(model, test_dataset, out_channels, device)
         # save the resulting probability maps
-        output_file = f'{os.path.splitext(test_path)[0]}_probabilities.h5'
+        output_file = _get_output_file(test_dataset)
         save_predictions(probability_maps, output_file)
 
 

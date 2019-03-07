@@ -10,9 +10,6 @@ def compute_per_channel_dice(input, target, epsilon=1e-5, ignore_index=None, wei
     # assumes that input is a normalized probability
 
     # input and target shapes must match
-    if target.dim() == 4:
-        target = expand_as_one_hot(target, C=input.size()[1], ignore_index=ignore_index)
-
     assert input.size() == target.size(), "'input' and 'target' must have the same shape"
 
     # mask ignore_index if present
@@ -87,9 +84,6 @@ class GeneralizedDiceLoss(nn.Module):
     def forward(self, input, target):
         # get probabilities from logits
         input = self.normalization(input)
-        # input and target shapes must match
-        if target.dim() == 4:
-            target = expand_as_one_hot(target, C=input.size()[1], ignore_index=self.ignore_index)
 
         assert input.size() == target.size(), "'input' and 'target' must have the same shape"
 
@@ -260,17 +254,23 @@ def expand_as_one_hot(input, C, ignore_index=None):
         return torch.zeros(shape).to(input.device).scatter_(1, src, 1)
 
 
-def get_loss_criterion(name, weight=None, ignore_index=None):
+def get_loss_criterion(config):
     """
-    Returns the loss function based on the loss_str.
-    :param name: specifies the loss function to be used
-    :param final_sigmoid: used only with Dice-based losses. If True the Sigmoid normalization will be applied
-        before computing the loss otherwise it will use the Softmax.
-    :param weight: a manual rescaling weight given to each class
-    :param ignore_index: specifies a target value that is ignored and does not contribute to the input gradient
+    Returns the loss function based on provided configuration
+    :param config: (dict) a top level configuration object containing the 'loss' key
     :return: an instance of the loss function
     """
-    assert name in SUPPORTED_LOSSES, f'Invalid loss: {name}'
+    assert 'loss' in config, 'Could not find loss function configuration'
+    loss_config = config['loss']
+    name = loss_config['name']
+    assert name in SUPPORTED_LOSSES, f'Invalid loss: {name}. Supported losses: {SUPPORTED_LOSSES}'
+
+    ignore_index = loss_config.get('ignore_index', None)
+    weight = loss_config.get('weight', None)
+
+    if weight is not None:
+        # convert to cuda tensor if necessary
+        weight = torch.tensor(weight).to(config['device'])
 
     if name == 'bce':
         if ignore_index is None:

@@ -7,12 +7,35 @@ import numpy as np
 import torch
 import torch.optim as optim
 
-from datasets.hdf5 import get_loaders
+from datasets.hdf5 import get_train_loaders
 from unet3d.losses import get_loss_criterion
 from unet3d.metrics import get_evaluation_metric
 from unet3d.model import UNet3D
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger
+
+CONFIG_BASE = {
+    'loaders': {
+        'train_patch': [32, 64, 64],
+        'train_stride': [32, 64, 64],
+        'val_patch': [32, 64, 64],
+        'val_stride': [32, 64, 64],
+        'raw_internal_path': 'raw',
+        'label_internal_path': 'label',
+        'transformer': {
+            'train': {
+                'raw': [{'name': 'Normalize'}, {'name': 'ToTensor', 'expand_dims': True}],
+                'label': [{'name': 'ToTensor', 'expand_dims': False}],
+                'weight': [{'name': 'ToTensor', 'expand_dims': False}]
+            },
+            'test': {
+                'raw': [{'name': 'Normalize'}, {'name': 'ToTensor', 'expand_dims': True}],
+                'label': [{'name': 'ToTensor', 'expand_dims': False}],
+                'weight': [{'name': 'ToTensor', 'expand_dims': False}]
+            }
+        }
+    }
+}
 
 
 class TestUNet3DTrainer:
@@ -63,27 +86,33 @@ class TestUNet3DTrainer:
 
     def _train_save_load(self, tmpdir, loss, val_metric, max_num_epochs=1, log_after_iters=2, validate_after_iters=2,
                          max_num_iterations=4):
-        # get device to train on
-        device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
         # conv-relu-groupnorm
         conv_layer_order = 'crg'
-        final_sigmoid = loss == 'bce'
-        loss_criterion = get_loss_criterion(loss, weight=torch.rand(2).to(device))
-        eval_criterion = get_evaluation_metric(val_metric)
+        final_sigmoid = loss in ['bce', 'dice']
+        device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+        test_config = dict(CONFIG_BASE)
+        test_config.update({
+            # get device to train on
+            'device': device,
+            'loss': {'name': loss, 'weight': np.random.rand(2).astype(np.float32)},
+            'eval_metric': {'name': val_metric}
+        })
+        loss_criterion = get_loss_criterion(test_config)
+        eval_criterion = get_evaluation_metric(test_config)
         model = self._create_model(final_sigmoid, conv_layer_order)
-        channel_per_class = loss == 'bce'
+        channel_per_class = loss in ['bce', 'dice', 'gdl']
         if loss in ['bce']:
             label_dtype = 'float32'
         else:
             label_dtype = 'long'
-        pixel_wise_weight = loss == 'pce'
+        test_config['loaders']['transformer']['train']['label'][0]['dtype'] = label_dtype
+        test_config['loaders']['transformer']['test']['label'][0]['dtype'] = label_dtype
 
-        patch = (32, 64, 64)
-        stride = (32, 64, 64)
         train, val = TestUNet3DTrainer._create_random_dataset((128, 128, 128), (64, 64, 64), channel_per_class)
-        loaders = get_loaders([train], [val], 'raw', 'label', label_dtype=label_dtype, train_patch=patch,
-                              train_stride=stride, val_patch=patch, val_stride=stride, transformer='BaseTransformer',
-                              pixel_wise_weight=pixel_wise_weight)
+        test_config['loaders']['train_path'] = [train]
+        test_config['loaders']['val_path'] = [val]
+
+        loaders = get_train_loaders(test_config)
 
         learning_rate = 2e-4
         weight_decay = 0.0001

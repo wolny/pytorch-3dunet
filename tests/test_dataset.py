@@ -2,9 +2,7 @@ from tempfile import NamedTemporaryFile
 
 import h5py
 import numpy as np
-from torchvision.transforms import Compose
 
-import augment.transforms as transforms
 from datasets.hdf5 import HDF5Dataset, CurriculumLearningSliceBuilder
 
 
@@ -20,7 +18,7 @@ class TestHDF5Dataset:
                 raw = f['raw'][...]
                 label = f['label'][...]
 
-                dataset = HDF5Dataset(path, patch_shape, stride_shape, 'test')
+                dataset = HDF5Dataset(path, patch_shape, stride_shape, 'test', transformer_config)
 
                 # create zero-arrays of the same shape as the original dataset in order to verify if every element
                 # was visited during the iteration
@@ -44,15 +42,12 @@ class TestHDF5Dataset:
 
         tmp_file = NamedTemporaryFile()
         tmp_path = tmp_file.name
-        f = h5py.File(tmp_path, 'w')
-
-        f.create_dataset('raw', data=raw)
-        f.create_dataset('label', data=label)
-        f.close()
+        with h5py.File(tmp_path, 'w') as f:
+            f.create_dataset('raw', data=raw)
+            f.create_dataset('label', data=label)
 
         dataset = HDF5Dataset(tmp_path, patch_shape=(16, 64, 64), stride_shape=(8, 32, 32), phase='train',
-                              transformer_builder=transforms.TransformerBuilder(CustomTransformer,
-                                                                                {'label_dtype': 'long'}))
+                              transformer_config=transformer_config)
 
         for (img, label) in dataset:
             for i in range(label.shape[0]):
@@ -65,12 +60,13 @@ class TestHDF5Dataset:
         stride_shape = (32, 64, 64)
 
         ignore_label_volumes = []
-        dataset = HDF5Dataset(path, patch_shape, stride_shape, 'train',
+        dataset = HDF5Dataset(path, patch_shape, stride_shape, 'test', transformer_config=transformer_config,
                               slice_builder_cls=CurriculumLearningSliceBuilder)
 
         for _, label in dataset:
             ignore_label_volumes.append(np.count_nonzero(label == -1))
 
+        # make sure that label patches are sorted by the number of ignore index voxels
         assert all(ignore_label_volumes[i] <= ignore_label_volumes[i + 1] for i in range(len(ignore_label_volumes) - 1))
 
 
@@ -87,21 +83,25 @@ def create_random_dataset(shape, ignore_index=False):
     return tmp_file.name
 
 
-class CustomTransformer(transforms.BaseTransformer):
-    def raw_transform(self):
-        return Compose([
-            transforms.RandomFlip(np.random.RandomState(self.seed)),
-            transforms.RandomRotate90(np.random.RandomState(self.seed)),
-            transforms.RandomRotate(np.random.RandomState(self.seed), angle_spectrum=30, axes=[(1, 0)]),
-            transforms.RandomRotate(np.random.RandomState(self.seed), angle_spectrum=5, axes=[(2, 1)]),
-            transforms.ToTensor(expand_dims=True)
-        ])
-
-    def label_transform(self):
-        return Compose([
-            transforms.RandomFlip(np.random.RandomState(self.seed)),
-            transforms.RandomRotate90(np.random.RandomState(self.seed)),
-            transforms.RandomRotate(np.random.RandomState(self.seed), angle_spectrum=30, axes=[(1, 0)]),
-            transforms.RandomRotate(np.random.RandomState(self.seed), angle_spectrum=5, axes=[(2, 1)]),
-            transforms.ToTensor(expand_dims=False)
-        ])
+transformer_config = {
+    'train': {
+        'raw': [
+            {'name': 'RandomFlip'},
+            {'name': 'RandomRotate90'},
+            {'name': 'RandomRotate', 'angle_spectrum': 30, 'axes': [[1, 0]]},
+            {'name': 'RandomRotate', 'angle_spectrum': 5, 'axes': [[2, 1]]},
+            {'name': 'ToTensor', 'expand_dims': True}
+        ],
+        'label': [
+            {'name': 'RandomFlip'},
+            {'name': 'RandomRotate90'},
+            {'name': 'RandomRotate', 'angle_spectrum': 30, 'axes': [[1, 0]]},
+            {'name': 'RandomRotate', 'angle_spectrum': 5, 'axes': [[2, 1]]},
+            {'name': 'ToTensor', 'expand_dims': False}
+        ]
+    },
+    'test': {
+        'raw': [{'name': 'ToTensor', 'expand_dims': True}],
+        'label': [{'name': 'ToTensor', 'expand_dims': False}]
+    }
+}

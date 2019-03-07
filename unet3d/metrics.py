@@ -103,7 +103,7 @@ class AveragePrecision:
     Computes Average Precision given boundary prediction and ground truth instance segmentation.
     """
 
-    def __init__(self, threshold=0.4, iou_range=(0.5, 1.0), ignore_index=0, min_instance_size=None):
+    def __init__(self, threshold=0.4, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None):
         """
         :param threshold: probability value at which the input is going to be thresholded
         :param iou_range: compute ROC curve for the the range of IoU values: range(min,max,0.05)
@@ -124,11 +124,11 @@ class AveragePrecision:
         if isinstance(input, torch.Tensor):
             assert input.dim() == 5
             # convert to numpy array
-            input = input[0].cpu().numpy()  # 4D
+            input = input[0].detach().cpu().numpy()  # 4D
         if isinstance(target, torch.Tensor):
             assert target.dim() == 4
             # convert to numpy array
-            target = target[0].cpu().numpy()  # 3D
+            target = target[0].detach().cpu().numpy()  # 3D
         if isinstance(input, np.ndarray):
             assert input.ndim == 4
         if isinstance(target, np.ndarray):
@@ -258,20 +258,25 @@ class AveragePrecision:
         return predicted, labels
 
 
-def get_evaluation_metric(name, ignore_index=None, **kwargs):
-    assert name in SUPPORTED_METRICS, f'Invalid validation metric: {name}'
+def get_evaluation_metric(config):
+    """
+    Returns the evaluation metric function based on provided configuration
+    :param config: (dict) a top level configuration object containing the 'eval_metric' key
+    :return: an instance of the evaluation metric
+    """
+    assert 'eval_metric' in config, 'Could not find evaluation metric configuration'
+    eval_config = config['eval_metric']
+    name = eval_config['name']
+    assert name in SUPPORTED_METRICS, f'Invalid validation metric: {name}. Supported metrics: {SUPPORTED_METRICS}'
+
+    ignore_index = eval_config.get('ignore_index', None)
+
     if name == 'dice':
         return DiceCoefficient(ignore_index=ignore_index)
     elif name == 'iou':
-        skip_channels = ()
-        if 'skip_channels' in kwargs:
-            skip_channels = kwargs['skip_channels']
+        skip_channels = eval_config.get('skip_channels', ())
         return MeanIoU(skip_channels=skip_channels, ignore_index=ignore_index)
     elif name == 'ap':
-        threshold = 0.4
-        min_instance_size = None
-        if 'threshold' in kwargs:
-            threshold = kwargs['threshold']
-        if 'min_instance_size' in kwargs:
-            min_instance_size = kwargs['min_instance_size']
+        threshold = eval_config.get('threshold', 0.5)
+        min_instance_size = eval_config.get('min_instance_size', None)
         return AveragePrecision(threshold=threshold, ignore_index=ignore_index, min_instance_size=min_instance_size)
