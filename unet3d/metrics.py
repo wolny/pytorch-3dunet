@@ -103,22 +103,28 @@ class AveragePrecision:
     Computes Average Precision given boundary prediction and ground truth instance segmentation.
     """
 
-    def __init__(self, threshold=0.4, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None):
+    def __init__(self, threshold=0.4, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None,
+                 use_last_target=False):
         """
         :param threshold: probability value at which the input is going to be thresholded
         :param iou_range: compute ROC curve for the the range of IoU values: range(min,max,0.05)
         :param ignore_index: label to be ignored during computation
         :param min_instance_size: minimum size of the predicted instances to be considered
+        :param use_last_target: if True use the last target channel to compute AP
         """
         self.threshold = threshold
+        # always have well defined ignore_index
+        if ignore_index is None:
+            ignore_index = -1
         self.iou_range = iou_range
         self.ignore_index = ignore_index
         self.min_instance_size = min_instance_size
+        self.use_last_target = use_last_target
 
     def __call__(self, input, target):
         """
         :param input: 5D probability maps torch float tensor (NxCxDxHxW) / or 4D numpy.ndarray
-        :param target: 4D ground truth instance segmentation torch long tensor (NxDxHxW) / or 3D numpy.ndarray
+        :param target: 4D or 5D ground truth instance segmentation torch long tensor / or 3D numpy.ndarray
         :return: highest average precision among channels
         """
         if isinstance(input, torch.Tensor):
@@ -126,17 +132,22 @@ class AveragePrecision:
             # convert to numpy array
             input = input[0].detach().cpu().numpy()  # 4D
         if isinstance(target, torch.Tensor):
-            assert target.dim() == 4
-            # convert to numpy array
-            target = target[0].detach().cpu().numpy()  # 3D
+            if not self.use_last_target:
+                assert target.dim() == 4
+                # convert to numpy array
+                target = target[0].detach().cpu().numpy()  # 3D
+            else:
+                # if use_last_target == True the target must be 5D (NxCxDxHxW)
+                assert target.dim() == 5
+                target = target[0, -1].detach().cpu().numpy()  # 3D
+
         if isinstance(input, np.ndarray):
             assert input.ndim == 4
         if isinstance(target, np.ndarray):
             assert target.ndim == 3
 
-        # get ground truth label set and discard 'ignore_index'
-        target_instances = set(np.unique(target))
-        target_instances.discard(self.ignore_index)
+        # filter small instances from the target and get ground truth label set (without 'ignore_index')
+        target, target_instances = self._filter_instances(target)
 
         per_channel_ap = []
         n_channels = input.shape[0]
@@ -240,22 +251,22 @@ class AveragePrecision:
         union = np.logical_or(prediction, target)
         return np.sum(intersection) / np.sum(union)
 
-    def _filter_instances(self, predicted):
+    def _filter_instances(self, input):
         """
         Filters instances smaller than 'min_instance_size' by overriding them with 'ignore_index'
-        :param predicted: input instance segmentation
+        :param input: input instance segmentation
         :return: tuple: (instance segmentation with small instances filtered, set of unique labels without the 'ignore_index')
         """
         if self.min_instance_size is not None:
-            labels, counts = np.unique(predicted, return_counts=True)
+            labels, counts = np.unique(input, return_counts=True)
             for label, count in zip(labels, counts):
                 if count < self.min_instance_size:
-                    mask = predicted == label
-                    predicted[mask] = self.ignore_index
+                    mask = input == label
+                    input[mask] = self.ignore_index
 
-        labels = set(np.unique(predicted))
+        labels = set(np.unique(input))
         labels.discard(self.ignore_index)
-        return predicted, labels
+        return input, labels
 
 
 def get_evaluation_metric(config):
@@ -279,4 +290,6 @@ def get_evaluation_metric(config):
     elif name == 'ap':
         threshold = eval_config.get('threshold', 0.5)
         min_instance_size = eval_config.get('min_instance_size', None)
-        return AveragePrecision(threshold=threshold, ignore_index=ignore_index, min_instance_size=min_instance_size)
+        use_last_target = eval_config.get('use_last_target', False)
+        return AveragePrecision(threshold=threshold, ignore_index=ignore_index, min_instance_size=min_instance_size,
+                                use_last_target=use_last_target)

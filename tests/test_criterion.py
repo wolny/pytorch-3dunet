@@ -84,10 +84,11 @@ class TestCriterion:
         l_file = 'resources/sample_patch.h5'
         with h5py.File(l_file, 'r') as f:
             label = f['big_label'][...]
-            ltb = LabelToBoundary((2, 4, 6, 8))
+            ltb = LabelToBoundary((1, 2, 4, 6))
             pred = ltb(label)
-            ap = AveragePrecision(min_instance_size=20000)
-            assert ap(pred, label) > 0.2
+            # don't compare instances smaller than 25K voxels
+            ap = AveragePrecision(min_instance_size=25000)
+            assert ap(pred, label) > 0.5
 
     def test_generalized_dice_loss(self):
         results = _compute_criterion(GeneralizedDiceLoss())

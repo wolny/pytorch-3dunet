@@ -197,12 +197,14 @@ class AbstractLabelToBoundary:
         (2, 0, 1)  # Z
     ]
 
-    def __init__(self, ignore_index=None, **kwargs):
+    def __init__(self, ignore_index=None, append_label=False, **kwargs):
         """
         :param ignore_index: label to be ignored in the output, i.e. after computing the boundary the label ignore_index
             will be restored where is was in the patch originally
+        :param append_label: if True append the orignal ground truth labels to the last channel
         """
         self.ignore_index = ignore_index
+        self.append_label = append_label
 
     def __call__(self, m):
         """
@@ -218,9 +220,15 @@ class AbstractLabelToBoundary:
         results = []
         # aggregate affinities with the same offset
         for i in range(0, len(kernels), 3):
+            # merge across X,Y,Z axes (logical OR)
             xyz_aggregated_affinities = np.logical_or.reduce(channels[i:i + 3, ...]).astype(np.int)
+            # recover ignore index
             xyz_aggregated_affinities = self._recover_ignore_index(xyz_aggregated_affinities, m)
             results.append(xyz_aggregated_affinities)
+
+        if self.append_label:
+            # append original input data
+            results.append(m)
 
         if len(results) > 1:
             # stack if more than one channel
@@ -258,8 +266,8 @@ class RandomLabelToBoundary(AbstractLabelToBoundary):
     truth  (think of it as a boundary denoising scheme).
     """
 
-    def __init__(self, random_state, max_offset=8, ignore_index=None, **kwargs):
-        super().__init__(ignore_index)
+    def __init__(self, random_state, max_offset=8, ignore_index=None, append_label=False, **kwargs):
+        super().__init__(ignore_index=ignore_index, append_label=append_label)
         self.random_state = random_state
         self.offsets = tuple(range(1, max_offset + 1))
 
@@ -273,8 +281,8 @@ class LabelToBoundary(AbstractLabelToBoundary):
     One specify the offsets (thickness) of the border. The boundary will be computed via the convolution operator.
     """
 
-    def __init__(self, offsets, ignore_index=None, **kwargs):
-        super().__init__(ignore_index)
+    def __init__(self, offsets, ignore_index=None, append_label=False, **kwargs):
+        super().__init__(ignore_index=ignore_index, append_label=append_label)
         if isinstance(offsets, int):
             assert offsets > 0, "'offset' must be positive"
             offsets = [offsets]

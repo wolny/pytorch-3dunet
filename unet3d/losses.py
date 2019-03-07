@@ -38,7 +38,8 @@ class DiceLoss(nn.Module):
     Additionally allows per-class weights to be provided.
     """
 
-    def __init__(self, epsilon=1e-5, weight=None, ignore_index=None, sigmoid_normalization=True):
+    def __init__(self, epsilon=1e-5, weight=None, ignore_index=None, sigmoid_normalization=True,
+                 skip_last_target=False):
         super(DiceLoss, self).__init__()
         self.epsilon = epsilon
         self.register_buffer('weight', weight)
@@ -52,6 +53,8 @@ class DiceLoss(nn.Module):
             self.normalization = nn.Sigmoid()
         else:
             self.normalization = nn.Softmax(dim=1)
+        # if True skip the last channel in the target
+        self.skip_last_target = skip_last_target
 
     def forward(self, input, target):
         # get probabilities from logits
@@ -60,6 +63,9 @@ class DiceLoss(nn.Module):
             weight = Variable(self.weight, requires_grad=False)
         else:
             weight = None
+
+        if self.skip_last_target:
+            target = target[:, :-1, ...]
 
         per_channel_dice = compute_per_channel_dice(input, target, epsilon=self.epsilon, ignore_index=self.ignore_index,
                                                     weight=weight)
@@ -290,4 +296,7 @@ def get_loss_criterion(config):
     elif name == 'gdl':
         return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index)
     else:
-        return DiceLoss(weight=weight, ignore_index=ignore_index)
+        sigmoid_normalization = loss_config.get('sigmoid_normalization', True)
+        skip_last_target = loss_config.get('skip_last_target', False)
+        return DiceLoss(weight=weight, ignore_index=ignore_index, sigmoid_normalization=sigmoid_normalization,
+                        skip_last_target=skip_last_target)
