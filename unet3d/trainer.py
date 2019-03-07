@@ -38,7 +38,7 @@ class UNet3DTrainer:
                  max_num_epochs=200, max_num_iterations=1e5, max_patience=50,
                  validate_after_iters=100, log_after_iters=100,
                  validate_iters=None, best_eval_score=float('-inf'),
-                 num_iterations=0, num_epoch=0, logger=None):
+                 num_iterations=1, num_epoch=0, logger=None):
         if logger is None:
             self.logger = utils.get_logger('UNet3DTrainer', level=logging.DEBUG)
         else:
@@ -127,17 +127,19 @@ class UNet3DTrainer:
                 input, target, weight = t
                 input, target, weight = input.to(self.device), target.to(self.device), weight.to(self.device)
 
-            output, loss, eval_score = self._forward_pass(input, target, weight)
+            output, loss = self._forward_pass(input, target, weight)
 
             train_losses.update(loss.item(), input.size(0))
-            train_eval_scores.update(eval_score.item(), input.size(0))
+
+            if self.num_iterations % self.validate_after_iters == 0:
+                # normalize logits and compute the evaluation criterion
+                eval_score = self.eval_criterion(self.model.final_activation(output), target)
+                train_eval_scores.update(eval_score.item(), input.size(0))
 
             # compute gradients and update parameters
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-
-            self.num_iterations += 1
 
             if self.num_iterations % self.log_after_iters == 0:
                 # log stats, params and images
@@ -169,6 +171,8 @@ class UNet3DTrainer:
                     f'Maximum number of iterations {self.max_num_iterations} exceeded. Finishing training...')
                 return True
 
+            self.num_iterations += 1
+
         return False
 
     def validate(self, val_loader):
@@ -190,9 +194,10 @@ class UNet3DTrainer:
                         input, target, weight = t
                         input, target, weight = input.to(self.device), target.to(self.device), weight.to(self.device)
 
-                    output, loss, eval_score = self._forward_pass(input, target, weight)
-
+                    output, loss = self._forward_pass(input, target, weight)
                     val_losses.update(loss.item(), input.size(0))
+
+                    eval_score = self.eval_criterion(self.model.final_activation(output), target)
                     val_scores.update(eval_score.item(), input.size(0))
 
                     if self.validate_iters is not None and self.validate_iters <= i:
@@ -215,10 +220,7 @@ class UNet3DTrainer:
         else:
             loss = self.loss_criterion(output, target, weight)
 
-        # normalize logits and compute the evaluation criterion
-        eval_score = self.eval_criterion(self.model.final_activation(output), target)
-
-        return output, loss, eval_score
+        return output, loss
 
     def _check_early_stopping(self, best_model_found):
         """
