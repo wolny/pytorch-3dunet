@@ -12,7 +12,7 @@ class TestTransforms:
 
         transform = RandomLabelToBoundary(np.random.RandomState())
         result = transform(label)
-        assert result.shape == label.shape
+        assert result.shape == (1,) + label.shape
 
     def test_random_label_to_boundary_with_ignore(self):
         size = 20
@@ -20,7 +20,7 @@ class TestTransforms:
 
         transform = RandomLabelToBoundary(np.random.RandomState(), ignore_index=-1)
         result = transform(label)
-        assert result.shape == label.shape
+        assert result.shape == (1,) + label.shape
         assert -1 in np.unique(result)
 
     def test_label_to_boundary(self):
@@ -28,7 +28,7 @@ class TestTransforms:
         label = _diagonal_label_volume(size)
 
         # this transform will produce 2 channels
-        transform = LabelToBoundary(offsets=(2, 4))
+        transform = LabelToBoundary(offsets=(2, 4), aggregate_affinities=True)
         result = transform(label)
         assert result.shape == (2,) + label.shape
         assert np.array_equal(np.unique(result), [0, 1])
@@ -37,10 +37,20 @@ class TestTransforms:
         size = 20
         label = _diagonal_label_volume(size, init=-1)
 
-        transform = LabelToBoundary(offsets=(2, 4), ignore_index=-1)
+        transform = LabelToBoundary(offsets=(2, 4), ignore_index=-1, aggregate_affinities=True)
         result = transform(label)
         assert result.shape == (2,) + label.shape
         assert np.array_equal(np.unique(result), [-1, 0, 1])
+
+    def test_label_to_boundary_no_aggregate(self):
+        size = 20
+        label = _diagonal_label_volume(size)
+
+        # this transform will produce 6 channels
+        transform = LabelToBoundary(offsets=(2, 4), aggregate_affinities=False)
+        result = transform(label)
+        assert result.shape == (6,) + label.shape
+        assert np.array_equal(np.unique(result), [0, 1])
 
     def test_BaseTransformer(self):
         config = {

@@ -6,7 +6,7 @@ import torch.nn as nn
 from skimage import measure
 
 from augment.transforms import LabelToBoundary
-from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, IgnoreIndexLossWrapper, \
+from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, BCELossWrapper, \
     DiceLoss
 from unet3d.metrics import DiceCoefficient, MeanIoU, AveragePrecision
 
@@ -84,7 +84,7 @@ class TestCriterion:
         l_file = 'resources/sample_patch.h5'
         with h5py.File(l_file, 'r') as f:
             label = f['big_label'][...]
-            ltb = LabelToBoundary((1, 2, 4, 6))
+            ltb = LabelToBoundary((1, 2, 4, 6), aggregate_affinities=True)
             pred = ltb(label)
             # don't compare instances smaller than 25K voxels
             ap = AveragePrecision(min_instance_size=25000)
@@ -137,10 +137,10 @@ class TestCriterion:
 
     def test_ignore_index_loss_wrapper_unsupported_loss(self):
         with pytest.raises(RuntimeError):
-            IgnoreIndexLossWrapper(nn.CrossEntropyLoss())
+            BCELossWrapper(nn.CrossEntropyLoss())
 
     def test_ignore_index_loss(self):
-        loss = IgnoreIndexLossWrapper(nn.BCELoss(), ignore_index=-1)
+        loss = BCELossWrapper(nn.BCELoss(), ignore_index=-1)
         input = torch.zeros((3, 3))
         input[1, 1] = 1.
         target = -1. * torch.ones((3, 3))
@@ -149,7 +149,7 @@ class TestCriterion:
         assert output.item() == 0
 
     def test_ignore_index_loss_backward(self):
-        loss = IgnoreIndexLossWrapper(nn.BCELoss(), ignore_index=-1)
+        loss = BCELossWrapper(nn.BCELoss(), ignore_index=-1)
         input = torch.zeros((3, 3), requires_grad=True)
         target = -1. * torch.ones((3, 3))
         output = loss(input, target)

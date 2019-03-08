@@ -197,13 +197,15 @@ class AbstractLabelToBoundary:
         (2, 0, 1)  # Z
     ]
 
-    def __init__(self, ignore_index=None, append_label=False, **kwargs):
+    def __init__(self, ignore_index=None, aggregate_affinities=False, append_label=False, **kwargs):
         """
         :param ignore_index: label to be ignored in the output, i.e. after computing the boundary the label ignore_index
             will be restored where is was in the patch originally
+        :param aggregate_affinities: aggregate affinities with the same offset across Z,Y,X axes
         :param append_label: if True append the orignal ground truth labels to the last channel
         """
         self.ignore_index = ignore_index
+        self.aggregate_affinities = aggregate_affinities
         self.append_label = append_label
 
     def __call__(self, m):
@@ -215,27 +217,26 @@ class AbstractLabelToBoundary:
         assert m.ndim == 3
 
         kernels = self.get_kernels()
-        assert len(kernels) % 3 == 0, "Number of kernels must be divided by 3 (one kernel per offset per Z,Y,X axes"
         channels = np.stack([np.where(np.abs(convolve(m, kernel)) > 0, 1, 0) for kernel in kernels])
         results = []
-        # aggregate affinities with the same offset
-        for i in range(0, len(kernels), 3):
-            # merge across X,Y,Z axes (logical OR)
-            xyz_aggregated_affinities = np.logical_or.reduce(channels[i:i + 3, ...]).astype(np.int)
-            # recover ignore index
-            xyz_aggregated_affinities = self._recover_ignore_index(xyz_aggregated_affinities, m)
-            results.append(xyz_aggregated_affinities)
+        if self.aggregate_affinities:
+            assert len(kernels) % 3 == 0, "Number of kernels must be divided by 3 (one kernel per offset per Z,Y,X axes"
+            # aggregate affinities with the same offset
+            for i in range(0, len(kernels), 3):
+                # merge across X,Y,Z axes (logical OR)
+                xyz_aggregated_affinities = np.logical_or.reduce(channels[i:i + 3, ...]).astype(np.int)
+                # recover ignore index
+                xyz_aggregated_affinities = self._recover_ignore_index(xyz_aggregated_affinities, m)
+                results.append(xyz_aggregated_affinities)
+        else:
+            results = [self._recover_ignore_index(channels[i], m) for i in range(channels.shape[0])]
 
         if self.append_label:
             # append original input data
             results.append(m)
 
-        if len(results) > 1:
-            # stack if more than one channel
-            return np.stack(results, axis=0)
-        else:
-            # otherwise just take first channel
-            return results[0]
+        # stack across channel dim
+        return np.stack(results, axis=0)
 
     @staticmethod
     def create_kernel(axis, offset):
@@ -267,12 +268,16 @@ class RandomLabelToBoundary(AbstractLabelToBoundary):
     """
 
     def __init__(self, random_state, max_offset=8, ignore_index=None, append_label=False, **kwargs):
-        super().__init__(ignore_index=ignore_index, append_label=append_label)
+        super().__init__(ignore_index=ignore_index, append_label=append_label, aggregate_affinities=False)
         self.random_state = random_state
         self.offsets = tuple(range(1, max_offset + 1))
 
     def get_kernels(self):
-        return [self.create_kernel(axis, random.choice(self.offsets)) for axis in self.AXES_TRANSPOSE]
+        rand_offset = self.random_state.choice(self.offsets)
+        axis_ind = self.random_state.randint(3)
+        rand_axis = self.AXES_TRANSPOSE[axis_ind]
+        # return a single kernel
+        return [self.create_kernel(rand_axis, rand_offset)]
 
 
 class LabelToBoundary(AbstractLabelToBoundary):
@@ -281,8 +286,9 @@ class LabelToBoundary(AbstractLabelToBoundary):
     One specify the offsets (thickness) of the border. The boundary will be computed via the convolution operator.
     """
 
-    def __init__(self, offsets, ignore_index=None, append_label=False, **kwargs):
-        super().__init__(ignore_index=ignore_index, append_label=append_label)
+    def __init__(self, offsets, ignore_index=None, append_label=False, aggregate_affinities=False, **kwargs):
+        super().__init__(ignore_index=ignore_index, append_label=append_label,
+                         aggregate_affinities=aggregate_affinities)
         if isinstance(offsets, int):
             assert offsets > 0, "'offset' must be positive"
             offsets = [offsets]

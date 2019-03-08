@@ -145,30 +145,33 @@ class WeightedCrossEntropyLoss(nn.Module):
         return class_weights
 
 
-class IgnoreIndexLossWrapper:
+class BCELossWrapper:
     """
-    Wrapper around loss functions which do not support 'ignore_index', e.g. BCELoss.
-    Throws exception if the wrapped loss supports the 'ignore_index' option.
+    Wrapper around BCE loss functions allowing to pass 'ignore_index' as well as 'skip_last_target' option.
     """
 
-    def __init__(self, loss_criterion, ignore_index=-1):
+    def __init__(self, loss_criterion, ignore_index=-1, skip_last_target=False):
         if hasattr(loss_criterion, 'ignore_index'):
             raise RuntimeError(f"Cannot wrap {type(loss_criterion)}. Use 'ignore_index' attribute instead")
         self.loss_criterion = loss_criterion
         self.ignore_index = ignore_index
+        self.skip_last_target = skip_last_target
 
     def __call__(self, input, target):
-        # always expand target tensor, so that input.size() == target.size()
-        if target.dim() == 4:
-            target = expand_as_one_hot(target, C=input.size()[1], ignore_index=self.ignore_index)
+        if self.skip_last_target:
+            target = target[:, :-1, ...]
 
         assert input.size() == target.size()
 
-        mask = target.clone().ne_(self.ignore_index)
-        mask.requires_grad = False
+        masked_input = input
+        masked_target = target
+        if self.ignore_index is not None:
+            mask = target.clone().ne_(self.ignore_index)
+            mask.requires_grad = False
 
-        masked_input = input * mask
-        masked_target = target * mask
+            masked_input = input * mask
+            masked_target = target * mask
+
         return self.loss_criterion(masked_input, masked_target)
 
 
@@ -279,10 +282,11 @@ def get_loss_criterion(config):
         weight = torch.tensor(weight).to(config['device'])
 
     if name == 'bce':
-        if ignore_index is None:
+        skip_last_target = loss_config.get('skip_last_target', False)
+        if ignore_index is None and not skip_last_target:
             return nn.BCEWithLogitsLoss()
         else:
-            return IgnoreIndexLossWrapper(nn.BCEWithLogitsLoss(), ignore_index=ignore_index)
+            return BCELossWrapper(nn.BCEWithLogitsLoss(), ignore_index=ignore_index, skip_last_target=skip_last_target)
     elif name == 'ce':
         if ignore_index is None:
             ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
