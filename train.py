@@ -1,4 +1,7 @@
+import importlib
+
 import torch.optim as optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from datasets.hdf5 import get_train_loaders
 from unet3d.config import load_config
@@ -15,6 +18,20 @@ def _create_optimizer(config, model):
     weight_decay = config['weight_decay']
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     return optimizer
+
+
+def _create_lr_scheduler(config, optimizer):
+    lr_config = config.get('lr_scheduler', None)
+    if lr_config is None:
+        # use ReduceLROnPlateau as a default scheduler
+        return ReduceLROnPlateau(optimizer, mode='max', factor=0.2, patience=20, verbose=True)
+    else:
+        class_name = lr_config.pop('name')
+        m = importlib.import_module('torch.optim.lr_scheduler')
+        clazz = getattr(m, class_name)
+        # add optimizer to the config
+        lr_config['optimizer'] = optimizer
+        return clazz(**lr_config)
 
 
 def main():
@@ -47,17 +64,19 @@ def main():
     # Create the optimizer
     optimizer = _create_optimizer(config, model)
 
+    # Create learning rate adjustment strategy
+    lr_scheduler = _create_lr_scheduler(config, optimizer)
+
     if config['resume'] is not None:
         trainer = UNet3DTrainer.from_checkpoint(config['resume'], model,
-                                                optimizer, loss_criterion,
+                                                optimizer, lr_scheduler, loss_criterion,
                                                 eval_criterion, loaders,
                                                 logger=logger)
     else:
-        trainer = UNet3DTrainer(model, optimizer, loss_criterion, eval_criterion,
+        trainer = UNet3DTrainer(model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
                                 config['device'], loaders, config['checkpoint_dir'],
                                 max_num_epochs=config['epochs'],
                                 max_num_iterations=config['iters'],
-                                patience=config['patience'],
                                 validate_after_iters=config['validate_after_iters'],
                                 log_after_iters=config['log_after_iters'],
                                 logger=logger)

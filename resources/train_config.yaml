@@ -23,6 +23,10 @@ eval_metric:
   ignore_index: null
 # initial learning rate
 learning_rate: 0.0002
+lr_scheduler:
+  name: MultiStepLR
+  milestones: [10, 30, 60]
+  gamma: 0.2
 # weight decay
 weight_decay: 0.0001
 # use nn.Upsample for upsampling in the decoder path instead of ConvTranspose3d

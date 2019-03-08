@@ -6,6 +6,7 @@ import h5py
 import numpy as np
 import torch
 import torch.optim as optim
+from torch.optim.lr_scheduler import MultiStepLR
 
 from datasets.hdf5 import get_train_loaders
 from unet3d.losses import get_loss_criterion
@@ -117,9 +118,10 @@ class TestUNet3DTrainer:
         learning_rate = 2e-4
         weight_decay = 0.0001
         optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        lr_scheduler = MultiStepLR(optimizer, milestones=[2, 3], gamma=0.5)
         logger = get_logger('UNet3DTrainer', logging.DEBUG)
-        trainer = UNet3DTrainer(model, optimizer, loss_criterion,
-                                eval_criterion,
+        trainer = UNet3DTrainer(model, optimizer, lr_scheduler,
+                                loss_criterion, eval_criterion,
                                 device, loaders, tmpdir,
                                 max_num_epochs=max_num_epochs,
                                 log_after_iters=log_after_iters,
@@ -128,10 +130,10 @@ class TestUNet3DTrainer:
                                 logger=logger)
         trainer.fit()
         # test loading the trainer from the checkpoint
-        trainer = UNet3DTrainer.from_checkpoint(
-            os.path.join(tmpdir, 'last_checkpoint.pytorch'),
-            model, optimizer, loss_criterion, eval_criterion, loaders,
-            logger=logger)
+        trainer = UNet3DTrainer.from_checkpoint(os.path.join(tmpdir, 'last_checkpoint.pytorch'),
+                                                model, optimizer, lr_scheduler,
+                                                loss_criterion, eval_criterion,
+                                                loaders, logger=logger)
         return trainer
 
     @staticmethod
