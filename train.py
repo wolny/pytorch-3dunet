@@ -57,7 +57,7 @@ def main():
                                 config['device'], loaders, config['checkpoint_dir'],
                                 max_num_epochs=config['epochs'],
                                 max_num_iterations=config['iters'],
-                                max_patience=config['patience'],
+                                patience=config['patience'],
                                 validate_after_iters=config['validate_after_iters'],
                                 log_after_iters=config['log_after_iters'],
                                 logger=logger)

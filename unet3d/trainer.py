@@ -4,6 +4,7 @@ import os
 import numpy as np
 import torch
 from tensorboardX import SummaryWriter
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from . import utils
 
@@ -22,8 +23,8 @@ class UNet3DTrainer:
         checkpoint_dir (string): dir for saving checkpoints and tensorboard logs
         max_num_epochs (int): maximum number of epochs
         max_num_iterations (int): maximum number of iterations
-        max_patience (int): number of validation runs with no improvement
-            after which the training will be stopped
+        patience (int): number of validation runs with no improvement
+            after which the learning rate will be reduced
         validate_after_iters (int): validate after that many iterations
         log_after_iters (int): number of iterations before logging to tensorboard
         validate_iters (int): number of validation iterations, if None validate
@@ -35,7 +36,7 @@ class UNet3DTrainer:
 
     def __init__(self, model, optimizer, loss_criterion, eval_criterion,
                  device, loaders, checkpoint_dir,
-                 max_num_epochs=200, max_num_iterations=1e5, max_patience=50,
+                 max_num_epochs=100, max_num_iterations=1e5, patience=20,
                  validate_after_iters=100, log_after_iters=100,
                  validate_iters=None, best_eval_score=float('-inf'),
                  num_iterations=1, num_epoch=0, logger=None):
@@ -48,7 +49,9 @@ class UNet3DTrainer:
         self.model = model.to(device)
         self.logger.debug(model)
 
+        self.patience = patience
         self.optimizer = optimizer
+        self.scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.2, patience=patience, verbose=True)
         self.loss_criterion = loss_criterion
         self.eval_criterion = eval_criterion
         self.device = device
@@ -65,9 +68,6 @@ class UNet3DTrainer:
 
         self.num_iterations = num_iterations
         self.num_epoch = num_epoch
-        # used for early stopping
-        self.max_patience = max_patience
-        self.patience = max_patience
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path, model, optimizer, loss_criterion, eval_criterion, loaders,
@@ -84,7 +84,7 @@ class UNet3DTrainer:
                    num_epoch=state['epoch'],
                    max_num_epochs=state['max_num_epochs'],
                    max_num_iterations=state['max_num_iterations'],
-                   max_patience=state['max_patience'],
+                   patience=state['patience'],
                    validate_after_iters=state['validate_after_iters'],
                    log_after_iters=state['log_after_iters'],
                    validate_iters=state['validate_iters'],
@@ -154,17 +154,13 @@ class UNet3DTrainer:
             if self.num_iterations % self.validate_after_iters == 0:
                 # evaluate on validation set
                 eval_score = self.validate(self.loaders['val'])
-
+                # adjust learning rate if necessary
+                self.scheduler.step(eval_score)
                 # remember best validation metric
                 is_best = self._is_best_eval_score(eval_score)
 
                 # save checkpoint
                 self._save_checkpoint(is_best)
-
-                if self._check_early_stopping(is_best):
-                    self.logger.info(
-                        f'Validation eval_score did not improve for the last {self.max_patience} validation runs. Early stopping...')
-                    return True
 
             if self.max_num_iterations < self.num_iterations:
                 self.logger.info(
@@ -222,21 +218,6 @@ class UNet3DTrainer:
 
         return output, loss
 
-    def _check_early_stopping(self, best_model_found):
-        """
-        Check current patience value and terminate if patience reached 0
-        :param best_model_found: is current model the best one according to validation criterion
-        :return: True if the training should be terminated, False otherwise
-        """
-        if best_model_found:
-            self.patience = self.max_patience
-        else:
-            self.patience -= 1
-            if self.patience <= 0:
-                # early stop the training
-                return True
-        return False
-
     def _is_best_eval_score(self, eval_score):
         is_best = eval_score > self.best_eval_score
         if is_best:
@@ -257,7 +238,7 @@ class UNet3DTrainer:
             'validate_after_iters': self.validate_after_iters,
             'log_after_iters': self.log_after_iters,
             'validate_iters': self.validate_iters,
-            'max_patience': self.max_patience
+            'patience': self.patience
         }, is_best, checkpoint_dir=self.checkpoint_dir,
             logger=self.logger)
 
