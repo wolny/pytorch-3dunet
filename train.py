@@ -24,7 +24,7 @@ def _create_lr_scheduler(config, optimizer):
     lr_config = config.get('lr_scheduler', None)
     if lr_config is None:
         # use ReduceLROnPlateau as a default scheduler
-        return ReduceLROnPlateau(optimizer, mode='max', factor=0.2, patience=20, verbose=True)
+        return ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=20, verbose=True)
     else:
         class_name = lr_config.pop('name')
         m = importlib.import_module('torch.optim.lr_scheduler')
