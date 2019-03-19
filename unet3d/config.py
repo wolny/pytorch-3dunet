@@ -10,7 +10,8 @@ def load_config():
     args = parser.parse_args()
     config = _load_config_yaml(args.config)
     # Get a device to train on
-    device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+    device_name = config.get('device', 'cuda:0')
+    device = torch.device(device_name if torch.cuda.is_available() else 'cpu')
     config['device'] = device
     return config
 
