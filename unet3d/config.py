@@ -1,7 +1,10 @@
 import argparse
 
+import os
 import torch
 import yaml
+
+DEFAULT_DEVICE = 'cuda:0'
 
 
 def load_config():
@@ -10,9 +13,10 @@ def load_config():
     args = parser.parse_args()
     config = _load_config_yaml(args.config)
     # Get a device to train on
-    device_name = config.get('device', 'cuda:0')
-    device = torch.device(device_name if torch.cuda.is_available() else 'cpu')
-    config['device'] = device
+    device = config.get('device', DEFAULT_DEVICE)
+    # make sure that only the selected device gets allocated
+    os.environ["CUDA_VISIBLE_DEVICES"] = device
+    config['device'] = torch.device(device)
     return config
 
 
