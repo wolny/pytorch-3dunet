@@ -14,8 +14,6 @@ def load_config():
     config = _load_config_yaml(args.config)
     # Get a device to train on
     device = config.get('device', DEFAULT_DEVICE)
-    # make sure that only the selected device gets allocated
-    os.environ["CUDA_VISIBLE_DEVICES"] = device.split(':')[1]
     config['device'] = torch.device(device)
     return config
 
