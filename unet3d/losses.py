@@ -112,10 +112,11 @@ class GeneralizedDiceLoss(nn.Module):
         if self.weight is not None:
             weight = Variable(self.weight, requires_grad=False)
             intersect = weight * intersect
+        intersect = intersect.sum()
 
-        denominator = (input + target).sum(-1) * class_weights
+        denominator = ((input + target).sum(-1) * class_weights).sum()
 
-        return torch.mean(1. - 2. * intersect / denominator.clamp(min=self.epsilon))
+        return 1. - 2. * intersect / denominator.clamp(min=self.epsilon)
 
 
 class WeightedCrossEntropyLoss(nn.Module):
