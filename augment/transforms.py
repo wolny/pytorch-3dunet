@@ -5,6 +5,7 @@ import torch
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
 from scipy.ndimage.filters import convolve
 from skimage.segmentation import find_boundaries
+from skimage.filters import gaussian
 from torchvision.transforms import Compose
 
 
@@ -252,14 +253,21 @@ class AbstractLabelToBoundary:
 
 
 class StandardLabelToBoundary:
-    def __init__(self, ignore_index=None, append_label=False, **kwargs):
+    def __init__(self, ignore_index=None, append_label=False, blur=False, **kwargs):
         self.ignore_index = ignore_index
         self.append_label = append_label
+        self.blur = blur
 
     def __call__(self, m):
         assert m.ndim == 3
 
-        results = [_recover_ignore_index(find_boundaries(m, connectivity=2), m, self.ignore_index)]
+        boundaries = find_boundaries(m, connectivity=2)
+        if self.blur:
+            boundaries = gaussian(boundaries, sigma=1)
+            boundaries[boundaries >= 0.5] = 1
+            boundaries[boundaries < 0.5] = 0
+
+        results = [_recover_ignore_index(boundaries, m, self.ignore_index)]
 
         if self.append_label:
             # append original input data
