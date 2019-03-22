@@ -1,10 +1,10 @@
 import importlib
-import random
 
 import numpy as np
 import torch
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
 from scipy.ndimage.filters import convolve
+from skimage.segmentation import find_boundaries
 from torchvision.transforms import Compose
 
 
@@ -226,10 +226,10 @@ class AbstractLabelToBoundary:
                 # merge across X,Y,Z axes (logical OR)
                 xyz_aggregated_affinities = np.logical_or.reduce(channels[i:i + 3, ...]).astype(np.int)
                 # recover ignore index
-                xyz_aggregated_affinities = self._recover_ignore_index(xyz_aggregated_affinities, m)
+                xyz_aggregated_affinities = _recover_ignore_index(xyz_aggregated_affinities, m, self.ignore_index)
                 results.append(xyz_aggregated_affinities)
         else:
-            results = [self._recover_ignore_index(channels[i], m) for i in range(channels.shape[0])]
+            results = [_recover_ignore_index(channels[i], m, self.ignore_index) for i in range(channels.shape[0])]
 
         if self.append_label:
             # append original input data
@@ -247,15 +247,25 @@ class AbstractLabelToBoundary:
         k[0, 0, offset] = -1
         return np.transpose(k, axis)
 
-    def _recover_ignore_index(self, input, orig):
-        if self.ignore_index is not None:
-            mask = orig == self.ignore_index
-            input[mask] = self.ignore_index
-
-        return input
-
     def get_kernels(self):
         raise NotImplementedError
+
+
+class StandardLabelToBoundary:
+    def __init__(self, ignore_index=None, append_label=False, **kwargs):
+        self.ignore_index = ignore_index
+        self.append_label = append_label
+
+    def __call__(self, m):
+        assert m.ndim == 3
+
+        results = [_recover_ignore_index(find_boundaries(m, connectivity=2), m, self.ignore_index)]
+
+        if self.append_label:
+            # append original input data
+            results.append(m)
+
+        return np.stack(results, axis=0)
 
 
 class RandomLabelToBoundary(AbstractLabelToBoundary):
@@ -390,3 +400,11 @@ class Transformer:
         config['random_state'] = np.random.RandomState(self.seed)
         aug_class = self._transformer_class(config['name'])
         return aug_class(**config)
+
+
+def _recover_ignore_index(input, orig, ignore_index):
+    if ignore_index is not None:
+        mask = orig == ignore_index
+        input[mask] = ignore_index
+
+    return input
