@@ -90,7 +90,7 @@ def save_predictions(probability_maps, output_file, dataset_name='probability_ma
 
 
 def _get_output_file(dataset):
-    return f'{os.path.splitext(dataset.raw_file_path)[0]}_probabilities.h5'
+    return f'{os.path.splitext(dataset.file_path)[0]}_probabilities.h5'
 
 
 def main():

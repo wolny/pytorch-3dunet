@@ -23,6 +23,7 @@ CONFIG_BASE = {
         'val_stride': [32, 64, 64],
         'raw_internal_path': 'raw',
         'label_internal_path': 'label',
+        'weight_internal_path': None,
         'transformer': {
             'train': {
                 'raw': [{'name': 'Normalize'}, {'name': 'ToTensor', 'expand_dims': True}],
@@ -78,7 +79,7 @@ class TestUNet3DTrainer:
 
     def test_pce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'pce', 'iou')
+            trainer = self._train_save_load(tmpdir, 'pce', 'iou', weight_map=True)
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -86,10 +87,10 @@ class TestUNet3DTrainer:
             assert trainer.max_num_iterations == 4
 
     def _train_save_load(self, tmpdir, loss, val_metric, max_num_epochs=1, log_after_iters=2, validate_after_iters=2,
-                         max_num_iterations=4):
+                         max_num_iterations=4, weight_map=False):
         # conv-relu-groupnorm
         conv_layer_order = 'crg'
-        final_sigmoid = loss in ['bce', 'dice']
+        final_sigmoid = loss in ['bce', 'dice', 'gdl']
         device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
         test_config = dict(CONFIG_BASE)
         test_config.update({
@@ -98,6 +99,9 @@ class TestUNet3DTrainer:
             'loss': {'name': loss, 'weight': np.random.rand(2).astype(np.float32)},
             'eval_metric': {'name': val_metric}
         })
+        if weight_map:
+            test_config['loaders']['weight_internal_path'] = 'weight_map'
+
         loss_criterion = get_loss_criterion(test_config)
         eval_criterion = get_evaluation_metric(test_config)
         model = self._create_model(final_sigmoid, conv_layer_order)

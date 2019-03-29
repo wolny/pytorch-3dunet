@@ -121,13 +121,7 @@ class UNet3DTrainer:
             self.logger.info(
                 f'Training iteration {self.num_iterations}. Batch {i}. Epoch [{self.num_epoch}/{self.max_num_epochs - 1}]')
 
-            if len(t) == 2:
-                input, target = t
-                input, target = input.to(self.device), target.to(self.device)
-                weight = None
-            else:
-                input, target, weight = t
-                input, target, weight = input.to(self.device), target.to(self.device), weight.to(self.device)
+            input, target, weight = self._split_training_batch(t)
 
             output, loss = self._forward_pass(input, target, weight)
 
@@ -188,13 +182,7 @@ class UNet3DTrainer:
                 for i, t in enumerate(val_loader):
                     self.logger.info(f'Validation iteration {i}')
 
-                    if len(t) == 2:
-                        input, target = t
-                        input, target = input.to(self.device), target.to(self.device)
-                        weight = None
-                    else:
-                        input, target, weight = t
-                        input, target, weight = input.to(self.device), target.to(self.device), weight.to(self.device)
+                    input, target, weight = self._split_training_batch(t)
 
                     output, loss = self._forward_pass(input, target, weight)
                     val_losses.update(loss.item(), input.size(0))
@@ -211,6 +199,21 @@ class UNet3DTrainer:
                 return val_scores.avg
         finally:
             self.model.train()
+
+    def _split_training_batch(self, t):
+        def _move_to_device(input):
+            if isinstance(input, tuple) or isinstance(input, list):
+                return tuple([_move_to_device(x) for x in input])
+            else:
+                return input.to(self.device)
+
+        t = _move_to_device(t)
+        weight = None
+        if len(t) == 2:
+            input, target = t
+        else:
+            input, target, weight = t
+        return input, target, weight
 
     def _forward_pass(self, input, target, weight=None):
         # forward pass

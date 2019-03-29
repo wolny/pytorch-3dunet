@@ -215,6 +215,40 @@ class PixelWiseCrossEntropyLoss(nn.Module):
         return result.mean()
 
 
+class TagsAngularLoss(nn.Module):
+    def __init__(self, tags_coefficients):
+        super(TagsAngularLoss, self).__init__()
+        self.tags_coefficients = tags_coefficients
+
+    def forward(self, inputs, targets, weight):
+        assert len(inputs) == len(targets) == len(self.tags_coefficients)
+        loss = 0
+        for input, target, alpha in zip(inputs, targets, self.tags_coefficients):
+            loss += alpha * square_angular_loss(input, target, weight)
+
+        return loss
+
+
+def square_angular_loss(input, target, weights=None):
+    """
+    Computes square angular loss between input and target directions.
+    Make sure that the input and target directions are normalized so that torch.acos would not prduce NaNs.
+
+    :param input: 5D input tensor (NCDHW)
+    :param target: 5D target tensor (NCDHW)
+    :param weights: 3D weight tensor in order to balance different instance sizes
+    :return: per pixel weighted sum of squared angular losses
+    """
+    assert input.size() == target.size()
+    # compute cosine map
+    cosines = (input * target).sum(dim=1)
+    error_radians = torch.acos(cosines)
+    if weights is not None:
+        return (error_radians * error_radians * weights).sum()
+    else:
+        return (error_radians * error_radians).sum()
+
+
 def flatten(tensor):
     """Flattens a given tensor such that the channel axis is first.
     The shapes are transformed as follows:

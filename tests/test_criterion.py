@@ -7,7 +7,7 @@ from skimage import measure
 
 from augment.transforms import LabelToBoundary
 from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, BCELossWrapper, \
-    DiceLoss
+    DiceLoss, TagsAngularLoss
 from unet3d.metrics import DiceCoefficient, MeanIoU, AveragePrecision
 
 
@@ -169,3 +169,14 @@ class TestCriterion:
         expected = loss(input, target)
 
         assert expected == actual
+
+    def test_tags_angular_loss(self):
+        coeff = [1.0, 0.8, 0.5]
+        loss_criterion = TagsAngularLoss(coeff)
+        inputs = [torch.rand((1, 3, 4, 4, 4)) for _ in range(len(coeff))]
+        inputs = [i / torch.norm(i, p=2, dim=1).clamp(min=1e-8) for i in inputs]
+        targets = [torch.rand((1, 3, 4, 4, 4)) for _ in range(len(coeff))]
+        targets = [i / torch.norm(i, p=2, dim=1).clamp(min=1e-8) for i in targets]
+
+        loss = loss_criterion(inputs, targets, None)
+        assert loss > 0
