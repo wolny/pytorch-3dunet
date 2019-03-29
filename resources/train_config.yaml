@@ -1,13 +1,39 @@
-# path to the checkpoint directory
-checkpoint_dir: 3dunet
-# path to latest checkpoint; if provided the training will be resumed from that checkpoint
-resume: null
-# number of input channels to the model
-in_channels: 1
-# number of output channels
-out_channels: 2
-# determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
-layer_order: crg
+# model configuration
+model:
+  # model class
+  name: UNet3D
+  # number of input channels to the model
+  in_channels: 1
+  # number of output channels
+  out_channels: 2
+  # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
+  layer_order: crg
+  # use nn.Upsample for upsampling in the decoder path instead of ConvTranspose3d
+  interpolate: true
+  # number of feature maps in the 1st encoder layer
+  init_channel_number: 32
+  # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
+  final_sigmoid: false
+# trainer configuration
+trainer:
+  # path to the checkpoint directory
+  checkpoint_dir: 3dunet
+  # path to latest checkpoint; if provided the training will be resumed from that checkpoint
+  resume: null
+  # how many iterations between validations
+  validate_after_iters: 20
+  # how many iterations between tensorboard logging
+  log_after_iters: 20
+  # max number of epochs
+  epochs: 50
+  # max number of iterations
+  iters: 100000
+# optimizer configuration
+optimizer:
+  # initial learning rate
+  learning_rate: 0.0002
+  # weight decay
+  weight_decay: 0.0001
 # loss function configuration
 loss:
   # loss function to be used during training (ce - CrossEntropy)
@@ -21,30 +47,10 @@ eval_metric:
   name: iou
   # a target label that is ignored during metric evaluation
   ignore_index: null
-# initial learning rate
-learning_rate: 0.0002
 lr_scheduler:
   name: MultiStepLR
   milestones: [10, 30, 60]
   gamma: 0.2
-# weight decay
-weight_decay: 0.0001
-# use nn.Upsample for upsampling in the decoder path instead of ConvTranspose3d
-interpolate: true
-# number of feature maps in the 1st encoder layer
-init_channel_number: 32
-# apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
-final_sigmoid: false
-# how many iterations between validations
-validate_after_iters: 20
-# how many iterations between tensorboard logging
-log_after_iters: 20
-# max number of epochs
-epochs: 50
-# max number of iterations
-iters: 100000
-# number of epochs with no loss improvement after which the training will be stopped
-patience: 20
 # data loaders configuration
 loaders:
   # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)

@@ -7,15 +7,36 @@ from datasets.hdf5 import get_train_loaders
 from unet3d.config import load_config
 from unet3d.losses import get_loss_criterion
 from unet3d.metrics import get_evaluation_metric
-from unet3d.model import UNet3D
+from unet3d.model import get_model
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger
 from unet3d.utils import get_number_of_learnable_parameters
 
 
+def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders, logger):
+    assert 'trainer' in config, 'Could not find trainer configuration'
+    trainer_config = config['trainer']
+
+    if trainer_config['resume'] is not None:
+        return UNet3DTrainer.from_checkpoint(trainer_config['resume'], model,
+                                             optimizer, lr_scheduler, loss_criterion,
+                                             eval_criterion, loaders,
+                                             logger=logger)
+    else:
+        return UNet3DTrainer(model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
+                             config['device'], loaders, trainer_config['checkpoint_dir'],
+                             max_num_epochs=trainer_config['epochs'],
+                             max_num_iterations=trainer_config['iters'],
+                             validate_after_iters=trainer_config['validate_after_iters'],
+                             log_after_iters=trainer_config['log_after_iters'],
+                             logger=logger)
+
+
 def _create_optimizer(config, model):
-    learning_rate = config['learning_rate']
-    weight_decay = config['weight_decay']
+    assert 'optimizer' in config, 'Cannot find optimizer configuration'
+    optimizer_config = config['optimizer']
+    learning_rate = optimizer_config['learning_rate']
+    weight_decay = optimizer_config['weight_decay']
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     return optimizer
 
@@ -35,30 +56,25 @@ def _create_lr_scheduler(config, optimizer):
 
 
 def main():
+    # Create main logger
     logger = get_logger('UNet3DTrainer')
 
+    # Load and log experiment configuration
     config = load_config()
-
     logger.info(config)
 
-    # Create loss criterion
-    loss_criterion = get_loss_criterion(config)
-
     # Create the model
-    model = UNet3D(config['in_channels'], config['out_channels'],
-                   final_sigmoid=config['final_sigmoid'],
-                   init_channel_number=config['init_channel_number'],
-                   conv_layer_order=config['layer_order'],
-                   interpolate=config['interpolate'])
-
+    model = get_model(config)
     model = model.to(config['device'])
-
     # Log the number of learnable parameters
     logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
 
+    # Create loss criterion
+    loss_criterion = get_loss_criterion(config)
     # Create evaluation metric
     eval_criterion = get_evaluation_metric(config)
 
+    # Create data loaders
     loaders = get_train_loaders(config)
 
     # Create the optimizer
@@ -67,20 +83,11 @@ def main():
     # Create learning rate adjustment strategy
     lr_scheduler = _create_lr_scheduler(config, optimizer)
 
-    if config['resume'] is not None:
-        trainer = UNet3DTrainer.from_checkpoint(config['resume'], model,
-                                                optimizer, lr_scheduler, loss_criterion,
-                                                eval_criterion, loaders,
-                                                logger=logger)
-    else:
-        trainer = UNet3DTrainer(model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
-                                config['device'], loaders, config['checkpoint_dir'],
-                                max_num_epochs=config['epochs'],
-                                max_num_iterations=config['iters'],
-                                validate_after_iters=config['validate_after_iters'],
-                                log_after_iters=config['log_after_iters'],
-                                logger=logger)
-
+    # Create model trainer
+    trainer = _create_trainer(config, model=model, optimizer=optimizer, lr_scheduler=lr_scheduler,
+                              loss_criterion=loss_criterion, eval_criterion=eval_criterion, loaders=loaders,
+                              logger=logger)
+    # Start training
     trainer.fit()
 
 

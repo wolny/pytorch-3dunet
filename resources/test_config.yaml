@@ -1,17 +1,21 @@
 # path to the checkpoint file containing the model
 model_path: 3dunet/best_checkpoint.pytorch
-# number of input channels to the model
-in_channels: 1
-# number of output channels
-out_channels: 2
-# determines the order of operators in a single layer (crg = Conv3d+ReLU+GroupNorm)
-layer_order: crg
-# use nn.Upsample for upsampling in the decoder path instead of ConvTranspose3d
-interpolate: true
-# number of feature maps in the 1st encoder layer
-init_channel_number: 32
-# apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
-final_sigmoid: false
+# model configuration
+model:
+  # model class
+  name: UNet3D
+  # number of input channels to the model
+  in_channels: 1
+  # number of output channels
+  out_channels: 2
+  # determines the order of operators in a single layer (crg = Conv3d+ReLU+GroupNorm)
+  layer_order: crg
+  # use nn.Upsample for upsampling in the decoder path instead of ConvTranspose3d
+  interpolate: true
+  # number of feature maps in the 1st encoder layer
+  init_channel_number: 32
+  # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
+  final_sigmoid: false
 # specify the test datasets
 datasets:
   # patch size given to the network (adapt to fit in your GPU mem)

@@ -7,7 +7,7 @@ import torch
 from datasets.hdf5 import get_test_datasets
 from unet3d import utils
 from unet3d.config import load_config
-from unet3d.model import UNet3D
+from unet3d.model import get_model
 
 logger = utils.get_logger('UNet3DPredictor')
 
@@ -94,35 +94,22 @@ def _get_output_file(dataset):
 
 
 def main():
+    # Load configuration
     config = load_config()
 
-    # make sure those values correspond to the ones used during training
-    in_channels = config['in_channels']
-    out_channels = config['out_channels']
-    # use the same upsampling as during training
-    interpolate = config['interpolate']
-    # specify the layer ordering used during training
-    layer_order = config['layer_order']
-    # should sigmoid be used as a final activation layer
-    final_sigmoid = config['final_sigmoid']
-    init_channel_number = config['init_channel_number']
-    model = UNet3D(in_channels, out_channels,
-                   init_channel_number=init_channel_number,
-                   final_sigmoid=final_sigmoid,
-                   interpolate=interpolate,
-                   conv_layer_order=layer_order)
+    # Create the model
+    model = get_model(config)
 
+    # Load model state
     model_path = config['model_path']
     logger.info(f'Loading model from {model_path}...')
     utils.load_checkpoint(model_path, model)
-
-    device = config['device']
-    model = model.to(device)
+    model = model.to(config['device'])
 
     logger.info('Loading datasets...')
     for test_dataset in get_test_datasets(config):
         # run the model prediction on the entire dataset
-        probability_maps = predict(model, test_dataset, out_channels, device)
+        probability_maps = predict(model, test_dataset, config['model']['out_channels'], config['device'])
         # save the resulting probability maps
         output_file = _get_output_file(test_dataset)
         save_predictions(probability_maps, output_file)
