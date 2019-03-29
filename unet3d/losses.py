@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch import nn as nn
 from torch.autograd import Variable
 
-SUPPORTED_LOSSES = ['ce', 'bce', 'wce', 'pce', 'dice', 'gdl']
+SUPPORTED_LOSSES = ['ce', 'bce', 'wce', 'pce', 'dice', 'gdl', 'angular']
 
 
 def compute_per_channel_dice(input, target, epsilon=1e-5, ignore_index=None, weight=None):
@@ -307,7 +307,6 @@ def get_loss_criterion(config):
     assert 'loss' in config, 'Could not find loss function configuration'
     loss_config = config['loss']
     name = loss_config['name']
-    assert name in SUPPORTED_LOSSES, f'Invalid loss: {name}. Supported losses: {SUPPORTED_LOSSES}'
 
     ignore_index = loss_config.get('ignore_index', None)
     weight = loss_config.get('weight', None)
@@ -334,8 +333,13 @@ def get_loss_criterion(config):
         return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index)
     elif name == 'gdl':
         return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index)
-    else:
+    elif name == 'dice':
         sigmoid_normalization = loss_config.get('sigmoid_normalization', True)
         skip_last_target = loss_config.get('skip_last_target', False)
         return DiceLoss(weight=weight, ignore_index=ignore_index, sigmoid_normalization=sigmoid_normalization,
                         skip_last_target=skip_last_target)
+    elif name == 'angular':
+        tags_coefficients = loss_config['tags_coefficients']
+        return TagsAngularLoss(tags_coefficients)
+    else:
+        raise RuntimeError(f"Unsupported loss function: '{name}'")
