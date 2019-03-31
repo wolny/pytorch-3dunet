@@ -221,6 +221,12 @@ class TagsAngularLoss(nn.Module):
         self.tags_coefficients = tags_coefficients
 
     def forward(self, inputs, targets, weight):
+        assert isinstance(inputs, list)
+        # if there is just one output head the 'inputs' is going to be a singleton list [tensor]
+        # and 'targets' is just going to be a tensor (that's how the HDF5Dataloader works)
+        # so wrap targets in a list in this case
+        if len(inputs) == 1:
+            targets = [targets]
         assert len(inputs) == len(targets) == len(self.tags_coefficients)
         loss = 0
         for input, target, alpha in zip(inputs, targets, self.tags_coefficients):
@@ -240,6 +246,10 @@ def square_angular_loss(input, target, weights=None):
     :return: per pixel weighted sum of squared angular losses
     """
     assert input.size() == target.size()
+    # normalize and multiply by the stability_coeff in order to prevent NaN results from torch.acos
+    stability_coeff = 0.999999
+    input = input / torch.norm(input, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
+    target = target / torch.norm(target, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
     # compute cosine map
     cosines = (input * target).sum(dim=1)
     error_radians = torch.acos(cosines)

@@ -296,16 +296,16 @@ class TagsUNet3D(nn.Module):
         ])
 
         self.decoders = nn.ModuleList([
-            Decoder(4 * init_channel_number + 8 * init_channel_number, 4 * init_channel_number, True,
+            Decoder(4 * init_channel_number + 8 * init_channel_number, 4 * init_channel_number, interpolate=True,
                     conv_layer_order=conv_layer_order, num_groups=num_groups),
-            Decoder(2 * init_channel_number + 4 * init_channel_number, 2 * init_channel_number, True,
+            Decoder(2 * init_channel_number + 4 * init_channel_number, 2 * init_channel_number, interpolate=True,
                     conv_layer_order=conv_layer_order, num_groups=num_groups),
-            Decoder(init_channel_number + 2 * init_channel_number, init_channel_number, True,
+            Decoder(init_channel_number + 2 * init_channel_number, init_channel_number, interpolate=True,
                     conv_layer_order=conv_layer_order, num_groups=num_groups)
         ])
 
-        self.final_heads = [FinalConv(init_channel_number, out_channels, num_groups=num_groups) for _ in
-                            range(output_heads)]
+        self.final_heads = nn.ModuleList([FinalConv(init_channel_number, out_channels, num_groups=num_groups) for _ in
+                                          range(output_heads)])
 
     def forward(self, x):
         # encoder part

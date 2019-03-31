@@ -133,10 +133,6 @@ class UNet3DTrainer:
             self.optimizer.step()
 
             if self.num_iterations % self.validate_after_iters == 0:
-                # normalize logits and compute the evaluation criterion
-                eval_score = self.eval_criterion(self.model.final_activation(output), target)
-                train_eval_scores.update(eval_score.item(), input.size(0))
-
                 # evaluate on validation set
                 eval_score = self.validate(self.loaders['val'])
                 # adjust learning rate if necessary
@@ -153,13 +149,21 @@ class UNet3DTrainer:
                 self._save_checkpoint(is_best)
 
             if self.num_iterations % self.log_after_iters == 0:
+                # if model contains final_activation layer for normalizing logits apply it
+                if hasattr(self.model, 'final_activation'):
+                    output = self.model.final_activation(output)
+                # compute eval criterion
+                eval_score = self.eval_criterion(output, target)
+                train_eval_scores.update(eval_score.item(), input.size(0))
+
                 # log stats, params and images
                 self.logger.info(
                     f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
                 self._log_stats('train', train_losses.avg, train_eval_scores.avg)
                 self._log_params()
                 # normalize output (during training the network outputs logits only)
-                output = self.model.final_activation(output)
+                if hasattr(self.model, 'final_activation'):
+                    output = self.model.final_activation(output)
                 self._log_images(input, target, output)
 
             if self.max_num_iterations < self.num_iterations:
@@ -187,7 +191,9 @@ class UNet3DTrainer:
                     output, loss = self._forward_pass(input, target, weight)
                     val_losses.update(loss.item(), input.size(0))
 
-                    eval_score = self.eval_criterion(self.model.final_activation(output), target)
+                    if hasattr(self.model, 'final_activation'):
+                        output = self.model.final_activation(output)
+                    eval_score = self.eval_criterion(output, target)
                     val_scores.update(eval_score.item(), input.size(0))
 
                     if self.validate_iters is not None and self.validate_iters <= i:
@@ -266,19 +272,24 @@ class UNet3DTrainer:
     def _log_params(self):
         self.logger.info('Logging model parameters and gradients')
         for name, value in self.model.named_parameters():
-            self.writer.add_histogram(name, value.data.cpu().numpy(),
-                                      self.num_iterations)
-            self.writer.add_histogram(name + '/grad',
-                                      value.grad.data.cpu().numpy(),
-                                      self.num_iterations)
+            self.writer.add_histogram(name, value.data.cpu().numpy(), self.num_iterations)
+            self.writer.add_histogram(name + '/grad', value.grad.data.cpu().numpy(), self.num_iterations)
 
     def _log_images(self, input, target, prediction):
-        sources = {
-            'inputs': input.data.cpu().numpy(),
-            'targets': target.data.cpu().numpy(),
-            'predictions': prediction.data.cpu().numpy()
+        inputs_map = {
+            'inputs': input,
+            'targets': target,
+            'predictions': prediction
         }
-        for name, batch in sources.items():
+        img_sources = {}
+        for name, batch in inputs_map.items():
+            if isinstance(batch, list):
+                for i, b in enumerate(batch):
+                    img_sources[f'{name}{i}'] = b.data.cpu().numpy()
+            else:
+                img_sources[name] = batch.data.cpu().numpy()
+
+        for name, batch in img_sources.items():
             for tag, image in self._images_from_batch(name, batch):
                 self.writer.add_image(tag, image, self.num_iterations, dataformats='HW')
 
@@ -288,18 +299,20 @@ class UNet3DTrainer:
         tagged_images = []
 
         if batch.ndim == 5:
+            # NCDHW
             slice_idx = batch.shape[2] // 2  # get the middle slice
             for batch_idx in range(batch.shape[0]):
                 for channel_idx in range(batch.shape[1]):
                     tag = tag_template.format(name, batch_idx, channel_idx, slice_idx)
                     img = batch[batch_idx, channel_idx, slice_idx, ...]
-                    tagged_images.append((tag, (self._normalize_img(img))))
+                    tagged_images.append((tag, self._normalize_img(img)))
         else:
+            # batch has no channel dim: NDHW
             slice_idx = batch.shape[1] // 2  # get the middle slice
             for batch_idx in range(batch.shape[0]):
                 tag = tag_template.format(name, batch_idx, 0, slice_idx)
                 img = batch[batch_idx, slice_idx, ...]
-                tagged_images.append((tag, (self._normalize_img(img))))
+                tagged_images.append((tag, self._normalize_img(img)))
 
         return tagged_images
 
