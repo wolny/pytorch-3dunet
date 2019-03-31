@@ -5,17 +5,33 @@ from tempfile import NamedTemporaryFile
 import h5py
 import numpy as np
 import torch
-import torch.optim as optim
-from torch.optim.lr_scheduler import MultiStepLR
 
 from datasets.hdf5 import get_train_loaders
+from train import _create_optimizer, _create_lr_scheduler
 from unet3d.losses import get_loss_criterion
 from unet3d.metrics import get_evaluation_metric
-from unet3d.model import UNet3D
+from unet3d.model import get_model
 from unet3d.trainer import UNet3DTrainer
 from unet3d.utils import get_logger
 
 CONFIG_BASE = {
+    'model': {
+        'name': 'UNet3D',
+        'in_channels': 1,
+        'out_channels': 2,
+        'layer_order': 'crg',
+        'interpolate': 'true',
+        'init_channel_number': 16
+    },
+    'optimizer': {
+        'learning_rate': 0.0002,
+        'weight_decay': 0.0001
+    },
+    'lr_scheduler': {
+        'name': 'MultiStepLR',
+        'milestones': [2, 3],
+        'gamma': 0.5
+    },
     'loaders': {
         'train_patch': [32, 64, 64],
         'train_stride': [32, 64, 64],
@@ -23,6 +39,7 @@ CONFIG_BASE = {
         'val_stride': [32, 64, 64],
         'raw_internal_path': 'raw',
         'label_internal_path': 'label',
+        'weight_internal_path': None,
         'transformer': {
             'train': {
                 'raw': [{'name': 'Normalize'}, {'name': 'ToTensor', 'expand_dims': True}],
@@ -78,7 +95,7 @@ class TestUNet3DTrainer:
 
     def test_pce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'pce', 'iou')
+            trainer = self._train_save_load(tmpdir, 'pce', 'iou', weight_map=True)
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -86,11 +103,9 @@ class TestUNet3DTrainer:
             assert trainer.max_num_iterations == 4
 
     def _train_save_load(self, tmpdir, loss, val_metric, max_num_epochs=1, log_after_iters=2, validate_after_iters=2,
-                         max_num_iterations=4):
-        # conv-relu-groupnorm
-        conv_layer_order = 'crg'
-        final_sigmoid = loss in ['bce', 'dice']
+                         max_num_iterations=4, weight_map=False):
         device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+
         test_config = dict(CONFIG_BASE)
         test_config.update({
             # get device to train on
@@ -98,9 +113,15 @@ class TestUNet3DTrainer:
             'loss': {'name': loss, 'weight': np.random.rand(2).astype(np.float32)},
             'eval_metric': {'name': val_metric}
         })
+        test_config['model']['final_sigmoid'] = loss in ['bce', 'dice', 'gdl']
+
+        if weight_map:
+            test_config['loaders']['weight_internal_path'] = 'weight_map'
+
         loss_criterion = get_loss_criterion(test_config)
         eval_criterion = get_evaluation_metric(test_config)
-        model = self._create_model(final_sigmoid, conv_layer_order)
+        model = get_model(test_config)
+
         channel_per_class = loss in ['bce', 'dice', 'gdl']
         if loss in ['bce']:
             label_dtype = 'float32'
@@ -115,11 +136,13 @@ class TestUNet3DTrainer:
 
         loaders = get_train_loaders(test_config)
 
-        learning_rate = 2e-4
-        weight_decay = 0.0001
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        lr_scheduler = MultiStepLR(optimizer, milestones=[2, 3], gamma=0.5)
+        optimizer = _create_optimizer(test_config, model)
+
+        test_config['lr_scheduler']['name'] = 'MultiStepLR'
+        lr_scheduler = _create_lr_scheduler(test_config, optimizer)
+
         logger = get_logger('UNet3DTrainer', logging.DEBUG)
+
         trainer = UNet3DTrainer(model, optimizer, lr_scheduler,
                                 loss_criterion, eval_criterion,
                                 device, loaders, tmpdir,
@@ -135,14 +158,6 @@ class TestUNet3DTrainer:
                                                 loss_criterion, eval_criterion,
                                                 loaders, logger=logger)
         return trainer
-
-    @staticmethod
-    def _create_model(final_sigmoid, layer_order):
-        in_channels = 1
-        out_channels = 2
-        # use F.interpolate for upsampling and 16 initial feature maps to speed up the tests
-        return UNet3D(in_channels, out_channels, init_channel_number=16, final_sigmoid=final_sigmoid, interpolate=True,
-                      conv_layer_order=layer_order)
 
     @staticmethod
     def _create_random_dataset(train_shape, val_shape, channel_per_class):

@@ -18,7 +18,9 @@ class TestHDF5Dataset:
                 raw = f['raw'][...]
                 label = f['label'][...]
 
-                dataset = HDF5Dataset(path, patch_shape, stride_shape, 'test', transformer_config)
+                dataset = HDF5Dataset(path, patch_shape, stride_shape, phase='test',
+                                      transformer_config=transformer_config,
+                                      raw_internal_path='raw', label_internal_path='label')
 
                 # create zero-arrays of the same shape as the original dataset in order to verify if every element
                 # was visited during the iteration
@@ -32,6 +34,19 @@ class TestHDF5Dataset:
                 # verify that every element was visited at least once
                 assert np.all(visit_raw)
                 assert np.all(visit_label)
+
+    def test_hdf5_with_multiple_label_datasets(self):
+        path = create_random_dataset((128, 128, 128), label_datasets=['label1', 'label2'])
+        patch_shape = (32, 64, 64)
+        stride_shape = (32, 64, 64)
+
+        dataset = HDF5Dataset(path, patch_shape, stride_shape, phase='train', transformer_config=transformer_config,
+                         raw_internal_path='raw', label_internal_path=['label1', 'label2'])
+
+        for raw, labels in dataset:
+            assert len(labels) == 2
+
+        dataset.close()
 
     def test_augmentation(self):
         raw = np.random.rand(32, 96, 96)
@@ -70,15 +85,16 @@ class TestHDF5Dataset:
         assert all(ignore_label_volumes[i] <= ignore_label_volumes[i + 1] for i in range(len(ignore_label_volumes) - 1))
 
 
-def create_random_dataset(shape, ignore_index=False):
+def create_random_dataset(shape, ignore_index=False, label_datasets=['label']):
     tmp_file = NamedTemporaryFile(delete=False)
 
     with h5py.File(tmp_file.name, 'w') as f:
         f.create_dataset('raw', data=np.random.rand(*shape))
-        if ignore_index:
-            f.create_dataset('label', data=np.random.randint(-1, 2, shape))
-        else:
-            f.create_dataset('label', data=np.random.randint(0, 2, shape))
+        for label_dataset in label_datasets:
+            if ignore_index:
+                f.create_dataset(label_dataset, data=np.random.randint(-1, 2, shape))
+            else:
+                f.create_dataset(label_dataset, data=np.random.randint(0, 2, shape))
 
     return tmp_file.name
 

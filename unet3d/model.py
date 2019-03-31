@@ -1,3 +1,5 @@
+import importlib
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -23,11 +25,12 @@ class UNet3D(nn.Module):
             to train the model. MUST be False if nn.CrossEntropyLoss (multi-class) is used to train the model.
         conv_layer_order (string): determines the order of layers
             in `DoubleConv` module. e.g. 'crg' stands for Conv3d+ReLU+GroupNorm3d.
-            See `DoubleConv` for more info.
+            See `DoubleConv` for more info
+        init_channel_number (int): number of feature maps in the first conv layer of the encoder; default: 64
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid, interpolate=True, conv_layer_order='crg',
-                 init_channel_number=64):
+                 init_channel_number=64, **kwargs):
         super(UNet3D, self).__init__()
 
         # number of groups for the GroupNorm
@@ -92,7 +95,50 @@ class UNet3D(nn.Module):
         return x
 
 
-class DoubleConv(nn.Sequential):
+class AbstractConv(nn.Sequential):
+    def __init__(self):
+        super(AbstractConv, self).__init__()
+
+    def add_conv(self, pos, in_channels, out_channels, kernel_size, order, num_groups):
+        """Add the conv layer with non-linearity and optional batchnorm/groupnorm
+
+        Args:
+            pos (int): the order (position) of the layer (just for logging)
+            in_channels (int): number of input channels
+            out_channels (int): number of output channels
+            order (string): order of things, e.g.
+                'cr' -> conv + ReLU
+                'crg' -> conv + ReLU + groupnorm
+            num_groups (int): number of groups for the GroupNorm
+        """
+        assert 'c' in order, "'c' (conv layer) MUST be present"
+        assert 'r' in order, "'r' (ReLU layer) MUST be present"
+        assert order[0] is not 'r', 'ReLU cannot be the first operation in the layer'
+
+        for i, char in enumerate(order):
+            if char == 'r':
+                self.add_module(f'relu{pos}', nn.ReLU(inplace=True))
+            elif char == 'c':
+                self.add_module(f'conv{pos}', nn.Conv3d(in_channels,
+                                                        out_channels,
+                                                        kernel_size,
+                                                        padding=1))
+            elif char == 'g':
+                is_before_conv = i < order.index('c')
+                assert not is_before_conv, 'GroupNorm MUST go after the Conv3d'
+                self.add_module(f'norm{pos}', nn.GroupNorm(num_groups=num_groups, num_channels=out_channels))
+            elif char == 'b':
+                is_before_conv = i < order.index('c')
+                if is_before_conv:
+                    self.add_module(f'norm{pos}', nn.BatchNorm3d(in_channels))
+                else:
+                    self.add_module(f'norm{pos}', nn.BatchNorm3d(out_channels))
+            else:
+                raise ValueError(
+                    f"Unsupported layer type '{char}'. MUST be one of 'b', 'r', 'c'")
+
+
+class DoubleConv(AbstractConv):
     """
     A module consisting of two consecutive convolution layers (e.g. BatchNorm3d+ReLU+Conv3d)
     with the number of output channels 'out_channels // 2' and 'out_channels' respectively.
@@ -123,49 +169,9 @@ class DoubleConv(nn.Sequential):
             conv2_in_channels, conv2_out_channels = out_channels, out_channels
 
         # conv1
-        self._add_conv(1, conv1_in_channels, conv1_out_channels, kernel_size, order, num_groups)
+        self.add_conv(1, conv1_in_channels, conv1_out_channels, kernel_size, order, num_groups)
         # conv2
-        self._add_conv(2, conv2_in_channels, conv2_out_channels, kernel_size, order, num_groups)
-
-    def _add_conv(self, pos, in_channels, out_channels, kernel_size, order, num_groups):
-        """Add the conv layer with non-linearity and optional batchnorm
-
-        Args:
-            pos (int): the order (position) of the layer. MUST be 1 or 2
-            in_channels (int): number of input channels
-            out_channels (int): number of output channels
-            order (string): order of things, e.g.
-                'cr' -> conv + ReLU
-                'crg' -> conv + ReLU + groupnorm
-            num_groups (int): number of groups for the GroupNorm
-        """
-        assert pos in [1, 2], 'pos MUST be either 1 or 2'
-        assert 'c' in order, "'c' (conv layer) MUST be present"
-        assert 'r' in order, "'r' (ReLU layer) MUST be present"
-        assert order[
-                   0] is not 'r', 'ReLU cannot be the first operation in the layer'
-
-        for i, char in enumerate(order):
-            if char == 'r':
-                self.add_module(f'relu{pos}', nn.ReLU(inplace=True))
-            elif char == 'c':
-                self.add_module(f'conv{pos}', nn.Conv3d(in_channels,
-                                                        out_channels,
-                                                        kernel_size,
-                                                        padding=1))
-            elif char == 'g':
-                is_before_conv = i < order.index('c')
-                assert not is_before_conv, 'GroupNorm MUST go after the Conv3d'
-                self.add_module(f'norm{pos}', nn.GroupNorm(num_groups=num_groups, num_channels=out_channels))
-            elif char == 'b':
-                is_before_conv = i < order.index('c')
-                if is_before_conv:
-                    self.add_module(f'norm{pos}', nn.BatchNorm3d(in_channels))
-                else:
-                    self.add_module(f'norm{pos}', nn.BatchNorm3d(out_channels))
-            else:
-                raise ValueError(
-                    f"Unsupported layer type '{char}'. MUST be one of 'b', 'r', 'c'")
+        self.add_conv(2, conv2_in_channels, conv2_out_channels, kernel_size, order, num_groups)
 
 
 class Encoder(nn.Module):
@@ -250,3 +256,118 @@ class Decoder(nn.Module):
         x = torch.cat((encoder_features, x), dim=1)
         x = self.double_conv(x)
         return x
+
+
+###############################################Supervised Tags 3DUnet###################################################
+
+class TagsUNet3D(nn.Module):
+    """
+    Supervised tags 3DUnet
+    Args:
+        in_channels (int): number of input channels
+        out_channels (int): number of output channels; since most often we're trying to learn
+            3D unit vectors we use 3 as a default value
+        output_heads (int): number of output heads from the network, each head corresponds to different
+            semantic tag/direction to be learned
+        conv_layer_order (string): determines the order of layers
+            in `DoubleConv` module. e.g. 'crg' stands for Conv3d+ReLU+GroupNorm3d.
+            See `DoubleConv` for more info
+        init_channel_number (int): number of feature maps in the first conv layer of the encoder; default: 64
+    """
+
+    def __init__(self, in_channels, out_channels=3, output_heads=1, conv_layer_order='crg', init_channel_number=32,
+                 **kwargs):
+        super(TagsUNet3D, self).__init__()
+
+        # number of groups for the GroupNorm
+        num_groups = min(init_channel_number // 2, 32)
+
+        # encoder path consist of 4 subsequent Encoder modules
+        # the number of features maps is the same as in the paper
+        self.encoders = nn.ModuleList([
+            Encoder(in_channels, init_channel_number, is_max_pool=False, conv_layer_order=conv_layer_order,
+                    num_groups=num_groups),
+            Encoder(init_channel_number, 2 * init_channel_number, conv_layer_order=conv_layer_order,
+                    num_groups=num_groups),
+            Encoder(2 * init_channel_number, 4 * init_channel_number, conv_layer_order=conv_layer_order,
+                    num_groups=num_groups),
+            Encoder(4 * init_channel_number, 8 * init_channel_number, conv_layer_order=conv_layer_order,
+                    num_groups=num_groups)
+        ])
+
+        self.decoders = nn.ModuleList([
+            Decoder(4 * init_channel_number + 8 * init_channel_number, 4 * init_channel_number, interpolate=True,
+                    conv_layer_order=conv_layer_order, num_groups=num_groups),
+            Decoder(2 * init_channel_number + 4 * init_channel_number, 2 * init_channel_number, interpolate=True,
+                    conv_layer_order=conv_layer_order, num_groups=num_groups),
+            Decoder(init_channel_number + 2 * init_channel_number, init_channel_number, interpolate=True,
+                    conv_layer_order=conv_layer_order, num_groups=num_groups)
+        ])
+
+        self.final_heads = nn.ModuleList([FinalConv(init_channel_number, out_channels, num_groups=num_groups) for _ in
+                                          range(output_heads)])
+
+    def forward(self, x):
+        # encoder part
+        encoders_features = []
+        for encoder in self.encoders:
+            x = encoder(x)
+            # reverse the encoder outputs to be aligned with the decoder
+            encoders_features.insert(0, x)
+
+        # remove the last encoder's output from the list
+        # !!remember: it's the 1st in the list
+        encoders_features = encoders_features[1:]
+
+        # decoder part
+        for decoder, encoder_features in zip(self.decoders, encoders_features):
+            # pass the output from the corresponding encoder and the output
+            # of the previous decoder
+            x = decoder(encoder_features, x)
+
+        # apply final layer per each output head
+        tags = [final_head(x) for final_head in self.final_heads]
+
+        # normalize directions with L2 norm
+        return [tag / torch.norm(tag, p=2, dim=1).detach().clamp(min=1e-8) for tag in tags]
+
+
+class FinalConv(AbstractConv):
+    """
+    A module consisting of a convolution layer (e.g. Conv3d+ReLU+GroupNorm3d) and the final 1x1x1 convolution
+    which reduces the number of channels to 'out_channels'.
+    with the number of output channels 'out_channels // 2' and 'out_channels' respectively.
+    We use (Conv3d+ReLU+GroupNorm3d) by default.
+    This can be change however by providing the 'order' argument, e.g. in order
+    to change to Conv3d+BatchNorm3d+ReLU use order='cbr'.
+    Args:
+        in_channels (int): number of input channels
+        out_channels (int): number of output channels
+        kernel_size (int): size of the convolving kernel
+        order (string): determines the order of layers, e.g.
+            'cr' -> conv + ReLU
+            'crg' -> conv + ReLU + groupnorm
+        num_groups (int): number of groups for the GroupNorm
+    """
+
+    def __init__(self, in_channels, out_channels, kernel_size=3, order='crg', num_groups=32):
+        super(FinalConv, self).__init__()
+
+        # conv1
+        self.add_conv(1, in_channels, in_channels, kernel_size, order, num_groups)
+
+        # in the last layer a 1×1×1 convolution reduces the number of output channels to the number of out_channels
+        final_conv = nn.Conv3d(in_channels, out_channels, 1)
+        self.add_module('final_conv', final_conv)
+
+
+def get_model(config):
+    def _model_class(class_name):
+        m = importlib.import_module('unet3d.model')
+        clazz = getattr(m, class_name)
+        return clazz
+
+    assert 'model' in config, 'Could not find model configuration'
+    model_config = config['model']
+    model_class = _model_class(model_config['name'])
+    return model_class(**model_config)

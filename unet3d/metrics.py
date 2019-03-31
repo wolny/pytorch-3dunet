@@ -7,7 +7,7 @@ from unet3d.utils import get_logger
 
 LOGGER = get_logger('EvalMetric')
 
-SUPPORTED_METRICS = ['dice', 'iou', 'ap']
+SUPPORTED_METRICS = ['dice', 'iou', 'ap', 'angle']
 
 
 class DiceCoefficient:
@@ -269,6 +269,39 @@ class AveragePrecision:
         return input, labels
 
 
+class WithinAngleThreshold:
+    """
+    Returns the percentage of predicted directions which are more than 'angle_threshold' apart from the ground
+    truth directions. 'angle_threshold' is expected to be given in degrees not radians.
+    """
+
+    def __init__(self, angle_threshold):
+        self.threshold_radians = angle_threshold / 360 * np.pi
+
+    def __call__(self, inputs, targets):
+        assert isinstance(inputs, list)
+        if len(inputs) == 1:
+            targets = [targets]
+        assert len(inputs) == len(targets)
+
+        within_count = 0
+        total_count = 0
+        for input, target in zip(inputs, targets):
+            # normalize and multiply by the stability_coeff in order to prevent NaN results from torch.acos
+            stability_coeff = 0.999999
+            input = input / torch.norm(input, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
+            target = target / torch.norm(target, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
+            # compute cosine map
+            cosines = (input * target).sum(dim=1)
+            error_radians = torch.acos(cosines)
+            # increase by the number of directions within the threshold
+            within_count += error_radians[error_radians < self.threshold_radians].numel()
+            # increase by the number of all directions
+            total_count += error_radians.numel()
+
+        return torch.tensor(within_count / total_count)
+
+
 def get_evaluation_metric(config):
     """
     Returns the evaluation metric function based on provided configuration
@@ -293,3 +326,6 @@ def get_evaluation_metric(config):
         use_last_target = eval_config.get('use_last_target', False)
         return AveragePrecision(threshold=threshold, ignore_index=ignore_index, min_instance_size=min_instance_size,
                                 use_last_target=use_last_target)
+    elif name == 'angle':
+        angle_threshold = eval_config.get('angle_threshold')
+        return WithinAngleThreshold(angle_threshold)

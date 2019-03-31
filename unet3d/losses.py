@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch import nn as nn
 from torch.autograd import Variable
 
-SUPPORTED_LOSSES = ['ce', 'bce', 'wce', 'pce', 'dice', 'gdl']
+SUPPORTED_LOSSES = ['ce', 'bce', 'wce', 'pce', 'dice', 'gdl', 'angular']
 
 
 def compute_per_channel_dice(input, target, epsilon=1e-5, ignore_index=None, weight=None):
@@ -215,6 +215,50 @@ class PixelWiseCrossEntropyLoss(nn.Module):
         return result.mean()
 
 
+class TagsAngularLoss(nn.Module):
+    def __init__(self, tags_coefficients):
+        super(TagsAngularLoss, self).__init__()
+        self.tags_coefficients = tags_coefficients
+
+    def forward(self, inputs, targets, weight):
+        assert isinstance(inputs, list)
+        # if there is just one output head the 'inputs' is going to be a singleton list [tensor]
+        # and 'targets' is just going to be a tensor (that's how the HDF5Dataloader works)
+        # so wrap targets in a list in this case
+        if len(inputs) == 1:
+            targets = [targets]
+        assert len(inputs) == len(targets) == len(self.tags_coefficients)
+        loss = 0
+        for input, target, alpha in zip(inputs, targets, self.tags_coefficients):
+            loss += alpha * square_angular_loss(input, target, weight)
+
+        return loss
+
+
+def square_angular_loss(input, target, weights=None):
+    """
+    Computes square angular loss between input and target directions.
+    Make sure that the input and target directions are normalized so that torch.acos would not prduce NaNs.
+
+    :param input: 5D input tensor (NCDHW)
+    :param target: 5D target tensor (NCDHW)
+    :param weights: 3D weight tensor in order to balance different instance sizes
+    :return: per pixel weighted sum of squared angular losses
+    """
+    assert input.size() == target.size()
+    # normalize and multiply by the stability_coeff in order to prevent NaN results from torch.acos
+    stability_coeff = 0.999999
+    input = input / torch.norm(input, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
+    target = target / torch.norm(target, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
+    # compute cosine map
+    cosines = (input * target).sum(dim=1)
+    error_radians = torch.acos(cosines)
+    if weights is not None:
+        return (error_radians * error_radians * weights).sum()
+    else:
+        return (error_radians * error_radians).sum()
+
+
 def flatten(tensor):
     """Flattens a given tensor such that the channel axis is first.
     The shapes are transformed as follows:
@@ -273,7 +317,6 @@ def get_loss_criterion(config):
     assert 'loss' in config, 'Could not find loss function configuration'
     loss_config = config['loss']
     name = loss_config['name']
-    assert name in SUPPORTED_LOSSES, f'Invalid loss: {name}. Supported losses: {SUPPORTED_LOSSES}'
 
     ignore_index = loss_config.get('ignore_index', None)
     weight = loss_config.get('weight', None)
@@ -300,8 +343,13 @@ def get_loss_criterion(config):
         return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index)
     elif name == 'gdl':
         return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index)
-    else:
+    elif name == 'dice':
         sigmoid_normalization = loss_config.get('sigmoid_normalization', True)
         skip_last_target = loss_config.get('skip_last_target', False)
         return DiceLoss(weight=weight, ignore_index=ignore_index, sigmoid_normalization=sigmoid_normalization,
                         skip_last_target=skip_last_target)
+    elif name == 'angular':
+        tags_coefficients = loss_config['tags_coefficients']
+        return TagsAngularLoss(tags_coefficients)
+    else:
+        raise RuntimeError(f"Unsupported loss function: '{name}'")
