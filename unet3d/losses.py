@@ -238,7 +238,7 @@ class TagsAngularLoss(nn.Module):
 def square_angular_loss(input, target, weights=None):
     """
     Computes square angular loss between input and target directions.
-    Make sure that the input and target directions are normalized so that torch.acos would not prduce NaNs.
+    Makes sure that the input and target directions are normalized so that torch.acos would not produce NaNs.
 
     :param input: 5D input tensor (NCDHW)
     :param target: 5D target tensor (NCDHW)
