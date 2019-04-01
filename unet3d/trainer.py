@@ -283,7 +283,7 @@ class UNet3DTrainer:
         }
         img_sources = {}
         for name, batch in inputs_map.items():
-            if isinstance(batch, list):
+            if isinstance(batch, list) or isinstance(batch, tuple):
                 for i, b in enumerate(batch):
                     img_sources[f'{name}{i}'] = b.data.cpu().numpy()
             else:

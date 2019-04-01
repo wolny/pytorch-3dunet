@@ -7,7 +7,7 @@ from unet3d.utils import get_logger
 
 LOGGER = get_logger('EvalMetric')
 
-SUPPORTED_METRICS = ['dice', 'iou', 'ap', 'angle']
+SUPPORTED_METRICS = ['dice', 'iou', 'ap', 'angle', 'inverse_angular']
 
 
 class DiceCoefficient:
@@ -302,6 +302,27 @@ class WithinAngleThreshold:
         return torch.tensor(within_count / total_count)
 
 
+class InverseAngularError:
+    def __call__(self, inputs, targets):
+        assert isinstance(inputs, list)
+        if len(inputs) == 1:
+            targets = [targets]
+        assert len(inputs) == len(targets)
+
+        total_error = 0
+        for input, target in zip(inputs, targets):
+            # normalize and multiply by the stability_coeff in order to prevent NaN results from torch.acos
+            stability_coeff = 0.999999
+            input = input / torch.norm(input, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
+            target = target / torch.norm(target, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
+            # compute cosine map
+            cosines = (input * target).sum(dim=1)
+            error_radians = torch.acos(cosines)
+            total_error += error_radians.sum()
+
+        return torch.tensor(1. / total_error)
+
+
 def get_evaluation_metric(config):
     """
     Returns the evaluation metric function based on provided configuration
@@ -329,3 +350,5 @@ def get_evaluation_metric(config):
     elif name == 'angle':
         angle_threshold = eval_config.get('angle_threshold')
         return WithinAngleThreshold(angle_threshold)
+    elif name == 'inverse_angular':
+        return InverseAngularError()
