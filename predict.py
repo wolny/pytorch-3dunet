@@ -68,11 +68,11 @@ def predict(model, dataset, config):
                 # squeeze batch dimension and convert back to numpy array
                 prediction = prediction.squeeze(dim=0).cpu().numpy()
                 # unpad in order to avoid block artifacts in the output probability maps
-                prediction, index = utils.unpad(prediction, index, volume_shape)
+                u_prediction, u_index = utils.unpad(prediction, index, volume_shape)
                 # accumulate probabilities into the output prediction array
-                prediction_map[index] += prediction
+                prediction_map[u_index] += u_prediction
                 # count voxel visits for normalization
-                normalization_mask[index] += 1
+                normalization_mask[u_index] += 1
 
     return [prediction_map / normalization_mask for prediction_map, normalization_mask in
             zip(prediction_maps, normalization_masks)]
