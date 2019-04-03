@@ -12,7 +12,7 @@ from unet3d.model import get_model
 logger = utils.get_logger('UNet3DPredictor')
 
 
-def predict(model, dataset, out_channels, device):
+def predict(model, dataset, config):
     """
     Return prediction masks by applying the model on the given dataset
 
@@ -23,23 +23,25 @@ def predict(model, dataset, out_channels, device):
         device (torch.Device): device to run the prediction on
 
     Returns:
-         probability_maps (numpy array): prediction masks for given dataset
+         prediction_maps (numpy array): prediction masks for given dataset
     """
+    out_channels = config['model']['out_channels']
+    device = config['device']
+    output_heads = config['model'].get('output_heads', 1)
+
     logger.info(f'Running prediction on {len(dataset)} patches...')
     # dimensionality of the the output (CxDxHxW)
-    dataset_shape = dataset.raw.shape
-    if len(dataset_shape) == 3:
-        volume_shape = dataset_shape
+    if dataset.raw.ndim == 3:
+        volume_shape = dataset.raw.shape
     else:
-        volume_shape = dataset_shape[1:]
-    probability_maps_shape = (out_channels,) + volume_shape
-    logger.info(f'The shape of the output probability maps (CDHW): {probability_maps_shape}')
-    # initialize the output prediction array
-    probability_maps = np.zeros(probability_maps_shape, dtype='float32')
+        volume_shape = dataset.raw.shape[1:]
+    prediction_maps_shape = (out_channels,) + volume_shape
+    logger.info(f'The shape of the output prediction maps (CDHW): {prediction_maps_shape}')
 
-    # initialize normalization mask in order to average out probabilities
-    # of overlapping patches
-    normalization_mask = np.zeros(probability_maps_shape, dtype='float32')
+    # initialize the output prediction arrays
+    prediction_maps = [np.zeros(prediction_maps_shape, dtype='float32') for _ in range(output_heads)]
+    # initialize normalization mask in order to average out probabilities of overlapping patches
+    normalization_masks = [np.zeros(prediction_maps_shape, dtype='float32') for _ in range(output_heads)]
 
     # Sets the module in evaluation mode explicitly, otherwise the final Softmax/Sigmoid won't be applied!
     model.eval()
@@ -52,45 +54,67 @@ def predict(model, dataset, out_channels, device):
             channel_slice = slice(0, out_channels)
             index = (channel_slice,) + index
 
-            # convert patch to torch tensor NxCxDxHxW and send to device
-            # we're using batch size of 1
+            # convert patch to torch tensor NxCxDxHxW and send to device we're using batch size of 1
             patch = patch.unsqueeze(dim=0).to(device)
 
             # forward pass
-            probs = model(patch)
-            # squeeze batch dimension and convert back to numpy array
-            probs = probs.squeeze(dim=0).cpu().numpy()
-            # unpad in order to avoid block artifacts in the output probability maps
-            probs, index = utils.unpad(probs, index, volume_shape)
-            # accumulate probabilities into the output prediction array
-            probability_maps[index] += probs
-            # count voxel visits for normalization
-            normalization_mask[index] += 1
+            predictions = model(patch)
+            # wrap predictions into a list if there is only one output head from the network
+            if output_heads == 1:
+                predictions = [predictions]
 
-    return probability_maps / normalization_mask
+            for prediction, prediction_map, normalization_mask in zip(predictions, prediction_maps,
+                                                                      normalization_masks):
+                # squeeze batch dimension and convert back to numpy array
+                prediction = prediction.squeeze(dim=0).cpu().numpy()
+                # unpad in order to avoid block artifacts in the output probability maps
+                prediction, index = utils.unpad(prediction, index, volume_shape)
+                # accumulate probabilities into the output prediction array
+                prediction_map[index] += prediction
+                # count voxel visits for normalization
+                normalization_mask[index] += 1
+
+    return [prediction_map / normalization_mask for prediction_map, normalization_mask in
+            zip(prediction_maps, normalization_masks)]
 
 
-def save_predictions(probability_maps, output_file, dataset_name='probability_maps'):
+def save_predictions(prediction_maps, output_file, dataset_names):
     """
     Saving probability maps to a given output H5 file. If 'average_channels'
     is set to True average the probability_maps across the the channel axis
     (useful in case where each channel predicts semantically the same thing).
 
     Args:
-        probability_maps (numpy.ndarray): numpy array containing probability
-            maps for each class in separate channels
+        prediction_maps (list): list of numpy array containing prediction maps in separate channels
         output_file (string): path to the output H5 file
-        dataset_name (string): name of the dataset inside H5 file where the probability_maps will be saved
+        dataset_names (list): list of dataset names inside H5 file where the prediction maps will be saved
     """
+    assert len(prediction_maps) == len(dataset_names), 'Each prediction map has to have a corresponding dataset name'
     logger.info(f'Saving predictions to: {output_file}...')
 
     with h5py.File(output_file, "w") as output_h5:
-        logger.info(f"Creating dataset '{dataset_name}'...")
-        output_h5.create_dataset(dataset_name, data=probability_maps, compression="gzip")
+        for prediction_map, dataset_name in zip(prediction_maps, dataset_names):
+            logger.info(f"Creating dataset '{dataset_name}'...")
+            output_h5.create_dataset(dataset_name, data=prediction_map, compression="gzip")
 
 
-def _get_output_file(dataset):
-    return f'{os.path.splitext(dataset.file_path)[0]}_probabilities.h5'
+def _get_output_file(dataset, suffix='_predictions'):
+    return f'{os.path.splitext(dataset.file_path)[0]}{suffix}.h5'
+
+
+def _get_dataset_names(config, number_of_datasets):
+    dataset_names = config.get('dest_dataset_name')
+    if dataset_names is not None:
+        if isinstance(dataset_names, str):
+            return [dataset_names]
+        else:
+            return dataset_names
+    else:
+        default_prefix = 'predictions'
+        if number_of_datasets == 1:
+            return [default_prefix]
+        else:
+            return [f'{default_prefix}{i}' for i in range(number_of_datasets)]
 
 
 def main():
@@ -109,10 +133,11 @@ def main():
     logger.info('Loading datasets...')
     for test_dataset in get_test_datasets(config):
         # run the model prediction on the entire dataset
-        probability_maps = predict(model, test_dataset, config['model']['out_channels'], config['device'])
+        predictions = predict(model, test_dataset, config)
         # save the resulting probability maps
         output_file = _get_output_file(test_dataset)
-        save_predictions(probability_maps, output_file)
+        dataset_names = _get_dataset_names(config, len(predictions))
+        save_predictions(predictions, output_file, dataset_names)
 
 
 if __name__ == '__main__':
