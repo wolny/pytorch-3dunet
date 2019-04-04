@@ -125,7 +125,7 @@ class UNet3DTrainer:
 
             output, loss = self._forward_pass(input, target, weight)
 
-            train_losses.update(loss.item(), input.size(0))
+            train_losses.update(loss.item(), self._batch_size(input))
 
             # compute gradients and update parameters
             self.optimizer.zero_grad()
@@ -154,7 +154,7 @@ class UNet3DTrainer:
                     output = self.model.final_activation(output)
                 # compute eval criterion
                 eval_score = self.eval_criterion(output, target)
-                train_eval_scores.update(eval_score.item(), input.size(0))
+                train_eval_scores.update(eval_score.item(), self._batch_size(input))
 
                 # log stats, params and images
                 self.logger.info(
@@ -189,12 +189,12 @@ class UNet3DTrainer:
                     input, target, weight = self._split_training_batch(t)
 
                     output, loss = self._forward_pass(input, target, weight)
-                    val_losses.update(loss.item(), input.size(0))
+                    val_losses.update(loss.item(), self._batch_size(input))
 
                     if hasattr(self.model, 'final_activation'):
                         output = self.model.final_activation(output)
                     eval_score = self.eval_criterion(output, target)
-                    val_scores.update(eval_score.item(), input.size(0))
+                    val_scores.update(eval_score.item(), self._batch_size(input))
 
                     if self.validate_iters is not None and self.validate_iters <= i:
                         # stop validation
@@ -319,3 +319,10 @@ class UNet3DTrainer:
     @staticmethod
     def _normalize_img(img):
         return (img - np.min(img)) / np.ptp(img)
+
+    @staticmethod
+    def _batch_size(input):
+        if isinstance(input, list) or isinstance(input, tuple):
+            return input[0].size(0)
+        else:
+            return input.size(0)

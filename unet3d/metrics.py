@@ -229,8 +229,8 @@ class DistanceTransformAveragePrecision(_AbstractAP):
         if isinstance(target, np.ndarray):
             assert target.ndim == 3
 
-        predicted_cc = self._dt_to_cc(input)
-        target_cc = self._dt_to_cc(target)
+        predicted_cc = self._dt_to_cc(input, self.threshold)
+        target_cc = self._dt_to_cc(target, self.threshold)
 
         # get ground truth label set
         target_cc, target_instances = self._filter_instances(target_cc)
