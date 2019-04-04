@@ -2,8 +2,9 @@ import torch
 import torch.nn.functional as F
 from torch import nn as nn
 from torch.autograd import Variable
+from torch.nn import MSELoss
 
-SUPPORTED_LOSSES = ['ce', 'bce', 'wce', 'pce', 'dice', 'gdl', 'angular']
+SUPPORTED_LOSSES = ['ce', 'bce', 'wce', 'pce', 'dice', 'gdl', 'angular', 'mse']
 
 
 def compute_per_channel_dice(input, target, epsilon=1e-5, ignore_index=None, weight=None):
@@ -199,20 +200,34 @@ class PixelWiseCrossEntropyLoss(nn.Module):
             log_probabilities = log_probabilities * mask
             target = target * mask
 
-        # apply class weights
+        # create default class_weights if None
         if self.class_weights is None:
             class_weights = torch.ones(input.size()[1]).float().to(input.device)
-        else:
-            class_weights = self.class_weights
-        class_weights = class_weights.view(1, input.size()[1], 1, 1, 1)
-        class_weights = Variable(class_weights, requires_grad=False)
-        # add class_weights to each channel
-        weights = class_weights + weights
+            self.register_buffer('class_weights', class_weights)
+
+        # resize class_weights to be broadcastable into the weights
+        class_weights = self.class_weights.view(1, -1, 1, 1, 1)
+
+        # multiply weights tensor by class weights
+        weights = class_weights * weights
 
         # compute the losses
         result = -weights * target * log_probabilities
         # average the losses
         return result.mean()
+
+
+class MSEWithLogitsLoss(MSELoss):
+    """
+    This loss combines a `Sigmoid` layer and the `MSELoss` in one single class.
+    """
+
+    def __init__(self):
+        super(MSEWithLogitsLoss, self).__init__()
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, input, target):
+        return super().forward(self.sigmoid(input), target)
 
 
 class TagsAngularLoss(nn.Module):
@@ -351,5 +366,7 @@ def get_loss_criterion(config):
     elif name == 'angular':
         tags_coefficients = loss_config['tags_coefficients']
         return TagsAngularLoss(tags_coefficients)
+    elif name == 'mse':
+        return MSEWithLogitsLoss()
     else:
         raise RuntimeError(f"Unsupported loss function: '{name}'")

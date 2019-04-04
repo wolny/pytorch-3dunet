@@ -12,7 +12,7 @@ model:
   interpolate: true
   # number of feature maps in the 1st encoder layer
   init_channel_number: 32
-  # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
+  # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
   final_sigmoid: false
 # trainer configuration
 trainer:

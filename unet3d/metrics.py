@@ -7,7 +7,7 @@ from unet3d.utils import get_logger
 
 LOGGER = get_logger('EvalMetric')
 
-SUPPORTED_METRICS = ['dice', 'iou', 'ap', 'angle', 'inverse_angular']
+SUPPORTED_METRICS = ['dice', 'iou', 'boundary_ap', 'dt_ap', 'angle', 'inverse_angular']
 
 
 class DiceCoefficient:
@@ -98,75 +98,14 @@ class MeanIoU:
         return torch.sum(prediction & target).float() / torch.sum(prediction | target).float()
 
 
-class AveragePrecision:
-    """
-    Computes Average Precision given boundary prediction and ground truth instance segmentation.
-    """
-
-    def __init__(self, threshold=0.4, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None,
-                 use_last_target=False):
-        """
-        :param threshold: probability value at which the input is going to be thresholded
-        :param iou_range: compute ROC curve for the the range of IoU values: range(min,max,0.05)
-        :param ignore_index: label to be ignored during computation
-        :param min_instance_size: minimum size of the predicted instances to be considered
-        :param use_last_target: if True use the last target channel to compute AP
-        """
-        self.threshold = threshold
-        # always have well defined ignore_index
-        if ignore_index is None:
-            ignore_index = -1
+class _AbstractAP:
+    def __init__(self, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None):
         self.iou_range = iou_range
         self.ignore_index = ignore_index
         self.min_instance_size = min_instance_size
-        self.use_last_target = use_last_target
 
     def __call__(self, input, target):
-        """
-        :param input: 5D probability maps torch float tensor (NxCxDxHxW) / or 4D numpy.ndarray
-        :param target: 4D or 5D ground truth instance segmentation torch long tensor / or 3D numpy.ndarray
-        :return: highest average precision among channels
-        """
-        if isinstance(input, torch.Tensor):
-            assert input.dim() == 5
-            # convert to numpy array
-            input = input[0].detach().cpu().numpy()  # 4D
-        if isinstance(target, torch.Tensor):
-            if not self.use_last_target:
-                assert target.dim() == 4
-                # convert to numpy array
-                target = target[0].detach().cpu().numpy()  # 3D
-            else:
-                # if use_last_target == True the target must be 5D (NxCxDxHxW)
-                assert target.dim() == 5
-                target = target[0, -1].detach().cpu().numpy()  # 3D
-
-        if isinstance(input, np.ndarray):
-            assert input.ndim == 4
-        if isinstance(target, np.ndarray):
-            assert target.ndim == 3
-
-        # filter small instances from the target and get ground truth label set (without 'ignore_index')
-        target, target_instances = self._filter_instances(target)
-
-        per_channel_ap = []
-        n_channels = input.shape[0]
-        for c in range(n_channels):
-            predictions = input[c]
-            # threshold probability maps
-            predictions = predictions > self.threshold
-            # for connected component analysis we need to treat boundary signal as background
-            # assign 0-label to boundary mask
-            predictions = np.logical_not(predictions).astype(np.uint8)
-            # run connected components on the predicted mask; consider only 1-connectivity
-            predicted = measure.label(predictions, background=0, connectivity=1)
-            ap = self._calculate_average_precision(predicted, target, target_instances)
-            per_channel_ap.append(ap)
-
-        # get maximum average precision across channels
-        max_ap, c_index = np.max(per_channel_ap), np.argmax(per_channel_ap)
-        LOGGER.info(f'Max average precision: {max_ap}, channel: {c_index}')
-        return max_ap
+        raise NotImplementedError()
 
     def _calculate_average_precision(self, predicted, target, target_instances):
         recall, precision = self._roc_curve(predicted, target, target_instances)
@@ -269,6 +208,121 @@ class AveragePrecision:
         return input, labels
 
 
+class DistanceTransformAveragePrecision(_AbstractAP):
+    def __init__(self, threshold):
+        super().__init__()
+        self.threshold = threshold
+
+    def __call__(self, input, target):
+        if isinstance(input, torch.Tensor):
+            assert input.dim() == 5
+            # convert to numpy array
+            input = input[0, 0].detach().cpu().numpy()  # 3D distance transform
+
+        if isinstance(target, torch.Tensor):
+            assert target.dim() == 5
+            target = target[0, 0].detach().cpu().numpy()  # 3D distance transform
+
+        if isinstance(input, np.ndarray):
+            assert input.ndim == 3
+
+        if isinstance(target, np.ndarray):
+            assert target.ndim == 3
+
+        predicted_cc = self._dt_to_cc(input)
+        target_cc = self._dt_to_cc(target)
+
+        # get ground truth label set
+        target_cc, target_instances = self._filter_instances(target_cc)
+
+        return self._calculate_average_precision(predicted_cc, target_cc, target_instances)
+
+    @staticmethod
+    def _dt_to_cc(distance_transform, threshold):
+        """
+        Threshold a given distance_transform and returns connected components.
+        :param distance_transform: 3D distance transform matrix
+        :param threshold: threshold energy level
+        :return: 3D segmentation volume
+        """
+        boundary = distance_transform < threshold
+        return measure.label(boundary, background=0, connectivity=1)
+
+
+class BoundaryAveragePrecision(_AbstractAP):
+    """
+    Computes Average Precision given boundary prediction and ground truth instance segmentation.
+    """
+
+    def __init__(self, threshold=0.4, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None,
+                 use_last_target=False):
+        """
+        :param threshold: probability value at which the input is going to be thresholded
+        :param iou_range: compute ROC curve for the the range of IoU values: range(min,max,0.05)
+        :param ignore_index: label to be ignored during computation
+        :param min_instance_size: minimum size of the predicted instances to be considered
+        :param use_last_target: if True use the last target channel to compute AP
+        """
+        super().__init__(ignore_index, min_instance_size, iou_range)
+        self.threshold = threshold
+        # always have well defined ignore_index
+        if ignore_index is None:
+            ignore_index = -1
+        self.iou_range = iou_range
+        self.ignore_index = ignore_index
+        self.min_instance_size = min_instance_size
+        self.use_last_target = use_last_target
+
+    def __call__(self, input, target):
+        """
+        :param input: 5D probability maps torch float tensor (NxCxDxHxW) / or 4D numpy.ndarray
+        :param target: 4D or 5D ground truth instance segmentation torch long tensor / or 3D numpy.ndarray
+        :return: highest average precision among channels
+        """
+        if isinstance(input, torch.Tensor):
+            assert input.dim() == 5
+            # convert to numpy array
+            input = input[0].detach().cpu().numpy()  # 4D
+
+        if isinstance(target, torch.Tensor):
+            if not self.use_last_target:
+                assert target.dim() == 4
+                # convert to numpy array
+                target = target[0].detach().cpu().numpy()  # 3D
+            else:
+                # if use_last_target == True the target must be 5D (NxCxDxHxW)
+                assert target.dim() == 5
+                target = target[0, -1].detach().cpu().numpy()  # 3D
+
+        if isinstance(input, np.ndarray):
+            assert input.ndim == 4
+
+        if isinstance(target, np.ndarray):
+            assert target.ndim == 3
+
+        # filter small instances from the target and get ground truth label set (without 'ignore_index')
+        target, target_instances = self._filter_instances(target)
+
+        per_channel_ap = []
+        n_channels = input.shape[0]
+        for c in range(n_channels):
+            predictions = input[c]
+            # threshold probability maps
+            predictions = predictions > self.threshold
+            # for connected component analysis we need to treat boundary signal as background
+            # assign 0-label to boundary mask
+            predictions = np.logical_not(predictions).astype(np.uint8)
+            # run connected components on the predicted mask; consider only 1-connectivity
+            predicted = measure.label(predictions, background=0, connectivity=1)
+            ap = self._calculate_average_precision(predicted, target, target_instances)
+            per_channel_ap.append(ap)
+
+        # get maximum average precision across channels
+        max_ap, c_index = np.max(per_channel_ap), np.argmax(per_channel_ap)
+        LOGGER.info(f'Max average precision: {max_ap}, channel: {c_index}')
+        return max_ap
+
+
 class WithinAngleThreshold:
     """
     Returns the percentage of predicted directions which are more than 'angle_threshold' apart from the ground
@@ -341,12 +395,16 @@ def get_evaluation_metric(config):
     elif name == 'iou':
         skip_channels = eval_config.get('skip_channels', ())
         return MeanIoU(skip_channels=skip_channels, ignore_index=ignore_index)
-    elif name == 'ap':
+    elif name == 'boundary_ap':
         threshold = eval_config.get('threshold', 0.5)
         min_instance_size = eval_config.get('min_instance_size', None)
         use_last_target = eval_config.get('use_last_target', False)
-        return AveragePrecision(threshold=threshold, ignore_index=ignore_index, min_instance_size=min_instance_size,
-                                use_last_target=use_last_target)
+        return BoundaryAveragePrecision(threshold=threshold, ignore_index=ignore_index,
+                                        min_instance_size=min_instance_size,
+                                        use_last_target=use_last_target)
+    elif name == 'dt_ap':
+        threshold = eval_config.get('threshold', 0.1)
+        return DistanceTransformAveragePrecision(threshold)
     elif name == 'angle':
         angle_threshold = eval_config.get('angle_threshold')
         return WithinAngleThreshold(angle_threshold)

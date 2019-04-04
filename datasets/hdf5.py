@@ -6,8 +6,8 @@ import augment.transforms as transforms
 
 
 class SliceBuilder:
-    def __init__(self, raw_dataset, label_datasets, patch_shape, stride_shape):
-        self._raw_slices = self._build_slices(raw_dataset, patch_shape, stride_shape)
+    def __init__(self, raw_datasets, label_datasets, patch_shape, stride_shape):
+        self._raw_slices = self._build_slices(raw_datasets[0], patch_shape, stride_shape)
         if label_datasets is None:
             self._label_slices = None
         else:
@@ -119,19 +119,21 @@ class HDF5Dataset(Dataset):
         self.phase = phase
         self.file_path = file_path
         self.input_file = h5py.File(file_path, 'r')
-        self.raw = self.input_file[raw_internal_path]
 
-        # create raw and label transforms
-        mean, std = self._calculate_mean_std(self.raw[...])
-
-        self.transformer = transforms.get_transformer(transformer_config, mean, std, phase)
-        self.raw_transform = self.transformer.raw_transform()
-
-        # convert label_internal_path and weight_internal_path to list for ease of computation
+        # convert raw_internal_path, label_internal_path and weight_internal_path to list for ease of computation
+        if isinstance(raw_internal_path, str):
+            raw_internal_path = [raw_internal_path]
         if isinstance(label_internal_path, str):
             label_internal_path = [label_internal_path]
         if isinstance(weight_internal_path, str):
             weight_internal_path = [weight_internal_path]
+
+        self.raws = [self.input_file[internal_path] for internal_path in raw_internal_path]
+        # calculate global mean and std for Normalization augmentation
+        mean, std = self._calculate_mean_std(self.raws)
+
+        self.transformer = transforms.get_transformer(transformer_config, mean, std, phase)
+        self.raw_transform = self.transformer.raw_transform()
 
         if phase != 'test':
             # create label/weight transform only in train/val phase
@@ -145,13 +147,13 @@ class HDF5Dataset(Dataset):
             else:
                 self.weight_maps = None
 
-            self._check_dimensionality(self.raw, self.labels)
+            self._check_dimensionality(self.raws, self.labels)
         else:
             # 'test' phase used only for predictions so ignore the label dataset
             self.labels = None
 
         # build slice indices for raw and label data sets
-        slice_builder = slice_builder_cls(self.raw, self.labels, patch_shape, stride_shape)
+        slice_builder = slice_builder_cls(self.raws, self.labels, patch_shape, stride_shape)
         self.raw_slices = slice_builder.raw_slices
         self.label_slices = slice_builder.label_slices
 
@@ -164,9 +166,7 @@ class HDF5Dataset(Dataset):
         # get the slice for a given index 'idx'
         raw_idx = self.raw_slices[idx]
         # get the raw data patch for a given slice
-        raw_patch = self.raw[raw_idx]
-        # apply the raw transformer
-        raw_patch_transformed = self.raw_transform(raw_patch)
+        raw_patch_transformed = self._transform_patches(self.raws, raw_idx, self.raw_transform)
 
         if self.phase == 'test':
             # just return the transformed raw patch and the metadata
@@ -203,23 +203,24 @@ class HDF5Dataset(Dataset):
         self.input_file.close()
 
     @staticmethod
-    def _calculate_mean_std(input):
+    def _calculate_mean_std(inputs):
         """
-        Compute a channel-wise mean/std of the raw stack for normalization.
+        Compute a mean/std of the raw stack for normalization.
         This is an in-memory implementation, override this method
         with the chunk-based computation if you're working with huge H5 files.
         :return: a tuple of (mean, std) of the raw data
         """
+        input = np.concatenate(inputs)
         return input.mean(keepdims=True), input.std(keepdims=True)
 
     @staticmethod
-    def _check_dimensionality(raw, labels):
-        assert raw.ndim in [3, 4], 'Raw dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
-
-        if raw.ndim == 3:
-            raw_shape = raw.shape
-        else:
-            raw_shape = raw.shape[1:]
+    def _check_dimensionality(raws, labels):
+        for raw in raws:
+            assert raw.ndim in [3, 4], 'Raw dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
+            if raw.ndim == 3:
+                raw_shape = raw.shape
+            else:
+                raw_shape = raw.shape[1:]
 
         for label in labels:
             assert label.ndim in [3, 4], 'Label dataset must be 3D (DxHxW) or 4D (CxDxHxW)'

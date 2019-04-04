@@ -21,7 +21,7 @@ class UNet3D(nn.Module):
         interpolate (bool): if True use F.interpolate for upsampling otherwise
             use ConvTranspose3d
         final_sigmoid (bool): if True apply element-wise nn.Sigmoid after the
-            final 1x1x1 convolution, otherwise apply nn.Softmax. MUST be True if nn.BCELoss (two-class) is used
+            final 1x1 convolution, otherwise apply nn.Softmax. MUST be True if nn.BCELoss (two-class) is used
             to train the model. MUST be False if nn.CrossEntropyLoss (multi-class) is used to train the model.
         conv_layer_order (string): determines the order of layers
             in `DoubleConv` module. e.g. 'crg' stands for Conv3d+ReLU+GroupNorm3d.
@@ -39,7 +39,7 @@ class UNet3D(nn.Module):
         # encoder path consist of 4 subsequent Encoder modules
         # the number of features maps is the same as in the paper
         self.encoders = nn.ModuleList([
-            Encoder(in_channels, init_channel_number, is_max_pool=False, conv_layer_order=conv_layer_order,
+            Encoder(in_channels, init_channel_number, apply_pooling=False, conv_layer_order=conv_layer_order,
                     num_groups=num_groups),
             Encoder(init_channel_number, 2 * init_channel_number, conv_layer_order=conv_layer_order,
                     num_groups=num_groups),
@@ -185,25 +185,34 @@ class Encoder(nn.Module):
         in_channels (int): number of input channels
         out_channels (int): number of output channels
         conv_kernel_size (int): size of the convolving kernel
-        is_max_pool (bool): if True use MaxPool3d before DoubleConv
-        max_pool_kernel_size (tuple): the size of the window to take a max over
+        apply_pooling (bool): if True use MaxPool3d before DoubleConv
+        pool_kernel_size (tuple): the size of the window to take a max over
+        pool_type (str): pooling layer: 'max' or 'avg'
         conv_layer_order (string): determines the order of layers
             in `DoubleConv` module. See `DoubleConv` for more info.
         num_groups (int): number of groups for the GroupNorm
     """
 
-    def __init__(self, in_channels, out_channels, conv_kernel_size=3, is_max_pool=True,
-                 max_pool_kernel_size=(2, 2, 2), conv_layer_order='crg', num_groups=32):
+    def __init__(self, in_channels, out_channels, conv_kernel_size=3, apply_pooling=True,
+                 pool_kernel_size=(2, 2, 2), pool_type='max', conv_layer_order='crg', num_groups=32):
         super(Encoder, self).__init__()
-        self.max_pool = nn.MaxPool3d(kernel_size=max_pool_kernel_size, padding=1) if is_max_pool else None
+        assert pool_type in ['max', 'avg']
+        if apply_pooling:
+            if pool_type == 'max':
+                self.pooling = nn.MaxPool3d(kernel_size=pool_kernel_size, padding=1)
+            else:
+                self.pooling = nn.AvgPool3d(kernel_size=pool_kernel_size, padding=1)
+        else:
+            self.pooling = None
+
         self.double_conv = DoubleConv(in_channels, out_channels,
                                       kernel_size=conv_kernel_size,
                                       order=conv_layer_order,
                                       num_groups=num_groups)
 
     def forward(self, x):
-        if self.max_pool is not None:
-            x = self.max_pool(x)
+        if self.pooling is not None:
+            x = self.pooling(x)
         x = self.double_conv(x)
         return x
 
@@ -285,7 +294,7 @@ class TagsUNet3D(nn.Module):
         # encoder path consist of 4 subsequent Encoder modules
         # the number of features maps is the same as in the paper
         self.encoders = nn.ModuleList([
-            Encoder(in_channels, init_channel_number, is_max_pool=False, conv_layer_order=conv_layer_order,
+            Encoder(in_channels, init_channel_number, apply_pooling=False, conv_layer_order=conv_layer_order,
                     num_groups=num_groups),
             Encoder(init_channel_number, 2 * init_channel_number, conv_layer_order=conv_layer_order,
                     num_groups=num_groups),
@@ -334,7 +343,7 @@ class TagsUNet3D(nn.Module):
 
 class FinalConv(AbstractConv):
     """
-    A module consisting of a convolution layer (e.g. Conv3d+ReLU+GroupNorm3d) and the final 1x1x1 convolution
+    A module consisting of a convolution layer (e.g. Conv3d+ReLU+GroupNorm3d) and the final 1x1 convolution
     which reduces the number of channels to 'out_channels'.
     with the number of output channels 'out_channels // 2' and 'out_channels' respectively.
     We use (Conv3d+ReLU+GroupNorm3d) by default.
@@ -371,3 +380,86 @@ def get_model(config):
     model_config = config['model']
     model_class = _model_class(model_config['name'])
     return model_class(**model_config)
+
+
+################################################Distance transform 3DUNet##############################################
+class DistanceTransformUNet3D(nn.Module):
+    """
+    Predict Distance Transform to the boundary signal based on the output from the Tags3DUnet. Fore training use either:
+        1. PixelWiseCrossEntropyLoss if the distance transform is quantized (classification)
+        2. MSELoss if the distance transform is continuous (regression)
+    Args:
+        in_channels (int): number of input channels
+        out_channels (int): number of output segmentation masks;
+            Note that that the of out_channels might correspond to either
+            different semantic classes or to different binary segmentation mask.
+            It's up to the user of the class to interpret the out_channels and
+            use the proper loss criterion during training (i.e. NLLLoss (multi-class)
+            or BCELoss (two-class) respectively)
+        final_sigmoid (bool): 'sigmoid'/'softmax' whether element-wise nn.Sigmoid or nn.Softmax should be applied after
+            the final 1x1 convolution
+        init_channel_number (int): number of feature maps in the first conv layer of the encoder; default: 64
+    """
+
+    def __init__(self, in_channels, out_channels, final_sigmoid, init_channel_number=64, **kwargs):
+        super(DistanceTransformUNet3D, self).__init__()
+
+        # number of groups for the GroupNorm
+        num_groups = min(init_channel_number // 2, 32)
+
+        # encoder path consist of 4 subsequent Encoder modules
+        # the number of features maps is the same as in the paper
+        self.encoders = nn.ModuleList([
+            Encoder(in_channels, init_channel_number, apply_pooling=False, conv_layer_order='crg',
+                    num_groups=num_groups),
+            Encoder(init_channel_number, 2 * init_channel_number, pool_type='avg', conv_layer_order='crg',
+                    num_groups=num_groups)
+        ])
+
+        self.decoders = nn.ModuleList([
+            Decoder(3 * init_channel_number, init_channel_number, interpolate=True, conv_layer_order='crg',
+                    num_groups=num_groups)
+        ])
+
+        # in the last layer a 1×1 convolution reduces the number of output
+        # channels to the number of labels
+        self.final_conv = nn.Conv3d(init_channel_number, out_channels, 1)
+
+        if final_sigmoid:
+            self.final_activation = nn.Sigmoid()
+        else:
+            self.final_activation = nn.Softmax(dim=1)
+
+    def forward(self, inputs):
+        # allow multiple heads
+        if isinstance(inputs, list) or isinstance(inputs, tuple):
+            x = torch.cat(inputs, dim=1)
+        else:
+            x = inputs
+
+        # encoder part
+        encoders_features = []
+        for encoder in self.encoders:
+            x = encoder(x)
+            # reverse the encoder outputs to be aligned with the decoder
+            encoders_features.insert(0, x)
+
+        # remove the last encoder's output from the list
+        # !!remember: it's the 1st in the list
+        encoders_features = encoders_features[1:]
+
+        # decoder part
+        for decoder, encoder_features in zip(self.decoders, encoders_features):
+            # pass the output from the corresponding encoder and the output
+            # of the previous decoder
+            x = decoder(encoder_features, x)
+
+        # apply final 1x1 convolution
+        x = self.final_conv(x)
+
+        # apply final_activation (i.e. Sigmoid or Softmax) only for prediction. During training the network outputs
+        # logits and it's up to the user to normalize it before visualising with tensorboard or computing validation metric
+        if not self.training:
+            x = self.final_activation(x)
+
+        return x

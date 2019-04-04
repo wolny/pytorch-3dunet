@@ -8,7 +8,7 @@ from skimage import measure
 from augment.transforms import LabelToBoundary
 from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, BCELossWrapper, \
     DiceLoss, TagsAngularLoss
-from unet3d.metrics import DiceCoefficient, MeanIoU, AveragePrecision
+from unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision
 
 
 def _compute_criterion(criterion, n_times=100):
@@ -76,7 +76,7 @@ class TestCriterion:
 
         target = measure.label(np.logical_not(input).astype(np.int), background=0)
         input = np.expand_dims(input, axis=0)
-        ap = AveragePrecision()
+        ap = BoundaryAveragePrecision()
         # expect perfect AP
         assert ap(input, target) == 1.0
 
@@ -87,7 +87,7 @@ class TestCriterion:
             ltb = LabelToBoundary((1, 2, 4, 6), aggregate_affinities=True)
             pred = ltb(label)
             # don't compare instances smaller than 25K voxels
-            ap = AveragePrecision(min_instance_size=25000)
+            ap = BoundaryAveragePrecision(min_instance_size=25000)
             assert ap(pred, label) > 0.5
 
     def test_generalized_dice_loss(self):

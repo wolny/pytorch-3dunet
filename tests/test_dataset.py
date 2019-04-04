@@ -41,9 +41,24 @@ class TestHDF5Dataset:
         stride_shape = (32, 64, 64)
 
         dataset = HDF5Dataset(path, patch_shape, stride_shape, phase='train', transformer_config=transformer_config,
-                         raw_internal_path='raw', label_internal_path=['label1', 'label2'])
+                              raw_internal_path='raw', label_internal_path=['label1', 'label2'])
 
         for raw, labels in dataset:
+            assert len(labels) == 2
+
+        dataset.close()
+
+    def test_hdf5_with_multiple_raw_and_label_datasets(self):
+        path = create_random_dataset((128, 128, 128), raw_datasets=['raw1', 'raw2'],
+                                     label_datasets=['label1', 'label2'])
+        patch_shape = (32, 64, 64)
+        stride_shape = (32, 64, 64)
+
+        dataset = HDF5Dataset(path, patch_shape, stride_shape, phase='train', transformer_config=transformer_config,
+                              raw_internal_path=['raw1', 'raw2'], label_internal_path=['label1', 'label2'])
+
+        for raws, labels in dataset:
+            assert len(raws) == 2
             assert len(labels) == 2
 
         dataset.close()
@@ -85,11 +100,13 @@ class TestHDF5Dataset:
         assert all(ignore_label_volumes[i] <= ignore_label_volumes[i + 1] for i in range(len(ignore_label_volumes) - 1))
 
 
-def create_random_dataset(shape, ignore_index=False, label_datasets=['label']):
+def create_random_dataset(shape, ignore_index=False, raw_datasets=['raw'], label_datasets=['label']):
     tmp_file = NamedTemporaryFile(delete=False)
 
     with h5py.File(tmp_file.name, 'w') as f:
-        f.create_dataset('raw', data=np.random.rand(*shape))
+        for raw_dataset in raw_datasets:
+            f.create_dataset(raw_dataset, data=np.random.rand(*shape))
+
         for label_dataset in label_datasets:
             if ignore_index:
                 f.create_dataset(label_dataset, data=np.random.randint(-1, 2, shape))
