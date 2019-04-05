@@ -215,12 +215,25 @@ class _AbstractAP:
         :param threshold: threshold energy level
         :return: 3D segmentation volume
         """
-        boundary = distance_transform < threshold
+        boundary = (distance_transform > threshold).astype(np.uint8)
         return measure.label(boundary, background=0, connectivity=1)
 
 
+class StandardAveragePrecision(_AbstractAP):
+    def __init__(self, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None):
+        super().__init__(iou_range, ignore_index, min_instance_size)
+
+    def __call__(self, input, target):
+        assert isinstance(input, np.ndarray) and isinstance(target, np.ndarray)
+        assert input.ndim == target.ndim == 3
+
+        target, target_instances = self._filter_instances(target)
+
+        return self._calculate_average_precision(input, target, target_instances)
+
+
 class DistanceTransformAveragePrecision(_AbstractAP):
-    def __init__(self, threshold):
+    def __init__(self, threshold=0.1):
         super().__init__()
         self.threshold = threshold
 
@@ -250,7 +263,7 @@ class DistanceTransformAveragePrecision(_AbstractAP):
 
 
 class QuantizedDistanceTransformAveragePrecision(_AbstractAP):
-    def __init__(self, threshold=1):
+    def __init__(self, threshold=0):
         super().__init__()
         self.threshold = threshold
 
