@@ -7,7 +7,7 @@ from unet3d.utils import get_logger
 
 LOGGER = get_logger('EvalMetric')
 
-SUPPORTED_METRICS = ['dice', 'iou', 'boundary_ap', 'dt_ap', 'angle', 'inverse_angular']
+SUPPORTED_METRICS = ['dice', 'iou', 'boundary_ap', 'dt_ap', 'quantized_dt_ap', 'angle', 'inverse_angular']
 
 
 class DiceCoefficient:
@@ -207,6 +207,17 @@ class _AbstractAP:
         labels.discard(self.ignore_index)
         return input, labels
 
+    @staticmethod
+    def _dt_to_cc(distance_transform, threshold):
+        """
+        Threshold a given distance_transform and returns connected components.
+        :param distance_transform: 3D distance transform matrix
+        :param threshold: threshold energy level
+        :return: 3D segmentation volume
+        """
+        boundary = distance_transform < threshold
+        return measure.label(boundary, background=0, connectivity=1)
+
 
 class DistanceTransformAveragePrecision(_AbstractAP):
     def __init__(self, threshold):
@@ -237,16 +248,37 @@ class DistanceTransformAveragePrecision(_AbstractAP):
 
         return self._calculate_average_precision(predicted_cc, target_cc, target_instances)
 
-    @staticmethod
-    def _dt_to_cc(distance_transform, threshold):
-        """
-        Threshold a given distance_transform and returns connected components.
-        :param distance_transform: 3D distance transform matrix
-        :param threshold: threshold energy level
-        :return: 3D segmentation volume
-        """
-        boundary = distance_transform < threshold
-        return measure.label(boundary, background=0, connectivity=1)
+
+class QuantizedDistanceTransformAveragePrecision(_AbstractAP):
+    def __init__(self, threshold=1):
+        super().__init__()
+        self.threshold = threshold
+
+    def __call__(self, input, target):
+        if isinstance(input, torch.Tensor):
+            assert input.dim() == 5
+            # convert probability maps to label tensor
+            input = torch.argmax(input[0], dim=0)
+            # convert to numpy array
+            input = input.detach().cpu().numpy()  # 3D distance transform
+
+        if isinstance(target, torch.Tensor):
+            assert target.dim() == 4
+            target = target[0].detach().cpu().numpy()  # 3D distance transform
+
+        if isinstance(input, np.ndarray):
+            assert input.ndim == 3
+
+        if isinstance(target, np.ndarray):
+            assert target.ndim == 3
+
+        predicted_cc = self._dt_to_cc(input, self.threshold)
+        target_cc = self._dt_to_cc(target, self.threshold)
+
+        # get ground truth label set
+        target_cc, target_instances = self._filter_instances(target_cc)
+
+        return self._calculate_average_precision(predicted_cc, target_cc, target_instances)
 
 
 class BoundaryAveragePrecision(_AbstractAP):
@@ -405,6 +437,9 @@ def get_evaluation_metric(config):
     elif name == 'dt_ap':
         threshold = eval_config.get('threshold', 0.1)
         return DistanceTransformAveragePrecision(threshold)
+    elif name == 'quantized_dt_ap':
+        threshold = eval_config.get('threshold', 1)
+        return QuantizedDistanceTransformAveragePrecision(threshold)
     elif name == 'angle':
         angle_threshold = eval_config.get('angle_threshold')
         return WithinAngleThreshold(angle_threshold)

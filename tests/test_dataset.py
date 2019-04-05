@@ -3,7 +3,7 @@ from tempfile import NamedTemporaryFile
 import h5py
 import numpy as np
 
-from datasets.hdf5 import HDF5Dataset, CurriculumLearningSliceBuilder
+from datasets.hdf5 import HDF5Dataset
 
 
 class TestHDF5Dataset:
@@ -82,22 +82,6 @@ class TestHDF5Dataset:
         for (img, label) in dataset:
             for i in range(label.shape[0]):
                 assert np.allclose(img, label[i])
-
-    def test_cl_slice_builder(self):
-        path = create_random_dataset((128, 128, 128), ignore_index=True)
-
-        patch_shape = (32, 64, 64)
-        stride_shape = (32, 64, 64)
-
-        ignore_label_volumes = []
-        dataset = HDF5Dataset(path, patch_shape, stride_shape, 'test', transformer_config=transformer_config,
-                              slice_builder_cls=CurriculumLearningSliceBuilder)
-
-        for _, label in dataset:
-            ignore_label_volumes.append(np.count_nonzero(label == -1))
-
-        # make sure that label patches are sorted by the number of ignore index voxels
-        assert all(ignore_label_volumes[i] <= ignore_label_volumes[i + 1] for i in range(len(ignore_label_volumes) - 1))
 
 
 def create_random_dataset(shape, ignore_index=False, raw_datasets=['raw'], label_datasets=['label']):

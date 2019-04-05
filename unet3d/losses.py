@@ -290,7 +290,7 @@ def flatten(tensor):
 
 def expand_as_one_hot(input, C, ignore_index=None):
     """
-    Converts NxDxHxW label image to NxCxDxHxW, where each label is stored in a separate channel
+    Converts NxDxHxW label image to NxCxDxHxW, where each label gets converted to its corresponding one-hot vector
     :param input: 4D input image (NxDxHxW)
     :param C: number of channels/labels
     :param ignore_index: ignore index to be kept during the expansion

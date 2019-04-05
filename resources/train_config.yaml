@@ -71,8 +71,6 @@ loaders:
   # paths to the validation datasets
   val_path:
     - 'resources/random_label3D.h5'
-  # simple Curriculum Learning scheme used to draw samples from the datasets if ignore_index is present
-  curriculum: false
   # data transformations/augmentations
   transformer:
     train:

@@ -6,15 +6,19 @@ import augment.transforms as transforms
 
 
 class SliceBuilder:
-    def __init__(self, raw_datasets, label_datasets, patch_shape, stride_shape):
+    def __init__(self, raw_datasets, label_datasets, weight_dataset, patch_shape, stride_shape):
         self._raw_slices = self._build_slices(raw_datasets[0], patch_shape, stride_shape)
         if label_datasets is None:
             self._label_slices = None
         else:
             # take the first element in the label_datasets to build slices
-            # TODO: won't work for curriculum slice builder
             self._label_slices = self._build_slices(label_datasets[0], patch_shape, stride_shape)
             assert len(self._raw_slices) == len(self._label_slices)
+        if weight_dataset is None:
+            self._weight_slices = None
+        else:
+            self._weight_slices = self._build_slices(weight_dataset[0], patch_shape, stride_shape)
+            assert len(self.raw_slices) == len(self._weight_slices)
 
     @property
     def raw_slices(self):
@@ -23,6 +27,10 @@ class SliceBuilder:
     @property
     def label_slices(self):
         return self._label_slices
+
+    @property
+    def weight_slices(self):
+        return self._weight_slices
 
     @staticmethod
     def _build_slices(dataset, patch_shape, stride_shape):
@@ -67,6 +75,7 @@ class SliceBuilder:
             yield i - k
 
 
+# WARN: deprecated slice builder
 class CurriculumLearningSliceBuilder(SliceBuilder):
     """
     Simple Curriculum Learning strategy when we show patches with less volume of 'ignore_index' (label patch) first.
@@ -151,11 +160,13 @@ class HDF5Dataset(Dataset):
         else:
             # 'test' phase used only for predictions so ignore the label dataset
             self.labels = None
+            self.weight_maps = None
 
         # build slice indices for raw and label data sets
-        slice_builder = slice_builder_cls(self.raws, self.labels, patch_shape, stride_shape)
+        slice_builder = slice_builder_cls(self.raws, self.labels, self.weight_maps, patch_shape, stride_shape)
         self.raw_slices = slice_builder.raw_slices
         self.label_slices = slice_builder.label_slices
+        self.weight_slices = slice_builder.weight_slices
 
         self.patch_count = len(self.raw_slices)
 
@@ -176,8 +187,9 @@ class HDF5Dataset(Dataset):
             label_idx = self.label_slices[idx]
             label_patch_transformed = self._transform_patches(self.labels, label_idx, self.label_transform)
             if self.weight_maps is not None:
-                # return the transformed voxel weight map for a given patch together with raw and label data
-                weight_patch_transformed = self._transform_patches(self.weight_maps, raw_idx, self.weight_transform)
+                weight_idx = self.weight_slices[idx]
+                # return the transformed weight map for a given patch together with raw and label data
+                weight_patch_transformed = self._transform_patches(self.weight_maps, weight_idx, self.weight_transform)
                 return raw_patch_transformed, label_patch_transformed, weight_patch_transformed
             # return the transformed raw and label patches
             return raw_patch_transformed, label_patch_transformed
@@ -266,11 +278,8 @@ def get_train_loaders(config):
     val_patch = tuple(loaders_config['val_patch'])
     val_stride = tuple(loaders_config['val_stride'])
 
-    curriculum_sampler = loaders_config.get('curriculum', False)
-    if curriculum_sampler:
-        slice_builder_cls = CurriculumLearningSliceBuilder
-    else:
-        slice_builder_cls = SliceBuilder
+    # default slice builder
+    slice_builder_cls = SliceBuilder
 
     train_datasets = []
     for train_path in train_paths:
@@ -292,10 +301,10 @@ def get_train_loaders(config):
                                   weight_internal_path=weight_internal_path)
         val_datasets.append(val_dataset)
 
-    # shuffle only if curriculum learning scheme is not used
+    # while training with volumetric data use batch_size of 1 due to GPU memory constraints
     return {
-        'train': DataLoader(ConcatDataset(train_datasets), batch_size=1, shuffle=not curriculum_sampler),
-        'val': DataLoader(ConcatDataset(val_datasets), batch_size=1, shuffle=not curriculum_sampler)
+        'train': DataLoader(ConcatDataset(train_datasets), batch_size=1, shuffle=True),
+        'val': DataLoader(ConcatDataset(val_datasets), batch_size=1, shuffle=True)
     }
 
 
