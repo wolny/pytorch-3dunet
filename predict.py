@@ -138,7 +138,7 @@ def main():
 
     logger.info('Loading HDF5 datasets...')
     for test_dataset in get_test_datasets(config):
-        logger.info(f"Processing '{test_dataset.input_file}'...")
+        logger.info(f"Processing '{test_dataset.file_path}'...")
         # run the model prediction on the entire dataset
         predictions = predict(model, test_dataset, config)
         # save the resulting probability maps
