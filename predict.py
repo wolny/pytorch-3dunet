@@ -12,29 +12,35 @@ from unet3d.model import get_model
 logger = utils.get_logger('UNet3DPredictor')
 
 
-def predict(model, dataset, config):
+def predict(model, hdf5_dataset, config):
     """
     Return prediction masks by applying the model on the given dataset
 
     Args:
         model (Unet3D): trained 3D UNet model used for prediction
-        dataset (torch.utils.data.Dataset): input dataset
+        hdf5_dataset (torch.utils.data.Dataset): input dataset
         out_channels (int): number of channels in the network output
         device (torch.Device): device to run the prediction on
 
     Returns:
          prediction_maps (numpy array): prediction masks for given dataset
     """
+
+    def _volume_shape(hdf5_dataset):
+        #TODO: support multiple internal datasets
+        raw = hdf5_dataset.raws[0]
+        if raw.ndim == 3:
+            return raw.shape
+        else:
+            return raw.shape[1:]
+
     out_channels = config['model']['out_channels']
     device = config['device']
     output_heads = config['model'].get('output_heads', 1)
 
-    logger.info(f'Running prediction on {len(dataset)} patches...')
+    logger.info(f'Running prediction on {len(hdf5_dataset)} patches...')
     # dimensionality of the the output (CxDxHxW)
-    if dataset.raw.ndim == 3:
-        volume_shape = dataset.raw.shape
-    else:
-        volume_shape = dataset.raw.shape[1:]
+    volume_shape = _volume_shape(hdf5_dataset)
     prediction_maps_shape = (out_channels,) + volume_shape
     logger.info(f'The shape of the output prediction maps (CDHW): {prediction_maps_shape}')
 
@@ -47,7 +53,7 @@ def predict(model, dataset, config):
     model.eval()
     # Run predictions on the entire input dataset
     with torch.no_grad():
-        for patch, index in dataset:
+        for patch, index in hdf5_dataset:
             logger.info(f'Predicting slice:{index}')
 
             # save patch index: (C,D,H,W)
@@ -130,8 +136,9 @@ def main():
     utils.load_checkpoint(model_path, model)
     model = model.to(config['device'])
 
-    logger.info('Loading datasets...')
+    logger.info('Loading HDF5 datasets...')
     for test_dataset in get_test_datasets(config):
+        logger.info(f"Processing '{test_dataset.input_file}'...")
         # run the model prediction on the entire dataset
         predictions = predict(model, test_dataset, config)
         # save the resulting probability maps
