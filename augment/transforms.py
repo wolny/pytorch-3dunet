@@ -70,7 +70,7 @@ class RandomRotate:
     Rotation axis is picked at random from the list of provided axes.
     """
 
-    def __init__(self, random_state, angle_spectrum=10, axes=None, mode='constant', **kwargs):
+    def __init__(self, random_state, angle_spectrum=10, axes=None, mode='constant', order=0, **kwargs):
         if axes is None:
             axes = [(1, 0), (2, 1), (2, 0)]
         else:
@@ -80,16 +80,17 @@ class RandomRotate:
         self.angle_spectrum = angle_spectrum
         self.axes = axes
         self.mode = mode
+        self.order = order
 
     def __call__(self, m):
         axis = self.axes[self.random_state.randint(len(self.axes))]
         angle = self.random_state.randint(-self.angle_spectrum, self.angle_spectrum)
 
         if m.ndim == 3:
-            m = rotate(m, angle, axes=axis, reshape=False, order=0, mode=self.mode, cval=-1)
+            m = rotate(m, angle, axes=axis, reshape=False, order=self.order, mode=self.mode, cval=-1)
         else:
-            channels = [rotate(m[c], angle, axes=axis, reshape=False, order=0, mode=self.mode, cval=-1) for c in
-                        range(m.shape[0])]
+            channels = [rotate(m[c], angle, axes=axis, reshape=False, order=self.order, mode=self.mode, cval=-1) for c
+                        in range(m.shape[0])]
             m = np.stack(channels, axis=0)
 
         return m
