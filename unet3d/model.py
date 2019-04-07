@@ -401,7 +401,7 @@ class DistanceTransformUNet3D(nn.Module):
         init_channel_number (int): number of feature maps in the first conv layer of the encoder; default: 64
     """
 
-    def __init__(self, in_channels, out_channels, final_sigmoid, init_channel_number=64, **kwargs):
+    def __init__(self, in_channels, out_channels, final_sigmoid, init_channel_number=32, **kwargs):
         super(DistanceTransformUNet3D, self).__init__()
 
         # number of groups for the GroupNorm
@@ -463,3 +463,32 @@ class DistanceTransformUNet3D(nn.Module):
             x = self.final_activation(x)
 
         return x
+
+
+class EndToEndDTUNet3D(nn.Module):
+    def __init__(self, tags_in_channels, tags_out_channels, tags_output_heads, tags_init_channel_number,
+                 dt_in_channels, dt_out_channels, dt_final_sigmoid, dt_init_channel_number,
+                 tags_net_path=None, dt_net_path=None, **kwargs):
+        super(EndToEndDTUNet3D, self).__init__()
+
+        self.tags_net = TagsUNet3D(tags_in_channels, tags_out_channels, tags_output_heads,
+                                   init_channel_number=tags_init_channel_number)
+        if tags_net_path is not None:
+            # load pre-trained TagsUNet3D
+            self.tags_net = self._load_net(tags_net_path, self.tags_net)
+
+        self.dt_net = DistanceTransformUNet3D(dt_in_channels, dt_out_channels, dt_final_sigmoid,
+                                              init_channel_number=dt_init_channel_number)
+        if dt_net_path is not None:
+            # load pre-trained DistanceTransformUNet3D
+            self.dt_net = self._load_net(dt_net_path, self.dt_net)
+
+    @staticmethod
+    def _load_net(checkpoint_path, model):
+        state = torch.load(checkpoint_path)
+        model.load_state_dict(state['model_state_dict'])
+        return model
+
+    def forward(self, x):
+        x = self.tags_net(x)
+        return self.dt_net(x)
