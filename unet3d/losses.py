@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn as nn
 from torch.autograd import Variable
-from torch.nn import MSELoss
+from torch.nn import MSELoss, SmoothL1Loss
 
 SUPPORTED_LOSSES = ['ce', 'bce', 'wce', 'pce', 'dice', 'gdl', 'angular', 'mse']
 
@@ -368,5 +368,7 @@ def get_loss_criterion(config):
         return TagsAngularLoss(tags_coefficients)
     elif name == 'mse':
         return MSEWithLogitsLoss()
+    elif name == 'SmoothL1Loss':
+        return SmoothL1Loss()
     else:
         raise RuntimeError(f"Unsupported loss function: '{name}'")
