@@ -34,7 +34,10 @@ def predict(model, hdf5_dataset, config):
         else:
             return raw.shape[1:]
 
-    out_channels = config['model']['out_channels']
+    out_channels = config['model'].get('out_channels')
+    if out_channels is None:
+        out_channels = config['model']['dt_out_channels']
+
     device = config['device']
     output_heads = config['model'].get('output_heads', 1)
 
