@@ -75,29 +75,29 @@ class SliceBuilder:
             yield i - k
 
 
-# WARN: deprecated slice builder
-class CurriculumLearningSliceBuilder(SliceBuilder):
+class FilterSliceBuilder(SliceBuilder):
     """
-    Simple Curriculum Learning strategy when we show patches with less volume of 'ignore_index' (label patch) first.
-    The hypothesis is that having less 'ignore_index' patches at the beginning of the epoch will lead to faster
-    convergence and better local minima.
+    Filter patches containing more than `1 - threshold` of ignore_index label
     """
 
-    def __init__(self, raw_dataset, label_datasets, patch_shape, stride_shape, ignore_index=-1):
-        super().__init__(raw_dataset, label_datasets, patch_shape, stride_shape)
+    def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
+                 threshold=0.8, slack_acceptance=0.01):
+        super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape)
         if label_datasets is None:
             return
 
-        def ignore_index_volume(raw_label_idx):
-            _, label_idx = raw_label_idx
-            label_patch = label_datasets[0][label_idx]
-            return np.count_nonzero(label_patch == ignore_index)
+        def ignore_predicate(raw_label_idx):
+            label_idx = raw_label_idx[1]
+            patch = label_datasets[0][label_idx]
+            non_ignore_counts = np.array([np.count_nonzero(patch != ii) for ii in ignore_index])
+            non_ignore_counts = non_ignore_counts / patch.size
+            return np.any(non_ignore_counts > threshold) or np.random.rand() < slack_acceptance
 
-        # after computing the patches sort them so that patches with less ignore_index volume come first
         zipped_slices = zip(self.raw_slices, self.label_slices)
-        sorted_slices = sorted(zipped_slices, key=ignore_index_volume)
-        # unzip as save
-        raw_slices, label_slices = zip(*sorted_slices)
+        # ignore slices containing too much ignore_index
+        filtered_slices = list(filter(ignore_predicate, zipped_slices))
+        # unzip and save slices
+        raw_slices, label_slices = zip(*filtered_slices)
         self._raw_slices = list(raw_slices)
         self._label_slices = list(label_slices)
 
