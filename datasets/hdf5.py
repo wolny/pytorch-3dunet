@@ -301,10 +301,14 @@ def get_train_loaders(config):
                                   weight_internal_path=weight_internal_path)
         val_datasets.append(val_dataset)
 
-    # while training with volumetric data use batch_size of 1 due to GPU memory constraints
+    # FIXME: h5py doesn't allow to read a file from multiple subprocesses.
+    # Doing so results in: OSError: Can't read data (inflate() failed)
+    # num_workers cannot be greater than 1 because of this
+    #
+    # when training with volumetric data use batch_size of 1 due to GPU memory constraints
     return {
-        'train': DataLoader(ConcatDataset(train_datasets), batch_size=1, shuffle=True),
-        'val': DataLoader(ConcatDataset(val_datasets), batch_size=1, shuffle=True)
+        'train': DataLoader(ConcatDataset(train_datasets), batch_size=1, shuffle=True, num_workers=1),
+        'val': DataLoader(ConcatDataset(val_datasets), batch_size=1, shuffle=True, num_workers=1)
     }
 
 
