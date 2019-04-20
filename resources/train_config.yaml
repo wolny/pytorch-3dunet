@@ -10,8 +10,6 @@ model:
   layer_order: crg
   # feature maps scale factor
   f_maps: 32
-  # basic module
-  basic_module: DoubleConv
   # number of groups in the groupnorm
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
