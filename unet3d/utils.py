@@ -147,3 +147,7 @@ def unpad(probs, index, shape, pad_width=8):
     probs_index = (p_c, p_z, p_y, p_x)
     index = (i_c, i_z, i_y, i_x)
     return probs[probs_index], index
+
+
+def create_feature_maps(init_channel_number, number_of_fmaps):
+    return [init_channel_number * 2 ** k for k in range(number_of_fmaps)]

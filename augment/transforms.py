@@ -4,8 +4,9 @@ import numpy as np
 import torch
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
 from scipy.ndimage.filters import convolve
-from skimage.segmentation import find_boundaries
+from skimage import exposure
 from skimage.filters import gaussian
+from skimage.segmentation import find_boundaries
 from torchvision.transforms import Compose
 
 
@@ -98,68 +99,39 @@ class RandomRotate:
 
 class RandomContrast:
     """
-       Adjust the contrast of an image by a random factor inside a the contrast_range
+       Adjust the contrast of an image by a random factor
     """
 
-    def __init__(self, random_state, contrast_range=(0.25, 0.75), execution_probability=0.2, **kwargs):
-        assert len(contrast_range) == 2
-        self.min_factor, self.max_factor = contrast_range
+    def __init__(self, random_state, execution_probability=0.1, **kwargs):
         self.random_state = random_state
         self.execution_probability = execution_probability
 
     def __call__(self, m):
-        factor = self.random_state.uniform(self.min_factor, self.max_factor)
-
         if self.random_state.uniform() < self.execution_probability:
-            if m.ndim == 3:
-                # take the mean intensity of the entire patch
-                mean_intensity = np.mean(m)
-            else:
-                # if 4D then compute per channel mean intensity (assuming: CZYX axis order)
-                mean_intensity = np.mean(m, axis=(1, 2, 3))
-            return np.clip(mean_intensity + factor * (m - mean_intensity), 0, 1)
+            # Contrast stretching
+            p2, p98 = np.percentile(m, (2, 98))
+            m_rescaled = exposure.rescale_intensity(m, in_range=(p2, p98))
+            return np.clip(m_rescaled, 0, 1)
 
         return m
 
 
 class RandomBrightness:
     """
-        Adjust the brightness of an image by a random factor inside a the brightness_range
-        Brightness range: tuple,float. If it's a tuple a random factor will be taken from (brightness_range[0], brightness_range[1])
-        If it's float then the random factor will be taken from (-brightness_range,brightness_range).
-        The intervals must be included in [-1,1]. If not, they would be clipped to [-1,1]
+        Adjust the brightness of an image by a random factor.
     """
 
-    def __init__(self, random_state, brightness_range=0.1, **kwargs):
-        if isinstance(brightness_range, tuple):
-            assert len(brightness_range) == 2
-            self.brightness_min, self.brightness_max = np.clip(brightness_range, -1., 1.)
-        else:
-            self.brightness_min, self.brightness_max = np.clip([-brightness_range, brightness_range], -1., 1.)
+    def __init__(self, random_state, factor=0.5, execution_probability=0.1, **kwargs):
         self.random_state = random_state
+        self.factor = factor
+        self.execution_probability = execution_probability
 
     def __call__(self, m):
-        brightness = self.random_state.uniform(self.brightness_min, self.brightness_max)
-        return np.clip(m + brightness, 0, 1)
+        if self.random_state.uniform() < self.execution_probability:
+            brightness_factor = self.factor + self.random_state.uniform()
+            return np.clip(m * brightness_factor, 0, 1)
 
-
-class RandomBrightnessContrast:
-    """
-        Apply RandomBrightness and RandomContrast interchangeably
-    """
-
-    def __init__(self, random_state, brightness_range=0.1, contrast_range=(0.25, 0.75), **kwargs):
-        self.rand_contrast = RandomContrast(random_state, contrast_range)
-        self.rand_brightness = RandomBrightness(random_state, brightness_range)
-        self.random_state = random_state
-
-    def __call__(self, m):
-        if self.random_state.uniform() < 0.5:  # Alternates order of the Brightness and Contrast transforms
-            m = self.rand_brightness(m)
-            return self.rand_contrast(m)
-        else:
-            m = self.rand_contrast(m)
-            return self.rand_brightness(m)
+        return m
 
 
 # it's relatively slow, i.e. ~1s per patch of size 64x200x200

@@ -8,10 +8,12 @@ model:
   out_channels: 2
   # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
   layer_order: crg
-  # use nn.Upsample for upsampling in the decoder path instead of ConvTranspose3d
-  interpolate: true
-  # number of feature maps in the 1st encoder layer
-  init_channel_number: 32
+  # feature maps scale factor
+  f_maps: 32
+  # basic module
+  basic_module: DoubleConv
+  # number of groups in the groupnorm
+  num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
   final_sigmoid: false
 # trainer configuration
@@ -76,9 +78,10 @@ loaders:
     train:
       raw:
         - name: Normalize
-        - name: RandomContrast
         - name: RandomFlip
         - name: RandomRotate90
+        - name: RandomContrast
+        - name: RandomBrightness
         - name: ToTensor
           expand_dims: true
       label:

@@ -1,9 +1,13 @@
 # pytorch-3dunet
 
-PyTorch implementation of 3D U-Net based on:
+PyTorch implementation of a standard 3D U-Net based on:
 
-[3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation](https://arxiv.org/abs/1606.06650)
-Özgün Çiçek, Ahmed Abdulkadir, Soeren S. Lienkamp, Thomas Brox, Olaf Ronneberger
+[3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation](https://arxiv.org/abs/1606.06650) 
+Özgün Çiçek et al.
+
+as well as Residual 3D U-Net based on:
+
+[Superhuman Accuracy on the SNEMI3D Connectomics Challenge](https://arxiv.org/pdf/1706.00120.pdf) Kisuk Lee et al.
 
 ## Prerequisites
 - Linux
@@ -30,12 +34,15 @@ Activate newly created conda environment via:
 source activate 3dunet
 ```
 
-## Supported Losses
+## Supported model architectures
+- in order to train standard 3D U-Net specify `name: UNet3D` in the `model` section of the [config file](resources/train_config.yaml)
+- in order to train Residual U-Net specify `name: ResidualUNet3D` in the `model` section of the [config file](resources/train_config.yaml)
+
+## Supported Loss Functions
 For a detailed explanation of the loss functions used see:
 [Generalised Dice overlap as a deep learning loss function for highly unbalanced segmentations](https://arxiv.org/pdf/1707.03237.pdf)
 Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
 
-### Loss functions
 - **wce** - _WeightedCrossEntropyLoss_ (see 'Weighted cross-entropy (WCE)' in the above paper for a detailed explanation)
 - **ce** - _CrossEntropyLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)
 - **pce** - _PixelWiseCrossEntropyLoss_ (once can specify not only class weights but also per pixel weights in order to give more/less gradient in some regions of the ground truth)
@@ -80,4 +87,4 @@ Prediction masks will be saved to `resources/random_label3D_probabilities.h5`.
 In order to predict your own raw dataset provide the path to your model as well as paths to HDF5 test datasets in the [test_config.yaml](resources/test_config.yaml).
 
 ### IMPORTANT
-In order to avoid block artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: []64 128 128] stride: []32 96 96]` will give you a 'halo' of 32 voxels in each direction.
+In order to avoid block artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: [64 128 128] stride: [32 96 96]` will give you a 'halo' of 32 voxels in each direction.
