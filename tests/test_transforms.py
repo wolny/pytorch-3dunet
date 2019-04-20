@@ -134,7 +134,7 @@ class TestTransforms:
                 {'name': 'RandomFlip'},
                 {'name': 'RandomRotate90'},
                 {'name': 'RandomRotate', 'angle_spectrum': 17, 'axes': [[2, 1]], 'mode': 'reflect'},
-                {'name': 'LabelToBoundary', 'offsets': [2, 4, 6, 8]},
+                {'name': 'LabelToAffinities', 'offsets': [2, 4, 6, 8]},
                 {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
             ]
         }
@@ -167,7 +167,7 @@ class TestTransforms:
                 {'name': 'RandomFlip'},
                 {'name': 'RandomRotate90'},
                 {'name': 'RandomRotate', 'angle_spectrum': 17, 'axes': [[2, 1]], 'mode': 'reflect'},
-                {'name': 'RandomLabelToBoundary', 'max_offset': 4},
+                {'name': 'RandomLabelToAffinities', 'max_offset': 4},
                 {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
             ]
         }
