@@ -53,10 +53,10 @@ e.g. one class having at lease 3 orders of magnitude more voxels than the other 
 
 
 ## Supported Evaluation Metrics
-- **iou** - Mean intersection over union
-- **dice** - Dice Coefficient (computes per channel Dice Coefficient and returns the average)
-- **ap** - Average Precision (normally used for evaluating instance segmentation, however it can be used when the 3D UNet is used to predict the boundary signal from the instance segmentation ground truth)
-- **rand** - Adjusted Rand Score
+- **MeanIoU** - Mean intersection over union
+- **DiceCoefficient** - Dice Coefficient (computes per channel Dice Coefficient and returns the average)
+- **BoundaryAveragePrecision** - Average Precision (normally used for evaluating instance segmentation, however it can be used when the 3D UNet is used to predict the boundary signal from the instance segmentation ground truth)
+- **ARandScore** - Adjusted Rand Score
 
 If not specified `iou` will be used by default.
 

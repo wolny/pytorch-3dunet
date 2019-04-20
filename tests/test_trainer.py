@@ -58,7 +58,7 @@ CONFIG_BASE = {
 class TestUNet3DTrainer:
     def test_ce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'ce', 'iou')
+            trainer = self._train_save_load(tmpdir, 'ce', 'MeanIoU')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -67,7 +67,7 @@ class TestUNet3DTrainer:
 
     def test_wce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'wce', 'iou')
+            trainer = self._train_save_load(tmpdir, 'wce', 'MeanIoU')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -76,7 +76,7 @@ class TestUNet3DTrainer:
 
     def test_bce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'bce', 'dice')
+            trainer = self._train_save_load(tmpdir, 'bce', 'DiceCoefficient')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -85,7 +85,7 @@ class TestUNet3DTrainer:
 
     def test_dice_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'dice', 'iou')
+            trainer = self._train_save_load(tmpdir, 'dice', 'MeanIoU')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -94,7 +94,7 @@ class TestUNet3DTrainer:
 
     def test_pce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'pce', 'iou', weight_map=True)
+            trainer = self._train_save_load(tmpdir, 'pce', 'MeanIoU', weight_map=True)
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -103,7 +103,7 @@ class TestUNet3DTrainer:
 
     def test_residual_unet(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'ce', 'iou', model_name='ResidualUNet3D')
+            trainer = self._train_save_load(tmpdir, 'ce', 'MeanIoU', model_name='ResidualUNet3D')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2

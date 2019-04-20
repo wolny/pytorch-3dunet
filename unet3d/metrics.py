@@ -1,3 +1,5 @@
+import importlib
+
 import numpy as np
 import torch
 from skimage import measure
@@ -19,7 +21,7 @@ class DiceCoefficient:
     DO NOT USE this metric when training with DiceLoss, otherwise the results will be biased towards the loss.
     """
 
-    def __init__(self, epsilon=1e-5, ignore_index=None):
+    def __init__(self, epsilon=1e-5, ignore_index=None, **kwargs):
         self.epsilon = epsilon
         self.ignore_index = ignore_index
 
@@ -38,7 +40,7 @@ class MeanIoU:
     Computes IoU for each class separately and then averages over all classes.
     """
 
-    def __init__(self, skip_channels=(), ignore_index=None):
+    def __init__(self, skip_channels=(), ignore_index=None, **kwargs):
         """
         :param skip_channels: list/tuple of channels to be ignored from the IoU computation
         :param ignore_index: id of the label to be ignored from IoU computation
@@ -220,7 +222,7 @@ class _AbstractAP:
 
 
 class StandardAveragePrecision(_AbstractAP):
-    def __init__(self, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None):
+    def __init__(self, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None, **kwargs):
         super().__init__(iou_range, ignore_index, min_instance_size)
 
     def __call__(self, input, target):
@@ -233,7 +235,7 @@ class StandardAveragePrecision(_AbstractAP):
 
 
 class DistanceTransformAveragePrecision(_AbstractAP):
-    def __init__(self, threshold=0.1):
+    def __init__(self, threshold=0.1, **kwargs):
         super().__init__()
         self.threshold = threshold
 
@@ -263,7 +265,7 @@ class DistanceTransformAveragePrecision(_AbstractAP):
 
 
 class QuantizedDistanceTransformAveragePrecision(_AbstractAP):
-    def __init__(self, threshold=0):
+    def __init__(self, threshold=0, **kwargs):
         super().__init__()
         self.threshold = threshold
 
@@ -300,7 +302,7 @@ class BoundaryAveragePrecision(_AbstractAP):
     """
 
     def __init__(self, threshold=0.4, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None,
-                 use_last_target=False):
+                 use_last_target=False, **kwargs):
         """
         :param threshold: probability value at which the input is going to be thresholded
         :param iou_range: compute ROC curve for the the range of IoU values: range(min,max,0.05)
@@ -374,7 +376,7 @@ class WithinAngleThreshold:
     truth directions. 'angle_threshold' is expected to be given in degrees not radians.
     """
 
-    def __init__(self, angle_threshold):
+    def __init__(self, angle_threshold, **kwargs):
         self.threshold_radians = angle_threshold / 360 * np.pi
 
     def __call__(self, inputs, targets):
@@ -402,7 +404,7 @@ class WithinAngleThreshold:
 
 
 class InverseAngularError:
-    def __call__(self, inputs, targets):
+    def __call__(self, inputs, targets, **kwargs):
         assert isinstance(inputs, list)
         if len(inputs) == 1:
             targets = [targets]
@@ -428,33 +430,13 @@ def get_evaluation_metric(config):
     :param config: (dict) a top level configuration object containing the 'eval_metric' key
     :return: an instance of the evaluation metric
     """
+
+    def _metric_class(class_name):
+        m = importlib.import_module('unet3d.metrics')
+        clazz = getattr(m, class_name)
+        return clazz
+
     assert 'eval_metric' in config, 'Could not find evaluation metric configuration'
-    eval_config = config['eval_metric']
-    name = eval_config['name']
-    assert name in SUPPORTED_METRICS, f'Invalid validation metric: {name}. Supported metrics: {SUPPORTED_METRICS}'
-
-    ignore_index = eval_config.get('ignore_index', None)
-
-    if name == 'dice':
-        return DiceCoefficient(ignore_index=ignore_index)
-    elif name == 'iou':
-        skip_channels = eval_config.get('skip_channels', ())
-        return MeanIoU(skip_channels=skip_channels, ignore_index=ignore_index)
-    elif name == 'boundary_ap':
-        threshold = eval_config.get('threshold', 0.5)
-        min_instance_size = eval_config.get('min_instance_size', None)
-        use_last_target = eval_config.get('use_last_target', False)
-        return BoundaryAveragePrecision(threshold=threshold, ignore_index=ignore_index,
-                                        min_instance_size=min_instance_size,
-                                        use_last_target=use_last_target)
-    elif name == 'dt_ap':
-        threshold = eval_config.get('threshold', 0.1)
-        return DistanceTransformAveragePrecision(threshold)
-    elif name == 'quantized_dt_ap':
-        threshold = eval_config.get('threshold', 1)
-        return QuantizedDistanceTransformAveragePrecision(threshold)
-    elif name == 'angle':
-        angle_threshold = eval_config.get('angle_threshold')
-        return WithinAngleThreshold(angle_threshold)
-    elif name == 'inverse_angular':
-        return InverseAngularError()
+    metric_config = config['eval_metric']
+    metric_class = _metric_class(metric_config['name'])
+    return metric_class(**metric_config)

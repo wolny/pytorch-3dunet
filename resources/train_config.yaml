@@ -44,7 +44,7 @@ loss:
   ignore_index: null
 # evaluation metric configuration
 eval_metric:
-  name: iou
+  name: MeanIoU
   # a target label that is ignored during metric evaluation
   ignore_index: null
 lr_scheduler:
