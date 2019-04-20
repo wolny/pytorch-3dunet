@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from skimage import measure
 
-from augment.transforms import LabelToBoundary
+from augment.transforms import LabelToAffinities
 from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, BCELossWrapper, \
     DiceLoss, TagsAngularLoss
 from unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision
@@ -84,7 +84,7 @@ class TestCriterion:
         l_file = 'resources/sample_patch.h5'
         with h5py.File(l_file, 'r') as f:
             label = f['big_label'][...]
-            ltb = LabelToBoundary((1, 2, 4, 6), aggregate_affinities=True)
+            ltb = LabelToAffinities((1, 2, 4, 6), aggregate_affinities=True)
             pred = ltb(label)
             # don't compare instances smaller than 25K voxels
             ap = BoundaryAveragePrecision(min_instance_size=25000)

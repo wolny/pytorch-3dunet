@@ -226,17 +226,18 @@ class AbstractLabelToBoundary:
 
 
 class StandardLabelToBoundary:
-    def __init__(self, ignore_index=None, append_label=False, blur=False, **kwargs):
+    def __init__(self, ignore_index=None, append_label=False, blur=False, sigma=1, **kwargs):
         self.ignore_index = ignore_index
         self.append_label = append_label
         self.blur = blur
+        self.sigma = sigma
 
     def __call__(self, m):
         assert m.ndim == 3
 
         boundaries = find_boundaries(m, connectivity=2)
         if self.blur:
-            boundaries = gaussian(boundaries, sigma=1)
+            boundaries = gaussian(boundaries, sigma=self.sigma)
             boundaries[boundaries >= 0.5] = 1
             boundaries[boundaries < 0.5] = 0
 
@@ -249,7 +250,7 @@ class StandardLabelToBoundary:
         return np.stack(results, axis=0)
 
 
-class RandomLabelToBoundary(AbstractLabelToBoundary):
+class RandomLabelToAffinities(AbstractLabelToBoundary):
     """
     Converts a given volumetric label array to binary mask corresponding to borders between labels.
     One specify the max_offset (thickness) of the border. Then the offset is picked at random every time you call
@@ -258,20 +259,25 @@ class RandomLabelToBoundary(AbstractLabelToBoundary):
     truth  (think of it as a boundary denoising scheme).
     """
 
-    def __init__(self, random_state, max_offset=8, ignore_index=None, append_label=False, **kwargs):
+    def __init__(self, random_state, max_offset=10, ignore_index=None, append_label=False, z_offset_scale=2, **kwargs):
         super().__init__(ignore_index=ignore_index, append_label=append_label, aggregate_affinities=False)
         self.random_state = random_state
         self.offsets = tuple(range(1, max_offset + 1))
+        self.z_offset_scale = z_offset_scale
 
     def get_kernels(self):
         rand_offset = self.random_state.choice(self.offsets)
         axis_ind = self.random_state.randint(3)
+        # scale down z-affinities due to anisotropy
+        if axis_ind == 2:
+            rand_offset = max(1, rand_offset // self.z_offset_scale)
+            
         rand_axis = self.AXES_TRANSPOSE[axis_ind]
         # return a single kernel
         return [self.create_kernel(rand_axis, rand_offset)]
 
 
-class LabelToBoundary(AbstractLabelToBoundary):
+class LabelToAffinities(AbstractLabelToBoundary):
     """
     Converts a given volumetric label array to binary mask corresponding to borders between labels.
     One specify the offsets (thickness) of the border. The boundary will be computed via the convolution operator.

@@ -1,6 +1,6 @@
 import numpy as np
 
-from augment.transforms import RandomLabelToBoundary, LabelToBoundary, Transformer
+from augment.transforms import RandomLabelToAffinities, LabelToAffinities, Transformer
 
 
 class TestTransforms:
@@ -10,7 +10,7 @@ class TestTransforms:
         size = 20
         label = _diagonal_label_volume(size)
 
-        transform = RandomLabelToBoundary(np.random.RandomState())
+        transform = RandomLabelToAffinities(np.random.RandomState())
         result = transform(label)
         assert result.shape == (1,) + label.shape
 
@@ -18,7 +18,7 @@ class TestTransforms:
         size = 20
         label = _diagonal_label_volume(size, init=-1)
 
-        transform = RandomLabelToBoundary(np.random.RandomState(), ignore_index=-1)
+        transform = RandomLabelToAffinities(np.random.RandomState(), ignore_index=-1)
         result = transform(label)
         assert result.shape == (1,) + label.shape
         assert -1 in np.unique(result)
@@ -28,7 +28,7 @@ class TestTransforms:
         label = _diagonal_label_volume(size)
 
         # this transform will produce 2 channels
-        transform = LabelToBoundary(offsets=(2, 4), aggregate_affinities=True)
+        transform = LabelToAffinities(offsets=(2, 4), aggregate_affinities=True)
         result = transform(label)
         assert result.shape == (2,) + label.shape
         assert np.array_equal(np.unique(result), [0, 1])
@@ -37,7 +37,7 @@ class TestTransforms:
         size = 20
         label = _diagonal_label_volume(size, init=-1)
 
-        transform = LabelToBoundary(offsets=(2, 4), ignore_index=-1, aggregate_affinities=True)
+        transform = LabelToAffinities(offsets=(2, 4), ignore_index=-1, aggregate_affinities=True)
         result = transform(label)
         assert result.shape == (2,) + label.shape
         assert np.array_equal(np.unique(result), [-1, 0, 1])
@@ -47,7 +47,7 @@ class TestTransforms:
         label = _diagonal_label_volume(size)
 
         # this transform will produce 6 channels
-        transform = LabelToBoundary(offsets=(2, 4), aggregate_affinities=False)
+        transform = LabelToAffinities(offsets=(2, 4), aggregate_affinities=False)
         result = transform(label)
         assert result.shape == (6,) + label.shape
         assert np.array_equal(np.unique(result), [0, 1])
