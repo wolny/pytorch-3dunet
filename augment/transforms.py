@@ -123,7 +123,7 @@ class ElasticDeformation:
     Based on: https://github.com/fcalvet/image_tools/blob/master/image_augmentation.py#L62
     """
 
-    def __init__(self, random_state, spline_order, alpha=15, sigma=3, **kwargs):
+    def __init__(self, random_state, spline_order, alpha=15, sigma=3, execution_probability=0.5, **kwargs):
         """
         :param spline_order: the order of spline interpolation (use 0 for labeled images)
         :param alpha: scaling factor for deformations
@@ -133,17 +133,21 @@ class ElasticDeformation:
         self.spline_order = spline_order
         self.alpha = alpha
         self.sigma = sigma
+        self.execution_probability = execution_probability
 
     def __call__(self, m):
-        assert m.ndim == 3
-        dz = gaussian_filter(self.random_state.randn(*m.shape), self.sigma, mode="constant", cval=0) * self.alpha
-        dy = gaussian_filter(self.random_state.randn(*m.shape), self.sigma, mode="constant", cval=0) * self.alpha
-        dx = gaussian_filter(self.random_state.randn(*m.shape), self.sigma, mode="constant", cval=0) * self.alpha
+        if self.random_state.uniform() < self.execution_probability:
+            assert m.ndim == 3
+            dz = gaussian_filter(self.random_state.randn(*m.shape), self.sigma, mode="constant", cval=0) * self.alpha
+            dy = gaussian_filter(self.random_state.randn(*m.shape), self.sigma, mode="constant", cval=0) * self.alpha
+            dx = gaussian_filter(self.random_state.randn(*m.shape), self.sigma, mode="constant", cval=0) * self.alpha
 
-        z_dim, y_dim, x_dim = m.shape
-        z, y, x = np.meshgrid(np.arange(z_dim), np.arange(y_dim), np.arange(x_dim), indexing='ij')
-        indices = z + dz, y + dy, x + dx
-        return map_coordinates(m, indices, order=self.spline_order, mode='reflect')
+            z_dim, y_dim, x_dim = m.shape
+            z, y, x = np.meshgrid(np.arange(z_dim), np.arange(y_dim), np.arange(x_dim), indexing='ij')
+            indices = z + dz, y + dy, x + dx
+            return map_coordinates(m, indices, order=self.spline_order, mode='reflect')
+
+        return m
 
 
 class AbstractLabelToBoundary:
@@ -253,7 +257,7 @@ class RandomLabelToAffinities(AbstractLabelToBoundary):
         # scale down z-affinities due to anisotropy
         if axis_ind == 2:
             rand_offset = max(1, rand_offset // self.z_offset_scale)
-            
+
         rand_axis = self.AXES_TRANSPOSE[axis_ind]
         # return a single kernel
         return [self.create_kernel(rand_axis, rand_offset)]
