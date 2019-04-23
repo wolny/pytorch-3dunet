@@ -2,6 +2,7 @@ import importlib
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from skimage import measure
 
 from unet3d.losses import compute_per_channel_dice, expand_as_one_hot
@@ -404,6 +405,9 @@ class WithinAngleThreshold:
 
 
 class InverseAngularError:
+    def __init__(self, **kwargs):
+        pass
+
     def __call__(self, inputs, targets, **kwargs):
         assert isinstance(inputs, list)
         if len(inputs) == 1:
@@ -422,6 +426,16 @@ class InverseAngularError:
             total_error += error_radians.sum()
 
         return torch.tensor(1. / total_error)
+
+
+class PSNR:
+    def __init__(self, **kwargs):
+        pass
+
+    def __call__(self, input, target):
+        assert input.size() == target.size()
+
+        return 10 * torch.log10(1 / torch.max(F.mse_loss(input, target), torch.tensor(0.01).to(input.device)))
 
 
 def get_evaluation_metric(config):
