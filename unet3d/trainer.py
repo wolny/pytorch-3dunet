@@ -47,9 +47,9 @@ class UNet3DTrainer:
         else:
             self.logger = logger
 
+        self.logger.info(model)
         self.logger.info(f"Sending the model to '{device}'")
         self.model = model.to(device)
-        self.logger.debug(model)
 
         self.optimizer = optimizer
         self.scheduler = lr_scheduler
