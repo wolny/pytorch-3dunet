@@ -99,25 +99,6 @@ class RandomRotate:
 
 class RandomContrast:
     """
-       Adjust the contrast of an image by a random factor
-    """
-
-    def __init__(self, random_state, execution_probability=0.1, **kwargs):
-        self.random_state = random_state
-        self.execution_probability = execution_probability
-
-    def __call__(self, m):
-        if self.random_state.uniform() < self.execution_probability:
-            # Contrast stretching
-            p2, p98 = np.percentile(m, (2, 98))
-            m_rescaled = exposure.rescale_intensity(m, in_range=(p2, p98))
-            return np.clip(m_rescaled, 0, 1)
-
-        return m
-
-
-class RandomBrightness:
-    """
         Adjust the brightness of an image by a random factor.
     """
 
@@ -134,7 +115,8 @@ class RandomBrightness:
         return m
 
 
-# it's relatively slow, i.e. ~1s per patch of size 64x200x200
+# it's relatively slow, i.e. ~1s per patch of size 64x200x200, so use multiple workers in the DataLoader
+# remember to use spline_order=3 when transforming the labels
 class ElasticDeformation:
     """
     Apply elasitc deformations of 3D patches on a per-voxel mesh. Assumes ZYX axis order!
@@ -145,7 +127,7 @@ class ElasticDeformation:
         """
         :param spline_order: the order of spline interpolation (use 0 for labeled images)
         :param alpha: scaling factor for deformations
-        :param sigma: smothing factor for Gaussian filter
+        :param sigma: smoothing factor for Gaussian filter
         """
         self.random_state = random_state
         self.spline_order = spline_order

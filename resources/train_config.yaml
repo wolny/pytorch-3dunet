@@ -71,6 +71,8 @@ loaders:
   # paths to the validation datasets
   val_path:
     - 'resources/random_label3D.h5'
+  # how many subprocesses to use for data loading
+  num_workers: 8
   # data transformations/augmentations
   transformer:
     train:
@@ -78,13 +80,26 @@ loaders:
         - name: Normalize
         - name: RandomFlip
         - name: RandomRotate90
+        - name: RandomRotate
+          # rotate only in ZY only
+          axes: [[2, 1]]
+          angle_spectrum: 15
+          mode: reflect
+        - name: ElasticDeformation
+          spline_order: 3
         - name: RandomContrast
-        - name: RandomBrightness
         - name: ToTensor
           expand_dims: true
       label:
         - name: RandomFlip
         - name: RandomRotate90
+        - name: RandomRotate
+          # rotate only in ZY only
+          axes: [[2, 1]]
+          angle_spectrum: 15
+          mode: reflect
+        - name: ElasticDeformation
+          spline_order: 0
         - name: ToTensor
           expand_dims: false
           dtype: 'long'

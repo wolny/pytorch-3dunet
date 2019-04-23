@@ -127,7 +127,6 @@ class HDF5Dataset(Dataset):
         self._check_patch_shape(patch_shape)
         self.phase = phase
         self.file_path = file_path
-        self.input_file = h5py.File(file_path, 'r')
 
         # convert raw_internal_path, label_internal_path and weight_internal_path to list for ease of computation
         if isinstance(raw_internal_path, str):
@@ -137,38 +136,42 @@ class HDF5Dataset(Dataset):
         if isinstance(weight_internal_path, str):
             weight_internal_path = [weight_internal_path]
 
-        self.raws = [self.input_file[internal_path] for internal_path in raw_internal_path]
-        # calculate global mean and std for Normalization augmentation
-        mean, std = self._calculate_mean_std(self.raws)
+        with h5py.File(file_path, 'r') as input_file:
+            # WARN: we load everything into memory due to hdf5 bug when reading H5 from multiple subprocesses, i.e.
+            # File "h5py/_proxy.pyx", line 84, in h5py._proxy.H5PY_H5Dread
+            # OSError: Can't read data (inflate() failed)
+            self.raws = [input_file[internal_path][...] for internal_path in raw_internal_path]
+            # calculate global mean and std for Normalization augmentation
+            mean, std = self._calculate_mean_std(self.raws[0])
 
-        self.transformer = transforms.get_transformer(transformer_config, mean, std, phase)
-        self.raw_transform = self.transformer.raw_transform()
+            self.transformer = transforms.get_transformer(transformer_config, mean, std, phase)
+            self.raw_transform = self.transformer.raw_transform()
 
-        if phase != 'test':
-            # create label/weight transform only in train/val phase
-            self.label_transform = self.transformer.label_transform()
-            self.labels = [self.input_file[internal_path] for internal_path in label_internal_path]
+            if phase != 'test':
+                # create label/weight transform only in train/val phase
+                self.label_transform = self.transformer.label_transform()
+                self.labels = [input_file[internal_path][...] for internal_path in label_internal_path]
 
-            if weight_internal_path is not None:
-                # look for the weight map in the raw file
-                self.weight_maps = [self.input_file[internal_path] for internal_path in weight_internal_path]
-                self.weight_transform = self.transformer.weight_transform()
+                if weight_internal_path is not None:
+                    # look for the weight map in the raw file
+                    self.weight_maps = [input_file[internal_path][...] for internal_path in weight_internal_path]
+                    self.weight_transform = self.transformer.weight_transform()
+                else:
+                    self.weight_maps = None
+
+                self._check_dimensionality(self.raws, self.labels)
             else:
+                # 'test' phase used only for predictions so ignore the label dataset
+                self.labels = None
                 self.weight_maps = None
 
-            self._check_dimensionality(self.raws, self.labels)
-        else:
-            # 'test' phase used only for predictions so ignore the label dataset
-            self.labels = None
-            self.weight_maps = None
+            # build slice indices for raw and label data sets
+            slice_builder = slice_builder_cls(self.raws, self.labels, self.weight_maps, patch_shape, stride_shape)
+            self.raw_slices = slice_builder.raw_slices
+            self.label_slices = slice_builder.label_slices
+            self.weight_slices = slice_builder.weight_slices
 
-        # build slice indices for raw and label data sets
-        slice_builder = slice_builder_cls(self.raws, self.labels, self.weight_maps, patch_shape, stride_shape)
-        self.raw_slices = slice_builder.raw_slices
-        self.label_slices = slice_builder.label_slices
-        self.weight_slices = slice_builder.weight_slices
-
-        self.patch_count = len(self.raw_slices)
+            self.patch_count = len(self.raw_slices)
 
     def __getitem__(self, idx):
         if idx >= len(self):
@@ -211,18 +214,14 @@ class HDF5Dataset(Dataset):
     def __len__(self):
         return self.patch_count
 
-    def close(self):
-        self.input_file.close()
-
     @staticmethod
-    def _calculate_mean_std(inputs):
+    def _calculate_mean_std(input):
         """
         Compute a mean/std of the raw stack for normalization.
         This is an in-memory implementation, override this method
         with the chunk-based computation if you're working with huge H5 files.
         :return: a tuple of (mean, std) of the raw data
         """
-        input = np.concatenate(inputs)
         return input.mean(keepdims=True), input.std(keepdims=True)
 
     @staticmethod
@@ -301,14 +300,11 @@ def get_train_loaders(config):
                                   weight_internal_path=weight_internal_path)
         val_datasets.append(val_dataset)
 
-    # FIXME: h5py doesn't allow to read a file from multiple subprocesses.
-    # Doing so results in: OSError: Can't read data (inflate() failed)
-    # num_workers cannot be greater than 1 because of this
-    #
+    num_workers = loaders_config.get('num_workers', 1)
     # when training with volumetric data use batch_size of 1 due to GPU memory constraints
     return {
-        'train': DataLoader(ConcatDataset(train_datasets), batch_size=1, shuffle=True, num_workers=1),
-        'val': DataLoader(ConcatDataset(val_datasets), batch_size=1, shuffle=True, num_workers=1)
+        'train': DataLoader(ConcatDataset(train_datasets), batch_size=1, shuffle=True, num_workers=num_workers),
+        'val': DataLoader(ConcatDataset(val_datasets), batch_size=1, shuffle=True, num_workers=num_workers)
     }
 
 
