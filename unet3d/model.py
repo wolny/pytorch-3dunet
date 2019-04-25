@@ -225,39 +225,41 @@ class Noise2NoiseUNet3D(nn.Module):
         super(Noise2NoiseUNet3D, self).__init__()
 
         # Use LeakyReLU activation everywhere except the last layer
-        conv_layer_order = 'cgl'
+        conv_layer_order = 'clg'
 
         if isinstance(f_maps, int):
             # use 5 levels in the encoder path as suggested in the paper
             f_maps = create_feature_maps(f_maps, number_of_fmaps=5)
 
         # create encoder path consisting of Encoder modules. The length of the encoder is equal to `len(f_maps)`
-        # uses ExtResNetBlock as a basic_module for the Encoder
+        # uses DoubleConv as a basic_module for the Encoder
         encoders = []
         for i, out_feature_num in enumerate(f_maps):
             if i == 0:
-                encoder = Encoder(in_channels, out_feature_num, apply_pooling=False, basic_module=ExtResNetBlock,
+                encoder = Encoder(in_channels, out_feature_num, apply_pooling=False, basic_module=DoubleConv,
                                   conv_layer_order=conv_layer_order, num_groups=num_groups)
             else:
-                encoder = Encoder(f_maps[i - 1], out_feature_num, basic_module=ExtResNetBlock,
+                encoder = Encoder(f_maps[i - 1], out_feature_num, basic_module=DoubleConv,
                                   conv_layer_order=conv_layer_order, num_groups=num_groups)
             encoders.append(encoder)
 
         self.encoders = nn.ModuleList(encoders)
 
         # create decoder path consisting of the Decoder modules. The length of the decoder is equal to `len(f_maps) - 1`
-        # uses ExtResNetBlock as a basic_module for the Decoder
+        # uses DoubleConv as a basic_module for the Decoder
         decoders = []
         reversed_f_maps = list(reversed(f_maps))
         for i in range(len(reversed_f_maps) - 1):
-            decoder = Decoder(reversed_f_maps[i], reversed_f_maps[i + 1], basic_module=ExtResNetBlock,
+            in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
+            out_feature_num = reversed_f_maps[i + 1]
+            decoder = Decoder(in_feature_num, out_feature_num, basic_module=DoubleConv,
                               conv_layer_order=conv_layer_order, num_groups=num_groups)
             decoders.append(decoder)
 
         self.decoders = nn.ModuleList(decoders)
 
-        # use simple ReLU in the final convolution
-        self.final_conv = SingleConv(f_maps[0], out_channels, order='cr')
+        # 1x1x1 conv + simple ReLU in the final convolution
+        self.final_conv = SingleConv(f_maps[0], out_channels, kernel_size=1, order='cr', padding=0)
 
     def forward(self, x):
         # encoder part

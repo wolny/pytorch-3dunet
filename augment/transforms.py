@@ -123,7 +123,7 @@ class ElasticDeformation:
     Based on: https://github.com/fcalvet/image_tools/blob/master/image_augmentation.py#L62
     """
 
-    def __init__(self, random_state, spline_order, alpha=15, sigma=3, execution_probability=0.5, **kwargs):
+    def __init__(self, random_state, spline_order, alpha=10, sigma=3, execution_probability=0.25, **kwargs):
         """
         :param spline_order: the order of spline interpolation (use 0 for labeled images)
         :param alpha: scaling factor for deformations
@@ -305,6 +305,28 @@ class Normalize:
 
     def __call__(self, m):
         return (m - self.mean) / (self.std + self.eps)
+
+
+class RangeNormalize:
+    def __init__(self, max_value=255, **kwargs):
+        self.max_value = max_value
+
+    def __call__(self, m):
+        return m / self.max_value
+
+
+class GaussianNoise:
+    def __init__(self, random_state, max_sigma, max_value=255, **kwargs):
+        self.random_state = random_state
+        self.max_sigma = max_sigma
+        self.max_value = max_value
+
+    def __call__(self, m):
+        # pick std dev from [0; max_sigma]
+        std = self.random_state.randint(self.max_sigma)
+        gaussian_noise = self.random_state.normal(0, std, m.shape)
+        noisy_m = m + gaussian_noise
+        return np.clip(noisy_m, 0, self.max_value).astype(m.dtype)
 
 
 class ToTensor:

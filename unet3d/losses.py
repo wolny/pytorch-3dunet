@@ -2,9 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn as nn
 from torch.autograd import Variable
-from torch.nn import MSELoss, SmoothL1Loss
-
-SUPPORTED_LOSSES = ['ce', 'bce', 'wce', 'pce', 'dice', 'gdl', 'angular', 'mse']
+from torch.nn import MSELoss, SmoothL1Loss, L1Loss
 
 
 def compute_per_channel_dice(input, target, epsilon=1e-5, ignore_index=None, weight=None):
@@ -340,35 +338,39 @@ def get_loss_criterion(config):
         # convert to cuda tensor if necessary
         weight = torch.tensor(weight).to(config['device'])
 
-    if name == 'bce':
+    if name == 'BCEWithLogitsLoss':
         skip_last_target = loss_config.get('skip_last_target', False)
         if ignore_index is None and not skip_last_target:
             return nn.BCEWithLogitsLoss()
         else:
             return BCELossWrapper(nn.BCEWithLogitsLoss(), ignore_index=ignore_index, skip_last_target=skip_last_target)
-    elif name == 'ce':
+    elif name == 'CrossEntropyLoss':
         if ignore_index is None:
             ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
         return nn.CrossEntropyLoss(weight=weight, ignore_index=ignore_index)
-    elif name == 'wce':
+    elif name == 'WeightedCrossEntropyLoss':
         if ignore_index is None:
             ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
         return WeightedCrossEntropyLoss(weight=weight, ignore_index=ignore_index)
-    elif name == 'pce':
+    elif name == 'PixelWiseCrossEntropyLoss':
         return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index)
-    elif name == 'gdl':
+    elif name == 'GeneralizedDiceLoss':
         return GeneralizedDiceLoss(weight=weight, ignore_index=ignore_index)
-    elif name == 'dice':
+    elif name == 'DiceLoss':
         sigmoid_normalization = loss_config.get('sigmoid_normalization', True)
         skip_last_target = loss_config.get('skip_last_target', False)
         return DiceLoss(weight=weight, ignore_index=ignore_index, sigmoid_normalization=sigmoid_normalization,
                         skip_last_target=skip_last_target)
-    elif name == 'angular':
+    elif name == 'TagsAngularLoss':
         tags_coefficients = loss_config['tags_coefficients']
         return TagsAngularLoss(tags_coefficients)
-    elif name == 'mse':
+    elif name == 'MSEWithLogitsLoss':
         return MSEWithLogitsLoss()
+    elif name == 'MSELoss':
+        return MSELoss()
     elif name == 'SmoothL1Loss':
         return SmoothL1Loss()
+    elif name == 'L1Loss':
+        return L1Loss()
     else:
         raise RuntimeError(f"Unsupported loss function: '{name}'")

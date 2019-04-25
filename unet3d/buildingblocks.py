@@ -3,11 +3,11 @@ from torch import nn as nn
 from torch.nn import functional as F
 
 
-def conv3d(in_channels, out_channels, kernel_size, bias):
-    return nn.Conv3d(in_channels, out_channels, kernel_size, padding=1, bias=bias)
+def conv3d(in_channels, out_channels, kernel_size, bias, padding=1):
+    return nn.Conv3d(in_channels, out_channels, kernel_size, padding=padding, bias=bias)
 
 
-def create_conv(in_channels, out_channels, kernel_size, order, num_groups):
+def create_conv(in_channels, out_channels, kernel_size, order, num_groups, padding=1):
     """
     Create a list of modules with together constitute a single conv layer with non-linearity
     and optional batchnorm/groupnorm.
@@ -21,6 +21,7 @@ def create_conv(in_channels, out_channels, kernel_size, order, num_groups):
             'cl' -> conv + LeakyReLU
             'ce' -> conv + ELU
         num_groups (int): number of groups for the GroupNorm
+        padding (int): add zero-padding to the input
 
     Return:
         list of tuple (name, module)
@@ -39,7 +40,7 @@ def create_conv(in_channels, out_channels, kernel_size, order, num_groups):
         elif char == 'c':
             # add learnable bias only in the absence of gatchnorm/groupnorm
             bias = not ('g' in order or 'b' in order)
-            modules.append(('conv', conv3d(in_channels, out_channels, kernel_size, bias)))
+            modules.append(('conv', conv3d(in_channels, out_channels, kernel_size, bias, padding=padding)))
         elif char == 'g':
             is_before_conv = i < order.index('c')
             assert not is_before_conv, 'GroupNorm MUST go after the Conv3d'
@@ -76,10 +77,10 @@ class SingleConv(nn.Sequential):
         num_groups (int): number of groups for the GroupNorm
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size=3, order='crg', num_groups=8):
+    def __init__(self, in_channels, out_channels, kernel_size=3, order='crg', num_groups=8, padding=1):
         super(SingleConv, self).__init__()
 
-        for name, module in create_conv(in_channels, out_channels, kernel_size, order, num_groups):
+        for name, module in create_conv(in_channels, out_channels, kernel_size, order, num_groups, padding=padding):
             self.add_module(name, module)
 
 

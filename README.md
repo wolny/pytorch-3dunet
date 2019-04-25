@@ -43,13 +43,13 @@ For a detailed explanation of the loss functions used see:
 [Generalised Dice overlap as a deep learning loss function for highly unbalanced segmentations](https://arxiv.org/pdf/1707.03237.pdf)
 Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
 
-- **wce** - _WeightedCrossEntropyLoss_ (see 'Weighted cross-entropy (WCE)' in the above paper for a detailed explanation)
-- **ce** - _CrossEntropyLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)
-- **pce** - _PixelWiseCrossEntropyLoss_ (once can specify not only class weights but also per pixel weights in order to give more/less gradient in some regions of the ground truth)
-- **bce** - _BCELoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)
-- **dice** - _DiceLoss_ standard Dice loss (see 'Dice Loss' in the above paper for a detailed explanation). Note: if your labels in the training dataset are not very imbalance
+- _WeightedCrossEntropyLoss_ (see 'Weighted cross-entropy (WCE)' in the above paper for a detailed explanation)
+- _CrossEntropyLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)
+- _PixelWiseCrossEntropyLoss_ (once can specify not only class weights but also per pixel weights in order to give more/less gradient in some regions of the ground truth)
+- _BCEWithLogitsLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)
+- _DiceLoss_ standard Dice loss (see 'Dice Loss' in the above paper for a detailed explanation). Note: if your labels in the training dataset are not very imbalance
 e.g. one class having at lease 3 orders of magnitude more voxels than the other use this instead of `GDL` since it worked better in my experiments.
-- **gdl** - _GeneralizedDiceLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)(see 'Generalized Dice Loss (GDL)' in the above paper for a detailed explanation)
+- _GeneralizedDiceLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)(see 'Generalized Dice Loss (GDL)' in the above paper for a detailed explanation)
 
 
 ## Supported Evaluation Metrics
