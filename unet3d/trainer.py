@@ -31,6 +31,7 @@ class UNet3DTrainer:
         log_after_iters (int): number of iterations before logging to tensorboard
         validate_iters (int): number of validation iterations, if None validate
             on the whole validation set
+        eval_score_higher_is_better (bool): if True higher eval scores are considered better
         best_eval_score (float): best validation score so far (higher better)
         num_iterations (int): useful when loading the model from the checkpoint
         num_epoch (int): useful when loading the model from the checkpoint
@@ -40,8 +41,9 @@ class UNet3DTrainer:
                  eval_criterion, device, loaders, checkpoint_dir,
                  max_num_epochs=100, max_num_iterations=1e5,
                  validate_after_iters=100, log_after_iters=100,
-                 validate_iters=None, best_eval_score=float('-inf'),
-                 num_iterations=1, num_epoch=0, logger=None):
+                 validate_iters=None, num_iterations=1, num_epoch=0,
+                 eval_score_higher_is_better=True, best_eval_score=None,
+                 logger=None):
         if logger is None:
             self.logger = utils.get_logger('UNet3DTrainer', level=logging.DEBUG)
         else:
@@ -63,9 +65,19 @@ class UNet3DTrainer:
         self.validate_after_iters = validate_after_iters
         self.log_after_iters = log_after_iters
         self.validate_iters = validate_iters
-        self.best_eval_score = best_eval_score
-        self.writer = SummaryWriter(
-            log_dir=os.path.join(checkpoint_dir, 'logs'))
+        self.eval_score_higher_is_better = eval_score_higher_is_better
+        logger.info(f'eval_score_higher_is_better: {eval_score_higher_is_better}')
+
+        if best_eval_score is not None:
+            self.best_eval_score = best_eval_score
+        else:
+            # initialize the best_eval_score
+            if eval_score_higher_is_better:
+                self.best_eval_score = float('-inf')
+            else:
+                self.best_eval_score = float('+inf')
+
+        self.writer = SummaryWriter(log_dir=os.path.join(checkpoint_dir, 'logs'))
 
         self.num_iterations = num_iterations
         self.num_epoch = num_epoch
@@ -82,6 +94,7 @@ class UNet3DTrainer:
                    loss_criterion, eval_criterion,
                    torch.device(state['device']),
                    loaders, checkpoint_dir,
+                   eval_score_higher_is_better=state['eval_score_higher_is_better'],
                    best_eval_score=state['best_eval_score'],
                    num_iterations=state['num_iterations'],
                    num_epoch=state['epoch'],
@@ -234,10 +247,15 @@ class UNet3DTrainer:
         return output, loss
 
     def _is_best_eval_score(self, eval_score):
-        is_best = eval_score > self.best_eval_score
+        if self.eval_score_higher_is_better:
+            is_best = eval_score > self.best_eval_score
+        else:
+            is_best = eval_score < self.best_eval_score
+
         if is_best:
             self.logger.info(f'Saving new best evaluation metric: {eval_score}')
-        self.best_eval_score = max(eval_score, self.best_eval_score)
+            self.best_eval_score = eval_score
+
         return is_best
 
     def _save_checkpoint(self, is_best):
@@ -246,6 +264,7 @@ class UNet3DTrainer:
             'num_iterations': self.num_iterations,
             'model_state_dict': self.model.state_dict(),
             'best_eval_score': self.best_eval_score,
+            'eval_score_higher_is_better': self.eval_score_higher_is_better,
             'optimizer_state_dict': self.optimizer.state_dict(),
             'device': str(self.device),
             'max_num_epochs': self.max_num_epochs,
