@@ -147,6 +147,9 @@ class BoundaryAdaptedRandError:
             predictions = np.logical_not(predictions).astype(np.uint8)
             # run connected components on the predicted mask; consider only 1-connectivity
             predicted = measure.label(predictions, background=0, connectivity=1)
+            # make sure that target is 'int' type as well
+            target = target.astype(np.int64)
+            # compute AdaptedRand error
             arand = adapted_rand(predicted, target)
             per_channel_arand.append(arand)
 
