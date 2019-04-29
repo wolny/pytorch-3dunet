@@ -138,7 +138,6 @@ class BoundaryAdaptedRandError:
 
         per_channel_arand = []
         n_channels = input.shape[0]
-        print('>>> n_channels: ', n_channels)
         for c in range(n_channels):
             predictions = input[c]
             # threshold probability maps
