@@ -18,12 +18,27 @@ def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval
     assert 'trainer' in config, 'Could not find trainer configuration'
     trainer_config = config['trainer']
 
-    if trainer_config['resume'] is not None:
-        return UNet3DTrainer.from_checkpoint(trainer_config['resume'], model,
+    resume = trainer_config.get('resume', None)
+    pre_trained = trainer_config.get('pre_trained', None)
+
+    if resume is not None:
+        # continue training from a given checkpoint
+        return UNet3DTrainer.from_checkpoint(resume, model,
                                              optimizer, lr_scheduler, loss_criterion,
                                              eval_criterion, loaders,
                                              logger=logger)
+    elif pre_trained is not None:
+        # fine-tune a given pre-trained model
+        return UNet3DTrainer.from_pretrained(pre_trained, model, optimizer, lr_scheduler, loss_criterion,
+                                             eval_criterion, device=config['device'], loaders=loaders,
+                                             max_num_epochs=trainer_config['epochs'],
+                                             max_num_iterations=trainer_config['iters'],
+                                             validate_after_iters=trainer_config['validate_after_iters'],
+                                             log_after_iters=trainer_config['log_after_iters'],
+                                             eval_score_higher_is_better=trainer_config['eval_score_higher_is_better'],
+                                             logger=logger)
     else:
+        # start training from scratch
         return UNet3DTrainer(model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
                              config['device'], loaders, trainer_config['checkpoint_dir'],
                              max_num_epochs=trainer_config['epochs'],

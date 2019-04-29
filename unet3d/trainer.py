@@ -105,6 +105,31 @@ class UNet3DTrainer:
                    validate_iters=state['validate_iters'],
                    logger=logger)
 
+    @classmethod
+    def from_pretrained(cls, pre_trained, model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
+                        device, loaders,
+                        max_num_epochs=100, max_num_iterations=1e5,
+                        validate_after_iters=100, log_after_iters=100,
+                        validate_iters=None, num_iterations=1, num_epoch=0,
+                        eval_score_higher_is_better=True, best_eval_score=None,
+                        logger=None):
+        logger.info(f"Logging pre-trained model from '{pre_trained}'...")
+        utils.load_checkpoint(pre_trained, model, None)
+        checkpoint_dir = os.path.split(pre_trained)[0]
+        return cls(model, optimizer, lr_scheduler,
+                   loss_criterion, eval_criterion,
+                   device, loaders, checkpoint_dir,
+                   eval_score_higher_is_better=eval_score_higher_is_better,
+                   best_eval_score=best_eval_score,
+                   num_iterations=num_iterations,
+                   num_epoch=num_epoch,
+                   max_num_epochs=max_num_epochs,
+                   max_num_iterations=max_num_iterations,
+                   validate_after_iters=validate_after_iters,
+                   log_after_iters=log_after_iters,
+                   validate_iters=validate_iters,
+                   logger=logger)
+
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
             # train for one epoch
