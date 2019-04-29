@@ -15,7 +15,7 @@ model:
   # number of groups in the groupnorm
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
-  final_sigmoid: false
+  final_sigmoid: true
 # trainer configuration
 trainer:
   # path to the checkpoint directory

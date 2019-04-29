@@ -73,24 +73,31 @@ python train.py --config resources/train_config_dice.yaml # train with DiceLoss
 
 See the [train_config_ce.yaml](resources/train_config_ce.yaml) for more info.
 
-In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the [train_config.yaml](resources/train_config_ce.yaml).
+In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the [train_config_ce.yaml](resources/train_config_ce.yaml).
 The HDF5 files should contain the raw/label data sets in the following axis order: `DHW` (in case of 3D) `CDHW` (in case of 4D).
 
 Monitor progress with Tensorboard `tensorboard --logdir ./3dunet/logs/ --port 8666` (you need `tensorboard` installed in your conda env).
 ![3dunet-training](https://user-images.githubusercontent.com/706781/45916217-9626d580-be62-11e8-95c3-508e2719c915.png)
 
-### IMPORTANT
-In order to train with `BinaryCrossEntropy`, `DiceLoss` or `GeneralizedDiceLoss` the label data has to be 4D (one target binary mask per channel). In case of `DiceLoss` and `GeneralizedDiceLoss` the final score is the average across channels.
-`final_sigmoid=True` has to be present in the config when training the network with any of the above losses (and similarly `final_sigmoid=True` has to be passed to the `predict.py` if the network was trained with `final_sigmoid=True`)
+### Training tips
+1. In order to train with `BCEWithLogitsLoss`, `DiceLoss` or `GeneralizedDiceLoss` the label data has to be 4D (one target binary mask per channel).
+If you have a 3D binary data (foreground/background), you can just change `ToTensor` transform for the label to contain `expand_dims: true`, see e.g. [train_config_dice.yaml](resources/train_config_dice.yaml).
+
+2. When training with binary-based losses (`BCEWithLogitsLoss`, `DiceLoss`, `GeneralizedDiceLoss`) `final_sigmoid=True` has to be present in the training config, since every output channel gives the probability of the foreground.
+When training with cross entropy based losses (`WeightedCrossEntropyLoss`, `CrossEntropyLoss`, `PixelWiseCrossEntropyLoss`) set `final_sigmoid=False` so that `Softmax` normalization is applied to the output.
 
 ## Test
 Test on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/random_label3D.h5). 
 ```
-python predict.py --config resources/test_config.yaml
+python predict.py --config resources/test_config_ce.yaml
+```
+or if you trained with `DiceLoss`:
+```
+python predict.py --config resources/test_config_dice.yaml
 ```
 Prediction masks will be saved to `resources/random_label3D_probabilities.h5`.
 
-In order to predict your own raw dataset provide the path to your model as well as paths to HDF5 test datasets in the [test_config.yaml](resources/test_config.yaml).
+In order to predict your own raw dataset provide the path to your model as well as paths to HDF5 test datasets in the [test_config_ce.yaml](resources/test_config_ce.yaml).
 
-### IMPORTANT
+### Prediction tips
 In order to avoid block artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: [64 128 128] stride: [32 96 96]` will give you a 'halo' of 32 voxels in each direction.
