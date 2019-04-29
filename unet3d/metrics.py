@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from skimage import measure
 
 from unet3d.losses import compute_per_channel_dice, expand_as_one_hot
-from unet3d.utils import get_logger
+from unet3d.utils import get_logger, adapted_rand
 
 LOGGER = get_logger('EvalMetric')
 
@@ -99,6 +99,62 @@ class MeanIoU:
         Computes IoU for a given target and prediction tensors
         """
         return torch.sum(prediction & target).float() / torch.sum(prediction | target).float()
+
+
+class AdaptedRandError:
+    def __init__(self, all_stats=False, **kwargs):
+        self.all_stats = all_stats
+
+    def __call__(self, input, target):
+        return adapted_rand(input, target, all_stats=self.all_stats)
+
+
+class BoundaryAdaptedRandError:
+    def __init__(self, threshold=0.4, use_last_target=False, **kwargs):
+        self.use_last_target = use_last_target
+        self.threshold = threshold
+
+    def __call__(self, input, target):
+        if isinstance(input, torch.Tensor):
+            assert input.dim() == 5
+            # convert to numpy array
+            input = input[0].detach().cpu().numpy()  # 4D
+
+        if isinstance(target, torch.Tensor):
+            if not self.use_last_target:
+                assert target.dim() == 4
+                # convert to numpy array
+                target = target[0].detach().cpu().numpy()  # 3D
+            else:
+                # if use_last_target == True the target must be 5D (NxCxDxHxW)
+                assert target.dim() == 5
+                target = target[0, -1].detach().cpu().numpy()  # 3D
+
+        if isinstance(input, np.ndarray):
+            assert input.ndim == 4
+
+        if isinstance(target, np.ndarray):
+            assert target.ndim == 3
+
+        per_channel_arand = []
+        n_channels = input.shape[0]
+        print('>>> n_channels: ', n_channels)
+        for c in range(n_channels):
+            predictions = input[c]
+            # threshold probability maps
+            predictions = predictions > self.threshold
+            # for connected component analysis we need to treat boundary signal as background
+            # assign 0-label to boundary mask
+            predictions = np.logical_not(predictions).astype(np.uint8)
+            # run connected components on the predicted mask; consider only 1-connectivity
+            predicted = measure.label(predictions, background=0, connectivity=1)
+            arand = adapted_rand(predicted, target)
+            per_channel_arand.append(arand)
+
+        # get minimum AdaptedRand error across channels
+        min_arand, c_index = np.min(per_channel_arand), np.argmin(per_channel_arand)
+        LOGGER.info(f'Min AdaptedRand error: {min_arand}, channel: {c_index}')
+        return min_arand
 
 
 class _AbstractAP:

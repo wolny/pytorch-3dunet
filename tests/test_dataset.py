@@ -46,8 +46,6 @@ class TestHDF5Dataset:
         for raw, labels in dataset:
             assert len(labels) == 2
 
-        dataset.close()
-
     def test_hdf5_with_multiple_raw_and_label_datasets(self):
         path = create_random_dataset((128, 128, 128), raw_datasets=['raw1', 'raw2'],
                                      label_datasets=['label1', 'label2'])
@@ -60,8 +58,6 @@ class TestHDF5Dataset:
         for raws, labels in dataset:
             assert len(raws) == 2
             assert len(labels) == 2
-
-        dataset.close()
 
     def test_augmentation(self):
         raw = np.random.rand(32, 96, 96)

@@ -37,7 +37,7 @@ optimizer:
 # loss function configuration
 loss:
   # loss function to be used during training (ce - CrossEntropy)
-  name: ce
+  name: CrossEntropyLoss
   # A manual rescaling weight given to each class.
   loss_weight: null
   # a target value that is ignored and does not contribute to the input gradient

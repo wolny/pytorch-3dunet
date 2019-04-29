@@ -58,7 +58,7 @@ CONFIG_BASE = {
 class TestUNet3DTrainer:
     def test_ce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'ce', 'MeanIoU')
+            trainer = self._train_save_load(tmpdir, 'CrossEntropyLoss', 'MeanIoU')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -67,7 +67,7 @@ class TestUNet3DTrainer:
 
     def test_wce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'wce', 'MeanIoU')
+            trainer = self._train_save_load(tmpdir, 'WeightedCrossEntropyLoss', 'MeanIoU')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -76,7 +76,7 @@ class TestUNet3DTrainer:
 
     def test_bce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'bce', 'DiceCoefficient')
+            trainer = self._train_save_load(tmpdir, 'BCEWithLogitsLoss', 'DiceCoefficient')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -85,7 +85,7 @@ class TestUNet3DTrainer:
 
     def test_dice_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'dice', 'MeanIoU')
+            trainer = self._train_save_load(tmpdir, 'DiceLoss', 'MeanIoU')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -94,7 +94,7 @@ class TestUNet3DTrainer:
 
     def test_pce_loss(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'pce', 'MeanIoU', weight_map=True)
+            trainer = self._train_save_load(tmpdir, 'PixelWiseCrossEntropyLoss', 'MeanIoU', weight_map=True)
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -103,7 +103,7 @@ class TestUNet3DTrainer:
 
     def test_residual_unet(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'ce', 'MeanIoU', model_name='ResidualUNet3D')
+            trainer = self._train_save_load(tmpdir, 'CrossEntropyLoss', 'MeanIoU', model_name='ResidualUNet3D')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
@@ -112,6 +112,8 @@ class TestUNet3DTrainer:
 
     def _train_save_load(self, tmpdir, loss, val_metric, model_name='UNet3D', max_num_epochs=1, log_after_iters=2,
                          validate_after_iters=2, max_num_iterations=4, weight_map=False):
+        binary_loss = loss in ['BCEWithLogitsLoss', 'DiceLoss', 'GeneralizedDiceLoss']
+
         device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
         test_config = copy.deepcopy(CONFIG_BASE)
@@ -122,7 +124,7 @@ class TestUNet3DTrainer:
             'loss': {'name': loss, 'weight': np.random.rand(2).astype(np.float32)},
             'eval_metric': {'name': val_metric}
         })
-        test_config['model']['final_sigmoid'] = loss in ['bce', 'dice', 'gdl']
+        test_config['model']['final_sigmoid'] = binary_loss
 
         if weight_map:
             test_config['loaders']['weight_internal_path'] = 'weight_map'
@@ -131,15 +133,14 @@ class TestUNet3DTrainer:
         eval_criterion = get_evaluation_metric(test_config)
         model_name = get_model(test_config)
 
-        channel_per_class = loss in ['bce', 'dice', 'gdl']
-        if loss in ['bce']:
+        if loss in ['BCEWithLogitsLoss']:
             label_dtype = 'float32'
         else:
             label_dtype = 'long'
         test_config['loaders']['transformer']['train']['label'][0]['dtype'] = label_dtype
         test_config['loaders']['transformer']['test']['label'][0]['dtype'] = label_dtype
 
-        train, val = TestUNet3DTrainer._create_random_dataset((128, 128, 128), (64, 64, 64), channel_per_class)
+        train, val = TestUNet3DTrainer._create_random_dataset((128, 128, 128), (64, 64, 64), binary_loss)
         test_config['loaders']['train_path'] = [train]
         test_config['loaders']['val_path'] = [val]
 

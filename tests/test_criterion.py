@@ -5,10 +5,11 @@ import torch
 import torch.nn as nn
 from skimage import measure
 
-from augment.transforms import LabelToAffinities
+from augment.transforms import LabelToAffinities, StandardLabelToBoundary
 from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, BCELossWrapper, \
     DiceLoss, TagsAngularLoss
-from unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision
+from unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
+    BoundaryAdaptedRandError
 
 
 def _compute_criterion(criterion, n_times=100):
@@ -89,6 +90,22 @@ class TestCriterion:
             # don't compare instances smaller than 25K voxels
             ap = BoundaryAveragePrecision(min_instance_size=25000)
             assert ap(pred, label) > 0.5
+
+    def test_adapted_rand_error(self):
+        l_file = 'resources/sample_patch.h5'
+        with h5py.File(l_file, 'r') as f:
+            label = f['big_label'][...]
+            arand = AdaptedRandError()
+            assert arand(label, label) == 0
+
+    def test_adapted_rand_error_on_real_data(self):
+        l_file = 'resources/sample_patch.h5'
+        with h5py.File(l_file, 'r') as f:
+            label = f['big_label'][...]
+            ltb = StandardLabelToBoundary()
+            pred = ltb(label)
+            arand = BoundaryAdaptedRandError(all_stats=True)
+            assert arand(pred, label) < 0.5
 
     def test_generalized_dice_loss(self):
         results = _compute_criterion(GeneralizedDiceLoss())
