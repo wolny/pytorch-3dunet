@@ -35,8 +35,8 @@ source activate 3dunet
 ```
 
 ## Supported model architectures
-- in order to train standard 3D U-Net specify `name: UNet3D` in the `model` section of the [config file](resources/train_config.yaml)
-- in order to train Residual U-Net specify `name: ResidualUNet3D` in the `model` section of the [config file](resources/train_config.yaml)
+- in order to train standard 3D U-Net specify `name: UNet3D` in the `model` section of the [config file](resources/train_config_ce.yaml)
+- in order to train Residual U-Net specify `name: ResidualUNet3D` in the `model` section of the [config file](resources/train_config_ce.yaml)
 
 ## Supported Loss Functions
 For a detailed explanation of the loss functions used see:
@@ -63,11 +63,17 @@ If not specified `iou` will be used by default.
 ## Train
 E.g. fit to randomly generated 3D volume and random segmentation mask from [random_label3D.h5](resources/random_label3D.h5) run:
 ```
-python train.py --config resources/train_config.yaml
+python train.py --config resources/train_config_ce.yaml # train with CrossEntropyLoss
 ```
-See the [train_config.yaml](resources/train_config.yaml) for more info.
+or:
 
-In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the [train_config.yaml](resources/train_config.yaml).
+```
+python train.py --config resources/train_config_dice.yaml # train with DiceLoss
+```
+
+See the [train_config_ce.yaml](resources/train_config_ce.yaml) for more info.
+
+In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the [train_config.yaml](resources/train_config_ce.yaml).
 The HDF5 files should contain the raw/label data sets in the following axis order: `DHW` (in case of 3D) `CDHW` (in case of 4D).
 
 Monitor progress with Tensorboard `tensorboard --logdir ./3dunet/logs/ --port 8666` (you need `tensorboard` installed in your conda env).

@@ -40,7 +40,7 @@ optimizer:
   weight_decay: 0.0001
 # loss function configuration
 loss:
-  # loss function to be used during training (ce - CrossEntropy)
+  # loss function to be used during training
   name: CrossEntropyLoss
   # A manual rescaling weight given to each class.
   loss_weight: null
