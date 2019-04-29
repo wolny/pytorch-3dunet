@@ -1,5 +1,6 @@
 import importlib
 
+import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
@@ -62,6 +63,14 @@ def main():
     # Load and log experiment configuration
     config = load_config()
     logger.info(config)
+
+    manual_seed = config.get('manual_seed', None)
+    if manual_seed is not None:
+        logger.info(f'Seed the RNG for all devices with {manual_seed}')
+        torch.manual_seed(manual_seed)
+        # see https://pytorch.org/docs/stable/notes/randomness.html
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
     # Create the model
     model = get_model(config)
