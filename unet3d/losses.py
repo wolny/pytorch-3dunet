@@ -321,6 +321,11 @@ def expand_as_one_hot(input, C, ignore_index=None):
         return torch.zeros(shape).to(input.device).scatter_(1, src, 1)
 
 
+SUPPORTED_LOSSES = ['BCEWithLogitsLoss', 'CrossEntropyLoss', 'WeightedCrossEntropyLoss', 'PixelWiseCrossEntropyLoss',
+                    'GeneralizedDiceLoss', 'DiceLoss', 'TagsAngularLoss', 'MSEWithLogitsLoss', 'MSELoss',
+                    'SmoothL1Loss', 'L1Loss']
+
+
 def get_loss_criterion(config):
     """
     Returns the loss function based on provided configuration
@@ -373,4 +378,4 @@ def get_loss_criterion(config):
     elif name == 'L1Loss':
         return L1Loss()
     else:
-        raise RuntimeError(f"Unsupported loss function: '{name}'")
+        raise RuntimeError(f"Unsupported loss function: '{name}'. Supported losses: {SUPPORTED_LOSSES}")
