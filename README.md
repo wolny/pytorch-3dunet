@@ -43,22 +43,23 @@ For a detailed explanation of the loss functions used see:
 [Generalised Dice overlap as a deep learning loss function for highly unbalanced segmentations](https://arxiv.org/pdf/1707.03237.pdf)
 Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
 
-- _WeightedCrossEntropyLoss_ (see 'Weighted cross-entropy (WCE)' in the above paper for a detailed explanation)
-- _CrossEntropyLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)
-- _PixelWiseCrossEntropyLoss_ (once can specify not only class weights but also per pixel weights in order to give more/less gradient in some regions of the ground truth)
-- _BCEWithLogitsLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)
-- _DiceLoss_ standard Dice loss (see 'Dice Loss' in the above paper for a detailed explanation). Note: if your labels in the training dataset are not very imbalance
-e.g. one class having at lease 3 orders of magnitude more voxels than the other use this instead of `GDL` since it worked better in my experiments.
-- _GeneralizedDiceLoss_ (one can specify class weights via `--loss-weight <w_1 ... w_k>`)(see 'Generalized Dice Loss (GDL)' in the above paper for a detailed explanation)
+- _WeightedCrossEntropyLoss_ (see 'Weighted cross-entropy (WCE)' in the above paper for a detailed explanation; one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config)
+- _CrossEntropyLoss_ (one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config)
+- _PixelWiseCrossEntropyLoss_ (one can specify not only class weights but also per pixel weights in order to give more/less gradient in some regions of the ground truth)
+- _BCEWithLogitsLoss_
+- _DiceLoss_ standard Dice loss (see 'Dice Loss' in the above paper for a detailed explanation).
+- _GeneralizedDiceLoss_ (see 'Generalized Dice Loss (GDL)' in the above paper for a detailed explanation; one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config). 
+Note: use this loss function only if the labels in the training dataset are very imbalanced
+e.g. one class having at lease 3 orders of magnitude more voxels than the others. Otherwise use standard _DiceLoss_ which works better than GDL most of the time. 
 
 
 ## Supported Evaluation Metrics
 - **MeanIoU** - Mean intersection over union
 - **DiceCoefficient** - Dice Coefficient (computes per channel Dice Coefficient and returns the average)
 - **BoundaryAveragePrecision** - Average Precision (normally used for evaluating instance segmentation, however it can be used when the 3D UNet is used to predict the boundary signal from the instance segmentation ground truth)
-- **ARandScore** - Adjusted Rand Score
+- **AdaptedRandError** - Adapted Rand Error (see http://brainiac2.mit.edu/SNEMI3D/evaluation for a detailed explanation)
 
-If not specified `iou` will be used by default.
+If not specified `MeanIoU` will be used by default.
 
 ## Train
 E.g. fit to randomly generated 3D volume and random segmentation mask from [random_label3D.h5](resources/random_label3D.h5) run:
