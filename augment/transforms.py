@@ -4,7 +4,6 @@ import numpy as np
 import torch
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
 from scipy.ndimage.filters import convolve
-from skimage import exposure
 from skimage.filters import gaussian
 from skimage.segmentation import find_boundaries
 from torchvision.transforms import Compose
@@ -150,6 +149,13 @@ class ElasticDeformation:
         return m
 
 
+def blur_boundary(boundary, sigma):
+    boundary = gaussian(boundary, sigma=sigma)
+    boundary[boundary >= 0.5] = 1
+    boundary[boundary < 0.5] = 0
+    return boundary
+
+
 class AbstractLabelToBoundary:
     AXES_TRANSPOSE = [
         (0, 1, 2),  # X
@@ -163,6 +169,8 @@ class AbstractLabelToBoundary:
             will be restored where is was in the patch originally
         :param aggregate_affinities: aggregate affinities with the same offset across Z,Y,X axes
         :param append_label: if True append the orignal ground truth labels to the last channel
+        :param blur: Gaussian blur the boundaries
+        :param sigma: standard deviation for Gaussian kernel
         """
         self.ignore_index = ignore_index
         self.aggregate_affinities = aggregate_affinities
@@ -177,7 +185,8 @@ class AbstractLabelToBoundary:
         assert m.ndim == 3
 
         kernels = self.get_kernels()
-        channels = np.stack([np.where(np.abs(convolve(m, kernel)) > 0, 1, 0) for kernel in kernels])
+        boundary_arr = [np.where(np.abs(convolve(m, kernel)) > 0, 1, 0) for kernel in kernels]
+        channels = np.stack(boundary_arr)
         results = []
         if self.aggregate_affinities:
             assert len(kernels) % 3 == 0, "Number of kernels must be divided by 3 (one kernel per offset per Z,Y,X axes"
@@ -223,9 +232,7 @@ class StandardLabelToBoundary:
 
         boundaries = find_boundaries(m, connectivity=2)
         if self.blur:
-            boundaries = gaussian(boundaries, sigma=self.sigma)
-            boundaries[boundaries >= 0.5] = 1
-            boundaries[boundaries < 0.5] = 0
+            boundaries = blur_boundary(boundaries, self.sigma)
 
         results = [_recover_ignore_index(boundaries, m, self.ignore_index)]
 
@@ -265,31 +272,53 @@ class RandomLabelToAffinities(AbstractLabelToBoundary):
 
 class LabelToAffinities(AbstractLabelToBoundary):
     """
-    Converts a given volumetric label array to binary mask corresponding to borders between labels.
+    Converts a given volumetric label array to binary mask corresponding to borders between labels (which can be seen
+    as an affinity graph: https://arxiv.org/pdf/1706.00120.pdf)
     One specify the offsets (thickness) of the border. The boundary will be computed via the convolution operator.
     """
 
-    def __init__(self, offsets, ignore_index=None, append_label=False, aggregate_affinities=False, **kwargs):
+    def __init__(self, offsets, ignore_index=None, append_label=False, aggregate_affinities=False, z_offsets=None,
+                 **kwargs):
         super().__init__(ignore_index=ignore_index, append_label=append_label,
                          aggregate_affinities=aggregate_affinities)
-        if isinstance(offsets, int):
-            assert offsets > 0, "'offset' must be positive"
-            offsets = [offsets]
-        elif isinstance(offsets, list) or isinstance(offsets, tuple):
-            assert all(a > 0 for a in offsets), "'offset' must be positive"
-            assert len(set(offsets)) == len(offsets), "'offsets' must be unique"
+
+        assert isinstance(offsets, list) or isinstance(offsets, tuple), 'offsets must be a list or a tuple'
+        assert all(a > 0 for a in offsets), "'offsets must be positive"
+        assert len(set(offsets)) == len(offsets), "'offsets' must be unique"
+        if z_offsets is not None:
+            assert len(offsets) == len(z_offsets), 'z_offsets length must be the same as the length of offsets'
         else:
-            raise ValueError(f"Unsupported 'offsets' type {type(offsets)}")
+            # if z_offsets is None just use the offsets for z-affinities
+            z_offsets = list(offsets)
+        self.z_offsets = z_offsets
 
         self.kernels = []
         # create kernel for every axis-offset pair
-        for offset in offsets:
-            for axis in self.AXES_TRANSPOSE:
+        for xy_offset, z_offset in zip(offsets, z_offsets):
+            for axis_ind, axis in enumerate(self.AXES_TRANSPOSE):
+                final_offset = xy_offset
+                if axis_ind == 2:
+                    final_offset = z_offset
                 # create kernels for a given offset in every direction
-                self.kernels.append(self.create_kernel(axis, offset))
+                self.kernels.append(self.create_kernel(axis, final_offset))
 
     def get_kernels(self):
         return self.kernels
+
+
+class LabelToBoundaryAndAffinities:
+    """
+    Combines the StandardLabelToBoundary and LabelToAffinities in the hope
+    that that training the network to predict both would improve the main task: boundary prediction.
+    """
+    def __init__(self, xy_offsets, z_offsets, append_label=False, blur=False, sigma=1, **kwargs):
+        self.l2b = StandardLabelToBoundary(blur=blur, sigma=sigma)
+        self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label)
+
+    def __call__(self, m):
+        boundary = self.l2b(m)
+        affinities = self.l2a(m)
+        return np.concatenate((boundary, affinities), axis=0)
 
 
 class Normalize:

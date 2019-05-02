@@ -110,9 +110,10 @@ class AdaptedRandError:
 
 
 class BoundaryAdaptedRandError:
-    def __init__(self, threshold=0.4, use_last_target=False, **kwargs):
-        self.use_last_target = use_last_target
+    def __init__(self, threshold=0.4, use_last_target=False, use_first_input=False, **kwargs):
         self.threshold = threshold
+        self.use_last_target = use_last_target
+        self.use_first_input = use_first_input
 
     def __call__(self, input, target):
         if isinstance(input, torch.Tensor):
@@ -136,8 +137,13 @@ class BoundaryAdaptedRandError:
         if isinstance(target, np.ndarray):
             assert target.ndim == 3
 
+        if self.use_first_input:
+            # compute only on the first input channel
+            n_channels = 1
+        else:
+            n_channels = input.shape[0]
+
         per_channel_arand = []
-        n_channels = input.shape[0]
         for c in range(n_channels):
             predictions = input[c]
             # threshold probability maps
