@@ -66,6 +66,13 @@ class TestCriterion:
         pred = torch.unsqueeze(pred, dim=0)
         assert criterion(pred, target) == 1
 
+    def test_mean_iou_one_channel(self):
+        criterion = MeanIoU()
+        pred = torch.rand(1, 1, 3, 3, 3)
+        target = pred > 0.5
+        target = target.long()
+        assert criterion(pred, target) == 1
+
     def test_average_precision_synthethic_data(self):
         input = np.zeros((64, 200, 200), dtype=np.int)
         for i in range(40, 200, 40):

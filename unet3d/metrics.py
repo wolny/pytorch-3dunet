@@ -55,6 +55,8 @@ class MeanIoU:
         :param target: 4D or 5D ground truth torch tensor. 4D (NxDxHxW) tensor will be expanded to 5D as one-hot
         :return: intersection over union averaged over all channels
         """
+        assert input.dim() == 5
+
         n_classes = input.size()[1]
         if target.dim() == 4:
             target = expand_as_one_hot(target, C=n_classes, ignore_index=self.ignore_index)
@@ -64,7 +66,7 @@ class MeanIoU:
         target = target[0]
         assert input.size() == target.size()
 
-        binary_prediction = self._binarize_predictions(input)
+        binary_prediction = self._binarize_predictions(input, n_classes)
 
         if self.ignore_index is not None:
             # zero out ignore_index
@@ -86,11 +88,16 @@ class MeanIoU:
         assert per_channel_iou, "All channels were ignored from the computation"
         return torch.mean(torch.tensor(per_channel_iou))
 
-    def _binarize_predictions(self, input):
+    def _binarize_predictions(self, input, n_classes):
         """
         Puts 1 for the class/channel with the highest probability and 0 in other channels. Returns byte tensor of the
         same size as the input tensor.
         """
+        if n_classes == 1:
+            # for single channel input just threshold the probability map
+            result = input > 0.5
+            return result.long()
+
         _, max_index = torch.max(input, dim=0, keepdim=True)
         return torch.zeros_like(input, dtype=torch.uint8).scatter_(0, max_index, 1)
 
