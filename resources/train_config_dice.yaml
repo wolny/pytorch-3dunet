@@ -57,6 +57,7 @@ lr_scheduler:
   gamma: 0.2
 # data loaders configuration
 loaders:
+  slice_builder: 'FilterSliceBuilder'
   # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
   train_patch: [32, 64, 64]
   # train stride between patches (make sure that the training patches overlap)

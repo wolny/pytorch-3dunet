@@ -1,3 +1,5 @@
+import importlib
+
 import h5py
 import numpy as np
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
@@ -248,6 +250,12 @@ class HDF5Dataset(Dataset):
         assert patch_shape[0] >= 16, 'Depth must be greater or equal 16'
 
 
+def _get_slice_builder_cls(class_name):
+    m = importlib.import_module('datasets.hdf5')
+    clazz = getattr(m, class_name)
+    return clazz
+
+
 def get_train_loaders(config):
     """
     Returns dictionary containing the training and validation loaders
@@ -277,8 +285,9 @@ def get_train_loaders(config):
     val_patch = tuple(loaders_config['val_patch'])
     val_stride = tuple(loaders_config['val_stride'])
 
-    # default slice builder
-    slice_builder_cls = SliceBuilder
+    # get slice_builder_cls
+    slice_builder_str = loaders_config.get('slice_builder', 'SliceBuilder')
+    slice_builder_cls = _get_slice_builder_cls(slice_builder_str)
 
     train_datasets = []
     for train_path in train_paths:
