@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/149826542.svg)](https://zenodo.org/badge/latestdoi/149826542)
+
 # pytorch-3dunet
 
 PyTorch implementation of a standard 3D U-Net based on:
