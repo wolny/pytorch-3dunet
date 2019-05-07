@@ -111,7 +111,7 @@ If you want to contribute back, please make a pull request.
 ## Cite
 If you use this code for your research, please cite as:
 
-Adrian Wolny, & enfisan. (2019, May 7). wolny/pytorch-3dunet: PyTorch implementation of 3D U-Net (Version v1.0.0). Zenodo. http://doi.org/10.5281/zenodo.2671581
+Adrian Wolny. (2019, May 7). wolny/pytorch-3dunet: PyTorch implementation of 3D U-Net (Version v1.0.0). Zenodo. http://doi.org/10.5281/zenodo.2671581
 
 
 
