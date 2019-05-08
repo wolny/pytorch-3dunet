@@ -103,21 +103,21 @@ class TestUNet3DTrainer:
 
     def test_residual_unet(self, tmpdir, capsys):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'CrossEntropyLoss', 'MeanIoU', model_name='ResidualUNet3D')
+            trainer = self._train_save_load(tmpdir, 'CrossEntropyLoss', 'MeanIoU', model='ResidualUNet3D')
 
             assert trainer.max_num_epochs == 1
             assert trainer.log_after_iters == 2
             assert trainer.validate_after_iters == 2
             assert trainer.max_num_iterations == 4
 
-    def _train_save_load(self, tmpdir, loss, val_metric, model_name='UNet3D', max_num_epochs=1, log_after_iters=2,
+    def _train_save_load(self, tmpdir, loss, val_metric, model='UNet3D', max_num_epochs=1, log_after_iters=2,
                          validate_after_iters=2, max_num_iterations=4, weight_map=False):
         binary_loss = loss in ['BCEWithLogitsLoss', 'DiceLoss', 'GeneralizedDiceLoss']
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
         test_config = copy.deepcopy(CONFIG_BASE)
-        test_config['model']['name'] = model_name
+        test_config['model']['name'] = model
         test_config.update({
             # get device to train on
             'device': device,
@@ -131,7 +131,8 @@ class TestUNet3DTrainer:
 
         loss_criterion = get_loss_criterion(test_config)
         eval_criterion = get_evaluation_metric(test_config)
-        model_name = get_model(test_config)
+        model = get_model(test_config)
+        model = model.to(device)
 
         if loss in ['BCEWithLogitsLoss']:
             label_dtype = 'float32'
@@ -146,14 +147,14 @@ class TestUNet3DTrainer:
 
         loaders = get_train_loaders(test_config)
 
-        optimizer = _create_optimizer(test_config, model_name)
+        optimizer = _create_optimizer(test_config, model)
 
         test_config['lr_scheduler']['name'] = 'MultiStepLR'
         lr_scheduler = _create_lr_scheduler(test_config, optimizer)
 
         logger = get_logger('UNet3DTrainer', logging.DEBUG)
 
-        trainer = UNet3DTrainer(model_name, optimizer, lr_scheduler,
+        trainer = UNet3DTrainer(model, optimizer, lr_scheduler,
                                 loss_criterion, eval_criterion,
                                 device, loaders, tmpdir,
                                 max_num_epochs=max_num_epochs,
@@ -164,7 +165,7 @@ class TestUNet3DTrainer:
         trainer.fit()
         # test loading the trainer from the checkpoint
         trainer = UNet3DTrainer.from_checkpoint(os.path.join(tmpdir, 'last_checkpoint.pytorch'),
-                                                model_name, optimizer, lr_scheduler,
+                                                model, optimizer, lr_scheduler,
                                                 loss_criterion, eval_criterion,
                                                 loaders, logger=logger)
         return trainer

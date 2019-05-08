@@ -137,6 +137,7 @@ def main():
     model_path = config['model_path']
     logger.info(f'Loading model from {model_path}...')
     utils.load_checkpoint(model_path, model)
+    logger.info(f"Sending the model to '{config['device']}'")
     model = model.to(config['device'])
 
     logger.info('Loading HDF5 datasets...')
