@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/149826542.svg)](https://zenodo.org/badge/latestdoi/149826542)
+
 # pytorch-3dunet
 
 PyTorch implementation of a standard 3D U-Net based on:
@@ -102,3 +104,14 @@ In order to predict your own raw dataset provide the path to your model as well 
 
 ### Prediction tips
 In order to avoid block artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: [64 128 128] stride: [32 96 96]` will give you a 'halo' of 32 voxels in each direction.
+
+## Contribute
+If you want to contribute back, please make a pull request.
+
+## Cite
+If you use this code for your research, please cite as:
+
+Adrian Wolny. (2019, May 7). wolny/pytorch-3dunet: PyTorch implementation of 3D U-Net (Version v1.0.0). Zenodo. http://doi.org/10.5281/zenodo.2671581
+
+
+
