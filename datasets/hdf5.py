@@ -5,6 +5,7 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 
 import augment.transforms as transforms
+from unet3d.utils import get_logger
 
 
 class SliceBuilder:
@@ -270,6 +271,9 @@ def get_train_loaders(config):
     assert 'loaders' in config, 'Could not find data loaders configuration'
     loaders_config = config['loaders']
 
+    logger = get_logger('UNet3DTrainer')
+    logger.info('Creating training and validation set loaders...')
+
     # get train and validation files
     train_paths = loaders_config['train_path']
     val_paths = loaders_config['val_path']
@@ -287,29 +291,39 @@ def get_train_loaders(config):
 
     # get slice_builder_cls
     slice_builder_str = loaders_config.get('slice_builder', 'SliceBuilder')
+    logger.info(f'Slice builder class: {slice_builder_str}')
     slice_builder_cls = _get_slice_builder_cls(slice_builder_str)
 
     train_datasets = []
     for train_path in train_paths:
-        # create H5 backed training and validation dataset with data augmentation
-        train_dataset = HDF5Dataset(train_path, train_patch, train_stride, phase='train',
-                                    transformer_config=loaders_config['transformer'],
-                                    raw_internal_path=raw_internal_path,
-                                    label_internal_path=label_internal_path,
-                                    weight_internal_path=weight_internal_path,
-                                    slice_builder_cls=slice_builder_cls)
-        train_datasets.append(train_dataset)
+        try:
+            logger.info(f'Loading training set from: {train_path}...')
+            # create H5 backed training and validation dataset with data augmentation
+            train_dataset = HDF5Dataset(train_path, train_patch, train_stride, phase='train',
+                                        transformer_config=loaders_config['transformer'],
+                                        raw_internal_path=raw_internal_path,
+                                        label_internal_path=label_internal_path,
+                                        weight_internal_path=weight_internal_path,
+                                        slice_builder_cls=slice_builder_cls)
+            train_datasets.append(train_dataset)
+        except Exception:
+            logger.info(f'Skipping training set: {train_path}', exc_info=True)
 
     val_datasets = []
     for val_path in val_paths:
-        val_dataset = HDF5Dataset(val_path, val_patch, val_stride, phase='val',
-                                  transformer_config=loaders_config['transformer'],
-                                  raw_internal_path=raw_internal_path,
-                                  label_internal_path=label_internal_path,
-                                  weight_internal_path=weight_internal_path)
-        val_datasets.append(val_dataset)
+        try:
+            logger.info(f'Loading validation set from: {train_path}...')
+            val_dataset = HDF5Dataset(val_path, val_patch, val_stride, phase='val',
+                                      transformer_config=loaders_config['transformer'],
+                                      raw_internal_path=raw_internal_path,
+                                      label_internal_path=label_internal_path,
+                                      weight_internal_path=weight_internal_path)
+            val_datasets.append(val_dataset)
+        except Exception:
+            logger.info(f'Skipping validation set: {val_path}', exc_info=True)
 
     num_workers = loaders_config.get('num_workers', 1)
+    logger.info(f'Number of workers for train/val datasets: {num_workers}')
     # when training with volumetric data use batch_size of 1 due to GPU memory constraints
     return {
         'train': DataLoader(ConcatDataset(train_datasets), batch_size=1, shuffle=True, num_workers=num_workers),
