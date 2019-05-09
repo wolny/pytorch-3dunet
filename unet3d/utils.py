@@ -181,6 +181,9 @@ def adapted_rand(seg, gt, all_stats=False):
     ----------
     [1]: http://brainiac2.mit.edu/SNEMI3D/evaluation
     """
+    # just to prevent division by 0
+    epsilon = 1e-6
+
     # segA is truth, segB is query
     segA = np.ravel(gt)
     segB = np.ravel(seg)
@@ -205,10 +208,10 @@ def adapted_rand(seg, gt, all_stats=False):
     sumB = np.sum(b_i * b_i) + (np.sum(c) / n)
     sumAB = np.sum(d) + (np.sum(c) / n)
 
-    precision = sumAB / sumB
-    recall = sumAB / sumA
+    precision = sumAB / max(sumB, epsilon)
+    recall = sumAB / max(sumA, epsilon)
 
-    fScore = 2.0 * precision * recall / (precision + recall)
+    fScore = 2.0 * precision * recall / max(precision + recall, epsilon)
     are = 1.0 - fScore
 
     if all_stats:

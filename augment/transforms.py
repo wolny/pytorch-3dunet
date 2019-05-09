@@ -311,9 +311,11 @@ class LabelToBoundaryAndAffinities:
     Combines the StandardLabelToBoundary and LabelToAffinities in the hope
     that that training the network to predict both would improve the main task: boundary prediction.
     """
-    def __init__(self, xy_offsets, z_offsets, append_label=False, blur=False, sigma=1, **kwargs):
-        self.l2b = StandardLabelToBoundary(blur=blur, sigma=sigma)
-        self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label)
+
+    def __init__(self, xy_offsets, z_offsets, append_label=False, blur=False, sigma=1, ignore_index=None, **kwargs):
+        self.l2b = StandardLabelToBoundary(blur=blur, sigma=sigma, ignore_index=ignore_index)
+        self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label,
+                                     ignore_index=ignore_index)
 
     def __call__(self, m):
         boundary = self.l2b(m)
