@@ -312,7 +312,7 @@ def get_train_loaders(config):
     val_datasets = []
     for val_path in val_paths:
         try:
-            logger.info(f'Loading validation set from: {train_path}...')
+            logger.info(f'Loading validation set from: {val_path}...')
             val_dataset = HDF5Dataset(val_path, val_patch, val_stride, phase='val',
                                       transformer_config=loaders_config['transformer'],
                                       raw_internal_path=raw_internal_path,
