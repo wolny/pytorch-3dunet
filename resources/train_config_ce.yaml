@@ -59,7 +59,7 @@ lr_scheduler:
 loaders:
   # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
   train_patch: [32, 64, 64]
-  # train stride between patches (make sure that the training patches overlap)
+  # train stride between patches
   train_stride: [8, 16, 16]
   # validation patch (can be bigger than train patch since there is no backprop)
   val_patch: [32, 64, 64]
