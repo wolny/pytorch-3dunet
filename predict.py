@@ -27,7 +27,7 @@ def predict(model, hdf5_dataset, config):
     """
 
     def _volume_shape(hdf5_dataset):
-        #TODO: support multiple internal datasets
+        # TODO: support multiple internal datasets
         raw = hdf5_dataset.raws[0]
         if raw.ndim == 3:
             return raw.shape
@@ -38,13 +38,22 @@ def predict(model, hdf5_dataset, config):
     if out_channels is None:
         out_channels = config['model']['dt_out_channels']
 
+    prediction_channel = config.get('prediction_channel', None)
+    if prediction_channel is not None:
+        logger.info(f"Using only channel '{prediction_channel}' from the network output")
+
     device = config['device']
     output_heads = config['model'].get('output_heads', 1)
 
     logger.info(f'Running prediction on {len(hdf5_dataset)} patches...')
     # dimensionality of the the output (CxDxHxW)
     volume_shape = _volume_shape(hdf5_dataset)
-    prediction_maps_shape = (out_channels,) + volume_shape
+    if prediction_channel is None:
+        prediction_maps_shape = (out_channels,) + volume_shape
+    else:
+        # single channel prediction map
+        prediction_maps_shape = (1,) + volume_shape
+
     logger.info(f'The shape of the output prediction maps (CDHW): {prediction_maps_shape}')
 
     # initialize the output prediction arrays
@@ -60,7 +69,11 @@ def predict(model, hdf5_dataset, config):
             logger.info(f'Predicting slice:{index}')
 
             # save patch index: (C,D,H,W)
-            channel_slice = slice(0, out_channels)
+            if prediction_channel is None:
+                channel_slice = slice(0, out_channels)
+            else:
+                channel_slice = slice(0, 1)
+
             index = (channel_slice,) + index
 
             # convert patch to torch tensor NxCxDxHxW and send to device we're using batch size of 1
@@ -76,6 +89,11 @@ def predict(model, hdf5_dataset, config):
                                                                       normalization_masks):
                 # squeeze batch dimension and convert back to numpy array
                 prediction = prediction.squeeze(dim=0).cpu().numpy()
+                if prediction_channel is not None:
+                    # use only the 'prediction_channel'
+                    logger.info(f"Using channel '{prediction_channel}'...")
+                    prediction = np.expand_dims(prediction[prediction_channel], axis=0)
+
                 # unpad in order to avoid block artifacts in the output probability maps
                 u_prediction, u_index = utils.unpad(prediction, index, volume_shape)
                 # accumulate probabilities into the output prediction array
