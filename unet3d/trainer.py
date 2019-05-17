@@ -185,9 +185,11 @@ class UNet3DTrainer:
                 self._save_checkpoint(is_best)
 
             if self.num_iterations % self.log_after_iters == 0:
-                # if model contains final_activation layer for normalizing logits apply it
+                # if model contains final_activation layer for normalizing logits apply it, otherwise both
+                # the evaluation metric as well as images in tensorboard will be incorrectly computed
                 if hasattr(self.model, 'final_activation'):
                     output = self.model.final_activation(output)
+
                 # compute eval criterion
                 eval_score = self.eval_criterion(output, target)
                 train_eval_scores.update(eval_score.item(), self._batch_size(input))
@@ -197,9 +199,6 @@ class UNet3DTrainer:
                     f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
                 self._log_stats('train', train_losses.avg, train_eval_scores.avg)
                 self._log_params()
-                # normalize output (during training the network outputs logits only)
-                if hasattr(self.model, 'final_activation'):
-                    output = self.model.final_activation(output)
                 self._log_images(input, target, output)
 
             if self.max_num_iterations < self.num_iterations:
@@ -218,6 +217,8 @@ class UNet3DTrainer:
         val_scores = utils.RunningAverage()
 
         try:
+            # set the model in evaluation mode; final_activation doesn't need to be called explicitly
+            self.model.eval()
             with torch.no_grad():
                 for i, t in enumerate(val_loader):
                     self.logger.info(f'Validation iteration {i}')
@@ -227,8 +228,6 @@ class UNet3DTrainer:
                     output, loss = self._forward_pass(input, target, weight)
                     val_losses.update(loss.item(), self._batch_size(input))
 
-                    if hasattr(self.model, 'final_activation'):
-                        output = self.model.final_activation(output)
                     eval_score = self.eval_criterion(output, target)
                     val_scores.update(eval_score.item(), self._batch_size(input))
 
@@ -240,6 +239,7 @@ class UNet3DTrainer:
                 self.logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
                 return val_scores.avg
         finally:
+            # set back in training mode
             self.model.train()
 
     def _split_training_batch(self, t):
