@@ -1,7 +1,9 @@
+import collections
 import importlib
 
 import h5py
 import numpy as np
+import torch
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 
 import augment.transforms as transforms
@@ -331,13 +333,28 @@ def get_train_loaders(config):
     }
 
 
-def get_test_datasets(config):
+def get_test_loaders(config):
     """
     Returns a list of HDF5Datasets, one per each test file.
 
     :param config: a top level configuration object containing the 'datasets' key
     :return: list of HDF5Dataset objects
     """
+
+    def my_collate(batch):
+        error_msg = "batch must contain tensors or slice; found {}"
+        if isinstance(batch[0], torch.Tensor):
+            return torch.stack(batch, 0)
+        elif isinstance(batch[0], slice):
+            return batch[0]
+        elif isinstance(batch[0], collections.Sequence):
+            transposed = zip(*batch)
+            return [my_collate(samples) for samples in transposed]
+
+        raise TypeError((error_msg.format(type(batch[0]))))
+
+    logger = get_logger('HDF5Dataset')
+
     assert 'datasets' in config, 'Could not find data sets configuration'
     datasets_config = config['datasets']
 
@@ -349,6 +366,13 @@ def get_test_datasets(config):
     # get train/validation patch size and stride
     patch = tuple(datasets_config['patch'])
     stride = tuple(datasets_config['stride'])
-    # return HDF5Dataset per test path
-    return [HDF5Dataset(test_path, patch, stride, phase='test', raw_internal_path=raw_internal_path,
-                        transformer_config=datasets_config['transformer']) for test_path in test_paths]
+    num_workers = datasets_config.get('num_workers', 1)
+
+    # construct datasets lazily
+    datasets = (HDF5Dataset(test_path, patch, stride, phase='test', raw_internal_path=raw_internal_path,
+                            transformer_config=datasets_config['transformer']) for test_path in test_paths)
+
+    # use generator in order to create data loaders lazily one by one
+    for dataset in datasets:
+        logger.info(f'Loading test set from: {dataset.file_path}...')
+        yield DataLoader(dataset, batch_size=1, num_workers=num_workers, collate_fn=my_collate)

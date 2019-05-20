@@ -26,6 +26,8 @@ datasets:
   stride: [32, 100, 100]
   # path to the raw data within the H5
   raw_internal_path: raw
+  # how many subprocesses to use for data loading
+  num_workers: 8
   # paths to the datasets
   test_path:
     - 'resources/random_label3D.h5'

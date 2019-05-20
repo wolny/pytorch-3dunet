@@ -4,7 +4,7 @@ import h5py
 import numpy as np
 import torch
 
-from datasets.hdf5 import get_test_datasets
+from datasets.hdf5 import get_test_loaders
 from unet3d import utils
 from unet3d.config import load_config
 from unet3d.model import get_model
@@ -12,13 +12,13 @@ from unet3d.model import get_model
 logger = utils.get_logger('UNet3DPredictor')
 
 
-def predict(model, hdf5_dataset, config):
+def predict(model, data_loader, config):
     """
     Return prediction masks by applying the model on the given dataset
 
     Args:
         model (Unet3D): trained 3D UNet model used for prediction
-        hdf5_dataset (torch.utils.data.Dataset): input dataset
+        data_loader (torch.utils.data.DataLoader): input data loader
         out_channels (int): number of channels in the network output
         device (torch.Device): device to run the prediction on
 
@@ -26,9 +26,9 @@ def predict(model, hdf5_dataset, config):
          prediction_maps (numpy array): prediction masks for given dataset
     """
 
-    def _volume_shape(hdf5_dataset):
+    def _volume_shape(dataset):
         # TODO: support multiple internal datasets
-        raw = hdf5_dataset.raws[0]
+        raw = dataset.raws[0]
         if raw.ndim == 3:
             return raw.shape
         else:
@@ -45,9 +45,9 @@ def predict(model, hdf5_dataset, config):
     device = config['device']
     output_heads = config['model'].get('output_heads', 1)
 
-    logger.info(f'Running prediction on {len(hdf5_dataset)} patches...')
+    logger.info(f'Running prediction on {len(data_loader)} patches...')
     # dimensionality of the the output (CxDxHxW)
-    volume_shape = _volume_shape(hdf5_dataset)
+    volume_shape = _volume_shape(data_loader.dataset)
     if prediction_channel is None:
         prediction_maps_shape = (out_channels,) + volume_shape
     else:
@@ -65,7 +65,7 @@ def predict(model, hdf5_dataset, config):
     model.eval()
     # Run predictions on the entire input dataset
     with torch.no_grad():
-        for patch, index in hdf5_dataset:
+        for patch, index in data_loader:
             logger.info(f'Predicting slice:{index}')
 
             # save patch index: (C,D,H,W)
@@ -74,13 +74,13 @@ def predict(model, hdf5_dataset, config):
             else:
                 channel_slice = slice(0, 1)
 
-            index = (channel_slice,) + index
+            index = (channel_slice,) + tuple(index)
 
-            # convert patch to torch tensor NxCxDxHxW and send to device we're using batch size of 1
-            patch = patch.unsqueeze(dim=0).to(device)
-
+            # send patch to device
+            patch = patch.to(device)
             # forward pass
             predictions = model(patch)
+
             # wrap predictions into a list if there is only one output head from the network
             if output_heads == 1:
                 predictions = [predictions]
@@ -159,12 +159,12 @@ def main():
     model = model.to(config['device'])
 
     logger.info('Loading HDF5 datasets...')
-    for test_dataset in get_test_datasets(config):
-        logger.info(f"Processing '{test_dataset.file_path}'...")
+    for test_loader in get_test_loaders(config):
+        logger.info(f"Processing '{test_loader.dataset.file_path}'...")
         # run the model prediction on the entire dataset
-        predictions = predict(model, test_dataset, config)
+        predictions = predict(model, test_loader, config)
         # save the resulting probability maps
-        output_file = _get_output_file(test_dataset)
+        output_file = _get_output_file(test_loader.dataset)
         dataset_names = _get_dataset_names(config, len(predictions))
         save_predictions(predictions, output_file, dataset_names)
 
