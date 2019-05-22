@@ -26,14 +26,14 @@ class UNet3D(nn.Module):
         final_sigmoid (bool): if True apply element-wise nn.Sigmoid after the
             final 1x1 convolution, otherwise apply nn.Softmax. MUST be True if nn.BCELoss (two-class) is used
             to train the model. MUST be False if nn.CrossEntropyLoss (multi-class) is used to train the model.
-        conv_layer_order (string): determines the order of layers
+        layer_order (string): determines the order of layers
             in `SingleConv` module. e.g. 'crg' stands for Conv3d+ReLU+GroupNorm3d.
             See `SingleConv` for more info
         init_channel_number (int): number of feature maps in the first conv layer of the encoder; default: 64
         num_groups (int): number of groups for the GroupNorm
     """
 
-    def __init__(self, in_channels, out_channels, final_sigmoid, f_maps=64, conv_layer_order='crg', num_groups=8,
+    def __init__(self, in_channels, out_channels, final_sigmoid, f_maps=64, layer_order='crg', num_groups=8,
                  **kwargs):
         super(UNet3D, self).__init__()
 
@@ -47,10 +47,10 @@ class UNet3D(nn.Module):
         for i, out_feature_num in enumerate(f_maps):
             if i == 0:
                 encoder = Encoder(in_channels, out_feature_num, apply_pooling=False, basic_module=DoubleConv,
-                                  conv_layer_order=conv_layer_order, num_groups=num_groups)
+                                  conv_layer_order=layer_order, num_groups=num_groups)
             else:
                 encoder = Encoder(f_maps[i - 1], out_feature_num, basic_module=DoubleConv,
-                                  conv_layer_order=conv_layer_order, num_groups=num_groups)
+                                  conv_layer_order=layer_order, num_groups=num_groups)
             encoders.append(encoder)
 
         self.encoders = nn.ModuleList(encoders)
@@ -63,7 +63,7 @@ class UNet3D(nn.Module):
             in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
             out_feature_num = reversed_f_maps[i + 1]
             decoder = Decoder(in_feature_num, out_feature_num, basic_module=DoubleConv,
-                              conv_layer_order=conv_layer_order, num_groups=num_groups)
+                              conv_layer_order=layer_order, num_groups=num_groups)
             decoders.append(decoder)
 
         self.decoders = nn.ModuleList(decoders)
