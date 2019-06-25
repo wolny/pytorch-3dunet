@@ -335,10 +335,10 @@ def get_train_loaders(config):
 
 def get_test_loaders(config):
     """
-    Returns a list of HDF5Datasets, one per each test file.
+    Returns a list of DataLoader, one per each test file.
 
     :param config: a top level configuration object containing the 'datasets' key
-    :return: list of HDF5Dataset objects
+    :return: generator of DataLoader objects
     """
 
     def my_collate(batch):
@@ -361,7 +361,7 @@ def get_test_loaders(config):
     # get train and validation files
     test_paths = datasets_config['test_path']
     assert isinstance(test_paths, list)
-    # get h5 internal paths for raw and label
+    # get h5 internal path
     raw_internal_path = datasets_config['raw_internal_path']
     # get train/validation patch size and stride
     patch = tuple(datasets_config['patch'])
