@@ -331,7 +331,7 @@ class LabelToMaskAndAffinities:
 
     def __call__(self, m):
         mask = m > self.background
-        mask = mask.astype(np.uint8)
+        mask = np.expand_dims(mask.astype(np.uint8), axis=0)
         affinities = self.l2a(m)
         return np.concatenate((mask, affinities), axis=0)
 
