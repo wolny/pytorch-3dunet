@@ -323,6 +323,19 @@ class LabelToBoundaryAndAffinities:
         return np.concatenate((boundary, affinities), axis=0)
 
 
+class LabelToMaskAndAffinities:
+    def __init__(self, xy_offsets, z_offsets, append_label=False, background=0, ignore_index=None, **kwargs):
+        self.background = background
+        self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label,
+                                     ignore_index=ignore_index)
+
+    def __call__(self, m):
+        mask = m > self.background
+        mask = mask.astype(np.uint8)
+        affinities = self.l2a(m)
+        return np.concatenate((mask, affinities), axis=0)
+
+
 class Normalize:
     """
     Normalizes a given input tensor to be 0-mean and 1-std.
