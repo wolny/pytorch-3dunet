@@ -117,10 +117,11 @@ class AdaptedRandError:
 
 
 class BoundaryAdaptedRandError:
-    def __init__(self, threshold=0.4, use_last_target=False, use_first_input=False, **kwargs):
+    def __init__(self, threshold=0.4, use_last_target=False, use_first_input=False, invert_pmaps=True, **kwargs):
         self.threshold = threshold
         self.use_last_target = use_last_target
         self.use_first_input = use_first_input
+        self.invert_pmaps = invert_pmaps
 
     def __call__(self, input, target):
         if isinstance(input, torch.Tensor):
@@ -155,9 +156,13 @@ class BoundaryAdaptedRandError:
             predictions = input[c]
             # threshold probability maps
             predictions = predictions > self.threshold
-            # for connected component analysis we need to treat boundary signal as background
-            # assign 0-label to boundary mask
-            predictions = np.logical_not(predictions).astype(np.uint8)
+
+            if self.invert_pmaps:
+                # for connected component analysis we need to treat boundary signal as background
+                # assign 0-label to boundary mask
+                predictions = np.logical_not(predictions)
+
+            predictions = predictions.astype(np.uint8)
             # run connected components on the predicted mask; consider only 1-connectivity
             predicted = measure.label(predictions, background=0, connectivity=1)
             # make sure that target is 'int' type as well
