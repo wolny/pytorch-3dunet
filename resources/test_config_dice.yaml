@@ -1,5 +1,8 @@
 # path to the checkpoint file containing the model
 model_path: 3dunet/best_checkpoint.pytorch
+# Should the patches be stored in memory or written directly to H5 during prediction.
+# Set to True if you have enough RAM cause it's way faster
+store_predictions_in_memory: True
 # model configuration
 model:
   # model class
