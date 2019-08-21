@@ -11,6 +11,8 @@ from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, BCELoss
 from unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
     BoundaryAdaptedRandError
 
+from embeddings.contrastive_loss import ContrastiveLoss
+
 
 def _compute_criterion(criterion, n_times=100):
     shape = [1, 0, 30, 30, 30]
@@ -203,4 +205,13 @@ class TestCriterion:
         targets = [i / torch.norm(i, p=2, dim=1).clamp(min=1e-8) for i in targets]
 
         loss = loss_criterion(inputs, targets, None)
+        assert loss > 0
+
+    def test_contrastive_loss(self):
+        loss_criterion = ContrastiveLoss(0.5, 1.5)
+        C = 10
+        input = torch.randn(3, 16, 64, 64, 64)
+        target = torch.randint(C, (3, 64, 64, 64))
+
+        loss = loss_criterion(input, target, C)
         assert loss > 0
