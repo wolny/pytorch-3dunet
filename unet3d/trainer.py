@@ -1,11 +1,11 @@
 import logging
 import os
 
-import numpy as np
 import torch
 from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
+from unet3d.utils import DefaultTensorboardFormatter
 from . import utils
 
 
@@ -35,6 +35,8 @@ class UNet3DTrainer:
         best_eval_score (float): best validation score so far (higher better)
         num_iterations (int): useful when loading the model from the checkpoint
         num_epoch (int): useful when loading the model from the checkpoint
+        tensorboard_formatter (callable): converts a given batch of input/output/target image to a series of images
+            that can be displayed in tensorboard
     """
 
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion,
@@ -43,7 +45,7 @@ class UNet3DTrainer:
                  validate_after_iters=100, log_after_iters=100,
                  validate_iters=None, num_iterations=1, num_epoch=0,
                  eval_score_higher_is_better=True, best_eval_score=None,
-                 logger=None):
+                 logger=None, tensorboard_formatter=None):
         if logger is None:
             self.logger = utils.get_logger('UNet3DTrainer', level=logging.DEBUG)
         else:
@@ -77,12 +79,16 @@ class UNet3DTrainer:
 
         self.writer = SummaryWriter(log_dir=os.path.join(checkpoint_dir, 'logs'))
 
+        if tensorboard_formatter is None:
+            tensorboard_formatter = DefaultTensorboardFormatter()
+        self.tensorboard_formatter = tensorboard_formatter
+
         self.num_iterations = num_iterations
         self.num_epoch = num_epoch
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders,
-                        logger=None):
+                        logger=None, tensorboard_formatter=None):
         logger.info(f"Loading checkpoint '{checkpoint_path}'...")
         state = utils.load_checkpoint(checkpoint_path, model, optimizer)
         logger.info(
@@ -101,7 +107,8 @@ class UNet3DTrainer:
                    validate_after_iters=state['validate_after_iters'],
                    log_after_iters=state['log_after_iters'],
                    validate_iters=state['validate_iters'],
-                   logger=logger)
+                   logger=logger,
+                   tensorboard_formatter=tensorboard_formatter)
 
     @classmethod
     def from_pretrained(cls, pre_trained, model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
@@ -110,7 +117,7 @@ class UNet3DTrainer:
                         validate_after_iters=100, log_after_iters=100,
                         validate_iters=None, num_iterations=1, num_epoch=0,
                         eval_score_higher_is_better=True, best_eval_score=None,
-                        logger=None):
+                        logger=None, tensorboard_formatter=None):
         logger.info(f"Logging pre-trained model from '{pre_trained}'...")
         utils.load_checkpoint(pre_trained, model, None)
         checkpoint_dir = os.path.split(pre_trained)[0]
@@ -126,7 +133,8 @@ class UNet3DTrainer:
                    validate_after_iters=validate_after_iters,
                    log_after_iters=log_after_iters,
                    validate_iters=validate_iters,
-                   logger=logger)
+                   logger=logger,
+                   tensorboard_formatter=tensorboard_formatter)
 
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
@@ -332,35 +340,8 @@ class UNet3DTrainer:
                 img_sources[name] = batch.data.cpu().numpy()
 
         for name, batch in img_sources.items():
-            for tag, image in self._images_from_batch(name, batch):
-                self.writer.add_image(tag, image, self.num_iterations, dataformats='HW')
-
-    def _images_from_batch(self, name, batch):
-        tag_template = '{}/batch_{}/channel_{}/slice_{}'
-
-        tagged_images = []
-
-        if batch.ndim == 5:
-            # NCDHW
-            slice_idx = batch.shape[2] // 2  # get the middle slice
-            for batch_idx in range(batch.shape[0]):
-                for channel_idx in range(batch.shape[1]):
-                    tag = tag_template.format(name, batch_idx, channel_idx, slice_idx)
-                    img = batch[batch_idx, channel_idx, slice_idx, ...]
-                    tagged_images.append((tag, self._normalize_img(img)))
-        else:
-            # batch has no channel dim: NDHW
-            slice_idx = batch.shape[1] // 2  # get the middle slice
-            for batch_idx in range(batch.shape[0]):
-                tag = tag_template.format(name, batch_idx, 0, slice_idx)
-                img = batch[batch_idx, slice_idx, ...]
-                tagged_images.append((tag, self._normalize_img(img)))
-
-        return tagged_images
-
-    @staticmethod
-    def _normalize_img(img):
-        return (img - np.min(img)) / np.ptp(img)
+            for tag, image in self.tensorboard_formatter(name, batch):
+                self.writer.add_image(tag, image, self.num_iterations, dataformats='CHW')
 
     @staticmethod
     def _batch_size(input):

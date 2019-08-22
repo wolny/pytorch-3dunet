@@ -129,10 +129,12 @@ class ResidualUNet3D(nn.Module):
             See `SingleConv` for more info
         init_channel_number (int): number of feature maps in the first conv layer of the encoder; default: 64
         num_groups (int): number of groups for the GroupNorm
+        skip_final_activation (bool): if True, skips the final normalization layer (sigmoid/softmax) and returns the
+            logits directly
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid, f_maps=32, conv_layer_order='cge', num_groups=8,
-                 **kwargs):
+                 skip_final_activation=False, **kwargs):
         super(ResidualUNet3D, self).__init__()
 
         if isinstance(f_maps, int):
@@ -168,10 +170,13 @@ class ResidualUNet3D(nn.Module):
         # channels to the number of labels
         self.final_conv = nn.Conv3d(f_maps[0], out_channels, 1)
 
-        if final_sigmoid:
-            self.final_activation = nn.Sigmoid()
+        if not skip_final_activation:
+            if final_sigmoid:
+                self.final_activation = nn.Sigmoid()
+            else:
+                self.final_activation = nn.Softmax(dim=1)
         else:
-            self.final_activation = nn.Softmax(dim=1)
+            self.final_activation = None
 
     def forward(self, x):
         # encoder part
@@ -195,7 +200,7 @@ class ResidualUNet3D(nn.Module):
 
         # apply final_activation (i.e. Sigmoid or Softmax) only for prediction. During training the network outputs
         # logits and it's up to the user to normalize it before visualising with tensorboard or computing validation metric
-        if not self.training:
+        if not self.training and self.final_activation is not None:
             x = self.final_activation(x)
 
         return x
