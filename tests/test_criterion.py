@@ -213,5 +213,5 @@ class TestCriterion:
         input = torch.randn(3, 16, 64, 64, 64)
         target = torch.randint(C, (3, 64, 64, 64))
 
-        loss = loss_criterion(input, target, C)
+        loss = loss_criterion(input, target)
         assert loss > 0

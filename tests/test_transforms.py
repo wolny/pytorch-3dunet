@@ -1,6 +1,6 @@
 import numpy as np
 
-from augment.transforms import RandomLabelToAffinities, LabelToAffinities, Transformer
+from augment.transforms import RandomLabelToAffinities, LabelToAffinities, Transformer, Relabel
 
 
 class TestTransforms:
@@ -51,6 +51,12 @@ class TestTransforms:
         result = transform(label)
         assert result.shape == (6,) + label.shape
         assert np.array_equal(np.unique(result), [0, 1])
+
+    def test_relabel(self):
+        label = np.array([[10, 10, 10], [0, 0, 0], [5, 5, 5]])
+        r = Relabel()
+        result = r(label)
+        assert np.array_equal(result, np.array([[2, 2, 2], [0, 0, 0], [1, 1, 1]]))
 
     def test_BaseTransformer(self):
         config = {

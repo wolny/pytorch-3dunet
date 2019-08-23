@@ -4,6 +4,9 @@ from torch import nn as nn
 from torch.autograd import Variable
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss
 
+from embeddings.contrastive_loss import ContrastiveLoss
+from unet3d.utils import expand_as_one_hot
+
 
 def compute_per_channel_dice(input, target, epsilon=1e-5, ignore_index=None, weight=None):
     # assumes that input is a normalized probability
@@ -286,38 +289,6 @@ def flatten(tensor):
     return transposed.view(C, -1)
 
 
-def expand_as_one_hot(input, C, ignore_index=None):
-    """
-    Converts NxDxHxW label image to NxCxDxHxW, where each label gets converted to its corresponding one-hot vector
-    :param input: 4D input image (NxDxHxW)
-    :param C: number of channels/labels
-    :param ignore_index: ignore index to be kept during the expansion
-    :return: 5D output image (NxCxDxHxW)
-    """
-    assert input.dim() == 4
-
-    # expand the input tensor to Nx1xDxHxW before scattering
-    input = input.unsqueeze(1)
-    # create result tensor shape (NxCxDxHxW)
-    shape = list(input.size())
-    shape[1] = C
-
-    if ignore_index is not None:
-        # create ignore_index mask for the result
-        mask = input.expand(shape) == ignore_index
-        # clone the src tensor and zero out ignore_index in the input
-        input = input.clone()
-        input[input == ignore_index] = 0
-        # scatter to get the one-hot tensor
-        result = torch.zeros(shape).to(input.device).scatter_(1, input, 1)
-        # bring back the ignore_index in the result
-        result[mask] = ignore_index
-        return result
-    else:
-        # scatter to get the one-hot tensor
-        return torch.zeros(shape).to(input.device).scatter_(1, input, 1)
-
-
 SUPPORTED_LOSSES = ['BCEWithLogitsLoss', 'CrossEntropyLoss', 'WeightedCrossEntropyLoss', 'PixelWiseCrossEntropyLoss',
                     'GeneralizedDiceLoss', 'DiceLoss', 'TagsAngularLoss', 'MSEWithLogitsLoss', 'MSELoss',
                     'SmoothL1Loss', 'L1Loss']
@@ -374,5 +345,8 @@ def get_loss_criterion(config):
         return SmoothL1Loss()
     elif name == 'L1Loss':
         return L1Loss()
+    elif name == 'ContrastiveLoss':
+        return ContrastiveLoss(loss_config['delta_var'], loss_config['delta_dist'], loss_config['norm'],
+                               loss_config['alpha'], loss_config['beta'], loss_config['gamma'])
     else:
         raise RuntimeError(f"Unsupported loss function: '{name}'. Supported losses: {SUPPORTED_LOSSES}")

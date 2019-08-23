@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from unet3d.losses import expand_as_one_hot
+from unet3d.utils import expand_as_one_hot
 
 
 class ContrastiveLoss(nn.Module):
@@ -59,6 +59,9 @@ class ContrastiveLoss(nn.Module):
         return variance_term
 
     def _compute_distance_term(self, cluster_means, C):
+        if C == 1:
+            # just one cluster in the batch, so distance term does not contribute to the loss
+            return 0.
         # squeeze space dims
         for _ in range(3):
             cluster_means = cluster_means.squeeze(-1)
@@ -93,16 +96,17 @@ class ContrastiveLoss(nn.Module):
         # return the average norm per batch
         return torch.sum(norms, dim=1).div(C)
 
-    def forward(self, input, target, C):
+    def forward(self, input, target):
         """
         Args:
              input (torch.tensor): embeddings predicted by the network (NxExDxHxW) (E - embedding dims)
              target (torch.tensor): ground truth instance segmentation (NxDxHxW)
-             C (int): number of instances (clusters) in the ground truth
 
         Returns:
             Combined loss defined as: alpha * variance_term + beta * distance_term + gamma * regularization_term
         """
+        # get number of instances in the batch
+        C = torch.unique(target).size()[0]
         # expand each label as a one-hot vector: N x D x H x W -> N x C x D x H x W
         target = expand_as_one_hot(target, C)
         # compare spatial dimensions

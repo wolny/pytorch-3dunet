@@ -3,10 +3,12 @@ import logging
 import os
 import shutil
 import sys
-import scipy.sparse as sparse
 
 import numpy as np
+import scipy.sparse as sparse
 import torch
+
+from sklearn.decomposition import PCA
 
 
 def save_checkpoint(state, is_best, checkpoint_dir, logger=None):
@@ -251,6 +253,8 @@ class _TensorboardFormatter:
 
             return tag, img
 
+        assert name in ['inputs', 'targets', 'predictions']
+
         tagged_images = self.process_batch(name, batch)
 
         return list(map(_check_img, tagged_images))
@@ -261,8 +265,6 @@ class _TensorboardFormatter:
 
 class DefaultTensorboardFormatter(_TensorboardFormatter):
     def process_batch(self, name, batch):
-        assert name in ['inputs', 'targets', 'predictions']
-
         tag_template = '{}/batch_{}/channel_{}/slice_{}'
 
         tagged_images = []
@@ -276,7 +278,7 @@ class DefaultTensorboardFormatter(_TensorboardFormatter):
                     img = batch[batch_idx, channel_idx, slice_idx, ...]
                     tagged_images.append((tag, self._normalize_img(img)))
         else:
-            # batch has no channel dim: NDHW
+            # batch hafrom sklearn.decomposition import PCAs no channel dim: NDHW
             slice_idx = batch.shape[1] // 2  # get the middle slice
             for batch_idx in range(batch.shape[0]):
                 tag = tag_template.format(name, batch_idx, 0, slice_idx)
@@ -290,7 +292,84 @@ class DefaultTensorboardFormatter(_TensorboardFormatter):
         return (img - np.min(img)) / np.ptp(img)
 
 
+class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
+    def process_batch(self, name, batch):
+        if name == 'inputs':
+            assert batch.ndim == 5
+            # skip coordinate channels and take only the first 'raw' channel
+            batch = batch[:, 0, ...]
+            return super().process_batch(name, batch)
+        elif name == 'predictions':
+            return self._embeddings_to_rgb(batch)
+        else:
+            return super().process_batch(name, batch)
+
+    def _embeddings_to_rgb(self, batch):
+        assert batch.ndim == 5
+
+        tag_template = 'embeddings/batch_{}/slice_{}'
+        tagged_images = []
+
+        slice_idx = batch.shape[2] // 2  # get the middle slice
+        for batch_idx in range(batch.shape[0]):
+            tag = tag_template.format(batch_idx, slice_idx)
+            img = batch[batch_idx, :, slice_idx, ...]  # CHW
+            img = self._pca_project(img)
+            tagged_images.append((tag, img))
+
+        return tagged_images
+
+    def _pca_project(self, embeddings):
+        assert embeddings.ndim == 3
+        # reshape (C, H, W) -> (C, H * W) and transpose
+        flattened_embeddings = embeddings.reshape(embeddings.shape[0], -1).transpose()
+        # init PCA with 3 principal components: one for each RGB channel
+        pca = PCA(n_components=3)
+        # apply PCA to the embedding vectors
+        pca.fit(flattened_embeddings)
+        flattened_embeddings = pca.transform(flattened_embeddings)
+        # reshape back to original
+        shape = list(embeddings.shape)
+        shape[0] = 3
+        img = flattened_embeddings.transpose().reshape(shape)
+        # normalize to [0, 255]
+        img = 255 * (img - np.min(img)) / np.ptp(img)
+        return img.astype('uint8')
+
+
 def get_tensorboard_formatter(name):
     m = importlib.import_module('unet3d.utils')
     clazz = getattr(m, name)
     return clazz()
+
+
+def expand_as_one_hot(input, C, ignore_index=None):
+    """
+    Converts NxDxHxW label image to NxCxDxHxW, where each label gets converted to its corresponding one-hot vector
+    :param input: 4D input image (NxDxHxW)
+    :param C: number of channels/labels
+    :param ignore_index: ignore index to be kept during the expansion
+    :return: 5D output image (NxCxDxHxW)
+    """
+    assert input.dim() == 4
+
+    # expand the input tensor to Nx1xDxHxW before scattering
+    input = input.unsqueeze(1)
+    # create result tensor shape (NxCxDxHxW)
+    shape = list(input.size())
+    shape[1] = C
+
+    if ignore_index is not None:
+        # create ignore_index mask for the result
+        mask = input.expand(shape) == ignore_index
+        # clone the src tensor and zero out ignore_index in the input
+        input = input.clone()
+        input[input == ignore_index] = 0
+        # scatter to get the one-hot tensor
+        result = torch.zeros(shape).to(input.device).scatter_(1, input, 1)
+        # bring back the ignore_index in the result
+        result[mask] = ignore_index
+        return result
+    else:
+        # scatter to get the one-hot tensor
+        return torch.zeros(shape).to(input.device).scatter_(1, input, 1)

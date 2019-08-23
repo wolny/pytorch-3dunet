@@ -5,8 +5,8 @@ import torch
 import torch.nn.functional as F
 from skimage import measure
 
-from unet3d.losses import compute_per_channel_dice, expand_as_one_hot
-from unet3d.utils import get_logger, adapted_rand
+from unet3d.losses import compute_per_channel_dice
+from unet3d.utils import get_logger, adapted_rand, expand_as_one_hot
 
 LOGGER = get_logger('EvalMetric')
 
@@ -175,6 +175,31 @@ class BoundaryAdaptedRandError:
         min_arand, c_index = np.min(per_channel_arand), np.argmin(per_channel_arand)
         LOGGER.info(f'Min AdaptedRand error: {min_arand}, channel: {c_index}')
         return min_arand
+
+
+class EmbeddingsAdaptedRandError:
+    def __init__(self, **kwargs):
+        pass
+
+    def __call__(self, input, target):
+        if isinstance(input, torch.Tensor):
+            assert input.dim() == 5
+            # convert to numpy array
+            input = input[0].detach().cpu().numpy()  # 4D
+
+        if isinstance(target, torch.Tensor):
+            assert target.dim() == 4
+            # convert to numpy array
+            target = target[0].detach().cpu().numpy()  # 3D
+
+        if isinstance(input, np.ndarray):
+            assert input.ndim == 4
+
+        if isinstance(target, np.ndarray):
+            assert target.ndim == 3
+
+        # TODO: implement
+        return torch.tensor(np.random.rand())
 
 
 class _AbstractAP:

@@ -392,7 +392,26 @@ class ToTensor:
         return torch.from_numpy(m.astype(dtype=self.dtype))
 
 
+class Relabel:
+    """
+    Relabel a numpy array of labels into a consecutive numbers, e.g.
+    [10,10, 0, 6, 6] -> [2, 2, 0, 1, 1]. Useful when one has an instance segmentation volume
+    at hand and would like to create a one-hot-encoding for it. Without a consecutive labeling the task would be harder.
+    """
+
+    def __init__(self, **kwargs):
+        pass
+
+    def __call__(self, m):
+        _, unique_labels = np.unique(m, return_inverse=True)
+        m = unique_labels.reshape(m.shape)
+        return m
+
+
 class Identity:
+    def __init__(self, **kwargs):
+        pass
+
     def __call__(self, m):
         return m
 
