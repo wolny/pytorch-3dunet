@@ -117,9 +117,11 @@ class RandomFilterSliceBuilder(FilterSliceBuilder):
     """
 
     def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
-                 threshold=0.8, slack_acceptance=0.01, patch_acceptance_probab=0.1):
+                 threshold=0.8, slack_acceptance=0.01, patch_acceptance_probab=0.05, max_num_patches=25):
         super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape,
                          ignore_index=ignore_index, threshold=threshold, slack_acceptance=slack_acceptance)
+
+        self.max_num_patches = max_num_patches
 
         if label_datasets is None:
             return
@@ -127,7 +129,11 @@ class RandomFilterSliceBuilder(FilterSliceBuilder):
         rand_state = np.random.RandomState(47)
 
         def ignore_predicate(raw_label_idx):
-            return rand_state.rand() < patch_acceptance_probab
+            result = rand_state.rand() < patch_acceptance_probab
+            if result:
+                self.max_num_patches -= 1
+
+            return result and self.max_num_patches > 0
 
         zipped_slices = zip(self.raw_slices, self.label_slices)
         # ignore slices containing too much ignore_index
