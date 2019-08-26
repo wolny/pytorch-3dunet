@@ -1,5 +1,6 @@
 import importlib
 
+import os
 import numpy as np
 import time
 import torch
@@ -130,6 +131,8 @@ class AdaptedRandError:
         self.use_last_target = use_last_target
         self.save_plots = save_plots
         self.plots_dir = plots_dir
+        if not os.path.exists(plots_dir):
+            os.makedirs(plots_dir)
 
     def __call__(self, input, target):
         """
