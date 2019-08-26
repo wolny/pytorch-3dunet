@@ -9,6 +9,8 @@ from torch.utils.data import Dataset, DataLoader, ConcatDataset
 import augment.transforms as transforms
 from unet3d.utils import get_logger
 
+logger = get_logger('HDF5Dataset')
+
 
 class SliceBuilder:
     def __init__(self, raw_datasets, label_datasets, weight_dataset, patch_shape, stride_shape):
@@ -91,12 +93,41 @@ class FilterSliceBuilder(SliceBuilder):
         if label_datasets is None:
             return
 
+        rand_state = np.random.RandomState(47)
+
         def ignore_predicate(raw_label_idx):
             label_idx = raw_label_idx[1]
             patch = label_datasets[0][label_idx]
             non_ignore_counts = np.array([np.count_nonzero(patch != ii) for ii in ignore_index])
             non_ignore_counts = non_ignore_counts / patch.size
-            return np.any(non_ignore_counts > threshold) or np.random.rand() < slack_acceptance
+            return np.any(non_ignore_counts > threshold) or rand_state.rand() < slack_acceptance
+
+        zipped_slices = zip(self.raw_slices, self.label_slices)
+        # ignore slices containing too much ignore_index
+        filtered_slices = list(filter(ignore_predicate, zipped_slices))
+        # unzip and save slices
+        raw_slices, label_slices = zip(*filtered_slices)
+        self._raw_slices = list(raw_slices)
+        self._label_slices = list(label_slices)
+
+
+class RandomFilterSliceBuilder(FilterSliceBuilder):
+    """
+    Filter patches containing more than `1 - threshold` of ignore_index label and return only random sample of those.
+    """
+
+    def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
+                 threshold=0.8, slack_acceptance=0.01, patch_acceptance_probab=0.1):
+        super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape,
+                         ignore_index=ignore_index, threshold=threshold, slack_acceptance=slack_acceptance)
+
+        if label_datasets is None:
+            return
+
+        rand_state = np.random.RandomState(47)
+
+        def ignore_predicate(raw_label_idx):
+            return rand_state.rand() < patch_acceptance_probab
 
         zipped_slices = zip(self.raw_slices, self.label_slices)
         # ignore slices containing too much ignore_index
@@ -177,6 +208,7 @@ class HDF5Dataset(Dataset):
             self.weight_slices = slice_builder.weight_slices
 
             self.patch_count = len(self.raw_slices)
+            logger.info(f'Number of patches: {self.patch_count}')
 
     def __getitem__(self, idx):
         if idx >= len(self):
@@ -273,7 +305,6 @@ def get_train_loaders(config):
     assert 'loaders' in config, 'Could not find data loaders configuration'
     loaders_config = config['loaders']
 
-    logger = get_logger('HDF5Dataset')
     logger.info('Creating training and validation set loaders...')
 
     # get train and validation files
@@ -291,10 +322,10 @@ def get_train_loaders(config):
     val_patch = tuple(loaders_config['val_patch'])
     val_stride = tuple(loaders_config['val_stride'])
 
-    # get slice_builder_cls
-    slice_builder_str = loaders_config.get('slice_builder', 'SliceBuilder')
-    logger.info(f'Slice builder class: {slice_builder_str}')
-    slice_builder_cls = _get_slice_builder_cls(slice_builder_str)
+    # get train slice_builder_cls
+    train_slice_builder_str = loaders_config.get('train_slice_builder', 'SliceBuilder')
+    logger.info(f'Train slice builder class: {train_slice_builder_str}')
+    train_slice_builder_cls = _get_slice_builder_cls(train_slice_builder_str)
 
     train_datasets = []
     for train_path in train_paths:
@@ -306,10 +337,15 @@ def get_train_loaders(config):
                                         raw_internal_path=raw_internal_path,
                                         label_internal_path=label_internal_path,
                                         weight_internal_path=weight_internal_path,
-                                        slice_builder_cls=slice_builder_cls)
+                                        slice_builder_cls=train_slice_builder_cls)
             train_datasets.append(train_dataset)
         except Exception:
             logger.info(f'Skipping training set: {train_path}', exc_info=True)
+
+    # get val slice_builder_cls
+    val_slice_builder_str = loaders_config.get('val_slice_builder', 'SliceBuilder')
+    logger.info(f'Val slice builder class: {val_slice_builder_str}')
+    val_slice_builder = _get_slice_builder_cls(val_slice_builder_str)
 
     val_datasets = []
     for val_path in val_paths:
@@ -319,7 +355,8 @@ def get_train_loaders(config):
                                       transformer_config=loaders_config['transformer'],
                                       raw_internal_path=raw_internal_path,
                                       label_internal_path=label_internal_path,
-                                      weight_internal_path=weight_internal_path)
+                                      weight_internal_path=weight_internal_path,
+                                      slice_builder_cls=val_slice_builder)
             val_datasets.append(val_dataset)
         except Exception:
             logger.info(f'Skipping validation set: {val_path}', exc_info=True)
@@ -352,8 +389,6 @@ def get_test_loaders(config):
             return [my_collate(samples) for samples in transposed]
 
         raise TypeError((error_msg.format(type(batch[0]))))
-
-    logger = get_logger('HDF5Dataset')
 
     assert 'datasets' in config, 'Could not find data sets configuration'
     datasets_config = config['datasets']
