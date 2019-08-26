@@ -3,7 +3,9 @@ import logging
 import os
 import shutil
 import sys
+import io
 
+from PIL import Image
 import numpy as np
 import scipy.sparse as sparse
 import torch
@@ -13,6 +15,7 @@ import uuid
 from sklearn.decomposition import PCA
 
 plt.ioff()
+plt.switch_backend('agg')
 
 
 def save_checkpoint(state, is_best, checkpoint_dir, logger=None):
@@ -234,6 +237,9 @@ class _TensorboardFormatter:
     formatters which ensures that returned images are in the 'CHW' format.
     """
 
+    def __init__(self, **kwargs):
+        pass
+
     def __call__(self, name, batch):
         """
         Transform a batch to a series of tuples of the form (tag, img), where `tag` corresponds to the image tag
@@ -268,6 +274,9 @@ class _TensorboardFormatter:
 
 
 class DefaultTensorboardFormatter(_TensorboardFormatter):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def process_batch(self, name, batch):
         tag_template = '{}/batch_{}/channel_{}/slice_{}'
 
@@ -297,6 +306,10 @@ class DefaultTensorboardFormatter(_TensorboardFormatter):
 
 
 class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
+    def __init__(self, plot_variance=False, **kwargs):
+        super().__init__(**kwargs)
+        self.plot_variance = plot_variance
+
     def process_batch(self, name, batch):
         if name == 'inputs':
             assert batch.ndim == 5
@@ -318,8 +331,11 @@ class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
         for batch_idx in range(batch.shape[0]):
             tag = tag_template.format(batch_idx, slice_idx)
             img = batch[batch_idx, :, slice_idx, ...]  # CHW
-            img = self._pca_project(img)
-            tagged_images.append((tag, img))
+            rgb_img = self._pca_project(img)
+            tagged_images.append((tag, rgb_img))
+            if self.plot_variance:
+                cum_explained_variance_img = self._plot_cum_explained_variance(img)
+                tagged_images.append((f'cumulative_explained_variance/batch_{batch_idx}', cum_explained_variance_img))
 
         return tagged_images
 
@@ -339,11 +355,32 @@ class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
         img = 255 * (img - np.min(img)) / np.ptp(img)
         return img.astype('uint8')
 
+    def _plot_cum_explained_variance(self, embeddings):
+        # reshape (C, H, W) -> (C, H * W) and transpose
+        flattened_embeddings = embeddings.reshape(embeddings.shape[0], -1).transpose()
+        # fit PCA to the data
+        pca = PCA().fit(flattened_embeddings)
 
-def get_tensorboard_formatter(name):
+        plt.figure()
+        # plot cumulative explained variance ratio
+        plt.plot(np.cumsum(pca.explained_variance_ratio_))
+        plt.xlabel('number of components')
+        plt.ylabel('cumulative explained variance');
+        buf = io.BytesIO()
+        plt.savefig(buf, format='jpeg')
+        buf.seek(0)
+        img = np.asarray(Image.open(buf)).transpose(2, 0, 1)
+        return img
+
+
+def get_tensorboard_formatter(config):
+    if config is None:
+        return DefaultTensorboardFormatter()
+
+    class_name = config['name']
     m = importlib.import_module('unet3d.utils')
-    clazz = getattr(m, name)
-    return clazz()
+    clazz = getattr(m, class_name)
+    return clazz(**config)
 
 
 def expand_as_one_hot(input, C, ignore_index=None):

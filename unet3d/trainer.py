@@ -79,8 +79,7 @@ class UNet3DTrainer:
 
         self.writer = SummaryWriter(log_dir=os.path.join(checkpoint_dir, 'logs'))
 
-        if tensorboard_formatter is None:
-            tensorboard_formatter = DefaultTensorboardFormatter()
+        assert tensorboard_formatter is not None, 'TensorboardFormatter must be provided'
         self.tensorboard_formatter = tensorboard_formatter
 
         self.num_iterations = num_iterations

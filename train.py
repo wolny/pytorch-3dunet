@@ -22,9 +22,7 @@ def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval
     pre_trained = trainer_config.get('pre_trained', None)
 
     # get tensorboard formatter
-    tensorboard_formatter = get_tensorboard_formatter(
-        trainer_config.get('tensorboard_formatter', 'DefaultTensorboardFormatter')
-    )
+    tensorboard_formatter = get_tensorboard_formatter(trainer_config.get('tensorboard_formatter', None))
 
     if resume is not None:
         # continue training from a given checkpoint
