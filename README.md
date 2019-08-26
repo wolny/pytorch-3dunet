@@ -25,12 +25,13 @@ as well as Residual 3D U-Net based on:
 - h5py
 - scipy 
 - scikit-image
+- scikit-learn (0.21+)
 - pytest
 - hdbscan (0.8.22+)
 
 Setup a new conda environment with the required dependencies via:
 ```
-conda create -n 3dunet pytorch torchvision tensorboardx h5py scipy scikit-image pyyaml hdbscan pytest -c conda-forge -c pytorch
+conda create -n 3dunet pytorch torchvision tensorboardx h5py scipy scikit-image scikit-learn pyyaml hdbscan pytest -c conda-forge -c pytorch
 ``` 
 Activate newly created conda environment via:
 ```

@@ -37,6 +37,8 @@ class UNet3DTrainer:
         num_epoch (int): useful when loading the model from the checkpoint
         tensorboard_formatter (callable): converts a given batch of input/output/target image to a series of images
             that can be displayed in tensorboard
+        skip_train_validation (bool): if True eval_criterion is not evaluated on the training set (used mostly when
+            evaluation is expensive)
     """
 
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion,
@@ -45,7 +47,7 @@ class UNet3DTrainer:
                  validate_after_iters=100, log_after_iters=100,
                  validate_iters=None, num_iterations=1, num_epoch=0,
                  eval_score_higher_is_better=True, best_eval_score=None,
-                 logger=None, tensorboard_formatter=None):
+                 logger=None, tensorboard_formatter=None, skip_train_validation=False):
         if logger is None:
             self.logger = utils.get_logger('UNet3DTrainer', level=logging.DEBUG)
         else:
@@ -84,10 +86,11 @@ class UNet3DTrainer:
 
         self.num_iterations = num_iterations
         self.num_epoch = num_epoch
+        self.skip_train_validation = skip_train_validation
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders,
-                        logger=None, tensorboard_formatter=None):
+                        logger=None, tensorboard_formatter=None, skip_train_validation=False):
         logger.info(f"Loading checkpoint '{checkpoint_path}'...")
         state = utils.load_checkpoint(checkpoint_path, model, optimizer)
         logger.info(
@@ -107,7 +110,8 @@ class UNet3DTrainer:
                    log_after_iters=state['log_after_iters'],
                    validate_iters=state['validate_iters'],
                    logger=logger,
-                   tensorboard_formatter=tensorboard_formatter)
+                   tensorboard_formatter=tensorboard_formatter,
+                   skip_train_validation=skip_train_validation)
 
     @classmethod
     def from_pretrained(cls, pre_trained, model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
@@ -116,7 +120,7 @@ class UNet3DTrainer:
                         validate_after_iters=100, log_after_iters=100,
                         validate_iters=None, num_iterations=1, num_epoch=0,
                         eval_score_higher_is_better=True, best_eval_score=None,
-                        logger=None, tensorboard_formatter=None):
+                        logger=None, tensorboard_formatter=None, skip_train_validation=False):
         logger.info(f"Logging pre-trained model from '{pre_trained}'...")
         utils.load_checkpoint(pre_trained, model, None)
         checkpoint_dir = os.path.split(pre_trained)[0]
@@ -133,7 +137,8 @@ class UNet3DTrainer:
                    log_after_iters=log_after_iters,
                    validate_iters=validate_iters,
                    logger=logger,
-                   tensorboard_formatter=tensorboard_formatter)
+                   tensorboard_formatter=tensorboard_formatter,
+                   skip_train_validation=skip_train_validation)
 
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
@@ -198,8 +203,9 @@ class UNet3DTrainer:
                     output = self.model.final_activation(output)
 
                 # compute eval criterion
-                eval_score = self.eval_criterion(output, target)
-                train_eval_scores.update(eval_score.item(), self._batch_size(input))
+                if not self.skip_train_validation:
+                    eval_score = self.eval_criterion(output, target)
+                    train_eval_scores.update(eval_score.item(), self._batch_size(input))
 
                 # log stats, params and images
                 self.logger.info(
