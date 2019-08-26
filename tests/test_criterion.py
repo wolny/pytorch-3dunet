@@ -9,7 +9,7 @@ from augment.transforms import LabelToAffinities, StandardLabelToBoundary
 from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, BCELossWrapper, \
     DiceLoss, TagsAngularLoss
 from unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
-    BoundaryAdaptedRandError
+    BoundaryAdaptedRandError, EmbeddingsAdaptedRandError
 
 from embeddings.contrastive_loss import ContrastiveLoss
 
@@ -104,8 +104,9 @@ class TestCriterion:
         l_file = 'resources/sample_patch.h5'
         with h5py.File(l_file, 'r') as f:
             label = f['big_label'][...]
+            input = np.expand_dims(label, axis=0)
             arand = AdaptedRandError()
-            assert arand(label, label) == 0
+            assert arand(input, label) == 0
 
     def test_adapted_rand_error_on_real_data(self):
         l_file = 'resources/sample_patch.h5'
@@ -115,6 +116,14 @@ class TestCriterion:
             pred = ltb(label)
             arand = BoundaryAdaptedRandError(all_stats=True)
             assert arand(pred, label) < 0.5
+
+    def test_adapted_rand_from_embeddings(self):
+        l_file = 'resources/sample_patch.h5'
+        with h5py.File(l_file, 'r') as f:
+            label = f['big_label'][...]
+            pred = np.expand_dims(np.random.rand(*label.shape), axis=0)
+            arand = EmbeddingsAdaptedRandError(min_cluster_size=50)
+            assert arand(pred, label) <= 1.0
 
     def test_generalized_dice_loss(self):
         results = _compute_criterion(GeneralizedDiceLoss())

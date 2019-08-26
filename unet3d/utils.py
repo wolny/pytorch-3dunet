@@ -7,8 +7,12 @@ import sys
 import numpy as np
 import scipy.sparse as sparse
 import torch
+import matplotlib.pyplot as plt
+import uuid
 
 from sklearn.decomposition import PCA
+
+plt.ioff()
 
 
 def save_checkpoint(state, is_best, checkpoint_dir, logger=None):
@@ -325,9 +329,8 @@ class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
         flattened_embeddings = embeddings.reshape(embeddings.shape[0], -1).transpose()
         # init PCA with 3 principal components: one for each RGB channel
         pca = PCA(n_components=3)
-        # apply PCA to the embedding vectors
-        pca.fit(flattened_embeddings)
-        flattened_embeddings = pca.transform(flattened_embeddings)
+        # fit the model with embeddings and apply the dimensionality reduction
+        flattened_embeddings = pca.fit_transform(flattened_embeddings)
         # reshape back to original
         shape = list(embeddings.shape)
         shape[0] = 3
@@ -373,3 +376,26 @@ def expand_as_one_hot(input, C, ignore_index=None):
     else:
         # scatter to get the one-hot tensor
         return torch.zeros(shape).to(input.device).scatter_(1, input, 1)
+
+
+def plot_segm(segm, ground_truth, plots_dir='.'):
+    """
+    Saves predicted and ground truth segmentation into a PNG files (one per channel).
+
+    :param segm: 4D ndarray (CDHW)
+    :param ground_truth: 4D ndarray (CDHW)
+    :param plots_dir: directory where to save the plots
+    """
+    f, axarr = plt.subplots(1, 2)
+
+    for seg, gt in zip(segm, ground_truth):
+        mid_z = seg.shape[0] // 2
+
+        axarr[0].imshow(seg[mid_z], cmap='prism')
+        axarr[0].set_title('Predicted segmentation')
+
+        axarr[1].imshow(gt[mid_z], cmap='prism')
+        axarr[1].set_title('Ground truth segmentation')
+
+        file_name = f'segm_{str(uuid.uuid4())[:8]}.png'
+        plt.savefig(os.path.join(plots_dir, file_name))

@@ -1,16 +1,16 @@
 import importlib
 
 import numpy as np
+import time
 import torch
 import torch.nn.functional as F
 from skimage import measure
+import hdbscan
 
 from unet3d.losses import compute_per_channel_dice
-from unet3d.utils import get_logger, adapted_rand, expand_as_one_hot
+from unet3d.utils import get_logger, adapted_rand, expand_as_one_hot, plot_segm
 
 LOGGER = get_logger('EvalMetric')
-
-SUPPORTED_METRICS = ['dice', 'iou', 'boundary_ap', 'dt_ap', 'quantized_dt_ap', 'angle', 'inverse_angular']
 
 
 class DiceCoefficient:
@@ -58,35 +58,38 @@ class MeanIoU:
         assert input.dim() == 5
 
         n_classes = input.size()[1]
+
         if target.dim() == 4:
             target = expand_as_one_hot(target, C=n_classes, ignore_index=self.ignore_index)
 
-        # batch dim must be 1
-        input = input[0]
-        target = target[0]
         assert input.size() == target.size()
 
-        binary_prediction = self._binarize_predictions(input, n_classes)
+        per_batch_iou = []
+        for _input, _target in zip(input, target):
+            binary_prediction = self._binarize_predictions(_input, n_classes)
 
-        if self.ignore_index is not None:
-            # zero out ignore_index
-            mask = target == self.ignore_index
-            binary_prediction[mask] = 0
-            target[mask] = 0
+            if self.ignore_index is not None:
+                # zero out ignore_index
+                mask = _target == self.ignore_index
+                binary_prediction[mask] = 0
+                _target[mask] = 0
 
-        # convert to uint8 just in case
-        binary_prediction = binary_prediction.byte()
-        target = target.byte()
+            # convert to uint8 just in case
+            binary_prediction = binary_prediction.byte()
+            _target = _target.byte()
 
-        per_channel_iou = []
-        for c in range(n_classes):
-            if c in self.skip_channels:
-                continue
+            per_channel_iou = []
+            for c in range(n_classes):
+                if c in self.skip_channels:
+                    continue
 
-            per_channel_iou.append(self._jaccard_index(binary_prediction[c], target[c]))
+                per_channel_iou.append(self._jaccard_index(binary_prediction[c], _target[c]))
 
-        assert per_channel_iou, "All channels were ignored from the computation"
-        return torch.mean(torch.tensor(per_channel_iou))
+            assert per_channel_iou, "All channels were ignored from the computation"
+            mean_iou = torch.mean(torch.tensor(per_channel_iou))
+            per_batch_iou.append(mean_iou)
+
+        return torch.mean(torch.tensor(per_batch_iou))
 
     def _binarize_predictions(self, input, n_classes):
         """
@@ -109,51 +112,120 @@ class MeanIoU:
 
 
 class AdaptedRandError:
-    def __init__(self, all_stats=False, **kwargs):
-        self.all_stats = all_stats
+    """
+    A functor which computes an Adapted Rand error as defined by the SNEMI3D contest
+    (http://brainiac2.mit.edu/SNEMI3D/evaluation).
 
-    def __call__(self, input, target):
-        return adapted_rand(input, target, all_stats=self.all_stats)
+    This is a generic implementation which takes the input, converts it to the segmentation image (see `input_to_segm()`)
+    and then computes the ARand between the segmentation and the ground truth target. Depending on one's use case
+    it's enough to extend this class and implement the `input_to_segm` method.
 
+    Args:
+        use_last_target (bool): use only the last channel from the target to compute the ARand
+        save_plots (bool): save predicted segmentation (result from `input_to_segm`) together with GT segmentation as a PNG
+        plots_dir (string): directory where the plots are to be saved
+    """
 
-class BoundaryAdaptedRandError:
-    def __init__(self, threshold=0.4, use_last_target=False, use_first_input=False, invert_pmaps=True, **kwargs):
-        self.threshold = threshold
+    def __init__(self, use_last_target=False, save_plots=False, plots_dir='.', **kwargs):
         self.use_last_target = use_last_target
-        self.use_first_input = use_first_input
-        self.invert_pmaps = invert_pmaps
+        self.save_plots = save_plots
+        self.plots_dir = plots_dir
 
     def __call__(self, input, target):
+        """
+        Compute ARand Error for each input, target pair in the batch and return the mean value.
+
+        Args:
+            input (torch.tensor): 5D (NCDHW) output from the network
+            target (torch.tensor): 4D (NDHW) ground truth segmentation
+
+        Returns:
+            average ARand Error across the batch
+        """
+        # converts input and target to numpy arrays
+        input, target = self._convert_to_numpy(input, target)
+
+        per_batch_arand = []
+        _batch = 0
+        for _input, _target in zip(input, target):
+            LOGGER.info(f'Number of ground truth clusters: {np.max(target)}')
+
+            # convert _input to segmentation
+            segm = self.input_to_segm(_input)
+
+            if self.save_plots:
+                # save predicted and ground truth segmentation
+                plot_segm(segm, target, self.plots_dir)
+
+            assert segm.ndim == 4
+
+            # compute per channel arand and return the minimum value
+            per_channel_arand = []
+            for channel_segm in segm:
+                per_channel_arand.append(adapted_rand(channel_segm, _target))
+
+            # get the min arand across channels
+            min_arand, c_index = np.min(per_channel_arand), np.argmin(per_channel_arand)
+            LOGGER.info(f'Batch: {_batch}. Min AdaptedRand error: {min_arand}, channel: {c_index}')
+            per_batch_arand.append(min_arand)
+
+        # return mean arand error
+        return torch.mean(torch.tensor(per_batch_arand))
+
+    def _convert_to_numpy(self, input, target):
         if isinstance(input, torch.Tensor):
             assert input.dim() == 5
             # convert to numpy array
-            input = input[0].detach().cpu().numpy()  # 4D
+            input = input.detach().cpu().numpy()  # 5D
 
         if isinstance(target, torch.Tensor):
             if not self.use_last_target:
                 assert target.dim() == 4
                 # convert to numpy array
-                target = target[0].detach().cpu().numpy()  # 3D
+                target = target.detach().cpu().numpy()  # 4D
             else:
                 # if use_last_target == True the target must be 5D (NxCxDxHxW)
                 assert target.dim() == 5
-                target = target[0, -1].detach().cpu().numpy()  # 3D
+                target = target[:, -1, ...].detach().cpu().numpy()  # 4D
 
         if isinstance(input, np.ndarray):
-            assert input.ndim == 4
+            assert input.ndim == 4 or input.ndim == 5
+            if input.ndim == 4:
+                input = np.expand_dims(input, axis=0)
 
         if isinstance(target, np.ndarray):
-            assert target.ndim == 3
+            assert target.ndim == 3 or target.ndim == 4
+            if target.ndim == 3:
+                target = np.expand_dims(target, axis=0)
 
+        return input, target
+
+    def input_to_segm(self, input):
+        """
+        Converts input tensor (output from the network) to the segmentation image. E.g. if the input is the boundary
+        pmaps then one option would be to threshold it and run connected components in order to return the segmentation.
+
+        :param input: 4D tensor (CDHW)
+        :return: segmentation volume either 4D (segmentation per channel)
+        """
+        # by deafult assume that input is a segmentation volume itself
+        return input
+
+
+class BoundaryAdaptedRandError(AdaptedRandError):
+    def __init__(self, threshold=0.4, use_last_target=False, use_first_input=False, invert_pmaps=True, save_plots=False,
+                 plots_dir='.', **kwargs):
+        super().__init__(use_last_target=use_last_target, save_plots=save_plots, plots_dir=plots_dir, **kwargs)
+        self.threshold = threshold
+        self.use_first_input = use_first_input
+        self.invert_pmaps = invert_pmaps
+
+    def input_to_segm(self, input):
         if self.use_first_input:
-            # compute only on the first input channel
-            n_channels = 1
-        else:
-            n_channels = input.shape[0]
+            input = np.expand_dims(input[0], axis=0)
 
-        per_channel_arand = []
-        for c in range(n_channels):
-            predictions = input[c]
+        segms = []
+        for predictions in input:
             # threshold probability maps
             predictions = predictions > self.threshold
 
@@ -164,42 +236,39 @@ class BoundaryAdaptedRandError:
 
             predictions = predictions.astype(np.uint8)
             # run connected components on the predicted mask; consider only 1-connectivity
-            predicted = measure.label(predictions, background=0, connectivity=1)
-            # make sure that target is 'int' type as well
-            target = target.astype(np.int64)
-            # compute AdaptedRand error
-            arand = adapted_rand(predicted, target)
-            per_channel_arand.append(arand)
+            segm = measure.label(predictions, background=0, connectivity=1)
+            segms.append(segm)
 
-        # get minimum AdaptedRand error across channels
-        min_arand, c_index = np.min(per_channel_arand), np.argmin(per_channel_arand)
-        LOGGER.info(f'Min AdaptedRand error: {min_arand}, channel: {c_index}')
-        return min_arand
+        return np.stack(segms)
 
 
-class EmbeddingsAdaptedRandError:
-    def __init__(self, **kwargs):
-        pass
+class EmbeddingsAdaptedRandError(AdaptedRandError):
+    def __init__(self, min_cluster_size=100, min_samples=None, metric='euclidean', cluster_selection_method='eom',
+                 save_plots=False, plots_dir='.', **kwargs):
+        super().__init__(save_plots=save_plots, plots_dir=plots_dir, **kwargs)
 
-    def __call__(self, input, target):
-        if isinstance(input, torch.Tensor):
-            assert input.dim() == 5
-            # convert to numpy array
-            input = input[0].detach().cpu().numpy()  # 4D
+        LOGGER.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
+        self.clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
+                                         cluster_selection_method=cluster_selection_method)
 
-        if isinstance(target, torch.Tensor):
-            assert target.dim() == 4
-            # convert to numpy array
-            target = target[0].detach().cpu().numpy()  # 3D
+    def input_to_segm(self, embeddings):
+        LOGGER.info("Computing clusters with HDBSCAN...")
 
-        if isinstance(input, np.ndarray):
-            assert input.ndim == 4
+        # shape of the output segmentation
+        output_shape = embeddings.shape[1:]
+        # reshape (C, D, H, W) -> (C, D * H * W) and transpose
+        flattened_embeddings = embeddings.reshape(embeddings.shape[0], -1).transpose()
 
-        if isinstance(target, np.ndarray):
-            assert target.ndim == 3
+        # perform clustering and reshape in order to get the segmentation volume
+        start = time.time()
+        segm = self.clusterer.fit_predict(flattened_embeddings).reshape(output_shape)
+        LOGGER.info(f'Number of clusters found by HDBSCAN: {np.max(segm)}. Duration: {time.time() - start} sec.')
 
-        # TODO: implement
-        return torch.tensor(np.random.rand())
+        # assign noise to new cluster (by default hdbscan gives -1 label to outliers)
+        noise_label = np.max(segm) + 1
+        segm[segm == -1] = noise_label
+
+        return np.expand_dims(segm, axis=0)
 
 
 class _AbstractAP:
@@ -333,7 +402,7 @@ class StandardAveragePrecision(_AbstractAP):
 
         target, target_instances = self._filter_instances(target)
 
-        return self._calculate_average_precision(input, target, target_instances)
+        return torch.tensor(self._calculate_average_precision(input, target, target_instances))
 
 
 class DistanceTransformAveragePrecision(_AbstractAP):
@@ -363,7 +432,7 @@ class DistanceTransformAveragePrecision(_AbstractAP):
         # get ground truth label set
         target_cc, target_instances = self._filter_instances(target_cc)
 
-        return self._calculate_average_precision(predicted_cc, target_cc, target_instances)
+        return torch.tensor(self._calculate_average_precision(predicted_cc, target_cc, target_instances))
 
 
 class QuantizedDistanceTransformAveragePrecision(_AbstractAP):
@@ -395,7 +464,7 @@ class QuantizedDistanceTransformAveragePrecision(_AbstractAP):
         # get ground truth label set
         target_cc, target_instances = self._filter_instances(target_cc)
 
-        return self._calculate_average_precision(predicted_cc, target_cc, target_instances)
+        return torch.tensor(self._calculate_average_precision(predicted_cc, target_cc, target_instances))
 
 
 class BoundaryAveragePrecision(_AbstractAP):
@@ -469,7 +538,7 @@ class BoundaryAveragePrecision(_AbstractAP):
         # get maximum average precision across channels
         max_ap, c_index = np.max(per_channel_ap), np.argmax(per_channel_ap)
         LOGGER.info(f'Max average precision: {max_ap}, channel: {c_index}')
-        return max_ap
+        return torch.tensor(max_ap)
 
 
 class WithinAngleThreshold:
