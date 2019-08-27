@@ -117,7 +117,7 @@ class RandomFilterSliceBuilder(FilterSliceBuilder):
     """
 
     def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
-                 threshold=0.8, slack_acceptance=0.01, patch_acceptance_probab=0.05, max_num_patches=25):
+                 threshold=0.8, slack_acceptance=0.01, patch_acceptance_probab=0.075, max_num_patches=25):
         super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape,
                          ignore_index=ignore_index, threshold=threshold, slack_acceptance=slack_acceptance)
 
