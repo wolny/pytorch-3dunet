@@ -370,6 +370,7 @@ class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
         plt.savefig(buf, format='jpeg')
         buf.seek(0)
         img = np.asarray(Image.open(buf)).transpose(2, 0, 1)
+        plt.close('all')
         return img
 
 
