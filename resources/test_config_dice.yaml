@@ -1,8 +1,5 @@
 # path to the checkpoint file containing the model
 model_path: 3dunet/best_checkpoint.pytorch
-# Should the patches be stored in memory or written directly to H5 during prediction.
-# Set to True if you have enough RAM cause it's way faster
-store_predictions_in_memory: True
 # model configuration
 model:
   # model class
@@ -21,6 +18,10 @@ model:
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
   final_sigmoid: true
+# predictor configuration
+predictor:
+  # standard in memory predictor
+  name: 'StandardPredictor'
 # specify the test datasets
 datasets:
   # patch size given to the network (adapt to fit in your GPU mem)

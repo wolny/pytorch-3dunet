@@ -7,6 +7,7 @@ import torch
 import torch.nn.functional as F
 from skimage import measure
 import hdbscan
+from sklearn.cluster import MeanShift
 
 from unet3d.losses import compute_per_channel_dice
 from unet3d.utils import get_logger, adapted_rand, expand_as_one_hot, plot_segm
@@ -251,8 +252,8 @@ class EmbeddingsAdaptedRandError(AdaptedRandError):
         super().__init__(save_plots=save_plots, plots_dir=plots_dir, **kwargs)
 
         LOGGER.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
-        self.clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
-                                         cluster_selection_method=cluster_selection_method)
+        self.clustering = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
+                                          cluster_selection_method=cluster_selection_method)
 
     def input_to_segm(self, embeddings):
         LOGGER.info("Computing clusters with HDBSCAN...")
@@ -264,13 +265,35 @@ class EmbeddingsAdaptedRandError(AdaptedRandError):
 
         # perform clustering and reshape in order to get the segmentation volume
         start = time.time()
-        segm = self.clusterer.fit_predict(flattened_embeddings).reshape(output_shape)
+        segm = self.clustering.fit_predict(flattened_embeddings).reshape(output_shape)
         LOGGER.info(f'Number of clusters found by HDBSCAN: {np.max(segm)}. Duration: {time.time() - start} sec.')
 
         # assign noise to new cluster (by default hdbscan gives -1 label to outliers)
         noise_label = np.max(segm) + 1
         segm[segm == -1] = noise_label
 
+        return np.expand_dims(segm, axis=0)
+
+
+# Just for completeness, however sklean MeanShift implementation is just too slow for clustering embeddings
+class EmbeddingsMeanShiftAdaptedRandError(AdaptedRandError):
+    def __init__(self, bandwidth, save_plots=False, plots_dir='.', **kwargs):
+        super().__init__(save_plots=save_plots, plots_dir=plots_dir, **kwargs)
+        LOGGER.info(f'MeanShift params: bandwidth: {bandwidth}')
+        self.clustering = MeanShift(bandwidth=bandwidth)
+
+    def input_to_segm(self, embeddings):
+        LOGGER.info("Computing clusters with MeanShift...")
+
+        # shape of the output segmentation
+        output_shape = embeddings.shape[1:]
+        # reshape (C, D, H, W) -> (C, D * H * W) and transpose
+        flattened_embeddings = embeddings.reshape(embeddings.shape[0], -1).transpose()
+
+        # perform clustering and reshape in order to get the segmentation volume
+        start = time.time()
+        segm = self.clustering.fit_predict(flattened_embeddings).reshape(output_shape)
+        LOGGER.info(f'Number of clusters found by MeanShift: {np.max(segm)}. Duration: {time.time() - start} sec.')
         return np.expand_dims(segm, axis=0)
 
 
