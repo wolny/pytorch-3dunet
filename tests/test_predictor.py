@@ -8,7 +8,7 @@ from unet3d.predictor import EmbeddingsPredictor
 
 
 class FakePredictor(EmbeddingsPredictor):
-    def __init__(self, model, loader, output_file, config, iou_threshold=0.8, **kwargs):
+    def __init__(self, model, loader, output_file, config, iou_threshold=0.7, **kwargs):
         super().__init__(model, loader, output_file, config, iou_threshold, **kwargs)
 
     def _embeddings_to_segmentation(self, embeddings):
@@ -53,7 +53,7 @@ class TestPredictor:
                               (60, 150, 150), phase='test',
                               transformer_config=t_config, raw_internal_path='label')
 
-        loader = DataLoader(dataset, batch_size=1, num_workers=1, collate_fn=my_collate)
+        loader = DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False, collate_fn=my_collate)
 
         predictor = FakePredictor(FakeModel(), loader,
                                   '/home/adrian/workspace/pytorch-3dunet/resources/output_segmentation.h5', config)

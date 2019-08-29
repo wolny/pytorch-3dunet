@@ -224,7 +224,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
     """
 
     def __init__(self, model, loader, output_file, config, min_cluster_size=100, min_samples=None, metric='euclidean',
-                 cluster_selection_method='eom', iou_threshold=0.9, **kwargs):
+                 cluster_selection_method='eom', iou_threshold=0.7, **kwargs):
         super().__init__(model, loader, output_file, config, **kwargs)
 
         self.iou_threshold = iou_threshold
@@ -286,6 +286,14 @@ class EmbeddingsPredictor(_AbstractPredictor):
                 output_file.create_dataset(prediction_dataset, data=output_segmentation, compression="gzip")
 
     def _embeddings_to_segmentation(self, embeddings):
+        """
+        Cluster embeddings vectors with HDBSCAN and return the segmented volume.
+
+        Args:
+            embeddings (ndarray): 4D (CDHW) embeddings tensor
+        Returns:
+            3D (DHW) segmentation
+        """
         # shape of the output segmentation
         output_shape = embeddings.shape[1:]
         # reshape (C, D, H, W) -> (C, D * H * W) and transpose -> (D * H * W, C)
@@ -299,6 +307,17 @@ class EmbeddingsPredictor(_AbstractPredictor):
         return segm
 
     def _merge_segmentation(self, segmentation, index, output_segmentation, visited_voxels_array):
+        """
+        Given the `segmentation` patch, its `index` in the `output_segmentation` array and the array visited voxels
+        merge the segmented patch (`segmentation`) into the `output_segmentation`
+
+        Args:
+            segmentation (ndarray): segmented patch
+            index (tuple): position of the patch inside `output_segmentation` volume
+            output_segmentation (ndarray): current state of the output segmentation
+            visited_voxels_array (ndarray): array of voxels visited so far (same size as `output_segmentation`); visited
+                voxels will be marked by a number greater than 0
+        """
         # get new unassigned label
         max_label = np.max(output_segmentation) + 1
         # make sure there are no clashes between current segmentation patch and the output_segmentation
