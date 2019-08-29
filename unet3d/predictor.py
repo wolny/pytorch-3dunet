@@ -1,5 +1,7 @@
 import h5py
+import hdbscan
 import numpy as np
+import time
 import torch
 
 from datasets.hdf5 import SliceBuilder
@@ -214,8 +216,128 @@ class LazyPredictor(StandardPredictor):
 
 
 class EmbeddingsPredictor(_AbstractPredictor):
-    def __init__(self, model, loader, output_file, config, **kwargs):
+    """
+    Applies the embedding model on the given dataset and saves the result in the `output_file` in the H5 format.
+
+    The resulting volume is the segmentation itself (not the embedding vectors) obtained by clustering embeddings
+    with HDBSCAN algorithm patch by patch and then stitching the patches together.
+    """
+
+    def __init__(self, model, loader, output_file, config, min_cluster_size=100, min_samples=None, metric='euclidean',
+                 cluster_selection_method='eom', iou_threshold=0.9, **kwargs):
         super().__init__(model, loader, output_file, config, **kwargs)
 
+        self.iou_threshold = iou_threshold
+
+        logger.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
+        self.clustering = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
+                                          cluster_selection_method=cluster_selection_method)
+
     def predict(self):
-        pass
+        device = self.config['device']
+        output_heads = self.config['model'].get('output_heads', 1)
+
+        logger.info(f'Running prediction on {len(self.loader)} patches...')
+
+        # dimensionality of the the output segmentation
+        volume_shape = self._volume_shape(self.loader.dataset)
+
+        logger.info(f'The shape of the output segmentation (DHW): {volume_shape}')
+
+        logger.info('Allocating segmentation array...')
+        # initialize the output prediction arrays
+        output_segmentations = [np.zeros(volume_shape, dtype='uint16') for _ in range(output_heads)]
+        # initialize visited_voxels arrays
+        visited_voxels_arrays = [np.zeros(volume_shape, dtype='uint8') for _ in range(output_heads)]
+
+        # Sets the module in evaluation mode explicitly
+        self.model.eval()
+        # Run predictions on the entire input dataset
+        with torch.no_grad():
+            for patch, index in self.loader:
+                logger.info(f'Predicting embeddings for slice:{index}')
+
+                # send patch to device
+                patch = patch.to(device)
+                # forward pass
+                embeddings = self.model(patch)
+
+                # wrap predictions into a list if there is only one output head from the network
+                if output_heads == 1:
+                    embeddings = [embeddings]
+
+                for prediction, output_segmentation, visited_voxels_array in zip(embeddings, output_segmentations,
+                                                                                 visited_voxels_arrays):
+                    # squeeze batch dimension and convert back to numpy array
+                    # TODO: support non-singleton batch dims
+                    assert prediction.size()[0] == 1, 'Only batch size of 1 supported during prediction'
+                    prediction = prediction.squeeze(dim=0).cpu().numpy()
+
+                    # convert embeddings to segmentation with hdbscan clustering
+                    segmentation = self._embeddings_to_segmentation(prediction)
+                    # stitch patches
+                    self._merge_segmentation(segmentation, index, output_segmentation, visited_voxels_array)
+
+        # save results
+        with h5py.File(self.output_file, 'w') as output_file:
+            prediction_datasets = self._get_output_dataset_names(output_heads, prefix='segmentation/hdbscan')
+            for output_segmentation, prediction_dataset in zip(output_segmentations, prediction_datasets):
+                logger.info(f'Saving predictions to: {output_file}/{prediction_dataset}...')
+                output_file.create_dataset(prediction_dataset, data=output_segmentation, compression="gzip")
+
+    def _embeddings_to_segmentation(self, embeddings):
+        # shape of the output segmentation
+        output_shape = embeddings.shape[1:]
+        # reshape (C, D, H, W) -> (C, D * H * W) and transpose -> (D * H * W, C)
+        flattened_embeddings = embeddings.reshape(embeddings.shape[0], -1).transpose()
+
+        logger.info('Clustering embeddings...')
+        # perform clustering and reshape in order to get the segmentation volume
+        start = time.time()
+        segm = self.clustering.fit_predict(flattened_embeddings).reshape(output_shape)
+        logger.info(f'Number of clusters found by HDBSCAN: {np.max(segm)}. Duration: {time.time() - start} sec.')
+        return segm
+
+    def _merge_segmentation(self, segmentation, index, output_segmentation, visited_voxels_array):
+        # get new unassigned label
+        max_label = np.max(output_segmentation) + 1
+        # make sure there are no clashes between current segmentation patch and the output_segmentation
+        segmentation += max_label
+        # get the overlap mask in the current patch
+        overlap_mask = visited_voxels_array[index] > 0
+        # get the new labels inside the overlap_mask
+        new_labels = np.unique(segmentation[overlap_mask])
+        merged_labels = self._merge_labels(output_segmentation[index], new_labels, segmentation)
+        # relabel new segmentation with the merged labels
+        for current_label, new_label in merged_labels:
+            segmentation[segmentation == new_label] = current_label
+        # update the output_segmentation
+        output_segmentation[index] = segmentation
+        # visit the patch
+        visited_voxels_array[index] += 1
+
+    def _merge_labels(self, current_segmentation, new_labels, new_segmentation):
+        def _most_frequent_label(labels):
+            unique, counts = np.unique(labels, return_counts=True)
+            ind = np.argmax(counts)
+            return unique[ind]
+
+        result = []
+        # iterate over new_labels and merge regions if the IoU exceeds a given threshold
+        for new_label in new_labels:
+            # skip 'noise' labels assigned by hdbscan
+            if new_label == -1:
+                continue
+            new_label_mask = new_segmentation == new_label
+            # get only the most frequent overlapping label
+            most_frequent_label = _most_frequent_label(current_segmentation[new_label_mask])
+            current_label_mask = current_segmentation == most_frequent_label
+            # compute Jaccard index
+            iou = np.bitwise_and(new_label_mask, current_label_mask).sum() / np.bitwise_or(new_label_mask,
+                                                                                           current_label_mask).sum()
+            if iou > self.iou_threshold and most_frequent_label != -1:
+                logger.info(f'Merging labels: ({most_frequent_label}, {new_label})')
+                # merge labels
+                result.append((most_frequent_label, new_label))
+
+        return result
