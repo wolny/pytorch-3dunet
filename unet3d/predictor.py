@@ -224,10 +224,11 @@ class EmbeddingsPredictor(_AbstractPredictor):
     """
 
     def __init__(self, model, loader, output_file, config, min_cluster_size=100, min_samples=None, metric='euclidean',
-                 cluster_selection_method='eom', iou_threshold=0.7, **kwargs):
+                 cluster_selection_method='eom', iou_threshold=0.7, noise_label=-1, **kwargs):
         super().__init__(model, loader, output_file, config, **kwargs)
 
         self.iou_threshold = iou_threshold
+        self.noise_label = noise_label
 
         logger.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
         logger.info(f'IoU threshold: {iou_threshold}')
@@ -247,7 +248,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
 
         logger.info('Allocating segmentation array...')
         # initialize the output prediction arrays
-        output_segmentations = [np.zeros(volume_shape, dtype='uint16') for _ in range(output_heads)]
+        output_segmentations = [np.zeros(volume_shape, dtype='int32') for _ in range(output_heads)]
         # initialize visited_voxels arrays
         visited_voxels_arrays = [np.zeros(volume_shape, dtype='uint8') for _ in range(output_heads)]
 
@@ -322,7 +323,10 @@ class EmbeddingsPredictor(_AbstractPredictor):
         # get new unassigned label
         max_label = np.max(output_segmentation) + 1
         # make sure there are no clashes between current segmentation patch and the output_segmentation
+        # but keep the noise label
+        noise_mask = segmentation == self.noise_label
         segmentation += int(max_label)
+        segmentation[noise_mask] = self.noise_label
         # get the overlap mask in the current patch
         overlap_mask = visited_voxels_array[index] > 0
         # get the new labels inside the overlap_mask
@@ -345,17 +349,20 @@ class EmbeddingsPredictor(_AbstractPredictor):
         result = []
         # iterate over new_labels and merge regions if the IoU exceeds a given threshold
         for new_label in new_labels:
-            # skip 'noise' labels assigned by hdbscan
-            if new_label == -1:
+            # skip 'noise' label assigned by hdbscan
+            if new_label == self.noise_label:
                 continue
             new_label_mask = new_segmentation == new_label
             # get only the most frequent overlapping label
             most_frequent_label = _most_frequent_label(current_segmentation[new_label_mask])
+            # skip 'noise' label
+            if most_frequent_label == self.noise_label:
+                continue
             current_label_mask = current_segmentation == most_frequent_label
             # compute Jaccard index
             iou = np.bitwise_and(new_label_mask, current_label_mask).sum() / np.bitwise_or(new_label_mask,
                                                                                            current_label_mask).sum()
-            if iou > self.iou_threshold and most_frequent_label != -1:
+            if iou > self.iou_threshold:
                 # merge labels
                 result.append((most_frequent_label, new_label))
 
