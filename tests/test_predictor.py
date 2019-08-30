@@ -1,15 +1,17 @@
-import collections
+import os
 
+import h5py
 import torch
 from torch.utils.data import DataLoader
 
-from datasets.hdf5 import HDF5Dataset
+from datasets.hdf5 import HDF5Dataset, h5_collate
 from unet3d.predictor import EmbeddingsPredictor
+from unet3d.utils import adapted_rand
 
 
 class FakePredictor(EmbeddingsPredictor):
     def __init__(self, model, loader, output_file, config, iou_threshold=0.7, **kwargs):
-        super().__init__(model, loader, output_file, config, iou_threshold, **kwargs)
+        super().__init__(model, loader, output_file, config, iou_threshold=iou_threshold, **kwargs)
 
     def _embeddings_to_segmentation(self, embeddings):
         return embeddings
@@ -24,7 +26,7 @@ class FakeModel:
 
 
 class TestPredictor:
-    def test_embeddings_predictor(self):
+    def test_embeddings_predictor(self, tmpdir):
         config = {
             'model': {'output_heads': 1},
             'device': torch.device('cpu')
@@ -33,34 +35,27 @@ class TestPredictor:
         t_config = {
             'test': {
                 'raw': [
-                    {'name': 'Normalize'},
                     {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
                 ]
 
             }
         }
 
-        def my_collate(batch):
-            if isinstance(batch[0], torch.Tensor):
-                return torch.stack(batch, 0)
-            elif isinstance(batch[0], slice):
-                return batch[0]
-            elif isinstance(batch[0], collections.Sequence):
-                transposed = zip(*batch)
-                return [my_collate(samples) for samples in transposed]
-
-        dataset = HDF5Dataset('/home/adrian/workspace/pytorch-3dunet/resources/sample_cells.h5', (100, 200, 200),
-                              (60, 150, 150), phase='test',
+        gt_file = 'resources/sample_cells.h5'
+        output_file = os.path.join(tmpdir, 'output_segmentation.h5')
+        dataset = HDF5Dataset(gt_file, (100, 200, 200), (60, 150, 150), phase='test',
                               transformer_config=t_config, raw_internal_path='label')
 
-        loader = DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False, collate_fn=my_collate)
+        loader = DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False, collate_fn=h5_collate)
 
-        predictor = FakePredictor(FakeModel(), loader,
-                                  '/home/adrian/workspace/pytorch-3dunet/resources/output_segmentation.h5', config)
+        predictor = FakePredictor(FakeModel(), loader, output_file, config)
 
         predictor.predict()
 
+        with h5py.File(gt_file, 'r') as f:
+            with h5py.File(output_file, 'r') as g:
+                gt = f['label'][...]
+                segm = g['segmentation/hdbscan'][...]
+                arand_error = adapted_rand(segm, gt)
 
-if __name__ == '__main__':
-    tp = TestPredictor()
-    tp.test_embeddings_predictor()
+                assert arand_error < 0.1

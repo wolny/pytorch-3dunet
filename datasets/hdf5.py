@@ -407,6 +407,19 @@ def get_train_loaders(config):
     }
 
 
+def h5_collate(batch):
+    error_msg = "batch must contain tensors or slice; found {}"
+    if isinstance(batch[0], torch.Tensor):
+        return torch.stack(batch, 0)
+    elif isinstance(batch[0], slice):
+        return batch[0]
+    elif isinstance(batch[0], collections.Sequence):
+        transposed = zip(*batch)
+        return [h5_collate(samples) for samples in transposed]
+
+    raise TypeError((error_msg.format(type(batch[0]))))
+
+
 def get_test_loaders(config):
     """
     Returns a list of DataLoader, one per each test file.
@@ -414,18 +427,6 @@ def get_test_loaders(config):
     :param config: a top level configuration object containing the 'datasets' key
     :return: generator of DataLoader objects
     """
-
-    def my_collate(batch):
-        error_msg = "batch must contain tensors or slice; found {}"
-        if isinstance(batch[0], torch.Tensor):
-            return torch.stack(batch, 0)
-        elif isinstance(batch[0], slice):
-            return batch[0]
-        elif isinstance(batch[0], collections.Sequence):
-            transposed = zip(*batch)
-            return [my_collate(samples) for samples in transposed]
-
-        raise TypeError((error_msg.format(type(batch[0]))))
 
     assert 'datasets' in config, 'Could not find data sets configuration'
     datasets_config = config['datasets']
@@ -447,4 +448,4 @@ def get_test_loaders(config):
     # use generator in order to create data loaders lazily one by one
     for dataset in datasets:
         logger.info(f'Loading test set from: {dataset.file_path}...')
-        yield DataLoader(dataset, batch_size=1, num_workers=num_workers, collate_fn=my_collate)
+        yield DataLoader(dataset, batch_size=1, num_workers=num_workers, collate_fn=h5_collate)

@@ -230,6 +230,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
         self.iou_threshold = iou_threshold
 
         logger.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
+        logger.info(f'IoU threshold: {iou_threshold}')
         self.clustering = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
                                           cluster_selection_method=cluster_selection_method)
 
@@ -256,7 +257,6 @@ class EmbeddingsPredictor(_AbstractPredictor):
         with torch.no_grad():
             for patch, index in self.loader:
                 logger.info(f'Predicting embeddings for slice:{index}')
-
                 # send patch to device
                 patch = patch.to(device)
                 # forward pass
@@ -318,10 +318,11 @@ class EmbeddingsPredictor(_AbstractPredictor):
             visited_voxels_array (ndarray): array of voxels visited so far (same size as `output_segmentation`); visited
                 voxels will be marked by a number greater than 0
         """
+        index = tuple(index)
         # get new unassigned label
         max_label = np.max(output_segmentation) + 1
         # make sure there are no clashes between current segmentation patch and the output_segmentation
-        segmentation += max_label
+        segmentation += int(max_label)
         # get the overlap mask in the current patch
         overlap_mask = visited_voxels_array[index] > 0
         # get the new labels inside the overlap_mask
@@ -355,7 +356,6 @@ class EmbeddingsPredictor(_AbstractPredictor):
             iou = np.bitwise_and(new_label_mask, current_label_mask).sum() / np.bitwise_or(new_label_mask,
                                                                                            current_label_mask).sum()
             if iou > self.iou_threshold and most_frequent_label != -1:
-                logger.info(f'Merging labels: ({most_frequent_label}, {new_label})')
                 # merge labels
                 result.append((most_frequent_label, new_label))
 

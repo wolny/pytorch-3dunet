@@ -13,7 +13,7 @@ from unet3d.losses import get_loss_criterion
 from unet3d.metrics import get_evaluation_metric
 from unet3d.model import get_model
 from unet3d.trainer import UNet3DTrainer
-from unet3d.utils import get_logger
+from unet3d.utils import get_logger, DefaultTensorboardFormatter
 
 CONFIG_BASE = {
     'model': {
@@ -154,6 +154,7 @@ class TestUNet3DTrainer:
 
         logger = get_logger('UNet3DTrainer', logging.DEBUG)
 
+        formatter = DefaultTensorboardFormatter()
         trainer = UNet3DTrainer(model, optimizer, lr_scheduler,
                                 loss_criterion, eval_criterion,
                                 device, loaders, tmpdir,
@@ -161,13 +162,13 @@ class TestUNet3DTrainer:
                                 log_after_iters=log_after_iters,
                                 validate_after_iters=validate_after_iters,
                                 max_num_iterations=max_num_iterations,
-                                logger=logger)
+                                logger=logger, tensorboard_formatter=formatter)
         trainer.fit()
         # test loading the trainer from the checkpoint
         trainer = UNet3DTrainer.from_checkpoint(os.path.join(tmpdir, 'last_checkpoint.pytorch'),
                                                 model, optimizer, lr_scheduler,
                                                 loss_criterion, eval_criterion,
-                                                loaders, logger=logger)
+                                                loaders, logger=logger, tensorboard_formatter=formatter)
         return trainer
 
     @staticmethod
