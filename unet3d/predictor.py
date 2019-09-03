@@ -3,6 +3,7 @@ import hdbscan
 import numpy as np
 import time
 import torch
+from sklearn.cluster import MeanShift
 
 from datasets.hdf5 import SliceBuilder
 from unet3d.utils import get_logger
@@ -220,20 +221,19 @@ class EmbeddingsPredictor(_AbstractPredictor):
     Applies the embedding model on the given dataset and saves the result in the `output_file` in the H5 format.
 
     The resulting volume is the segmentation itself (not the embedding vectors) obtained by clustering embeddings
-    with HDBSCAN algorithm patch by patch and then stitching the patches together.
+    with HDBSCAN or MeanShift algorithm patch by patch and then stitching the patches together.
     """
 
-    def __init__(self, model, loader, output_file, config, min_cluster_size=100, min_samples=None, metric='euclidean',
-                 cluster_selection_method='eom', iou_threshold=0.7, noise_label=-1, **kwargs):
+    def __init__(self, model, loader, output_file, config, clustering, iou_threshold=0.7, noise_label=-1, **kwargs):
         super().__init__(model, loader, output_file, config, **kwargs)
 
         self.iou_threshold = iou_threshold
         self.noise_label = noise_label
 
-        logger.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
+        assert clustering in ['hdbscan', 'meanshift'], 'Only HDBSCAN and MeanShift are supported'
         logger.info(f'IoU threshold: {iou_threshold}')
-        self.clustering = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
-                                          cluster_selection_method=cluster_selection_method)
+
+        self.clustering = self._get_clustering(clustering, kwargs)
 
     def predict(self):
         device = self.config['device']
@@ -367,3 +367,21 @@ class EmbeddingsPredictor(_AbstractPredictor):
                 result.append((most_frequent_label, new_label))
 
         return result
+
+    def _get_clustering(self, clustering_alg, kwargs):
+        logger.info(f'Using {clustering_alg} for clustering')
+
+        if clustering_alg == 'hdbscan':
+            min_cluster_size = kwargs.get('min_cluster_size', 50)
+            min_samples = kwargs.get('min_samples', None),
+            metric = kwargs.get('metric', 'euclidean')
+            cluster_selection_method = kwargs.get('cluster_selection_method', 'eom')
+
+            logger.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
+            return hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
+                                         cluster_selection_method=cluster_selection_method)
+        else:
+            bandwidth = kwargs['bandwidth']
+            logger.info(f'MeanShift params: bandwidth: {bandwidth}, bin_seeding: True')
+            # use fast MeanShift with bin seeding
+            return MeanShift(bandwidth=bandwidth, bin_seeding=True)

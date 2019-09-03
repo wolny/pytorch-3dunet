@@ -10,8 +10,8 @@ from unet3d.utils import adapted_rand
 
 
 class FakePredictor(EmbeddingsPredictor):
-    def __init__(self, model, loader, output_file, config, iou_threshold=0.7, **kwargs):
-        super().__init__(model, loader, output_file, config, iou_threshold=iou_threshold, **kwargs)
+    def __init__(self, model, loader, output_file, config, clustering, iou_threshold=0.7, **kwargs):
+        super().__init__(model, loader, output_file, config, clustering, iou_threshold=iou_threshold, **kwargs)
 
     def _embeddings_to_segmentation(self, embeddings):
         return embeddings
@@ -48,7 +48,7 @@ class TestPredictor:
 
         loader = DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False, collate_fn=h5_collate)
 
-        predictor = FakePredictor(FakeModel(), loader, output_file, config)
+        predictor = FakePredictor(FakeModel(), loader, output_file, config, clustering='meanshift', bandwidth=0.5)
 
         predictor.predict()
 

@@ -282,7 +282,7 @@ class EmbeddingsMeanShiftAdaptedRandError(AdaptedRandError):
     def __init__(self, bandwidth, save_plots=False, plots_dir='.', **kwargs):
         super().__init__(save_plots=save_plots, plots_dir=plots_dir, **kwargs)
         LOGGER.info(f'MeanShift params: bandwidth: {bandwidth}')
-        self.clustering = MeanShift(bandwidth=bandwidth)
+        self.clustering = MeanShift(bandwidth=bandwidth, bin_seeding=True)
 
     def input_to_segm(self, embeddings):
         LOGGER.info("Computing clusters with MeanShift...")
