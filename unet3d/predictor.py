@@ -229,6 +229,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
 
         self.iou_threshold = iou_threshold
         self.noise_label = noise_label
+        self.clustering = clustering
 
         assert clustering in ['hdbscan', 'meanshift'], 'Only HDBSCAN and MeanShift are supported'
         logger.info(f'IoU threshold: {iou_threshold}')
@@ -281,7 +282,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
 
         # save results
         with h5py.File(self.output_file, 'w') as output_file:
-            prediction_datasets = self._get_output_dataset_names(output_heads, prefix='segmentation/hdbscan')
+            prediction_datasets = self._get_output_dataset_names(output_heads, prefix=f'segmentation/{self.clustering}')
             for output_segmentation, prediction_dataset in zip(output_segmentations, prediction_datasets):
                 logger.info(f'Saving predictions to: {output_file}/{prediction_dataset}...')
                 output_file.create_dataset(prediction_dataset, data=output_segmentation, compression="gzip")
@@ -303,9 +304,10 @@ class EmbeddingsPredictor(_AbstractPredictor):
         logger.info('Clustering embeddings...')
         # perform clustering and reshape in order to get the segmentation volume
         start = time.time()
-        segm = self.clustering.fit_predict(flattened_embeddings).reshape(output_shape)
-        logger.info(f'Number of clusters found by HDBSCAN: {np.max(segm)}. Duration: {time.time() - start} sec.')
-        return segm
+        clusters = self.clustering.fit_predict(flattened_embeddings).reshape(output_shape)
+        logger.info(
+            f'Number of clusters found by {self.clustering}: {np.max(clusters)}. Duration: {time.time() - start} sec.')
+        return clusters
 
     def _merge_segmentation(self, segmentation, index, output_segmentation, visited_voxels_array):
         """
@@ -379,7 +381,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
 
             logger.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
             return hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
-                                         cluster_selection_method=cluster_selection_method)
+                                   cluster_selection_method=cluster_selection_method)
         else:
             bandwidth = kwargs['bandwidth']
             logger.info(f'MeanShift params: bandwidth: {bandwidth}, bin_seeding: True')
