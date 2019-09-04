@@ -118,18 +118,26 @@ class EmbeddingsSliceBuilder(FilterSliceBuilder):
     """
 
     def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
-                 threshold=0.8, slack_acceptance=0.01, patch_max_instances=48):
+                 threshold=0.8, slack_acceptance=0.01, patch_max_instances=48, patch_min_instances=5):
         super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index,
                          threshold, slack_acceptance)
 
         if label_datasets is None:
             return
 
+        rand_state = np.random.RandomState(47)
+
         def ignore_predicate(raw_label_idx):
             label_idx = raw_label_idx[1]
             patch = label_datasets[0][label_idx]
             num_instances = np.unique(patch).size
-            return num_instances < patch_max_instances
+
+            # patch_max_instances is a hard constraint
+            if num_instances <= patch_max_instances:
+                # make sure that we have at least patch_min_instances in the batch and allow some slack
+                return num_instances >= patch_min_instances or rand_state.rand() < slack_acceptance
+
+            return False
 
         zipped_slices = zip(self.raw_slices, self.label_slices)
         # ignore slices containing too much ignore_index
