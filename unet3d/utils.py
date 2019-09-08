@@ -5,6 +5,7 @@ import shutil
 import sys
 import io
 
+import h5py
 from PIL import Image
 import numpy as np
 import scipy.sparse as sparse
@@ -70,6 +71,14 @@ def load_checkpoint(checkpoint_path, model, optimizer=None):
         optimizer.load_state_dict(state['optimizer_state_dict'])
 
     return state
+
+
+def save_network_output(output_path, output, logger=None):
+    if logger is not None:
+        logger.info(f'Saving network output to: {output_path}...')
+    output = output.detach().cpu()[0]
+    with h5py.File(output_path, 'w') as f:
+        f.create_dataset('predictions', data=output, compression='gzip')
 
 
 def get_logger(name, level=logging.INFO):
