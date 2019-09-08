@@ -18,6 +18,7 @@ class _AbstractPredictor:
         self.loader = loader
         self.output_file = output_file
         self.config = config
+        self.predictor_config = kwargs
 
     @staticmethod
     def _volume_shape(dataset):
@@ -83,6 +84,9 @@ class StandardPredictor(_AbstractPredictor):
 
         logger.info(f'The shape of the output prediction maps (CDHW): {prediction_maps_shape}')
 
+        avoid_block_artifacts = self.predictor_config.get('avoid_block_artifacts', True)
+        logger.info(f'Avoid block artifacts: {avoid_block_artifacts}')
+
         # create destination H5 file
         h5_output_file = h5py.File(self.output_file, 'w')
         # allocate prediction and normalization arrays
@@ -124,12 +128,18 @@ class StandardPredictor(_AbstractPredictor):
                         logger.info(f"Using channel '{prediction_channel}'...")
                         prediction = np.expand_dims(prediction[prediction_channel], axis=0)
 
-                    # unpad in order to avoid block artifacts in the output probability maps
-                    u_prediction, u_index = unpad(prediction, index, volume_shape)
-                    # accumulate probabilities into the output prediction array
-                    prediction_map[u_index] += u_prediction
-                    # count voxel visits for normalization
-                    normalization_mask[u_index] += 1
+                    if avoid_block_artifacts:
+                        # unpad in order to avoid block artifacts in the output probability maps
+                        u_prediction, u_index = unpad(prediction, index, volume_shape)
+                        # accumulate probabilities into the output prediction array
+                        prediction_map[u_index] += u_prediction
+                        # count voxel visits for normalization
+                        normalization_mask[u_index] += 1
+                    else:
+                        # accumulate probabilities into the output prediction array
+                        prediction_map[index] += prediction
+                        # count voxel visits for normalization
+                        normalization_mask[index] += 1
 
         # save results to
         self._save_results(prediction_maps, normalization_masks, output_heads, h5_output_file)
