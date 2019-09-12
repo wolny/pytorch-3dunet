@@ -154,7 +154,7 @@ class AdaptedRandError:
         per_batch_arand = []
         _batch = 0
         for _input, _target in zip(input, target):
-            LOGGER.info(f'Number of ground truth clusters: {np.max(target)}')
+            LOGGER.info(f'Number of ground truth clusters: {len(np.unique(target))}')
 
             # convert _input to segmentation
             segm = self.input_to_segm(_input)
