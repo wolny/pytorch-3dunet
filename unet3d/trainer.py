@@ -196,7 +196,7 @@ class UNet3DTrainer:
                 # save checkpoint
                 self._save_checkpoint(is_best)
 
-            if (self.num_iterations - 1) % self.log_after_iters == 0:
+            if self.num_iterations % self.log_after_iters == 0:
                 # if model contains final_activation layer for normalizing logits apply it, otherwise both
                 # the evaluation metric as well as images in tensorboard will be incorrectly computed
                 if hasattr(self.model, 'final_activation') and self.model.final_activation is not None:
@@ -213,7 +213,6 @@ class UNet3DTrainer:
                 self._log_stats('train', train_losses.avg, train_eval_scores.avg)
                 self._log_params()
                 self._log_images(input, target, output)
-                self._save_predictions(output)
 
             if self.max_num_iterations < self.num_iterations:
                 self.logger.info(
@@ -355,7 +354,3 @@ class UNet3DTrainer:
             return input[0].size(0)
         else:
             return input.size(0)
-
-    def _save_predictions(self, output):
-        output_path = os.path.join(self.checkpoint_dir, f'output_iter_{self.num_iterations}.h5')
-        utils.save_network_output(output_path, output, self.logger)
