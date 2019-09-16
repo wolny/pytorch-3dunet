@@ -323,6 +323,21 @@ class LabelToBoundaryAndAffinities:
         return np.concatenate((boundary, affinities), axis=0)
 
 
+class BoundaryAndAffinities:
+    """
+    Use if the volume contains a single pixel boundaries between labels
+    """
+
+    def __init__(self, xy_offsets, z_offsets, append_label=False, ignore_index=None, **kwargs):
+        self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label,
+                                     ignore_index=ignore_index)
+
+    def __call__(self, m):
+        boundary = np.expand_dims((m == 0).astype('uint8'), axis=0)
+        affinities = self.l2a(m)
+        return np.concatenate((boundary, affinities), axis=0)
+
+
 class LabelToMaskAndAffinities:
     def __init__(self, xy_offsets, z_offsets, append_label=False, background=0, ignore_index=None, **kwargs):
         self.background = background

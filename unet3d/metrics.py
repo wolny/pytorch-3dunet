@@ -218,6 +218,69 @@ class AdaptedRandError:
         return input
 
 
+class Boundary2dAdaptedRandError(AdaptedRandError):
+    def __init__(self, threshold=0.4, use_last_target=False, use_first_input=False, invert_pmaps=True, **kwargs):
+        super().__init__(use_last_target, **kwargs)
+        self.use_last_target = use_last_target
+        self.threshold = threshold
+        self.use_first_input = use_first_input
+        self.invert_pmaps = invert_pmaps
+
+    def input_to_segm(self, input):
+        if self.use_first_input:
+            input = np.expand_dims(input[0], axis=0)
+
+        segms = []
+        for predictions in input:
+            # threshold probability maps
+            predictions = predictions > self.threshold
+
+            if self.invert_pmaps:
+                # for connected component analysis we need to treat boundary signal as background
+                # assign 0-label to boundary mask
+                predictions = np.logical_not(predictions)
+
+            predictions = predictions.astype(np.uint8)
+            # run connected components per slice
+            segs_2d = []
+            for p in predictions:
+                seg = measure.label(p, background=0, connectivity=1)
+                segs_2d.append(seg)
+            # append to the list of per-channel segmentations
+            segms.append(np.stack(segs_2d))
+
+        return np.stack(segms)
+
+    def __call__(self, input, target):
+        # converts input and target to numpy arrays
+        input, target = self._convert_to_numpy(input, target)
+        # ensure target is of integer type
+        target = target.astype(np.int)
+
+        for _input, _target in zip(input, target):
+            # convert _input to segmentation
+            segm = self.input_to_segm(_input)
+
+            assert segm.ndim == 4
+
+            # compute per-channel, per-slice arand and return average value
+            arand_scores = []
+            # per-channel
+            for channel_segm in segm:
+                # per-slice
+                i = 0
+                for p, t in zip(channel_segm, _target):
+                    # compute on every 4th slice to speed it up
+                    if i % 4 == 0:
+                        t = np.logical_not(t)
+                        t = t.astype(np.uint8)
+                        t = measure.label(t, background=0, connectivity=1)
+                        arand_scores.append(adapted_rand(p, t))
+
+        # return mean arand error
+        return torch.mean(torch.tensor(arand_scores))
+
+
 class BoundaryAdaptedRandError(AdaptedRandError):
     def __init__(self, threshold=0.4, use_last_target=False, use_first_input=False, invert_pmaps=True, save_plots=False,
                  plots_dir='.', **kwargs):
