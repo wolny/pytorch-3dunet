@@ -124,12 +124,14 @@ class AdaptedRandError:
 
     Args:
         use_last_target (bool): use only the last channel from the target to compute the ARand
+        run_target_cc (bool): run connected components on the target segmentation before computing the Rand score
         save_plots (bool): save predicted segmentation (result from `input_to_segm`) together with GT segmentation as a PNG
         plots_dir (string): directory where the plots are to be saved
     """
 
-    def __init__(self, use_last_target=False, save_plots=False, plots_dir='.', **kwargs):
+    def __init__(self, use_last_target=False, run_target_cc=False, save_plots=False, plots_dir='.', **kwargs):
         self.use_last_target = use_last_target
+        self.run_target_cc = run_target_cc
         self.save_plots = save_plots
         self.plots_dir = plots_dir
         if not os.path.exists(plots_dir):
@@ -159,9 +161,13 @@ class AdaptedRandError:
             # convert _input to segmentation
             segm = self.input_to_segm(_input)
 
+            # run connected components if necessary
+            if self.run_target_cc:
+                _target = measure.label(_target, connectivity=1)
+
             if self.save_plots:
                 # save predicted and ground truth segmentation
-                plot_segm(segm, target, self.plots_dir)
+                plot_segm(segm, _target, self.plots_dir)
 
             assert segm.ndim == 4
 
@@ -218,73 +224,11 @@ class AdaptedRandError:
         return input
 
 
-class Boundary2dAdaptedRandError(AdaptedRandError):
-    def __init__(self, threshold=0.4, use_last_target=False, use_first_input=False, invert_pmaps=True, **kwargs):
-        super().__init__(use_last_target, **kwargs)
-        self.use_last_target = use_last_target
-        self.threshold = threshold
-        self.use_first_input = use_first_input
-        self.invert_pmaps = invert_pmaps
-
-    def input_to_segm(self, input):
-        if self.use_first_input:
-            input = np.expand_dims(input[0], axis=0)
-
-        segms = []
-        for predictions in input:
-            # threshold probability maps
-            predictions = predictions > self.threshold
-
-            if self.invert_pmaps:
-                # for connected component analysis we need to treat boundary signal as background
-                # assign 0-label to boundary mask
-                predictions = np.logical_not(predictions)
-
-            predictions = predictions.astype(np.uint8)
-            # run connected components per slice
-            segs_2d = []
-            for p in predictions:
-                seg = measure.label(p, background=0, connectivity=1)
-                segs_2d.append(seg)
-            # append to the list of per-channel segmentations
-            segms.append(np.stack(segs_2d))
-
-        return np.stack(segms)
-
-    def __call__(self, input, target):
-        # converts input and target to numpy arrays
-        input, target = self._convert_to_numpy(input, target)
-        # ensure target is of integer type
-        target = target.astype(np.int)
-
-        for _input, _target in zip(input, target):
-            # convert _input to segmentation
-            segm = self.input_to_segm(_input)
-
-            assert segm.ndim == 4
-
-            # compute per-channel, per-slice arand and return average value
-            arand_scores = []
-            # per-channel
-            for channel_segm in segm:
-                # per-slice
-                i = 0
-                for p, t in zip(channel_segm, _target):
-                    # compute on every 4th slice to speed it up
-                    if i % 4 == 0:
-                        t = np.logical_not(t)
-                        t = t.astype(np.uint8)
-                        t = measure.label(t, background=0, connectivity=1)
-                        arand_scores.append(adapted_rand(p, t))
-
-        # return mean arand error
-        return torch.mean(torch.tensor(arand_scores))
-
-
 class BoundaryAdaptedRandError(AdaptedRandError):
-    def __init__(self, threshold=0.4, use_last_target=False, use_first_input=False, invert_pmaps=True, save_plots=False,
-                 plots_dir='.', **kwargs):
-        super().__init__(use_last_target=use_last_target, save_plots=save_plots, plots_dir=plots_dir, **kwargs)
+    def __init__(self, threshold=0.4, use_last_target=True, use_first_input=False, invert_pmaps=True,
+                 run_target_cc=False, save_plots=False, plots_dir='.', **kwargs):
+        super().__init__(use_last_target=use_last_target, run_target_cc=run_target_cc, save_plots=save_plots,
+                         plots_dir=plots_dir, **kwargs)
         self.threshold = threshold
         self.use_first_input = use_first_input
         self.invert_pmaps = invert_pmaps

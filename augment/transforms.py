@@ -323,19 +323,25 @@ class LabelToBoundaryAndAffinities:
         return np.concatenate((boundary, affinities), axis=0)
 
 
-class BoundaryAndAffinities:
+class FlyWingBoundary:
     """
-    Use if the volume contains a single pixel boundaries between labels
+    Use if the volume contains a single pixel boundaries between labels. Gives the single pixel boundary in the 1st
+    channel and the 'thick' boundary in the 2nd channel
     """
 
-    def __init__(self, xy_offsets, z_offsets, append_label=False, ignore_index=None, **kwargs):
-        self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label,
-                                     ignore_index=ignore_index)
+    def __init__(self, append_label=False, **kwargs):
+        self.append_label = append_label
 
     def __call__(self, m):
-        boundary = np.expand_dims((m == 0).astype('uint8'), axis=0)
-        affinities = self.l2a(m)
-        return np.concatenate((boundary, affinities), axis=0)
+        boundary = (m == 0).astype('uint8')
+        thick_boundary = find_boundaries(m, connectivity=1, mode='outer', background=0)
+
+        results = [boundary, thick_boundary]
+        if self.append_label:
+            # append original input data
+            results.append(m)
+
+        return np.stack(results, axis=0)
 
 
 class LabelToMaskAndAffinities:
