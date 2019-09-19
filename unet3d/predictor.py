@@ -72,7 +72,7 @@ class StandardPredictor(_AbstractPredictor):
         device = self.config['device']
         output_heads = self.config['model'].get('output_heads', 1)
 
-        logger.info(f'Running prediction on {len(self.loader)} patches...')
+        logger.info(f'Running prediction on {len(self.loader)} batches...')
 
         # dimensionality of the the output predictions
         volume_shape = self._volume_shape(self.loader.dataset)
@@ -98,48 +98,52 @@ class StandardPredictor(_AbstractPredictor):
         self.model.eval()
         # Run predictions on the entire input dataset
         with torch.no_grad():
-            for patch, index in self.loader:
-                logger.info(f'Predicting slice:{index}')
+            for batch, indices in self.loader:
+                # send batch to device
+                batch = batch.to(device)
 
-                # save patch index: (C,D,H,W)
-                if prediction_channel is None:
-                    channel_slice = slice(0, out_channels)
-                else:
-                    channel_slice = slice(0, 1)
-
-                index = (channel_slice,) + tuple(index)
-
-                # send patch to device
-                patch = patch.to(device)
                 # forward pass
-                predictions = self.model(patch)
+                predictions = self.model(batch)
 
                 # wrap predictions into a list if there is only one output head from the network
                 if output_heads == 1:
                     predictions = [predictions]
 
+                # for each output head
                 for prediction, prediction_map, normalization_mask in zip(predictions, prediction_maps,
                                                                           normalization_masks):
-                    # squeeze batch dimension and convert back to numpy array
-                    assert prediction.size()[0] == 1, 'Only batch size of 1 supported during prediction'
-                    prediction = prediction.squeeze(dim=0).cpu().numpy()
-                    if prediction_channel is not None:
-                        # use only the 'prediction_channel'
-                        logger.info(f"Using channel '{prediction_channel}'...")
-                        prediction = np.expand_dims(prediction[prediction_channel], axis=0)
 
-                    if avoid_block_artifacts:
-                        # unpad in order to avoid block artifacts in the output probability maps
-                        u_prediction, u_index = unpad(prediction, index, volume_shape)
-                        # accumulate probabilities into the output prediction array
-                        prediction_map[u_index] += u_prediction
-                        # count voxel visits for normalization
-                        normalization_mask[u_index] += 1
-                    else:
-                        # accumulate probabilities into the output prediction array
-                        prediction_map[index] += prediction
-                        # count voxel visits for normalization
-                        normalization_mask[index] += 1
+                    # convert to numpy array
+                    prediction = prediction.cpu().numpy()
+
+                    # for each batch sample
+                    for pred, index in zip(prediction, indices):
+                        # save patch index: (C,D,H,W)
+                        if prediction_channel is None:
+                            channel_slice = slice(0, out_channels)
+                        else:
+                            channel_slice = slice(0, 1)
+                        index = (channel_slice,) + index
+
+                        if prediction_channel is not None:
+                            # use only the 'prediction_channel'
+                            logger.info(f"Using channel '{prediction_channel}'...")
+                            pred = np.expand_dims(pred[prediction_channel], axis=0)
+
+                        logger.info(f'Saving predictions for slice:{index}...')
+
+                        if avoid_block_artifacts:
+                            # unpad in order to avoid block artifacts in the output probability maps
+                            u_prediction, u_index = unpad(pred, index, volume_shape)
+                            # accumulate probabilities into the output prediction array
+                            prediction_map[u_index] += u_prediction
+                            # count voxel visits for normalization
+                            normalization_mask[u_index] += 1
+                        else:
+                            # accumulate probabilities into the output prediction array
+                            prediction_map[index] += pred
+                            # count voxel visits for normalization
+                            normalization_mask[index] += 1
 
         # save results to
         self._save_results(prediction_maps, normalization_masks, output_heads, h5_output_file)
@@ -244,6 +248,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
         assert clustering in ['hdbscan', 'meanshift'], 'Only HDBSCAN and MeanShift are supported'
         logger.info(f'IoU threshold: {iou_threshold}')
 
+        self.clustering_name = clustering
         self.clustering = self._get_clustering(clustering, kwargs)
 
     def predict(self):
@@ -267,12 +272,13 @@ class EmbeddingsPredictor(_AbstractPredictor):
         self.model.eval()
         # Run predictions on the entire input dataset
         with torch.no_grad():
-            for patch, index in self.loader:
-                logger.info(f'Predicting embeddings for slice:{index}')
-                # send patch to device
-                patch = patch.to(device)
+            for batch, indices in self.loader:
+                # logger.info(f'Predicting embeddings for slice:{index}')
+
+                # send batch to device
+                batch = batch.to(device)
                 # forward pass
-                embeddings = self.model(patch)
+                embeddings = self.model(batch)
 
                 # wrap predictions into a list if there is only one output head from the network
                 if output_heads == 1:
@@ -280,19 +286,21 @@ class EmbeddingsPredictor(_AbstractPredictor):
 
                 for prediction, output_segmentation, visited_voxels_array in zip(embeddings, output_segmentations,
                                                                                  visited_voxels_arrays):
-                    # squeeze batch dimension and convert back to numpy array
-                    # TODO: support non-singleton batch dims
-                    assert prediction.size()[0] == 1, 'Only batch size of 1 supported during prediction'
-                    prediction = prediction.squeeze(dim=0).cpu().numpy()
 
-                    # convert embeddings to segmentation with hdbscan clustering
-                    segmentation = self._embeddings_to_segmentation(prediction)
-                    # stitch patches
-                    self._merge_segmentation(segmentation, index, output_segmentation, visited_voxels_array)
+                    # convert to numpy array
+                    prediction = prediction.cpu().numpy()
+
+                    # iterate sequentially because of the current simple stitching that we're using
+                    for pred, index in zip(prediction, indices):
+                        # convert embeddings to segmentation with hdbscan clustering
+                        segmentation = self._embeddings_to_segmentation(pred)
+                        # stitch patches
+                        self._merge_segmentation(segmentation, index, output_segmentation, visited_voxels_array)
 
         # save results
         with h5py.File(self.output_file, 'w') as output_file:
-            prediction_datasets = self._get_output_dataset_names(output_heads, prefix=f'segmentation/{self.clustering}')
+            prediction_datasets = self._get_output_dataset_names(output_heads,
+                                                                 prefix=f'segmentation/{self.clustering_name}')
             for output_segmentation, prediction_dataset in zip(output_segmentations, prediction_datasets):
                 logger.info(f'Saving predictions to: {output_file}/{prediction_dataset}...')
                 output_file.create_dataset(prediction_dataset, data=output_segmentation, compression="gzip")

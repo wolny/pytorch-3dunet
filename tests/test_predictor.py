@@ -4,7 +4,7 @@ import h5py
 import torch
 from torch.utils.data import DataLoader
 
-from datasets.hdf5 import HDF5Dataset, h5_collate
+from datasets.hdf5 import HDF5Dataset, prediction_collate
 from unet3d.predictor import EmbeddingsPredictor
 from unet3d.utils import adapted_rand
 
@@ -46,7 +46,7 @@ class TestPredictor:
         dataset = HDF5Dataset(gt_file, (100, 200, 200), (60, 150, 150), phase='test',
                               transformer_config=t_config, raw_internal_path='label')
 
-        loader = DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False, collate_fn=h5_collate)
+        loader = DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False, collate_fn=prediction_collate)
 
         predictor = FakePredictor(FakeModel(), loader, output_file, config, clustering='meanshift', bandwidth=0.5)
 
@@ -55,7 +55,7 @@ class TestPredictor:
         with h5py.File(gt_file, 'r') as f:
             with h5py.File(output_file, 'r') as g:
                 gt = f['label'][...]
-                segm = g['segmentation/hdbscan'][...]
+                segm = g['segmentation/meanshift'][...]
                 arand_error = adapted_rand(segm, gt)
 
                 assert arand_error < 0.1

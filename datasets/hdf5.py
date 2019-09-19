@@ -407,7 +407,7 @@ def get_train_loaders(config):
             logger.info(f'Skipping validation set: {val_path}', exc_info=True)
 
     num_workers = loaders_config.get('num_workers', 1)
-    logger.info(f'Number of workers for train/val datasets: {num_workers}')
+    logger.info(f'Number of workers for train/val dataloader: {num_workers}')
     batch_size = loaders_config.get('batch_size', 1)
     logger.info(f'Batch size for train/val loader: {batch_size}')
     # when training with volumetric data use batch_size of 1 due to GPU memory constraints
@@ -418,15 +418,15 @@ def get_train_loaders(config):
     }
 
 
-def h5_collate(batch):
+def prediction_collate(batch):
     error_msg = "batch must contain tensors or slice; found {}"
     if isinstance(batch[0], torch.Tensor):
         return torch.stack(batch, 0)
-    elif isinstance(batch[0], slice):
-        return batch[0]
+    elif isinstance(batch[0], tuple) and isinstance(batch[0][0], slice):
+        return batch
     elif isinstance(batch[0], collections.Sequence):
         transposed = zip(*batch)
-        return [h5_collate(samples) for samples in transposed]
+        return [prediction_collate(samples) for samples in transposed]
 
     raise TypeError((error_msg.format(type(batch[0]))))
 
@@ -450,7 +450,12 @@ def get_test_loaders(config):
     # get train/validation patch size and stride
     patch = tuple(datasets_config['patch'])
     stride = tuple(datasets_config['stride'])
+
     num_workers = datasets_config.get('num_workers', 1)
+    logger.info(f'Number of workers for the dataloader: {num_workers}')
+
+    batch_size = datasets_config.get('batch_size', 1)
+    logger.info(f'Batch size for dataloader: {batch_size}')
 
     # construct datasets lazily
     datasets = (HDF5Dataset(test_path, patch, stride, phase='test', raw_internal_path=raw_internal_path,
@@ -459,4 +464,4 @@ def get_test_loaders(config):
     # use generator in order to create data loaders lazily one by one
     for dataset in datasets:
         logger.info(f'Loading test set from: {dataset.file_path}...')
-        yield DataLoader(dataset, batch_size=1, num_workers=num_workers, collate_fn=h5_collate)
+        yield DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=prediction_collate)
