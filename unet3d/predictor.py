@@ -168,7 +168,7 @@ class StandardPredictor(_AbstractPredictor):
                 pad_width = dataset.pad_width
                 logger.info(f'Dataset loaded with mirror padding, pad_width: {pad_width}. Cropping before saving...')
 
-                prediction_map = prediction_map[pad_width:-pad_width, pad_width:-pad_width, pad_width:-pad_width]
+                prediction_map = prediction_map[:, pad_width:-pad_width, pad_width:-pad_width, pad_width:-pad_width]
 
             logger.info(f'Saving predictions to: {output_file}/{prediction_dataset}...')
             output_file.create_dataset(prediction_dataset, data=prediction_map, compression="gzip")
