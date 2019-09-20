@@ -463,6 +463,12 @@ def get_test_loaders(config):
     patch = tuple(datasets_config['patch'])
     stride = tuple(datasets_config['stride'])
 
+    mirror_padding = datasets_config.get('mirror_padding', False)
+    pad_width = datasets_config.get('pad_width', 20)
+
+    if mirror_padding:
+        logger.info(f'Using mirror padding. Pad width: {pad_width}')
+
     num_workers = datasets_config.get('num_workers', 1)
     logger.info(f'Number of workers for the dataloader: {num_workers}')
 
@@ -471,7 +477,8 @@ def get_test_loaders(config):
 
     # construct datasets lazily
     datasets = (HDF5Dataset(test_path, patch, stride, phase='test', raw_internal_path=raw_internal_path,
-                            transformer_config=datasets_config['transformer']) for test_path in test_paths)
+                            transformer_config=datasets_config['transformer'],
+                            mirror_padding=mirror_padding, pad_width=pad_width) for test_path in test_paths)
 
     # use generator in order to create data loaders lazily one by one
     for dataset in datasets:
