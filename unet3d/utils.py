@@ -137,7 +137,11 @@ def find_maximum_patch_size(model, device):
         model(patch)
 
 
-def unpad(probs, index, shape, pad_width=8):
+def unpad(patch, index, shape, pad_width=4):
+    """
+    Remove `pad_width` voxels around the edges of a given patch.
+    """
+
     def _new_slices(slicing, max_size):
         if slicing.start == 0:
             p_start = 0
@@ -158,15 +162,15 @@ def unpad(probs, index, shape, pad_width=8):
     D, H, W = shape
 
     i_c, i_z, i_y, i_x = index
-    p_c = slice(0, probs.shape[0])
+    p_c = slice(0, patch.shape[0])
 
     p_z, i_z = _new_slices(i_z, D)
     p_y, i_y = _new_slices(i_y, H)
     p_x, i_x = _new_slices(i_x, W)
 
-    probs_index = (p_c, p_z, p_y, p_x)
+    patch_index = (p_c, p_z, p_y, p_x)
     index = (i_c, i_z, i_y, i_x)
-    return probs[probs_index], index
+    return patch[patch_index], index
 
 
 def create_feature_maps(init_channel_number, number_of_fmaps):

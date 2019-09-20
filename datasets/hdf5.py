@@ -191,7 +191,8 @@ class HDF5Dataset(Dataset):
 
     def __init__(self, file_path, patch_shape, stride_shape, phase, transformer_config,
                  raw_internal_path='raw', label_internal_path='label',
-                 weight_internal_path=None, slice_builder_cls=SliceBuilder):
+                 weight_internal_path=None, slice_builder_cls=SliceBuilder,
+                 mirror_padding=False, pad_width=20):
         """
         :param file_path: path to H5 file containing raw data as well as labels and per pixel weights (optional)
         :param patch_shape: the shape of the patch DxHxW
@@ -203,11 +204,17 @@ class HDF5Dataset(Dataset):
         :param label_internal_path (str or list): H5 internal path to the label dataset
         :param weight_internal_path (str or list): H5 internal path to the per pixel weights
         :param slice_builder_cls: defines how to sample the patches from the volume
+        :param mirror_padding (bool): pad with the reflection of the vector mirrored on the first and last values
+            along each axis. Only applicable during the 'test' phase
+        :param pad_width: number of voxels padded to the edges of each axis (only if `mirror_padding=True`)
         """
         assert phase in ['train', 'val', 'test']
         self._check_patch_shape(patch_shape)
         self.phase = phase
         self.file_path = file_path
+
+        self.mirror_padding = mirror_padding
+        self.pad_width = pad_width
 
         # convert raw_internal_path, label_internal_path and weight_internal_path to list for ease of computation
         if isinstance(raw_internal_path, str):
@@ -245,6 +252,11 @@ class HDF5Dataset(Dataset):
                 # 'test' phase used only for predictions so ignore the label dataset
                 self.labels = None
                 self.weight_maps = None
+
+                # add mirror padding if needed
+                if self.mirror_padding:
+                    padded_volumes = [np.pad(raw, pad_width=self.pad_width, mode='reflect') for raw in self.raws]
+                    self.raws = padded_volumes
 
             # build slice indices for raw and label data sets
             slice_builder = slice_builder_cls(self.raws, self.labels, self.weight_maps, patch_shape, stride_shape)

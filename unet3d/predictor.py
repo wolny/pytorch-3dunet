@@ -42,20 +42,20 @@ class _AbstractPredictor:
 
 class StandardPredictor(_AbstractPredictor):
     """
-        Applies the model on the given dataset and saves the result in the `output_file` in the H5 format.
-        Predictions from the network are kept in memory. If the results from the network don't fit in into RAM
-        use `LazyPredictor` instead.
+    Applies the model on the given dataset and saves the result in the `output_file` in the H5 format.
+    Predictions from the network are kept in memory. If the results from the network don't fit in into RAM
+    use `LazyPredictor` instead.
 
-        The output dataset names inside the H5 is given by `des_dataset_name` config argument. If the argument is
-        not present in the config 'predictions{n}' is used as a default dataset name, where `n` denotes the number
-        of the output head from the network.
+    The output dataset names inside the H5 is given by `des_dataset_name` config argument. If the argument is
+    not present in the config 'predictions{n}' is used as a default dataset name, where `n` denotes the number
+    of the output head from the network.
 
-        Args:
-            model (Unet3D): trained 3D UNet model used for prediction
-            data_loader (torch.utils.data.DataLoader): input data loader
-            output_file (str): path to the output H5 file
-            config (dict): global config dict
-        """
+    Args:
+        model (Unet3D): trained 3D UNet model used for prediction
+        data_loader (torch.utils.data.DataLoader): input data loader
+        output_file (str): path to the output H5 file
+        config (dict): global config dict
+    """
 
     def __init__(self, model, loader, output_file, config, **kwargs):
         super().__init__(model, loader, output_file, config, **kwargs)
@@ -146,7 +146,7 @@ class StandardPredictor(_AbstractPredictor):
                             normalization_mask[index] += 1
 
         # save results to
-        self._save_results(prediction_maps, normalization_masks, output_heads, h5_output_file)
+        self._save_results(prediction_maps, normalization_masks, output_heads, h5_output_file, self.loader.dataset)
         # close the output H5 file
         h5_output_file.close()
 
@@ -157,12 +157,19 @@ class StandardPredictor(_AbstractPredictor):
         normalization_masks = [np.zeros(output_shape, dtype='uint8') for _ in range(output_heads)]
         return prediction_maps, normalization_masks
 
-    def _save_results(self, prediction_maps, normalization_masks, output_heads, output_file):
+    def _save_results(self, prediction_maps, normalization_masks, output_heads, output_file, dataset):
         # save probability maps
         prediction_datasets = self._get_output_dataset_names(output_heads, prefix='predictions')
         for prediction_map, normalization_mask, prediction_dataset in zip(prediction_maps, normalization_masks,
                                                                           prediction_datasets):
             prediction_map = prediction_map / normalization_mask
+
+            if dataset.mirror_padding:
+                pad_width = dataset.pad_width
+                logger.info(f'Dataset loaded with mirror padding, pad_width: {pad_width}. Cropping before saving...')
+
+                prediction_map = prediction_map[pad_width:-pad_width, pad_width:-pad_width, pad_width:-pad_width]
+
             logger.info(f'Saving predictions to: {output_file}/{prediction_dataset}...')
             output_file.create_dataset(prediction_dataset, data=prediction_map, compression="gzip")
 
@@ -204,7 +211,11 @@ class LazyPredictor(StandardPredictor):
 
         return prediction_maps, normalization_masks
 
-    def _save_results(self, prediction_maps, normalization_masks, output_heads, output_file):
+    def _save_results(self, prediction_maps, normalization_masks, output_heads, output_file, dataset):
+        if dataset.mirror_padding:
+            logger.warn(
+                f'Mirror padding unsupported in LazyPredictor. Output predictions will be padded with pad_width: {dataset.pad_width}')
+
         prediction_datasets = self._get_output_dataset_names(output_heads, prefix='predictions')
         normalization_datasets = self._get_output_dataset_names(output_heads, prefix='normalization')
 
