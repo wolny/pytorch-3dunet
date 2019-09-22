@@ -313,6 +313,7 @@ class LabelToBoundaryAndAffinities:
     """
 
     def __init__(self, xy_offsets, z_offsets, append_label=False, blur=False, sigma=1, ignore_index=None, **kwargs):
+        # blur only StandardLabelToBoundary results; we don't want to blur the affinities
         self.l2b = StandardLabelToBoundary(blur=blur, sigma=sigma, ignore_index=ignore_index)
         self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label,
                                      ignore_index=ignore_index)
