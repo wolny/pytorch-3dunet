@@ -330,14 +330,18 @@ class FlyWingBoundary:
     channel and the 'thick' boundary in the 2nd channel
     """
 
-    def __init__(self, append_label=False, **kwargs):
+    def __init__(self, append_label=False, thick_boundary=True, **kwargs):
         self.append_label = append_label
+        self.thick_boundary = thick_boundary
 
     def __call__(self, m):
         boundary = (m == 0).astype('uint8')
-        thick_boundary = find_boundaries(m, connectivity=1, mode='outer', background=0)
+        results = [boundary]
 
-        results = [boundary, thick_boundary]
+        if self.thick_boundary:
+            t_boundary = find_boundaries(m, connectivity=1, mode='outer', background=0)
+            results.append(t_boundary)
+
         if self.append_label:
             # append original input data
             results.append(m)
