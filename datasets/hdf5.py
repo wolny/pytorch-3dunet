@@ -87,7 +87,7 @@ class FilterSliceBuilder(SliceBuilder):
     Filter patches containing more than `1 - threshold` of ignore_index label
     """
 
-    def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(-1),
+    def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(-1,),
                  threshold=0.9, slack_acceptance=0.0):
         super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape)
         if label_datasets is None:
