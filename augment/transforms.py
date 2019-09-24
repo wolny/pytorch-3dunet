@@ -306,6 +306,30 @@ class LabelToAffinities(AbstractLabelToBoundary):
         return self.kernels
 
 
+class LabelToZAffinities(AbstractLabelToBoundary):
+    """
+    Converts a given volumetric label array to binary mask corresponding to borders between labels (which can be seen
+    as an affinity graph: https://arxiv.org/pdf/1706.00120.pdf)
+    One specify the offsets (thickness) of the border. The boundary will be computed via the convolution operator.
+    """
+
+    def __init__(self, offsets, ignore_index=None, append_label=False, **kwargs):
+        super().__init__(ignore_index=ignore_index, append_label=append_label)
+
+        assert isinstance(offsets, list) or isinstance(offsets, tuple), 'offsets must be a list or a tuple'
+        assert all(a > 0 for a in offsets), "'offsets must be positive"
+        assert len(set(offsets)) == len(offsets), "'offsets' must be unique"
+
+        self.kernels = []
+        z_axis = self.AXES_TRANSPOSE[2]
+        # create kernels
+        for z_offset in offsets:
+            self.kernels.append(self.create_kernel(z_axis, z_offset))
+
+    def get_kernels(self):
+        return self.kernels
+
+
 class LabelToBoundaryAndAffinities:
     """
     Combines the StandardLabelToBoundary and LabelToAffinities in the hope
@@ -327,12 +351,16 @@ class LabelToBoundaryAndAffinities:
 class FlyWingBoundary:
     """
     Use if the volume contains a single pixel boundaries between labels. Gives the single pixel boundary in the 1st
-    channel and the 'thick' boundary in the 2nd channel
+    channel and the 'thick' boundary in the 2nd channel and optional z-affinities
     """
 
-    def __init__(self, append_label=False, thick_boundary=True, **kwargs):
+    def __init__(self, append_label=False, thick_boundary=True, ignore_index=None, z_offsets=None, **kwargs):
         self.append_label = append_label
         self.thick_boundary = thick_boundary
+        self.ignore_index = ignore_index
+        self.lta = None
+        if z_offsets is not None:
+            self.lta = LabelToZAffinities(z_offsets, ignore_index=ignore_index)
 
     def __call__(self, m):
         boundary = (m == 0).astype('uint8')
@@ -341,6 +369,15 @@ class FlyWingBoundary:
         if self.thick_boundary:
             t_boundary = find_boundaries(m, connectivity=1, mode='outer', background=0)
             results.append(t_boundary)
+
+        if self.lta is not None:
+            z_affs = self.lta(m)
+            for z_aff in z_affs:
+                results.append(z_aff)
+
+        if self.ignore_index is not None:
+            for b in results:
+                b[m == self.ignore_index] = self.ignore_index
 
         if self.append_label:
             # append original input data

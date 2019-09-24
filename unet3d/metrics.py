@@ -255,61 +255,6 @@ class BoundaryAdaptedRandError(AdaptedRandError):
         return np.stack(segms)
 
 
-class Boundary2dAdaptedRandError(AdaptedRandError):
-    def __init__(self, use_last_target=True, threshold=0.5, **kwargs):
-        super().__init__(use_last_target, **kwargs)
-        self.threshold = threshold
-
-    def __call__(self, input, target):
-        """
-        Compute ARand Error for each input, target pair in the batch and return the mean value.
-
-        Args:
-            input (torch.tensor): 5D (NCDHW) output from the network
-            target (torch.tensor): 4D (NDHW) ground truth segmentation
-
-        Returns:
-            average ARand Error across the batch
-        """
-        # converts input and target to numpy arrays
-        input, target = self._convert_to_numpy(input, target)
-        # ensure target is of integer type
-        target = target.astype('uint32')
-
-        per_batch_arand = []
-        _batch = 0
-        for _input, _target in zip(input, target):
-            LOGGER.info(f'Computing eval score for batch: {_batch}')
-
-            # convert _input to segmentation
-            seg2d = self.input_to_segm(_input)
-
-            for seg, tar in zip(seg2d, _target):
-                per_batch_arand.append(adapted_rand(seg, tar))
-
-            _batch += 1
-
-        return torch.mean(torch.tensor(per_batch_arand))
-
-    def input_to_segm(self, input):
-        # take the 1st channel
-        input = input[0]
-
-        # threshold pmaps
-        input = input > self.threshold
-        # for connected component analysis we need to treat boundary signal as background
-        # assign 0-label to boundary mask
-        input = np.logical_not(input)
-        input = input.astype(np.uint8)
-
-        results = []
-        for z_slice in input:
-            segm = measure.label(z_slice, background=0, connectivity=1)
-            results.append(segm)
-
-        return np.stack(results)
-
-
 class EmbeddingsAdaptedRandError(AdaptedRandError):
     def __init__(self, min_cluster_size=100, min_samples=None, metric='euclidean', cluster_selection_method='eom',
                  save_plots=False, plots_dir='.', **kwargs):
