@@ -273,6 +273,8 @@ class Boundary2dAdaptedRandError(AdaptedRandError):
         """
         # converts input and target to numpy arrays
         input, target = self._convert_to_numpy(input, target)
+        # ensure target is of integer type
+        target = target.astype(np.int)
 
         per_batch_arand = []
         _batch = 0
