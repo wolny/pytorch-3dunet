@@ -256,7 +256,7 @@ class BoundaryAdaptedRandError(AdaptedRandError):
 
 
 class Boundary2dAdaptedRandError(AdaptedRandError):
-    def __init__(self, use_last_target=True, threshold=0.5 ** kwargs):
+    def __init__(self, use_last_target=True, threshold=0.5, **kwargs):
         super().__init__(use_last_target, **kwargs)
         self.threshold = threshold
 
