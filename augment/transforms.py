@@ -118,7 +118,7 @@ class RandomContrast:
 # remember to use spline_order=3 when transforming the labels
 class ElasticDeformation:
     """
-    Apply elasitc deformations of 3D patches on a per-voxel mesh. Assumes ZYX axis order!
+    Apply elasitc deformations of 3D patches on a per-voxel mesh. Assumes ZYX axis order (or CZYX if the data is 4D).
     Based on: https://github.com/fcalvet/image_tools/blob/master/image_augmentation.py#L62
     """
 
@@ -136,15 +136,26 @@ class ElasticDeformation:
 
     def __call__(self, m):
         if self.random_state.uniform() < self.execution_probability:
-            assert m.ndim == 3
-            dz = gaussian_filter(self.random_state.randn(*m.shape), self.sigma, mode="constant", cval=0) * self.alpha
-            dy = gaussian_filter(self.random_state.randn(*m.shape), self.sigma, mode="constant", cval=0) * self.alpha
-            dx = gaussian_filter(self.random_state.randn(*m.shape), self.sigma, mode="constant", cval=0) * self.alpha
+            assert m.ndim == 3 or m.ndim == 4
 
-            z_dim, y_dim, x_dim = m.shape
+            if m.ndim == 3:
+                volume_shape = m.shape
+            else:
+                volume_shape = m[0].shape
+
+            dz = gaussian_filter(self.random_state.randn(volume_shape), self.sigma, mode="constant", cval=0) * self.alpha
+            dy = gaussian_filter(self.random_state.randn(volume_shape), self.sigma, mode="constant", cval=0) * self.alpha
+            dx = gaussian_filter(self.random_state.randn(volume_shape), self.sigma, mode="constant", cval=0) * self.alpha
+
+            z_dim, y_dim, x_dim = volume_shape
             z, y, x = np.meshgrid(np.arange(z_dim), np.arange(y_dim), np.arange(x_dim), indexing='ij')
             indices = z + dz, y + dy, x + dx
-            return map_coordinates(m, indices, order=self.spline_order, mode='reflect')
+
+            if m.ndim == 3:
+                return map_coordinates(m, indices, order=self.spline_order, mode='reflect')
+            else:
+                channels = [map_coordinates(c, indices, order=self.spline_order, mode='reflect') for c in m]
+                return np.stack(channels, axis=0)
 
         return m
 
