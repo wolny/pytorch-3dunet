@@ -229,31 +229,30 @@ class UNet3DTrainer:
         val_losses = utils.RunningAverage()
         val_scores = utils.RunningAverage()
 
-        try:
-            # set the model in evaluation mode; final_activation doesn't need to be called explicitly
-            self.model.eval()
-            with torch.no_grad():
-                for i, t in enumerate(val_loader):
-                    self.logger.info(f'Validation iteration {i}')
+        with torch.no_grad():
+            for i, t in enumerate(val_loader):
+                self.logger.info(f'Validation iteration {i}')
 
-                    input, target, weight = self._split_training_batch(t)
+                input, target, weight = self._split_training_batch(t)
 
-                    output, loss = self._forward_pass(input, target, weight)
-                    val_losses.update(loss.item(), self._batch_size(input))
+                output, loss = self._forward_pass(input, target, weight)
+                val_losses.update(loss.item(), self._batch_size(input))
 
-                    eval_score = self.eval_criterion(output, target)
-                    val_scores.update(eval_score.item(), self._batch_size(input))
+                # if model contains final_activation layer for normalizing logits apply it, otherwise both
+                # the evaluation metric will be incorrectly computed
+                if hasattr(self.model, 'final_activation') and self.model.final_activation is not None:
+                    output = self.model.final_activation(output)
 
-                    if self.validate_iters is not None and self.validate_iters <= i:
-                        # stop validation
-                        break
+                eval_score = self.eval_criterion(output, target)
+                val_scores.update(eval_score.item(), self._batch_size(input))
 
-                self._log_stats('val', val_losses.avg, val_scores.avg)
-                self.logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
-                return val_scores.avg
-        finally:
-            # set back in training mode
-            self.model.train()
+                if self.validate_iters is not None and self.validate_iters <= i:
+                    # stop validation
+                    break
+
+            self._log_stats('val', val_losses.avg, val_scores.avg)
+            self.logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
+            return val_scores.avg
 
     def _split_training_batch(self, t):
         def _move_to_device(input):
