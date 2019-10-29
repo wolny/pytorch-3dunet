@@ -12,8 +12,6 @@ model:
   layer_order: crg
   # feature maps scale factor
   f_maps: 32
-  # basic module
-  basic_module: DoubleConv
   # number of groups in the groupnorm
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
@@ -28,6 +26,8 @@ datasets:
   patch: [64, 128, 128]
   # stride between patches (make sure the the patches overlap in order to get smoother prediction maps)
   stride: [32, 100, 100]
+  # use mirror padding
+  mirror_padding: true
   # path to the raw data within the H5
   raw_internal_path: raw
   # how many subprocesses to use for data loading
