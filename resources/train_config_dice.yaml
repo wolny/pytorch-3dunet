@@ -43,7 +43,7 @@ loss:
   # loss function to be used during training
   name: DiceLoss
   # A manual rescaling weight given to each class.
-  loss_weight: null
+  weight: null
   # a target value that is ignored and does not contribute to the input gradient
   ignore_index: null
 # evaluation metric configuration
