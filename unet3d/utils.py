@@ -315,7 +315,7 @@ class DefaultTensorboardFormatter(_TensorboardFormatter):
 
     @staticmethod
     def _normalize_img(img):
-        return (img - np.min(img)) / np.ptp(img)
+        return np.nan_to_num((img - np.min(img)) / np.ptp(img))
 
 
 class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
