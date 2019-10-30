@@ -136,16 +136,16 @@ class ElasticDeformation:
 
     def __call__(self, m):
         if self.random_state.uniform() < self.execution_probability:
-            assert m.ndim == 3 or m.ndim == 4
+            assert m.ndim in [3, 4]
 
             if m.ndim == 3:
                 volume_shape = m.shape
             else:
                 volume_shape = m[0].shape
 
-            dz = gaussian_filter(self.random_state.randn(volume_shape), self.sigma, mode="constant", cval=0) * self.alpha
-            dy = gaussian_filter(self.random_state.randn(volume_shape), self.sigma, mode="constant", cval=0) * self.alpha
-            dx = gaussian_filter(self.random_state.randn(volume_shape), self.sigma, mode="constant", cval=0) * self.alpha
+            dz = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="constant", cval=0) * self.alpha
+            dy = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="constant", cval=0) * self.alpha
+            dx = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="constant", cval=0) * self.alpha
 
             z_dim, y_dim, x_dim = volume_shape
             z, y, x = np.meshgrid(np.arange(z_dim), np.arange(y_dim), np.arange(x_dim), indexing='ij')

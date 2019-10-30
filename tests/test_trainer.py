@@ -18,7 +18,7 @@ from unet3d.utils import get_logger, DefaultTensorboardFormatter
 CONFIG_BASE = {
     'model': {
         'name': 'UNet3D',
-        'in_channels': 1,
+        'in_channels': 3,
         'out_channels': 2,
         'f_maps': 16
     },
@@ -141,7 +141,7 @@ class TestUNet3DTrainer:
         test_config['loaders']['transformer']['train']['label'][0]['dtype'] = label_dtype
         test_config['loaders']['transformer']['test']['label'][0]['dtype'] = label_dtype
 
-        train, val = TestUNet3DTrainer._create_random_dataset((128, 128, 128), (64, 64, 64), binary_loss)
+        train, val = TestUNet3DTrainer._create_random_dataset((3, 128, 128, 128), (3, 64, 64, 64), binary_loss)
         test_config['loaders']['train_path'] = [train]
         test_config['loaders']['val_path'] = [val]
 
@@ -179,13 +179,18 @@ class TestUNet3DTrainer:
             tmp = NamedTemporaryFile(delete=False)
 
             with h5py.File(tmp.name, 'w') as f:
+                l_shape = w_shape = shape
+                # make sure that label and weight tensors are 3D
+                if len(shape) == 4:
+                    l_shape = shape[1:]
+                    w_shape = shape[1:]
+
                 if channel_per_class:
-                    l_shape = (2,) + shape
-                else:
-                    l_shape = shape
+                    l_shape = (2,) + l_shape
+
                 f.create_dataset('raw', data=np.random.rand(*shape))
                 f.create_dataset('label', data=np.random.randint(0, 2, l_shape))
-                f.create_dataset('weight_map', data=np.random.rand(*shape))
+                f.create_dataset('weight_map', data=np.random.rand(*w_shape))
 
             result.append(tmp.name)
 

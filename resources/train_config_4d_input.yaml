@@ -1,0 +1,118 @@
+# use a fixed random seed to guarantee that when you run the code twice you will get the same outcome
+manual_seed: 0
+# model configuration
+model:
+  # model class
+  name: UNet3D
+  # number of input channels to the model
+  in_channels: 3
+  # number of output channels
+  out_channels: 2
+  # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
+  layer_order: crg
+  # feature maps scale factor
+  f_maps: 32
+  # number of groups in the groupnorm
+  num_groups: 8
+  # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
+  final_sigmoid: false
+# trainer configuration
+trainer:
+  # path to the checkpoint directory
+  checkpoint_dir: 3dunet
+  # path to latest checkpoint; if provided the training will be resumed from that checkpoint
+  resume: null
+  # how many iterations between validations
+  validate_after_iters: 20
+  # how many iterations between tensorboard logging
+  log_after_iters: 20
+  # max number of epochs
+  epochs: 50
+  # max number of iterations
+  iters: 100000
+  # model with higher eval score is considered better
+  eval_score_higher_is_better: True
+# optimizer configuration
+optimizer:
+  # initial learning rate
+  learning_rate: 0.0002
+  # weight decay
+  weight_decay: 0.0001
+# loss function configuration
+loss:
+  # loss function to be used during training
+  name: CrossEntropyLoss
+  # A manual rescaling weight given to each class.
+  weight: null
+  # a target value that is ignored and does not contribute to the input gradient
+  ignore_index: null
+# evaluation metric configuration
+eval_metric:
+  name: MeanIoU
+  # a target label that is ignored during metric evaluation
+  ignore_index: null
+lr_scheduler:
+  name: MultiStepLR
+  milestones: [10, 30, 60]
+  gamma: 0.2
+# data loaders configuration
+loaders:
+  # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+  train_patch: [32, 64, 64]
+  # train stride between patches
+  train_stride: [8, 16, 16]
+  # validation patch (can be bigger than train patch since there is no backprop)
+  val_patch: [32, 64, 64]
+  # validation stride (validation patches doesn't need to overlap)
+  val_stride: [32, 64, 64]
+  # path to the raw data within the H5
+  raw_internal_path: raw
+  # path to the the label data withtin the H5
+  label_internal_path: label
+  # paths to the training datasets
+  train_path:
+    - 'resources/random_raw4D.h5'
+  # paths to the validation datasets
+  val_path:
+    - 'resources/random_raw4D.h5'
+  # how many subprocesses to use for data loading
+  num_workers: 8
+  # data transformations/augmentations
+  transformer:
+    train:
+      raw:
+        - name: Normalize
+        - name: RandomFlip
+        - name: RandomRotate90
+        - name: RandomRotate
+          # rotate only in ZY only
+          axes: [[2, 1]]
+          angle_spectrum: 15
+          mode: reflect
+        - name: ElasticDeformation
+          spline_order: 3
+        - name: RandomContrast
+        - name: ToTensor
+          expand_dims: true
+      label:
+        - name: RandomFlip
+        - name: RandomRotate90
+        - name: RandomRotate
+          # rotate only in ZY only
+          axes: [[2, 1]]
+          angle_spectrum: 15
+          mode: reflect
+        - name: ElasticDeformation
+          spline_order: 0
+        - name: ToTensor
+          expand_dims: false
+          dtype: 'long'
+    test:
+      raw:
+        - name: Normalize
+        - name: ToTensor
+          expand_dims: true
+      label:
+        - name: ToTensor
+          expand_dims: false
+          dtype: 'long'

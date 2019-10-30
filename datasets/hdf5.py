@@ -255,7 +255,16 @@ class HDF5Dataset(Dataset):
 
                 # add mirror padding if needed
                 if self.mirror_padding:
-                    padded_volumes = [np.pad(raw, pad_width=self.pad_width, mode='reflect') for raw in self.raws]
+                    padded_volumes = []
+                    for raw in self.raws:
+                        if raw.ndim == 4:
+                            channels = [np.pad(r, pad_width=self.pad_width, mode='reflect') for r in raw]
+                            padded_volume = np.stack(channels)
+                        else:
+                            padded_volume = np.pad(raw, pad_width=self.pad_width, mode='reflect')
+
+                        padded_volumes.append(padded_volume)
+
                     self.raws = padded_volumes
 
             # build slice indices for raw and label data sets
@@ -277,7 +286,9 @@ class HDF5Dataset(Dataset):
         raw_patch_transformed = self._transform_patches(self.raws, raw_idx, self.raw_transform)
 
         if self.phase == 'test':
-            # just return the transformed raw patch and the metadata
+            # discard the input channel dimension: predictor requires only the spatial dimensions of the volume
+            if len(raw_idx) == 4:
+                raw_idx = raw_idx[1:]
             return raw_patch_transformed, raw_idx
         else:
             # get the slice for a given index 'idx'
