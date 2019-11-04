@@ -110,7 +110,7 @@ class MeanIoU:
         """
         Computes IoU for a given target and prediction tensors
         """
-        return np.nan_to_num(torch.sum(prediction & target).float() / torch.sum(prediction | target).float())
+        return torch.sum(prediction & target).float() / torch.clamp(torch.sum(prediction | target).float(), min=1e-8)
 
 
 class AdaptedRandError:
