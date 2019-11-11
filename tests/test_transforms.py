@@ -64,7 +64,8 @@ class TestTransforms:
             'label': [{'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}],
             'weight': [{'name': 'ToTensor', 'expand_dims': False}]
         }
-        transformer = Transformer(config, 0, 1)
+        base_config = {'mean': 0, 'std': 1}
+        transformer = Transformer(config, base_config)
         raw_transforms = transformer.raw_transform().transforms
         assert raw_transforms[0].mean == 0
         assert raw_transforms[0].std == 1
@@ -90,7 +91,8 @@ class TestTransforms:
                 {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
             ]
         }
-        transformer = Transformer(config, 0, 1)
+        base_config = {'mean': 0, 'std': 1}
+        transformer = Transformer(config, base_config)
         raw_transforms = transformer.raw_transform().transforms
         assert raw_transforms[0].mean == 0
         assert raw_transforms[0].std == 1
@@ -116,7 +118,8 @@ class TestTransforms:
                 {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
             ]
         }
-        transformer = Transformer(config, 0, 1)
+        base_config = {'mean': 0, 'std': 1}
+        transformer = Transformer(config, base_config)
         raw_transforms = transformer.raw_transform().transforms
         assert raw_transforms[0].mean == 0
         assert raw_transforms[0].std == 1
@@ -144,7 +147,8 @@ class TestTransforms:
                 {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
             ]
         }
-        transformer = Transformer(config, 0, 1)
+        base_config = {'mean': 0, 'std': 1}
+        transformer = Transformer(config, base_config)
         raw_transforms = transformer.raw_transform().transforms
         assert raw_transforms[0].mean == 0
         assert raw_transforms[0].std == 1
@@ -177,7 +181,8 @@ class TestTransforms:
                 {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
             ]
         }
-        transformer = Transformer(config, 0, 1)
+        base_config = {'mean': 0, 'std': 1}
+        transformer = Transformer(config, base_config)
         label_transforms = transformer.label_transform().transforms
         assert label_transforms[3].offsets == (1, 2, 3, 4)
 

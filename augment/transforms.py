@@ -8,6 +8,9 @@ from skimage.filters import gaussian
 from skimage.segmentation import find_boundaries
 from torchvision.transforms import Compose
 
+# WARN: use fixed random state for reproducibility; if you want to randomize on each run seed with `time.time()` e.g.
+GLOBAL_RANDOM_STATE = np.random.RandomState(47)
+
 
 class RandomFlip:
     """
@@ -98,18 +101,20 @@ class RandomRotate:
 
 class RandomContrast:
     """
-        Adjust the brightness of an image by a random factor.
+        Adjust contrast by scaling each voxel to `mean + alpha * (v - mean)`.
     """
 
-    def __init__(self, random_state, factor=0.5, execution_probability=0.1, **kwargs):
+    def __init__(self, random_state, alpha=(0.5, 1.5), mean=0.0, execution_probability=0.1, **kwargs):
         self.random_state = random_state
-        self.factor = factor
+        assert len(alpha) == 2
+        self.alpha = alpha
+        self.mean = mean
         self.execution_probability = execution_probability
 
     def __call__(self, m):
         if self.random_state.uniform() < self.execution_probability:
-            brightness_factor = self.factor + self.random_state.uniform()
-            return np.clip(m * brightness_factor, 0, 1)
+            alpha = self.random_state.uniform(self.alpha[0], self.alpha[1])
+            return self.mean + alpha * (m - self.mean)
 
         return m
 
@@ -143,9 +148,12 @@ class ElasticDeformation:
             else:
                 volume_shape = m[0].shape
 
-            dz = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="constant", cval=0) * self.alpha
-            dy = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="constant", cval=0) * self.alpha
-            dx = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="constant", cval=0) * self.alpha
+            dz = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="constant",
+                                 cval=0) * self.alpha
+            dy = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="constant",
+                                 cval=0) * self.alpha
+            dx = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="constant",
+                                 cval=0) * self.alpha
 
             z_dim, y_dim, x_dim = volume_shape
             z, y, x = np.meshgrid(np.arange(z_dim), np.arange(y_dim), np.arange(x_dim), indexing='ij')
@@ -433,18 +441,32 @@ class RangeNormalize:
         return m / self.max_value
 
 
-class GaussianNoise:
-    def __init__(self, random_state, max_sigma, max_value=255, **kwargs):
+class AdditiveGaussianNoise:
+    def __init__(self, random_state, scale=(0.0, 0.5), execution_probability=0.1, **kwargs):
+        self.execution_probability = execution_probability
         self.random_state = random_state
-        self.max_sigma = max_sigma
-        self.max_value = max_value
+        self.scale = scale
 
     def __call__(self, m):
-        # pick std dev from [0; max_sigma]
-        std = self.random_state.randint(self.max_sigma)
-        gaussian_noise = self.random_state.normal(0, std, m.shape)
-        noisy_m = m + gaussian_noise
-        return np.clip(noisy_m, 0, self.max_value).astype(m.dtype)
+        if self.random_state.uniform() < self.execution_probability:
+            std = self.random_state.uniform(self.scale[0], self.scale[1])
+            gaussian_noise = self.random_state.normal(0, std, size=m.shape)
+            return m + gaussian_noise
+        return m
+
+
+class AdditivePoissonNoise:
+    def __init__(self, random_state, lam=(0.0, 0.3), execution_probability=0.1, **kwargs):
+        self.execution_probability = execution_probability
+        self.random_state = random_state
+        self.lam = lam
+
+    def __call__(self, m):
+        if self.random_state.uniform() < self.execution_probability:
+            lam = self.random_state.uniform(self.lam[0], self.lam[1])
+            poisson_noise = self.random_state.poisson(lam, size=m.shape)
+            return m + poisson_noise
+        return m
 
 
 class ToTensor:
@@ -496,14 +518,15 @@ def get_transformer(config, mean, std, phase):
 
     assert phase in config, f'Cannot find transformer config for phase: {phase}'
     phase_config = config[phase]
-    return Transformer(phase_config, mean, std)
+    base_config = {'mean': mean, 'std': std}
+    return Transformer(phase_config, base_config)
 
 
 class Transformer:
-    def __init__(self, phase_config, mean, std):
+    def __init__(self, phase_config, base_config):
         self.phase_config = phase_config
-        self.config_base = {'mean': mean, 'std': std}
-        self.seed = 47
+        self.config_base = base_config
+        self.seed = GLOBAL_RANDOM_STATE.randint(10000000)
 
     def raw_transform(self):
         return self._create_transform('raw')

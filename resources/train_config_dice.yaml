@@ -76,7 +76,7 @@ loaders:
   val_path:
     - 'resources/random_label3D.h5'
   # how many subprocesses to use for data loading
-  num_workers: 8
+  num_workers: 4
   # data transformations/augmentations
   transformer:
     train:
@@ -92,6 +92,8 @@ loaders:
         - name: ElasticDeformation
           spline_order: 3
         - name: RandomContrast
+        - name: AdditiveGaussianNoise
+        - name: AdditivePoissonNoise
         - name: ToTensor
           expand_dims: true
       label:

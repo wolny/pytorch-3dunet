@@ -286,7 +286,7 @@ class HDF5Dataset(Dataset):
         raw_patch_transformed = self._transform_patches(self.raws, raw_idx, self.raw_transform)
 
         if self.phase == 'test':
-            # discard the input channel dimension: predictor requires only the spatial dimensions of the volume
+            # discard the channel dimension in the slices: predictor requires only the spatial dimensions of the volume
             if len(raw_idx) == 4:
                 raw_idx = raw_idx[1:]
             return raw_patch_transformed, raw_idx

@@ -2,6 +2,7 @@ from tempfile import NamedTemporaryFile
 
 import h5py
 import numpy as np
+from torch.utils.data import DataLoader
 
 from datasets.hdf5 import HDF5Dataset
 
@@ -61,10 +62,8 @@ class TestHDF5Dataset:
 
     def test_augmentation(self):
         raw = np.random.rand(32, 96, 96)
-        label = np.zeros((3, 32, 96, 96))
         # assign raw to label's channels for ease of comparison
-        for i in range(label.shape[0]):
-            label[i] = raw
+        label = np.stack(raw for _ in range(3))
 
         tmp_file = NamedTemporaryFile()
         tmp_path = tmp_file.name
@@ -75,7 +74,9 @@ class TestHDF5Dataset:
         dataset = HDF5Dataset(tmp_path, patch_shape=(16, 64, 64), stride_shape=(8, 32, 32), phase='train',
                               transformer_config=transformer_config)
 
-        for (img, label) in dataset:
+        # test augmentations using DataLoader with 4 worker threads
+        data_loader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=True)
+        for (img, label) in data_loader:
             for i in range(label.shape[0]):
                 assert np.allclose(img, label[i])
 
@@ -101,15 +102,17 @@ transformer_config = {
         'raw': [
             {'name': 'RandomFlip'},
             {'name': 'RandomRotate90'},
-            {'name': 'RandomRotate', 'angle_spectrum': 30, 'axes': [[1, 0]]},
-            {'name': 'RandomRotate', 'angle_spectrum': 5, 'axes': [[2, 1]]},
+            {'name': 'RandomRotate', 'angle_spectrum': 5, 'axes': [[1, 0]]},
+            {'name': 'RandomRotate', 'angle_spectrum': 30, 'axes': [[2, 1]]},
+            {'name': 'ElasticDeformation', 'spline_order': 3},
             {'name': 'ToTensor', 'expand_dims': True}
         ],
         'label': [
             {'name': 'RandomFlip'},
             {'name': 'RandomRotate90'},
-            {'name': 'RandomRotate', 'angle_spectrum': 30, 'axes': [[1, 0]]},
-            {'name': 'RandomRotate', 'angle_spectrum': 5, 'axes': [[2, 1]]},
+            {'name': 'RandomRotate', 'angle_spectrum': 5, 'axes': [[1, 0]]},
+            {'name': 'RandomRotate', 'angle_spectrum': 30, 'axes': [[2, 1]]},
+            {'name': 'ElasticDeformation', 'spline_order': 3},
             {'name': 'ToTensor', 'expand_dims': False}
         ]
     },
