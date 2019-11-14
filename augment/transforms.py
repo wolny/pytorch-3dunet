@@ -263,6 +263,33 @@ class StandardLabelToBoundary:
         return np.stack(results, axis=0)
 
 
+class BlobsWithBoundary:
+    def __init__(self, mode=None, append_label=False, blur=False, sigma=1):
+        if mode is None:
+            mode = ['thick', 'inner', 'outer']
+        self.mode = mode
+        self.append_label = append_label
+        self.blur = blur
+        self.sigma = sigma
+
+    def __call__(self, m):
+        assert m.ndim == 3
+
+        # get the segmentation mask
+        results = [(m > 0).astype('uint8')]
+
+        for bm in self.mode:
+            boundary = find_boundaries(m, connectivity=2, mode=bm)
+            if self.blur:
+                boundary = blur_boundary(boundary, self.sigma)
+            results.append(boundary)
+
+        if self.append_label:
+            results.append(m)
+
+        return np.stack(results, axis=0)
+
+
 class RandomLabelToAffinities(AbstractLabelToBoundary):
     """
     Converts a given volumetric label array to binary mask corresponding to borders between labels.
