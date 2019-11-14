@@ -264,7 +264,7 @@ class StandardLabelToBoundary:
 
 
 class BlobsWithBoundary:
-    def __init__(self, mode=None, append_label=False, blur=False, sigma=1):
+    def __init__(self, mode=None, append_label=False, blur=False, sigma=1, **kwargs):
         if mode is None:
             mode = ['thick', 'inner', 'outer']
         self.mode = mode
