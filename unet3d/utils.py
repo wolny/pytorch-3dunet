@@ -437,6 +437,10 @@ def plot_segm(segm, ground_truth, plots_dir='.'):
     :param plots_dir: directory where to save the plots
     """
     assert segm.ndim == 4
+    if ground_truth.ndim == 3:
+        stacked = [ground_truth for _ in range(segm.shape[0])]
+        ground_truth = np.stack(stacked)
+
     assert ground_truth.ndim == 4
 
     f, axarr = plt.subplots(1, 2)
