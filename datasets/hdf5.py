@@ -88,7 +88,7 @@ class FilterSliceBuilder(SliceBuilder):
     """
 
     def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
-                 threshold=0.01, slack_acceptance=0.01):
+                 threshold=0.001, slack_acceptance=0.01):
         super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape)
         if label_datasets is None:
             return
