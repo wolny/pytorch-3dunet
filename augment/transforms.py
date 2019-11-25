@@ -241,16 +241,17 @@ class AbstractLabelToBoundary:
 
 
 class StandardLabelToBoundary:
-    def __init__(self, ignore_index=None, append_label=False, blur=False, sigma=1, **kwargs):
+    def __init__(self, ignore_index=None, append_label=False, blur=False, sigma=1, mode='thick', **kwargs):
         self.ignore_index = ignore_index
         self.append_label = append_label
         self.blur = blur
         self.sigma = sigma
+        self.mode = mode
 
     def __call__(self, m):
         assert m.ndim == 3
 
-        boundaries = find_boundaries(m, connectivity=2)
+        boundaries = find_boundaries(m, connectivity=2, mode=self.mode)
         if self.blur:
             boundaries = blur_boundary(boundaries, self.sigma)
 
@@ -383,16 +384,22 @@ class LabelToBoundaryAndAffinities:
     that that training the network to predict both would improve the main task: boundary prediction.
     """
 
-    def __init__(self, xy_offsets, z_offsets, append_label=False, blur=False, sigma=1, ignore_index=None, **kwargs):
+    def __init__(self, xy_offsets, z_offsets, append_label=False, blur=False, sigma=1, ignore_index=None, mode='thick',
+                 blobs=False, **kwargs):
         # blur only StandardLabelToBoundary results; we don't want to blur the affinities
-        self.l2b = StandardLabelToBoundary(blur=blur, sigma=sigma, ignore_index=ignore_index)
+        self.blobs = blobs
+        self.l2b = StandardLabelToBoundary(blur=blur, sigma=sigma, ignore_index=ignore_index, mode=mode)
         self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label,
                                      ignore_index=ignore_index)
 
     def __call__(self, m):
         boundary = self.l2b(m)
         affinities = self.l2a(m)
-        return np.concatenate((boundary, affinities), axis=0)
+        if self.blobs:
+            blobs = np.expand_dims((m > 0).astype('uint8'), axis=0)
+            return np.concatenate((blobs, boundary, affinities), axis=0)
+        else:
+            return np.concatenate((boundary, affinities), axis=0)
 
 
 class FlyWingBoundary:

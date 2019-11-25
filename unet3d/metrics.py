@@ -268,23 +268,22 @@ class GenericAdaptedRandError(AdaptedRandError):
         self.invert_channels = invert_channels
 
     def input_to_segm(self, input):
+        # threshold probability maps
+        input = (input > self.threshold).astype(np.uint8)
+
         # pick only the channels specified in the input_channels
         results = []
         for i in self.input_channels:
             c = input[i]
             # invert channel if necessary
             if i in self.invert_channels:
-                c = 1. - c
+                c = 1 - c
             results.append(c)
 
         input = np.stack(results)
 
         segms = []
         for predictions in input:
-            # threshold probability maps
-            predictions = predictions > self.threshold
-
-            predictions = predictions.astype(np.uint8)
             # run connected components on the predicted mask; consider only 1-connectivity
             segm = measure.label(predictions, background=0, connectivity=1)
             segms.append(segm)
