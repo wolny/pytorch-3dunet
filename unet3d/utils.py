@@ -1,18 +1,17 @@
 import importlib
+import io
 import logging
 import os
 import shutil
 import sys
-import io
+import uuid
 
 import h5py
-from PIL import Image
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.sparse as sparse
 import torch
-import matplotlib.pyplot as plt
-import uuid
-
+from PIL import Image
 from sklearn.decomposition import PCA
 
 plt.ioff()
@@ -437,6 +436,13 @@ def plot_segm(segm, ground_truth, plots_dir='.'):
     :param ground_truth: 4D ndarray (CDHW)
     :param plots_dir: directory where to save the plots
     """
+    assert segm.ndim == 4
+    if ground_truth.ndim == 3:
+        stacked = [ground_truth for _ in range(segm.shape[0])]
+        ground_truth = np.stack(stacked)
+
+    assert ground_truth.ndim == 4
+
     f, axarr = plt.subplots(1, 2)
 
     for seg, gt in zip(segm, ground_truth):

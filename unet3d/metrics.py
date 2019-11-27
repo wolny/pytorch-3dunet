@@ -1,12 +1,12 @@
 import importlib
-
 import os
-import numpy as np
 import time
+
+import hdbscan
+import numpy as np
 import torch
 import torch.nn.functional as F
 from skimage import measure
-import hdbscan
 from sklearn.cluster import MeanShift
 
 from unet3d.losses import compute_per_channel_dice
@@ -248,6 +248,42 @@ class BoundaryAdaptedRandError(AdaptedRandError):
                 predictions = np.logical_not(predictions)
 
             predictions = predictions.astype(np.uint8)
+            # run connected components on the predicted mask; consider only 1-connectivity
+            segm = measure.label(predictions, background=0, connectivity=1)
+            segms.append(segm)
+
+        return np.stack(segms)
+
+
+class GenericAdaptedRandError(AdaptedRandError):
+    def __init__(self, input_channels, threshold=0.4, use_last_target=True, invert_channels=None, run_target_cc=False,
+                 save_plots=False, plots_dir='.', **kwargs):
+        super().__init__(use_last_target=use_last_target, run_target_cc=run_target_cc, save_plots=save_plots,
+                         plots_dir=plots_dir, **kwargs)
+        assert isinstance(input_channels, list) or isinstance(input_channels, tuple)
+        self.input_channels = input_channels
+        self.threshold = threshold
+        if invert_channels is None:
+            invert_channels = []
+        self.invert_channels = invert_channels
+
+    def input_to_segm(self, input):
+        # threshold probability maps
+        input = (input > self.threshold).astype(np.uint8)
+
+        # pick only the channels specified in the input_channels
+        results = []
+        for i in self.input_channels:
+            c = input[i]
+            # invert channel if necessary
+            if i in self.invert_channels:
+                c = 1 - c
+            results.append(c)
+
+        input = np.stack(results)
+
+        segms = []
+        for predictions in input:
             # run connected components on the predicted mask; consider only 1-connectivity
             segm = measure.label(predictions, background=0, connectivity=1)
             segms.append(segm)
