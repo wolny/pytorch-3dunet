@@ -17,9 +17,10 @@ def create_conv(in_channels, out_channels, kernel_size, order, num_groups, paddi
         out_channels (int): number of output channels
         order (string): order of things, e.g.
             'cr' -> conv + ReLU
-            'crg' -> conv + ReLU + groupnorm
+            'gcr' -> groupnorm + conv + ReLU
             'cl' -> conv + LeakyReLU
             'ce' -> conv + ELU
+            'bcr' -> batchnorm + conv + ReLU
         num_groups (int): number of groups for the GroupNorm
         padding (int): add zero-padding to the input
 
@@ -43,11 +44,17 @@ def create_conv(in_channels, out_channels, kernel_size, order, num_groups, paddi
             modules.append(('conv', conv3d(in_channels, out_channels, kernel_size, bias, padding=padding)))
         elif char == 'g':
             is_before_conv = i < order.index('c')
-            assert not is_before_conv, 'GroupNorm MUST go after the Conv3d'
-            # number of groups must be less or equal the number of channels
-            if out_channels < num_groups:
-                num_groups = out_channels
-            modules.append(('groupnorm', nn.GroupNorm(num_groups=num_groups, num_channels=out_channels)))
+            if is_before_conv:
+                num_channels = in_channels
+            else:
+                num_channels = out_channels
+
+            # use only one group if the given number of groups is greater than the number of channels
+            if num_channels < num_groups:
+                num_groups = 1
+
+            assert num_channels % num_groups == 0, f'Expected number of channels in input to be divisible by num_groups. num_channels={num_channels}, num_groups={num_groups}'
+            modules.append(('groupnorm', nn.GroupNorm(num_groups=num_groups, num_channels=num_channels)))
         elif char == 'b':
             is_before_conv = i < order.index('c')
             if is_before_conv:

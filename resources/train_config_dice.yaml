@@ -8,8 +8,8 @@ model:
   in_channels: 1
   # number of output channels
   out_channels: 1
-  # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
-  layer_order: crg
+  # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
+  layer_order: gcr
   # feature maps scale factor
   f_maps: 32
   # number of groups in the groupnorm
