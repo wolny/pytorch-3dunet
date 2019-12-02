@@ -229,10 +229,12 @@ class HDF5Dataset(Dataset):
             # File "h5py/_proxy.pyx", line 84, in h5py._proxy.H5PY_H5Dread
             # OSError: Can't read data (inflate() failed)
             self.raws = [input_file[internal_path][...] for internal_path in raw_internal_path]
-            # calculate global mean and std for Normalization augmentation
-            mean, std = self._calculate_mean_std(self.raws[0])
+            # calculate global min, max, mean and std for normalization
+            min_value, max_value, mean, std = self._calculate_stats(self.raws)
+            logger.info(f'Input stats: min={min_value}, max={max_value}, mean={mean}, std={std}')
 
-            self.transformer = transforms.get_transformer(transformer_config, mean, std, phase)
+            self.transformer = transforms.get_transformer(transformer_config, min_value=min_value, max_value=max_value,
+                                                          mean=mean, std=std, phase=phase)
             self.raw_transform = self.transformer.raw_transform()
 
             if phase != 'test':
@@ -320,14 +322,8 @@ class HDF5Dataset(Dataset):
         return self.patch_count
 
     @staticmethod
-    def _calculate_mean_std(input):
-        """
-        Compute a mean/std of the raw stack for normalization.
-        This is an in-memory implementation, override this method
-        with the chunk-based computation if you're working with huge H5 files.
-        :return: a tuple of (mean, std) of the raw data
-        """
-        return input.mean(keepdims=True), input.std(keepdims=True)
+    def _calculate_stats(inputs):
+        return np.min(inputs), np.max(inputs), np.mean(inputs), np.std(inputs)
 
     @staticmethod
     def _check_dimensionality(raws, labels):

@@ -38,6 +38,6 @@ datasets:
   transformer:
     test:
       raw:
-        - name: Normalize
+        - name: Standardize
         - name: ToTensor
           expand_dims: true

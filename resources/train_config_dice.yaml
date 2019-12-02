@@ -81,7 +81,7 @@ loaders:
   transformer:
     train:
       raw:
-        - name: Normalize
+        - name: Standardize
         - name: RandomFlip
         - name: RandomRotate90
         - name: RandomRotate
@@ -111,7 +111,7 @@ loaders:
           dtype: 'long'
     test:
       raw:
-        - name: Normalize
+        - name: Standardize
         - name: ToTensor
           expand_dims: true
       label:

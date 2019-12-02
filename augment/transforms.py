@@ -453,31 +453,38 @@ class LabelToMaskAndAffinities:
         return np.concatenate((mask, affinities), axis=0)
 
 
-class Normalize:
+class Standardize:
     """
-    Normalizes a given input tensor to be 0-mean and 1-std.
-    mean and std parameter have to be provided explicitly.
+    Apply Z-score normalization to a given input tensor, i.e. re-scaling the values to be 0-mean and 1-std.
+    Mean and std parameter have to be provided explicitly.
     """
 
-    def __init__(self, mean, std, eps=1e-4, **kwargs):
+    def __init__(self, mean, std, eps=1e-6, **kwargs):
         self.mean = mean
         self.std = std
         self.eps = eps
 
     def __call__(self, m):
-        return (m - self.mean) / (self.std + self.eps)
+        return (m - self.mean) / np.clip(self.std, a_min=self.eps, a_max=None)
 
 
-class RangeNormalize:
-    def __init__(self, max_value=255, **kwargs):
-        self.max_value = max_value
+class Normalize:
+    """
+    Apply simple min-max scaling to a given input tensor, i.e. shrinks the range of the data in a fixed range of [-1, 1].
+    """
+
+    def __init__(self, min_value, max_value, **kwargs):
+        assert max_value > min_value
+        self.min_value = min_value
+        self.value_range = max_value - min_value
 
     def __call__(self, m):
-        return m / self.max_value
+        norm_0_1 = (m - self.min_value) / self.value_range
+        return 2 * norm_0_1 - 1
 
 
 class AdditiveGaussianNoise:
-    def __init__(self, random_state, scale=(0.0, 0.5), execution_probability=0.1, **kwargs):
+    def __init__(self, random_state, scale=(0.0, 1.0), execution_probability=0.1, **kwargs):
         self.execution_probability = execution_probability
         self.random_state = random_state
         self.scale = scale
@@ -491,7 +498,7 @@ class AdditiveGaussianNoise:
 
 
 class AdditivePoissonNoise:
-    def __init__(self, random_state, lam=(0.0, 0.3), execution_probability=0.1, **kwargs):
+    def __init__(self, random_state, lam=(0.0, 1.0), execution_probability=0.1, **kwargs):
         self.execution_probability = execution_probability
         self.random_state = random_state
         self.lam = lam
@@ -547,13 +554,13 @@ class Identity:
         return m
 
 
-def get_transformer(config, mean, std, phase):
+def get_transformer(config, min_value, max_value, mean, std, phase):
     if phase == 'val':
         phase = 'test'
 
     assert phase in config, f'Cannot find transformer config for phase: {phase}'
     phase_config = config[phase]
-    base_config = {'mean': mean, 'std': std}
+    base_config = {'min_value': min_value, 'max_value': max_value, 'mean': mean, 'std': std}
     return Transformer(phase_config, base_config)
 
 
