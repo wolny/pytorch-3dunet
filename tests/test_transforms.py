@@ -60,7 +60,7 @@ class TestTransforms:
 
     def test_BaseTransformer(self):
         config = {
-            'raw': [{'name': 'Normalize'}, {'name': 'ToTensor', 'expand_dims': True}],
+            'raw': [{'name': 'Standardize'}, {'name': 'ToTensor', 'expand_dims': True}],
             'label': [{'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}],
             'weight': [{'name': 'ToTensor', 'expand_dims': False}]
         }
@@ -79,7 +79,7 @@ class TestTransforms:
     def test_StandardTransformer(self):
         config = {
             'raw': [
-                {'name': 'Normalize'},
+                {'name': 'Standardize'},
                 {'name': 'RandomContrast', 'execution_probability': 0.5},
                 {'name': 'RandomFlip'},
                 {'name': 'RandomRotate90'},
@@ -104,7 +104,7 @@ class TestTransforms:
     def test_AnisotropicRotationTransformer(self):
         config = {
             'raw': [
-                {'name': 'Normalize'},
+                {'name': 'Standardize'},
                 {'name': 'RandomContrast', 'execution_probability': 0.5},
                 {'name': 'RandomFlip'},
                 {'name': 'RandomRotate90'},
@@ -132,7 +132,7 @@ class TestTransforms:
     def test_LabelToBoundaryTransformer(self):
         config = {
             'raw': [
-                {'name': 'Normalize'},
+                {'name': 'Standardize'},
                 {'name': 'RandomContrast', 'execution_probability': 0.5},
                 {'name': 'RandomFlip'},
                 {'name': 'RandomRotate90'},
