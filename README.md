@@ -19,7 +19,8 @@ as well as Residual 3D U-Net based on:
 ## Getting Started
 
 ### Dependencies
-- pytorch (0.4.1+)
+- python (3.7+)
+- pytorch (1.0+)
 - torchvision (0.2.1+)
 - tensorboardx (1.6+)
 - h5py
@@ -29,9 +30,9 @@ as well as Residual 3D U-Net based on:
 - pytest
 - hdbscan (0.8.22+)
 
-Setup a new conda environment with the required dependencies via:
+Setup a new conda environment (Python 3.7+) with required dependencies via:
 ```
-conda create -n 3dunet pytorch torchvision tensorboardx h5py scipy scikit-image scikit-learn pyyaml hdbscan pytest -c conda-forge -c pytorch
+conda env create -f environment.yaml
 ``` 
 Activate newly created conda environment via:
 ```
