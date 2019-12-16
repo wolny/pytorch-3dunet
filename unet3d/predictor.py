@@ -1,7 +1,8 @@
+import time
+
 import h5py
 import hdbscan
 import numpy as np
-import time
 import torch
 from sklearn.cluster import MeanShift
 
@@ -94,8 +95,10 @@ class StandardPredictor(_AbstractPredictor):
         prediction_maps, normalization_masks = self._allocate_prediction_maps(prediction_maps_shape,
                                                                               output_heads, h5_output_file)
 
-        # Sets the module in evaluation mode explicitly, otherwise the final Softmax/Sigmoid won't be applied!
+        # Sets the module in evaluation mode explicitly (necessary for batchnorm/dropout layers if present)
         self.model.eval()
+        # Set the `testing=true` flag otherwise the final Softmax/Sigmoid won't be applied!
+        self.model.testing = True
         # Run predictions on the entire input dataset
         with torch.no_grad():
             for batch, indices in self.loader:
@@ -281,6 +284,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
 
         # Sets the module in evaluation mode explicitly
         self.model.eval()
+        self.model.testing = True
         # Run predictions on the entire input dataset
         with torch.no_grad():
             for batch, indices in self.loader:

@@ -5,7 +5,6 @@ import torch
 from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from unet3d.utils import DefaultTensorboardFormatter
 from . import utils
 
 
@@ -181,8 +180,13 @@ class UNet3DTrainer:
             self.optimizer.step()
 
             if self.num_iterations % self.validate_after_iters == 0:
+                # set the model in eval mode
+                self.model.eval()
                 # evaluate on validation set
                 eval_score = self.validate(self.loaders['val'])
+                # set the model back to training mode
+                self.model.train()
+
                 # adjust learning rate if necessary
                 if isinstance(self.scheduler, ReduceLROnPlateau):
                     self.scheduler.step(eval_score)
@@ -238,7 +242,7 @@ class UNet3DTrainer:
                 output, loss = self._forward_pass(input, target, weight)
                 val_losses.update(loss.item(), self._batch_size(input))
 
-                # if model contains final_activation layer for normalizing logits apply it, otherwise both
+                # if model contains final_activation layer for normalizing logits apply it, otherwise
                 # the evaluation metric will be incorrectly computed
                 if hasattr(self.model, 'final_activation') and self.model.final_activation is not None:
                     output = self.model.final_activation(output)
