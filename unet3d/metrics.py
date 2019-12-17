@@ -154,9 +154,9 @@ class AdaptedRandError:
         target = target.astype(np.int)
 
         per_batch_arand = []
-        _batch = 0
+        _batch_inst = 0
         for _input, _target in zip(input, target):
-            LOGGER.info(f'Number of ground truth clusters: {len(np.unique(target))}')
+            LOGGER.info(f'Number of ground truth clusters: {len(np.unique(_target))}')
 
             # convert _input to segmentation
             segm = self.input_to_segm(_input)
@@ -178,8 +178,9 @@ class AdaptedRandError:
 
             # get the min arand across channels
             min_arand, c_index = np.min(per_channel_arand), np.argmin(per_channel_arand)
-            LOGGER.info(f'Batch: {_batch}. Min AdaptedRand error: {min_arand}, channel: {c_index}')
+            LOGGER.info(f'Batch: {_batch_inst}. Min AdaptedRand error: {min_arand}, channel: {c_index}')
             per_batch_arand.append(min_arand)
+            _batch_inst += 1
 
         # return mean arand error
         return torch.mean(torch.tensor(per_batch_arand))
