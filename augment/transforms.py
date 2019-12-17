@@ -241,12 +241,13 @@ class AbstractLabelToBoundary:
 
 
 class StandardLabelToBoundary:
-    def __init__(self, ignore_index=None, append_label=False, blur=False, sigma=1, mode='thick', **kwargs):
+    def __init__(self, ignore_index=None, append_label=False, blur=False, sigma=1, mode='thick', blobs=False, **kwargs):
         self.ignore_index = ignore_index
         self.append_label = append_label
         self.blur = blur
         self.sigma = sigma
         self.mode = mode
+        self.blobs = blobs
 
     def __call__(self, m):
         assert m.ndim == 3
@@ -255,7 +256,12 @@ class StandardLabelToBoundary:
         if self.blur:
             boundaries = blur_boundary(boundaries, self.sigma)
 
-        results = [_recover_ignore_index(boundaries, m, self.ignore_index)]
+        results = []
+        if self.blobs:
+            blobs = (m > 0).astype('uint8')
+            results.append(_recover_ignore_index(blobs, m, self.ignore_index))
+
+        results.append(_recover_ignore_index(boundaries, m, self.ignore_index))
 
         if self.append_label:
             # append original input data
@@ -387,19 +393,14 @@ class LabelToBoundaryAndAffinities:
     def __init__(self, xy_offsets, z_offsets, append_label=False, blur=False, sigma=1, ignore_index=None, mode='thick',
                  blobs=False, **kwargs):
         # blur only StandardLabelToBoundary results; we don't want to blur the affinities
-        self.blobs = blobs
-        self.l2b = StandardLabelToBoundary(blur=blur, sigma=sigma, ignore_index=ignore_index, mode=mode)
+        self.l2b = StandardLabelToBoundary(blur=blur, sigma=sigma, ignore_index=ignore_index, mode=mode, blobs=blobs)
         self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label,
                                      ignore_index=ignore_index)
 
     def __call__(self, m):
         boundary = self.l2b(m)
         affinities = self.l2a(m)
-        if self.blobs:
-            blobs = np.expand_dims((m > 0).astype('uint8'), axis=0)
-            return np.concatenate((blobs, boundary, affinities), axis=0)
-        else:
-            return np.concatenate((boundary, affinities), axis=0)
+        return np.concatenate((boundary, affinities), axis=0)
 
 
 class FlyWingBoundary:
