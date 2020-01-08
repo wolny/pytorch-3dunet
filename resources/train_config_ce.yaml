@@ -57,29 +57,31 @@ lr_scheduler:
   gamma: 0.2
 # data loaders configuration
 loaders:
-  # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-  train_patch: [32, 64, 64]
-  # train stride between patches
-  train_stride: [8, 16, 16]
-  # validation patch (can be bigger than train patch since there is no backprop)
-  val_patch: [32, 64, 64]
-  # validation stride (validation patches doesn't need to overlap)
-  val_stride: [32, 64, 64]
-  # path to the raw data within the H5
-  raw_internal_path: raw
-  # path to the the label data withtin the H5
-  label_internal_path: label
-  # paths to the training datasets
-  train_path:
-    - 'resources/random_label3D.h5'
-  # paths to the validation datasets
-  val_path:
-    - 'resources/random_label3D.h5'
   # how many subprocesses to use for data loading
   num_workers: 4
-  # data transformations/augmentations
-  transformer:
-    train:
+  # path to the raw data within the H5
+  raw_internal_path: raw
+  # path to the the label data within the H5
+  label_internal_path: label
+  # path to the pixel-wise weight map withing the H5 if present
+  weight_internal_path: null
+  # configuration of the train loader
+  train:
+    # paths to the training datasets
+    file_paths:
+      - 'resources/random_label3D.h5'
+
+    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
+    slice_builder:
+      # SliceBuilder class
+      name: SliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [32, 64, 64]
+      # train stride between patches
+      stride_shape: [8, 16, 16]
+
+    # data transformations/augmentations
+    transformer:
       raw:
         - name: Standardize
         - name: RandomFlip
@@ -109,7 +111,24 @@ loaders:
         - name: ToTensor
           expand_dims: false
           dtype: 'long'
-    test:
+
+  # configuration of the validation loaders
+  val:
+    # paths to the validation datasets
+    file_paths:
+      - 'resources/random_label3D.h5'
+
+    # SliceBuilder configuration
+    slice_builder:
+      # SliceBuilder class
+      name: SliceBuilder
+      # validation patch (can be bigger than train patch since there is no backprop)
+      patch_shape: [32, 64, 64]
+      # validation stride (validation patches doesn't need to overlap)
+      stride_shape: [32, 64, 64]
+
+    # no data augmentation during validation
+    transformer:
       raw:
         - name: Standardize
         - name: ToTensor

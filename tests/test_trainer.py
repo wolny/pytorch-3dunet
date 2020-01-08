@@ -32,20 +32,29 @@ CONFIG_BASE = {
         'gamma': 0.5
     },
     'loaders': {
-        'train_patch': [32, 64, 64],
-        'train_stride': [32, 64, 64],
-        'val_patch': [32, 64, 64],
-        'val_stride': [32, 64, 64],
         'raw_internal_path': 'raw',
         'label_internal_path': 'label',
         'weight_internal_path': None,
-        'transformer': {
-            'train': {
+
+        'train': {
+            'slice_builder': {
+                'name': 'SliceBuilder',
+                'patch_shape': (32, 64, 64),
+                'stride_shape': (32, 64, 64)
+            },
+            'transformer': {
                 'raw': [{'name': 'Normalize'}, {'name': 'ToTensor', 'expand_dims': True}],
                 'label': [{'name': 'ToTensor', 'expand_dims': False}],
                 'weight': [{'name': 'ToTensor', 'expand_dims': False}]
+            }
+        },
+        'val': {
+            'slice_builder': {
+                'name': 'SliceBuilder',
+                'patch_shape': (32, 64, 64),
+                'stride_shape': (32, 64, 64)
             },
-            'test': {
+            'transformer': {
                 'raw': [{'name': 'Normalize'}, {'name': 'ToTensor', 'expand_dims': True}],
                 'label': [{'name': 'ToTensor', 'expand_dims': False}],
                 'weight': [{'name': 'ToTensor', 'expand_dims': False}]
@@ -138,12 +147,12 @@ class TestUNet3DTrainer:
             label_dtype = 'float32'
         else:
             label_dtype = 'long'
-        test_config['loaders']['transformer']['train']['label'][0]['dtype'] = label_dtype
-        test_config['loaders']['transformer']['test']['label'][0]['dtype'] = label_dtype
+        test_config['loaders']['train']['transformer']['label'][0]['dtype'] = label_dtype
+        test_config['loaders']['val']['transformer']['label'][0]['dtype'] = label_dtype
 
         train, val = TestUNet3DTrainer._create_random_dataset((3, 128, 128, 128), (3, 64, 64, 64), binary_loss)
-        test_config['loaders']['train_path'] = [train]
-        test_config['loaders']['val_path'] = [val]
+        test_config['loaders']['train']['file_paths'] = [train]
+        test_config['loaders']['val']['file_paths'] = [val]
 
         loaders = get_train_loaders(test_config)
 

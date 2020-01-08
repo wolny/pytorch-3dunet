@@ -555,14 +555,9 @@ class Identity:
         return m
 
 
-def get_transformer(config, min_value, max_value, mean, std, phase):
-    if phase == 'val':
-        phase = 'test'
-
-    assert phase in config, f'Cannot find transformer config for phase: {phase}'
-    phase_config = config[phase]
+def get_transformer(config, min_value, max_value, mean, std):
     base_config = {'min_value': min_value, 'max_value': max_value, 'mean': mean, 'std': std}
-    return Transformer(phase_config, base_config)
+    return Transformer(config, base_config)
 
 
 class Transformer:

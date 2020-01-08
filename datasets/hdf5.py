@@ -13,7 +13,24 @@ logger = get_logger('HDF5Dataset')
 
 
 class SliceBuilder:
-    def __init__(self, raw_datasets, label_datasets, weight_dataset, patch_shape, stride_shape):
+    """
+    Builds the position of the patches in a given raw/label/weight ndarray based on the the patch and stride shape
+    """
+
+    def __init__(self, raw_datasets, label_datasets, weight_dataset, patch_shape, stride_shape, **kwargs):
+        """
+        :param raw_datasets: ndarray of raw data
+        :param label_datasets: ndarray of ground truth labels
+        :param weight_dataset: ndarray of weights for the labels
+        :param patch_shape: the shape of the patch DxHxW
+        :param stride_shape: the shape of the stride DxHxW
+        :param kwargs: additional metadata
+        """
+
+        patch_shape = tuple(patch_shape)
+        stride_shape = tuple(stride_shape)
+        self._check_patch_shape(patch_shape)
+
         self._raw_slices = self._build_slices(raw_datasets[0], patch_shape, stride_shape)
         if label_datasets is None:
             self._label_slices = None
@@ -81,6 +98,12 @@ class SliceBuilder:
         if j + k < i:
             yield i - k
 
+    @staticmethod
+    def _check_patch_shape(patch_shape):
+        assert len(patch_shape) == 3, 'patch_shape must be a 3D tuple'
+        assert patch_shape[1] >= 64 and patch_shape[2] >= 64, 'Height and Width must be greater or equal 64'
+        assert patch_shape[0] >= 16, 'Depth must be greater or equal 16'
+
 
 class FilterSliceBuilder(SliceBuilder):
     """
@@ -88,8 +111,8 @@ class FilterSliceBuilder(SliceBuilder):
     """
 
     def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
-                 threshold=0.6, slack_acceptance=0.01):
-        super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape)
+                 threshold=0.6, slack_acceptance=0.01, **kwargs):
+        super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, **kwargs)
         if label_datasets is None:
             return
 
@@ -118,9 +141,9 @@ class EmbeddingsSliceBuilder(FilterSliceBuilder):
     """
 
     def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
-                 threshold=0.8, slack_acceptance=0.01, patch_max_instances=48, patch_min_instances=5):
+                 threshold=0.8, slack_acceptance=0.01, patch_max_instances=48, patch_min_instances=5, **kwargs):
         super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index,
-                         threshold, slack_acceptance)
+                         threshold, slack_acceptance, **kwargs)
 
         if label_datasets is None:
             return
@@ -155,10 +178,10 @@ class RandomFilterSliceBuilder(EmbeddingsSliceBuilder):
 
     def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
                  threshold=0.8, slack_acceptance=0.01, patch_max_instances=48, patch_acceptance_probab=0.1,
-                 max_num_patches=25):
+                 max_num_patches=25, **kwargs):
         super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape,
                          ignore_index=ignore_index, threshold=threshold, slack_acceptance=slack_acceptance,
-                         patch_max_instances=patch_max_instances)
+                         patch_max_instances=patch_max_instances, **kwargs)
 
         self.max_num_patches = max_num_patches
 
@@ -189,30 +212,25 @@ class HDF5Dataset(Dataset):
     patch by patch with a given stride.
     """
 
-    def __init__(self, file_path, patch_shape, stride_shape, phase, transformer_config,
+    def __init__(self, file_path, phase, slice_builder_config, transformer_config,
                  raw_internal_path='raw', label_internal_path='label',
-                 weight_internal_path=None, slice_builder_cls=SliceBuilder,
-                 mirror_padding=False, pad_width=20):
+                 weight_internal_path=None, mirror_padding=False, pad_width=20):
         """
         :param file_path: path to H5 file containing raw data as well as labels and per pixel weights (optional)
-        :param patch_shape: the shape of the patch DxHxW
-        :param stride_shape: the shape of the stride DxHxW
         :param phase: 'train' for training, 'val' for validation, 'test' for testing; data augmentation is performed
             only during the 'train' phase
+        :param slice_builder_config: configuration of the SliceBuilder
         :param transformer_config: data augmentation configuration
         :param raw_internal_path (str or list): H5 internal path to the raw dataset
         :param label_internal_path (str or list): H5 internal path to the label dataset
         :param weight_internal_path (str or list): H5 internal path to the per pixel weights
-        :param slice_builder_cls: defines how to sample the patches from the volume
         :param mirror_padding (bool): pad with the reflection of the vector mirrored on the first and last values
             along each axis. Only applicable during the 'test' phase
         :param pad_width: number of voxels padded to the edges of each axis (only if `mirror_padding=True`)
         """
         assert phase in ['train', 'val', 'test']
-        self._check_patch_shape(patch_shape)
         self.phase = phase
         self.file_path = file_path
-
         self.mirror_padding = mirror_padding
         self.pad_width = pad_width
 
@@ -234,7 +252,7 @@ class HDF5Dataset(Dataset):
             logger.info(f'Input stats: min={min_value}, max={max_value}, mean={mean}, std={std}')
 
             self.transformer = transforms.get_transformer(transformer_config, min_value=min_value, max_value=max_value,
-                                                          mean=mean, std=std, phase=phase)
+                                                          mean=mean, std=std)
             self.raw_transform = self.transformer.raw_transform()
 
             if phase != 'test':
@@ -270,7 +288,7 @@ class HDF5Dataset(Dataset):
                     self.raws = padded_volumes
 
             # build slice indices for raw and label data sets
-            slice_builder = slice_builder_cls(self.raws, self.labels, self.weight_maps, patch_shape, stride_shape)
+            slice_builder = _get_slice_builder(self.raws, self.labels, self.weight_maps, slice_builder_config)
             self.raw_slices = slice_builder.raw_slices
             self.label_slices = slice_builder.label_slices
             self.weight_slices = slice_builder.weight_slices
@@ -342,17 +360,44 @@ class HDF5Dataset(Dataset):
                 label_shape = label.shape[1:]
             assert raw_shape == label_shape, 'Raw and labels have to be of the same size'
 
-    @staticmethod
-    def _check_patch_shape(patch_shape):
-        assert len(patch_shape) == 3, 'patch_shape must be a 3D tuple'
-        assert patch_shape[1] >= 64 and patch_shape[2] >= 64, 'Height and Width must be greater or equal 64'
-        assert patch_shape[0] >= 16, 'Depth must be greater or equal 16'
-
 
 def _get_slice_builder_cls(class_name):
     m = importlib.import_module('datasets.hdf5')
     clazz = getattr(m, class_name)
     return clazz
+
+
+def _get_slice_builder(raws, labels, weight_maps, config):
+    assert 'name' in config
+    logger.info(f"Slice builder class: {config['name']}")
+    slice_builder_cls = _get_slice_builder_cls(config['name'])
+    return slice_builder_cls(raws, labels, weight_maps, **config)
+
+
+def _create_datasets(dataset_config, phase,
+                     raw_internal_path,
+                     label_internal_path,
+                     weight_internal_path,
+                     mirror_padding=False,
+                     pad_width=None):
+    slice_builder_config = dataset_config['slice_builder']
+    transformer_config = dataset_config['transformer']
+
+    file_paths = dataset_config['file_paths']
+    assert isinstance(file_paths, list)
+
+    datasets = []
+    for file_path in file_paths:
+        try:
+            logger.info(f'Loading {phase} set from: {file_path}...')
+            dataset = HDF5Dataset(file_path=file_path, phase=phase, slice_builder_config=slice_builder_config,
+                                  transformer_config=transformer_config, raw_internal_path=raw_internal_path,
+                                  label_internal_path=label_internal_path, weight_internal_path=weight_internal_path,
+                                  mirror_padding=mirror_padding, pad_width=pad_width)
+            datasets.append(dataset)
+        except Exception:
+            logger.error(f'Skipping {phase} set: {file_path}', exc_info=True)
+    return datasets
 
 
 def get_train_loaders(config):
@@ -371,59 +416,20 @@ def get_train_loaders(config):
 
     logger.info('Creating training and validation set loaders...')
 
-    # get train and validation files
-    train_paths = loaders_config['train_path']
-    val_paths = loaders_config['val_path']
-    assert isinstance(train_paths, list)
-    assert isinstance(val_paths, list)
     # get h5 internal paths for raw and label
     raw_internal_path = loaders_config['raw_internal_path']
     label_internal_path = loaders_config['label_internal_path']
     weight_internal_path = loaders_config.get('weight_internal_path', None)
-    # get train/validation patch size and stride
-    train_patch = tuple(loaders_config['train_patch'])
-    train_stride = tuple(loaders_config['train_stride'])
-    val_patch = tuple(loaders_config['val_patch'])
-    val_stride = tuple(loaders_config['val_stride'])
 
-    # get train slice_builder_cls
-    train_slice_builder_str = loaders_config.get('train_slice_builder', 'SliceBuilder')
-    logger.info(f'Train slice builder class: {train_slice_builder_str}')
-    train_slice_builder_cls = _get_slice_builder_cls(train_slice_builder_str)
-
-    train_datasets = []
-    for train_path in train_paths:
-        try:
-            logger.info(f'Loading training set from: {train_path}...')
-            # create H5 backed training and validation dataset with data augmentation
-            train_dataset = HDF5Dataset(train_path, train_patch, train_stride, phase='train',
-                                        transformer_config=loaders_config['transformer'],
-                                        raw_internal_path=raw_internal_path,
-                                        label_internal_path=label_internal_path,
-                                        weight_internal_path=weight_internal_path,
-                                        slice_builder_cls=train_slice_builder_cls)
-            train_datasets.append(train_dataset)
-        except Exception:
-            logger.info(f'Skipping training set: {train_path}', exc_info=True)
-
-    # get val slice_builder_cls
-    val_slice_builder_str = loaders_config.get('val_slice_builder', 'SliceBuilder')
-    logger.info(f'Val slice builder class: {val_slice_builder_str}')
-    val_slice_builder = _get_slice_builder_cls(val_slice_builder_str)
-
-    val_datasets = []
-    for val_path in val_paths:
-        try:
-            logger.info(f'Loading validation set from: {val_path}...')
-            val_dataset = HDF5Dataset(val_path, val_patch, val_stride, phase='val',
-                                      transformer_config=loaders_config['transformer'],
+    train_datasets = _create_datasets(loaders_config['train'], phase='train',
                                       raw_internal_path=raw_internal_path,
                                       label_internal_path=label_internal_path,
-                                      weight_internal_path=weight_internal_path,
-                                      slice_builder_cls=val_slice_builder)
-            val_datasets.append(val_dataset)
-        except Exception:
-            logger.info(f'Skipping validation set: {val_path}', exc_info=True)
+                                      weight_internal_path=weight_internal_path)
+
+    val_datasets = _create_datasets(loaders_config['val'], phase='val',
+                                    raw_internal_path=raw_internal_path,
+                                    label_internal_path=label_internal_path,
+                                    weight_internal_path=weight_internal_path)
 
     num_workers = loaders_config.get('num_workers', 1)
     logger.info(f'Number of workers for train/val dataloader: {num_workers}')
@@ -458,36 +464,33 @@ def get_test_loaders(config):
     :return: generator of DataLoader objects
     """
 
-    assert 'datasets' in config, 'Could not find data sets configuration'
-    datasets_config = config['datasets']
+    assert 'loaders' in config, 'Could not find data loaders configuration'
+    loaders_config = config['loaders']
 
-    # get train and validation files
-    test_paths = datasets_config['test_path']
-    assert isinstance(test_paths, list)
-    # get h5 internal path
-    raw_internal_path = datasets_config['raw_internal_path']
-    # get train/validation patch size and stride
-    patch = tuple(datasets_config['patch'])
-    stride = tuple(datasets_config['stride'])
+    logger.info('Creating test set loaders...')
 
-    mirror_padding = datasets_config.get('mirror_padding', False)
-    pad_width = datasets_config.get('pad_width', 20)
-
+    # get h5 internal paths for raw and label
+    raw_internal_path = loaders_config['raw_internal_path']
+    # configure mirror padding
+    mirror_padding = loaders_config.get('mirror_padding', False)
+    pad_width = loaders_config.get('pad_width', 20)
     if mirror_padding:
         logger.info(f'Using mirror padding. Pad width: {pad_width}')
 
-    num_workers = datasets_config.get('num_workers', 1)
+    test_datasets = _create_datasets(loaders_config['test'], phase='test',
+                                     raw_internal_path=raw_internal_path,
+                                     label_internal_path=None,
+                                     weight_internal_path=None,
+                                     mirror_padding=mirror_padding,
+                                     pad_width=pad_width)
+
+    num_workers = loaders_config.get('num_workers', 1)
     logger.info(f'Number of workers for the dataloader: {num_workers}')
 
-    batch_size = datasets_config.get('batch_size', 1)
+    batch_size = loaders_config.get('batch_size', 1)
     logger.info(f'Batch size for dataloader: {batch_size}')
 
-    # construct datasets lazily
-    datasets = (HDF5Dataset(test_path, patch, stride, phase='test', raw_internal_path=raw_internal_path,
-                            transformer_config=datasets_config['transformer'],
-                            mirror_padding=mirror_padding, pad_width=pad_width) for test_path in test_paths)
-
     # use generator in order to create data loaders lazily one by one
-    for dataset in datasets:
-        logger.info(f'Loading test set from: {dataset.file_path}...')
-        yield DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=prediction_collate)
+    for test_dataset in test_datasets:
+        logger.info(f'Loading test set from: {test_dataset.file_path}...')
+        yield DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=prediction_collate)

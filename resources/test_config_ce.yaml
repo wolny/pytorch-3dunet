@@ -21,23 +21,31 @@ predictor:
   # standard in memory predictor
   name: 'StandardPredictor'
 # specify the test datasets
-datasets:
-  # patch size given to the network (adapt to fit in your GPU mem)
-  patch: [64, 128, 128]
-  # stride between patches (make sure the the patches overlap in order to get smoother prediction maps)
-  stride: [32, 100, 100]
-  # use mirror padding
+loaders:
+  # mirror pad the raw data for sharper prediction near the boundaries of the volume
   mirror_padding: true
+  pad_width: 20
   # path to the raw data within the H5
   raw_internal_path: raw
   # how many subprocesses to use for data loading
   num_workers: 8
-  # paths to the datasets
-  test_path:
-    - 'resources/random_label3D.h5'
-  transformer:
-    test:
-      raw:
-        - name: Standardize
-        - name: ToTensor
-          expand_dims: true
+  # test loaders configuration
+  test:
+    # paths to the test datasets
+    file_paths:
+      - 'resources/random_label3D.h5'
+
+    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
+    slice_builder:
+      # SliceBuilder class
+      name: SliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [64, 128, 128]
+      # train stride between patches
+      stride_shape: [32, 100, 100]
+
+    transformer:
+        raw:
+          - name: Standardize
+          - name: ToTensor
+            expand_dims: true

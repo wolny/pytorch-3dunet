@@ -32,19 +32,25 @@ class TestPredictor:
             'device': torch.device('cpu')
         }
 
-        t_config = {
-            'test': {
-                'raw': [
-                    {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
-                ]
+        slice_builder_config = {
+            'name': 'SliceBuilder',
+            'patch_shape': (100, 200, 200),
+            'stride_shape': (60, 150, 150)
+        }
 
-            }
+        transformer_config = {
+            'raw': [
+                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
+            ]
         }
 
         gt_file = 'resources/sample_cells.h5'
         output_file = os.path.join(tmpdir, 'output_segmentation.h5')
-        dataset = HDF5Dataset(gt_file, (100, 200, 200), (60, 150, 150), phase='test',
-                              transformer_config=t_config, raw_internal_path='label')
+
+        dataset = HDF5Dataset(gt_file, phase='test',
+                              slice_builder_config=slice_builder_config,
+                              transformer_config=transformer_config,
+                              raw_internal_path='label')
 
         loader = DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False, collate_fn=prediction_collate)
 
