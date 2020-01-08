@@ -369,7 +369,7 @@ def _get_slice_builder_cls(class_name):
 
 def _get_slice_builder(raws, labels, weight_maps, config):
     assert 'name' in config
-    logger.info(f"Slice builder class: {config['name']}")
+    logger.info(f"Slice builder config: {config}")
     slice_builder_cls = _get_slice_builder_cls(config['name'])
     return slice_builder_cls(raws, labels, weight_maps, **config)
 
