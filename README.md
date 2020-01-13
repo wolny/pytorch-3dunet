@@ -67,7 +67,7 @@ e.g. one class having at lease 3 orders of magnitude more voxels than the others
 If not specified `MeanIoU` will be used by default.
 
 ## Train
-E.g. fit to randomly generated 3D volume and random segmentation mask from [random_label3D.h5](resources/random_label3D.h5) run:
+E.g. fit to randomly generated 3D volume and random segmentation mask from [random_label3D.h5](resources/label3d/random_label3D.h5) run:
 ```
 python train.py --config resources/train_config_ce.yaml # train with CrossEntropyLoss
 ```
@@ -93,7 +93,7 @@ If you have a 3D binary data (foreground/background), you can just change `ToTen
 When training with cross entropy based losses (`WeightedCrossEntropyLoss`, `CrossEntropyLoss`, `PixelWiseCrossEntropyLoss`) set `final_sigmoid=False` so that `Softmax` normalization is applied to the output.
 
 ## Test
-Test on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/random_label3D.h5). 
+Test on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/label3d/random_label3D.h5). 
 ```
 python predict.py --config resources/test_config_ce.yaml
 ```

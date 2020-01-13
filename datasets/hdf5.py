@@ -8,6 +8,7 @@ from torch.utils.data import Dataset, DataLoader, ConcatDataset
 
 import augment.transforms as transforms
 from unet3d.utils import get_logger
+import os
 
 logger = get_logger('HDF5Dataset')
 
@@ -383,11 +384,13 @@ def _create_datasets(dataset_config, phase,
     slice_builder_config = dataset_config['slice_builder']
     transformer_config = dataset_config['transformer']
 
-    file_paths = dataset_config['file_paths']
-    assert isinstance(file_paths, list)
+    dir_path = dataset_config['dir_path']
+    assert isinstance(dir_path, str)
+    assert os.path.isdir(dir_path)
 
     datasets = []
-    for file_path in file_paths:
+    for file_name in os.listdir(dir_path):
+        file_path = os.path.join(dir_path, file_name)
         try:
             logger.info(f'Loading {phase} set from: {file_path}...')
             dataset = HDF5Dataset(file_path=file_path, phase=phase, slice_builder_config=slice_builder_config,

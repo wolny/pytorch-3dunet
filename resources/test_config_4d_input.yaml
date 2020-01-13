@@ -32,8 +32,7 @@ loaders:
   # test loaders configuration
   test:
     # paths to the test datasets
-    file_paths:
-      - 'resources/random_raw4D.h5'
+    dir_path: 'resources/raw4d'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
