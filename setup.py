@@ -7,6 +7,5 @@ setup(
     author="Adrian Wolny, Lorenzo Cerrone",
     url="https://github.com/wolny/pytorch-3dunet",
     license="MIT",
-    install_requires=['tensorboardx'],
     python_requires='>=3.6'
 )
