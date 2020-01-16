@@ -3,7 +3,7 @@ package:
   version: 1.0.1
 
 source:
-  git_rev: 84cd6bf3536fa8f199d3431c3f2b5a671be6c224 #v1.0.1
+  git_rev: v1.0.1
   git_url: https://github.com/wolny/pytorch-3dunet.git
 
 requirements:
@@ -14,7 +14,7 @@ requirements:
   run:
     - python 3.7
     - torchvision
-    #- tensorboardx
+    - tensorboardx
     - h5py
     - scipy
     - scikit-image
