@@ -1,10 +1,10 @@
 package:
   name: pytorch-3dunet
-  version: 1.0.0
+  version: 1.0.1
 
 source:
-  git_rev: v1.0.0
-  git_url: https://github.com/hci-unihd/pytorch-3dunet.git
+  git_rev: v1.0.1
+  git_url: https://github.com/wolny/pytorch-3dunet.git
 
 requirements:
   build:
@@ -30,4 +30,4 @@ test:
     - pytest tests/
 
 about:
-  home: https://github.com/hci-unihd/pytorch-3dunet
+  home: https://github.com/wolny/pytorch-3dunet
