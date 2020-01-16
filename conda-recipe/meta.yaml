@@ -1,9 +1,9 @@
 package:
   name: pytorch-3dunet
-  version: 1.0.1
+  version: 1.0.2
 
 source:
-  git_rev: v1.0.1
+  git_rev: v1.0.2
   git_url: https://github.com/wolny/pytorch-3dunet.git
 
 build:
