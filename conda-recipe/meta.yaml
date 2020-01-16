@@ -6,6 +6,11 @@ source:
   git_rev: v1.0.1
   git_url: https://github.com/wolny/pytorch-3dunet.git
 
+build:
+  entry_points:
+    - predict3dunet = main.predict:main
+    - train3dunet = main.train:main
+
 requirements:
   build:
     - python
