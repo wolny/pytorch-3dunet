@@ -2,42 +2,17 @@
 
 # pytorch-3dunet
 
-PyTorch implementation of a standard 3D U-Net based on:
+PyTorch implementation 3D U-Net and its variants:
 
-[3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation](https://arxiv.org/abs/1606.06650) 
+- Standard 3D U-Net based on [3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation](https://arxiv.org/abs/1606.06650) 
 Özgün Çiçek et al.
 
-as well as Residual 3D U-Net based on:
-
-[Superhuman Accuracy on the SNEMI3D Connectomics Challenge](https://arxiv.org/pdf/1706.00120.pdf) Kisuk Lee et al.
+- Residual 3D U-Net based on [Superhuman Accuracy on the SNEMI3D Connectomics Challenge](https://arxiv.org/pdf/1706.00120.pdf) Kisuk Lee et al.
 
 ## Prerequisites
 - Linux
 - NVIDIA GPU
 - CUDA CuDNN
-
-## Getting Started
-
-### Dependencies
-- python (3.7+)
-- pytorch (1.0+)
-- torchvision (0.2.1+)
-- tensorboardx (1.6+)
-- h5py
-- scipy 
-- scikit-image
-- scikit-learn (0.21+)
-- pytest
-- hdbscan (0.8.22+)
-
-Setup a new conda environment (Python 3.7+) with required dependencies via:
-```
-conda env create -f environment.yaml
-``` 
-Activate newly created conda environment via:
-```
-source activate 3dunet
-```
 
 ## Supported model architectures
 - in order to train standard 3D U-Net specify `name: UNet3D` in the `model` section of the [config file](resources/train_config_ce.yaml)
@@ -50,63 +25,97 @@ Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
 
 - _WeightedCrossEntropyLoss_ (see 'Weighted cross-entropy (WCE)' in the above paper for a detailed explanation; one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config)
 - _CrossEntropyLoss_ (one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config)
-- _PixelWiseCrossEntropyLoss_ (one can specify not only class weights but also per pixel weights in order to give more/less gradient in some regions of the ground truth)
-- _BCEWithLogitsLoss_
-- _DiceLoss_ standard Dice loss (see 'Dice Loss' in the above paper for a detailed explanation).
+- _PixelWiseCrossEntropyLoss_ (one can specify not only class weights but also per pixel weights in order to give more gradient to important (or under-represented) regions in the ground truth)
+- _BCEWithLogitsLoss_ (binary cross-entropy)
+- _DiceLoss_ standard Dice loss (standard `DiceLoss` defined as `1 - DiceCoefficient` used for binary semantic segmentation; when more than 2 classes are present in the ground truth, it computes the `DiceLoss` per channel and averages the values).
 - _GeneralizedDiceLoss_ (see 'Generalized Dice Loss (GDL)' in the above paper for a detailed explanation; one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config). 
-Note: use this loss function only if the labels in the training dataset are very imbalanced
-e.g. one class having at lease 3 orders of magnitude more voxels than the others. Otherwise use standard _DiceLoss_ which works better than GDL most of the time. 
+Note: use this loss function only if the labels in the training dataset are very imbalanced e.g. one class having at least 3 orders of magnitude more voxels than the others. Otherwise use standard _DiceLoss_. 
 
 
 ## Supported Evaluation Metrics
+Standard semantic segmentation metrics:
 - **MeanIoU** - Mean intersection over union
 - **DiceCoefficient** - Dice Coefficient (computes per channel Dice Coefficient and returns the average)
-- **BoundaryAveragePrecision** - Average Precision (normally used for evaluating instance segmentation, however it can be used when the 3D UNet is used to predict the boundary signal from the instance segmentation ground truth)
+If a 3D U-Net was trained to predict cell boundaries, one can use the following semantic instance segmentation metrics
+(the metrics below are computed by running connected components on thresholded boundary map and comparing the resulted instances to the ground truth instance segmentation): 
+- **BoundaryAveragePrecision** - Average Precision
 - **AdaptedRandError** - Adapted Rand Error (see http://brainiac2.mit.edu/SNEMI3D/evaluation for a detailed explanation)
 
 If not specified `MeanIoU` will be used by default.
 
+
+## Getting Started
+
+## Installation
+- The easiest way to install `pytorch-3dunet` package is via conda:
+```
+conda create --name 3dunet python=3.7
+conda activate 3dunet 
+conda install -c conda-forge -c awolny pytorch-3dunet
+```
+After installation the following commands are accessible within the conda environment:
+`train3dunet` for training the network and `predict3dunet` for prediction (see below).
+
+- One can also install directly from source:
+```
+python setup.py install
+```
+
 ## Train
-E.g. fit to randomly generated 3D volume and random segmentation mask from [random_label3D.h5](resources/random_label3D.h5) run:
+Given that `pytorch-3dunet` package was installed via conda as described above, one can train the network by simply invoking:
 ```
-python train.py --config resources/train_config_ce.yaml # train with CrossEntropyLoss
+train3dunet --config <CONFIG>
 ```
-or:
+where `CONFIG` is the path to a YAML configuration file, which specifies all aspects of the training procedure.
 
-```
-python train.py --config resources/train_config_dice.yaml # train with DiceLoss
-```
-
-See the [train_config_ce.yaml](resources/train_config_ce.yaml) for more info.
+See e.g. [train_config_ce.yaml](resources/train_config_ce.yaml) which describes how to train a standard 3D U-Net on a randomly generated 3D volume and random segmentation mask ([random_label3D.h5](resources/random_label3D.h5)) with cross-entropy loss (just a demo). 
 
 In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the [train_config_ce.yaml](resources/train_config_ce.yaml).
 The HDF5 files should contain the raw/label data sets in the following axis order: `DHW` (in case of 3D) `CDHW` (in case of 4D).
 
-Monitor progress with Tensorboard `tensorboard --logdir ./3dunet/logs/ --port 8666` (you need `tensorflow` installed in your conda env).
-![3dunet-training](https://user-images.githubusercontent.com/706781/45916217-9626d580-be62-11e8-95c3-508e2719c915.png)
+One can monitor the training progress with Tensorboard `tensorboard --logdir <checkpoint_dir>/logs/` (you need `tensorflow` installed in your conda env), where `checkpoint_dir` is the path to the checkpoint directory specified in the config.
+
+To try out training on randomly generated data right away:
+1. Checkout the repository
+2. 
+```
+cd pytorch3dunet
+train3dunet --config ../resources/train_config_ce.yaml # train with CrossEntropyLoss
+train3dunet --config ../resources/train_config_dice.yaml # train with DiceLoss
+```
+
 
 ### Training tips
-1. In order to train with `BCEWithLogitsLoss`, `DiceLoss` or `GeneralizedDiceLoss` the label data has to be 4D (one target binary mask per channel).
+When training with binary-based losses, i.e.: `BCEWithLogitsLoss`, `DiceLoss`, `GeneralizedDiceLoss`:
+1. the label data has to be 4D (one target binary mask per channel).
 If you have a 3D binary data (foreground/background), you can just change `ToTensor` transform for the label to contain `expand_dims: true`, see e.g. [train_config_dice.yaml](resources/train_config_dice.yaml).
-
-2. When training with binary-based losses (`BCEWithLogitsLoss`, `DiceLoss`, `GeneralizedDiceLoss`) `final_sigmoid=True` has to be present in the training config, since every output channel gives the probability of the foreground.
+2. `final_sigmoid=True` has to be present in the `model` section of the config, since every output channel gives the probability of the foreground.
 When training with cross entropy based losses (`WeightedCrossEntropyLoss`, `CrossEntropyLoss`, `PixelWiseCrossEntropyLoss`) set `final_sigmoid=False` so that `Softmax` normalization is applied to the output.
 
 ## Test
-Test on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/random_label3D.h5). 
+Given that `pytorch-3dunet` package was installed via conda as described above, one can run the prediction via:
 ```
-python predict.py --config resources/test_config_ce.yaml
+predict3dunet --config <CONFIG>
 ```
-or if you trained with `DiceLoss`:
-```
-python predict.py --config resources/test_config_dice.yaml
-```
-Prediction masks will be saved to `resources/random_label3D_probabilities.h5`.
 
-In order to predict your own raw dataset provide the path to your model as well as paths to HDF5 test datasets in the [test_config_ce.yaml](resources/test_config_ce.yaml).
+To run the prediction on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/random_label3D.h5) and a network trained with cross-entropy loss:
+```
+cd pytorch3dunet
+predict3dunet --config ../resources/test_config_ce.yaml
+
+```
+or if trained with `DiceLoss`:
+```
+cd pytorch3dunet
+predict3dunet --config ../resources/test_config_dice.yaml
+
+```
+Predicted volume will be saved to `resources/random_label3D_probabilities.h5`.
+
+In order to predict on your own data, just provide the path to your model as well as paths to HDF5 test files (see[test_config_ce.yaml](resources/test_config_ce.yaml)).
 
 ### Prediction tips
-In order to avoid block artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: [64 128 128] stride: [32 96 96]` will give you a 'halo' of 32 voxels in each direction.
+In order to avoid checkerboard artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: [64 128 128] stride: [32 96 96]` will give you a 'halo' of 32 voxels in each direction.
 
 ## Contribute
 If you want to contribute back, please make a pull request.
