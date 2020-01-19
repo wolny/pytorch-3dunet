@@ -12,3 +12,7 @@ logs/
 
 # PyTorch models
 *.pytorch
+
+# Python packages
+pytorch3dunet.egg-info/
+dist/

@@ -7,13 +7,13 @@ import h5py
 import numpy as np
 import torch
 
-from datasets.hdf5 import get_train_loaders
-from train import _create_optimizer, _create_lr_scheduler
-from unet3d.losses import get_loss_criterion
-from unet3d.metrics import get_evaluation_metric
-from unet3d.model import get_model
-from unet3d.trainer import UNet3DTrainer
-from unet3d.utils import get_logger, DefaultTensorboardFormatter
+from pytorch3dunet.datasets.hdf5 import get_train_loaders
+from pytorch3dunet.train import _create_optimizer, _create_lr_scheduler
+from pytorch3dunet.unet3d.losses import get_loss_criterion
+from pytorch3dunet.unet3d.metrics import get_evaluation_metric
+from pytorch3dunet.unet3d.model import get_model
+from pytorch3dunet.unet3d.trainer import UNet3DTrainer
+from pytorch3dunet.unet3d.utils import get_logger, DefaultTensorboardFormatter
 
 CONFIG_BASE = {
     'model': {

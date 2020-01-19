@@ -9,8 +9,8 @@ import torch.nn.functional as F
 from skimage import measure
 from sklearn.cluster import MeanShift
 
-from unet3d.losses import compute_per_channel_dice
-from unet3d.utils import get_logger, adapted_rand, expand_as_one_hot, plot_segm
+from pytorch3dunet.unet3d.losses import compute_per_channel_dice
+from pytorch3dunet.unet3d.utils import get_logger, adapted_rand, expand_as_one_hot, plot_segm
 
 LOGGER = get_logger('EvalMetric')
 
@@ -688,7 +688,7 @@ def get_evaluation_metric(config):
     """
 
     def _metric_class(class_name):
-        m = importlib.import_module('unet3d.metrics')
+        m = importlib.import_module('pytorch3dunet.unet3d.metrics')
         clazz = getattr(m, class_name)
         return clazz
 

@@ -2,8 +2,8 @@ import importlib
 
 import torch.nn as nn
 
-from unet3d.buildingblocks import Encoder, Decoder, DoubleConv, ExtResNetBlock, SingleConv
-from unet3d.utils import create_feature_maps
+from pytorch3dunet.unet3d.buildingblocks import Encoder, Decoder, DoubleConv, ExtResNetBlock, SingleConv
+from pytorch3dunet.unet3d.utils import create_feature_maps
 
 
 class UNet3D(nn.Module):
@@ -299,7 +299,7 @@ class Noise2NoiseUNet3D(nn.Module):
 
 def get_model(config):
     def _model_class(class_name):
-        m = importlib.import_module('unet3d.model')
+        m = importlib.import_module('pytorch3dunet.unet3d.model')
         clazz = getattr(m, class_name)
         return clazz
 

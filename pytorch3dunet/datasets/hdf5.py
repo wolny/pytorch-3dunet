@@ -6,8 +6,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 
-import augment.transforms as transforms
-from unet3d.utils import get_logger
+import pytorch3dunet.augment.transforms as transforms
+from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('HDF5Dataset')
 
@@ -362,7 +362,7 @@ class HDF5Dataset(Dataset):
 
 
 def _get_slice_builder_cls(class_name):
-    m = importlib.import_module('datasets.hdf5')
+    m = importlib.import_module('pytorch3dunet.datasets.hdf5')
     clazz = getattr(m, class_name)
     return clazz
 

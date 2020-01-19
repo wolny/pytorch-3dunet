@@ -391,7 +391,7 @@ def get_tensorboard_formatter(config):
         return DefaultTensorboardFormatter()
 
     class_name = config['name']
-    m = importlib.import_module('unet3d.utils')
+    m = importlib.import_module('pytorch3dunet.unet3d.utils')
     clazz = getattr(m, class_name)
     return clazz(**config)
 

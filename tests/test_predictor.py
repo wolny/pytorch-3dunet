@@ -4,9 +4,9 @@ import h5py
 import torch
 from torch.utils.data import DataLoader
 
-from datasets.hdf5 import HDF5Dataset, prediction_collate
-from unet3d.predictor import EmbeddingsPredictor
-from unet3d.utils import adapted_rand
+from pytorch3dunet.datasets.hdf5 import HDF5Dataset, prediction_collate
+from pytorch3dunet.unet3d.predictor import EmbeddingsPredictor
+from pytorch3dunet.unet3d.utils import adapted_rand
 
 
 class FakePredictor(EmbeddingsPredictor):

@@ -5,13 +5,12 @@ import torch
 import torch.nn as nn
 from skimage import measure
 
-from augment.transforms import LabelToAffinities, StandardLabelToBoundary
-from unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, BCELossWrapper, \
+from pytorch3dunet.augment.transforms import LabelToAffinities, StandardLabelToBoundary
+from pytorch3dunet.embeddings.contrastive_loss import ContrastiveLoss
+from pytorch3dunet.unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, BCELossWrapper, \
     DiceLoss, TagsAngularLoss
-from unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
+from pytorch3dunet.unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
     BoundaryAdaptedRandError, EmbeddingsAdaptedRandError
-
-from embeddings.contrastive_loss import ContrastiveLoss
 
 
 def _compute_criterion(criterion, n_times=100):

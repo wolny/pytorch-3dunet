@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from unet3d.utils import expand_as_one_hot
+from pytorch3dunet.unet3d.utils import expand_as_one_hot
 
 
 class ContrastiveLoss(nn.Module):

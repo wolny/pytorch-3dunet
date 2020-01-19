@@ -69,7 +69,7 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - 'resources/random_label3D.h5'
+      - '../resources/random_label3D.h5'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -116,7 +116,7 @@ loaders:
   val:
     # paths to the validation datasets
     file_paths:
-      - 'resources/random_label3D.h5'
+      - '../resources/random_label3D.h5'
 
     # SliceBuilder configuration
     slice_builder:

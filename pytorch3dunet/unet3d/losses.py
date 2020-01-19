@@ -4,8 +4,8 @@ from torch import nn as nn
 from torch.autograd import Variable
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss
 
-from embeddings.contrastive_loss import ContrastiveLoss
-from unet3d.utils import expand_as_one_hot
+from pytorch3dunet.embeddings.contrastive_loss import ContrastiveLoss
+from pytorch3dunet.unet3d.utils import expand_as_one_hot
 
 
 def compute_per_channel_dice(input, target, epsilon=1e-5, ignore_index=None, weight=None):

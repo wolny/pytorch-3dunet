@@ -4,14 +4,14 @@ import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from datasets.hdf5 import get_train_loaders
-from unet3d.config import load_config
-from unet3d.losses import get_loss_criterion
-from unet3d.metrics import get_evaluation_metric
-from unet3d.model import get_model
-from unet3d.trainer import UNet3DTrainer
-from unet3d.utils import get_logger, get_tensorboard_formatter
-from unet3d.utils import get_number_of_learnable_parameters
+from pytorch3dunet.datasets.hdf5 import get_train_loaders
+from pytorch3dunet.unet3d.config import load_config
+from pytorch3dunet.unet3d.losses import get_loss_criterion
+from pytorch3dunet.unet3d.metrics import get_evaluation_metric
+from pytorch3dunet.unet3d.model import get_model
+from pytorch3dunet.unet3d.trainer import UNet3DTrainer
+from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter
+from pytorch3dunet.unet3d.utils import get_number_of_learnable_parameters
 
 
 def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders, logger):

@@ -1,6 +1,6 @@
 import numpy as np
 
-from augment.transforms import RandomLabelToAffinities, LabelToAffinities, Transformer, Relabel
+from pytorch3dunet.augment.transforms import RandomLabelToAffinities, LabelToAffinities, Transformer, Relabel
 
 
 class TestTransforms:
