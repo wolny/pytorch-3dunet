@@ -251,6 +251,26 @@ class TagsAngularLoss(nn.Module):
         return loss
 
 
+class WeightedSmoothL1Loss(nn.SmoothL1Loss):
+    def __init__(self, threshold, initial_weight, apply_below_threshold=True):
+        super().__init__(reduction="none")
+        self.threshold = threshold
+        self.apply_below_threshold = apply_below_threshold
+        self.weight = initial_weight
+
+    def forward(self, input, target):
+        l1 = super().forward(input, target)
+
+        if self.apply_below_threshold:
+            mask = target < self.threshold
+        else:
+            mask = target >= self.threshold
+
+        l1[mask] = l1[mask] * self.weight
+
+        return l1.mean()
+
+
 def square_angular_loss(input, target, weights=None):
     """
     Computes square angular loss between input and target directions.
@@ -291,7 +311,7 @@ def flatten(tensor):
 
 SUPPORTED_LOSSES = ['BCEWithLogitsLoss', 'CrossEntropyLoss', 'WeightedCrossEntropyLoss', 'PixelWiseCrossEntropyLoss',
                     'GeneralizedDiceLoss', 'DiceLoss', 'TagsAngularLoss', 'MSEWithLogitsLoss', 'MSELoss',
-                    'SmoothL1Loss', 'L1Loss']
+                    'SmoothL1Loss', 'L1Loss', 'WeightedSmoothL1Loss']
 
 
 def get_loss_criterion(config):
@@ -348,5 +368,8 @@ def get_loss_criterion(config):
     elif name == 'ContrastiveLoss':
         return ContrastiveLoss(loss_config['delta_var'], loss_config['delta_dist'], loss_config['norm'],
                                loss_config['alpha'], loss_config['beta'], loss_config['gamma'])
+    elif name == 'WeightedSmoothL1Loss':
+        return WeightedSmoothL1Loss(threshold=loss_config['threshold'], initial_weight=loss_config['initial_weight'],
+                                    apply_below_threshold=loss_config.get('apply_below_threshold', True))
     else:
         raise RuntimeError(f"Unsupported loss function: '{name}'. Supported losses: {SUPPORTED_LOSSES}")

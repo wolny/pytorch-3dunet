@@ -8,7 +8,7 @@ from skimage import measure
 from pytorch3dunet.augment.transforms import LabelToAffinities, StandardLabelToBoundary
 from pytorch3dunet.embeddings.contrastive_loss import ContrastiveLoss
 from pytorch3dunet.unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, BCELossWrapper, \
-    DiceLoss, TagsAngularLoss
+    DiceLoss, TagsAngularLoss, WeightedSmoothL1Loss
 from pytorch3dunet.unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
     BoundaryAdaptedRandError, EmbeddingsAdaptedRandError
 
@@ -223,3 +223,11 @@ class TestCriterion:
 
         loss = loss_criterion(input, target)
         assert loss > 0
+
+    def test_weighted_smooth_l1loss(self):
+        loss_criterion = WeightedSmoothL1Loss(threshold=0., initial_weight=0.1)
+        input = torch.randn(3, 16, 64, 64, 64)
+        target = torch.randn(3, 16, 64, 64, 64)
+        loss = loss_criterion(input, target)
+        assert loss > 0
+
