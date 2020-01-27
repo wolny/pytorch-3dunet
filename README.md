@@ -9,17 +9,21 @@ PyTorch implementation 3D U-Net and its variants:
 
 - Residual 3D U-Net based on [Superhuman Accuracy on the SNEMI3D Connectomics Challenge](https://arxiv.org/pdf/1706.00120.pdf) Kisuk Lee et al.
 
+The code allows for training the U-Net for both: **semantic segmentation** (binary and multi-class) and **regression** problems (e.g. de-noising, learning deconvolutions).
+
+ 
+
 ## Prerequisites
 - Linux
 - NVIDIA GPU
 - CUDA CuDNN
 
-## Supported model architectures
-- in order to train standard 3D U-Net specify `name: UNet3D` in the `model` section of the [config file](resources/train_config_ce.yaml)
-- in order to train Residual U-Net specify `name: ResidualUNet3D` in the `model` section of the [config file](resources/train_config_ce.yaml)
 
 ## Supported Loss Functions
-For a detailed explanation of the loss functions used see:
+
+### Semantic Segmentation
+
+For a detailed explanation of some of the supported loss functions see:
 [Generalised Dice overlap as a deep learning loss function for highly unbalanced segmentations](https://arxiv.org/pdf/1707.03237.pdf)
 Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
 
@@ -29,11 +33,18 @@ Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
 - _BCEWithLogitsLoss_ (binary cross-entropy)
 - _DiceLoss_ standard Dice loss (standard `DiceLoss` defined as `1 - DiceCoefficient` used for binary semantic segmentation; when more than 2 classes are present in the ground truth, it computes the `DiceLoss` per channel and averages the values).
 - _GeneralizedDiceLoss_ (see 'Generalized Dice Loss (GDL)' in the above paper for a detailed explanation; one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config). 
-Note: use this loss function only if the labels in the training dataset are very imbalanced e.g. one class having at least 3 orders of magnitude more voxels than the others. Otherwise use standard _DiceLoss_. 
+Note: use this loss function only if the labels in the training dataset are very imbalanced e.g. one class having at least 3 orders of magnitude more voxels than the others. Otherwise use standard _DiceLoss_.
+
+### Regression
+- _MSELoss_
+- _L1Loss_
+- _SmoothL1Loss_
+- _WeightedSmoothL1Loss_ - extension of the _SmoothL1Loss_ which allows to weight the voxel values above (below) a given threshold differently
 
 
 ## Supported Evaluation Metrics
-Standard semantic segmentation metrics:
+
+### Semantic Segmentation
 - **MeanIoU** - Mean intersection over union
 - **DiceCoefficient** - Dice Coefficient (computes per channel Dice Coefficient and returns the average)
 If a 3D U-Net was trained to predict cell boundaries, one can use the following semantic instance segmentation metrics
@@ -42,6 +53,10 @@ If a 3D U-Net was trained to predict cell boundaries, one can use the following 
 - **AdaptedRandError** - Adapted Rand Error (see http://brainiac2.mit.edu/SNEMI3D/evaluation for a detailed explanation)
 
 If not specified `MeanIoU` will be used by default.
+
+
+### Regression
+- **PSNR** - peak signal to noise ration
 
 
 ## Getting Started
@@ -68,7 +83,7 @@ train3dunet --config <CONFIG>
 ```
 where `CONFIG` is the path to a YAML configuration file, which specifies all aspects of the training procedure.
 
-See e.g. [train_config_ce.yaml](resources/train_config_ce.yaml) which describes how to train a standard 3D U-Net on a randomly generated 3D volume and random segmentation mask ([random_label3D.h5](resources/random_label3D.h5)) with cross-entropy loss (just a demo). 
+See e.g. [train_config_ce.yaml](resources/train_config_ce.yaml) which describes how to train a standard 3D U-Net on a randomly generated 3D volume and random segmentation mask ([random_label3D.h5](resources/random3D.h5)) with cross-entropy loss (just a demo). 
 
 In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the [train_config_ce.yaml](resources/train_config_ce.yaml).
 The HDF5 files should contain the raw/label data sets in the following axis order: `DHW` (in case of 3D) `CDHW` (in case of 4D).
@@ -92,13 +107,13 @@ If you have a 3D binary data (foreground/background), you can just change `ToTen
 2. `final_sigmoid=True` has to be present in the `model` section of the config, since every output channel gives the probability of the foreground.
 When training with cross entropy based losses (`WeightedCrossEntropyLoss`, `CrossEntropyLoss`, `PixelWiseCrossEntropyLoss`) set `final_sigmoid=False` so that `Softmax` normalization is applied to the output.
 
-## Test
+## Prediction
 Given that `pytorch-3dunet` package was installed via conda as described above, one can run the prediction via:
 ```
 predict3dunet --config <CONFIG>
 ```
 
-To run the prediction on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/random_label3D.h5) and a network trained with cross-entropy loss:
+To run the prediction on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/random3D.h5) and a network trained with cross-entropy loss:
 ```
 cd pytorch3dunet
 predict3dunet --config ../resources/test_config_ce.yaml
@@ -116,6 +131,18 @@ In order to predict on your own data, just provide the path to your model as wel
 
 ### Prediction tips
 In order to avoid checkerboard artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: [64 128 128] stride: [32 96 96]` will give you a 'halo' of 32 voxels in each direction.
+
+
+## Sample configuration files
+
+### Semantic segmentation
+* [train with cross-entropy loss](resources/train_config_ce.yaml) / [predict using the network trained with cross-entropy loss](resources/test_config_ce.yaml)
+* [train with Dice loss](resources/train_config_dice.yaml) / [predict using the network trained with Dice loss](resources/test_config_dice.yaml)
+* [train using 4D input](resources/train_config_4d_input.yaml) / [predict on the 4D input](resources/test_config_4d_input.yaml)
+* [train to predict cell boundaries from the confocal microscope](resources/train_boundary.yaml) / [predict using the network on the boundary classification task](resources/test_boundary.yaml)
+
+### Regression
+* [train on a random noise sample](resources/train_config_regression.yaml) / [predict using the network trained on a regression problem](resources/test_config_regression.yaml)
 
 ## Contribute
 If you want to contribute back, please make a pull request.

@@ -2,7 +2,7 @@
 manual_seed: 0
 # model configuration
 model:
-  # model class
+  # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
   in_channels: 3
@@ -16,6 +16,8 @@ model:
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
   final_sigmoid: false
+  # if True applies the final normalization layer (sigmoid or softmax), otherwise the networks returns the output from the final convolution layer; use False for regression problems, e.g. de-noising
+  is_segmentation: true
 # trainer configuration
 trainer:
   # path to the checkpoint directory
@@ -57,6 +59,8 @@ lr_scheduler:
   gamma: 0.2
 # data loaders configuration
 loaders:
+  # number of patches per batch
+  batch_size: 1
   # how many subprocesses to use for data loading
   num_workers: 8
   # path to the raw data within the H5
@@ -69,7 +73,7 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - '../resources/random_raw4D.h5'
+      - '../resources/random4D.h5'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -116,7 +120,7 @@ loaders:
   val:
     # paths to the validation datasets
     file_paths:
-      - '../resources/random_raw4D.h5'
+      - '../resources/random4D.h5'
 
     # SliceBuilder configuration
     slice_builder:

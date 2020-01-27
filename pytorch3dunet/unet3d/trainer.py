@@ -1,11 +1,13 @@
-import logging
 import os
 
 import torch
 from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
+from pytorch3dunet.unet3d.utils import get_logger
 from . import utils
+
+logger = get_logger('UNet3DTrainer')
 
 
 class UNet3DTrainer:
@@ -46,13 +48,8 @@ class UNet3DTrainer:
                  validate_after_iters=100, log_after_iters=100,
                  validate_iters=None, num_iterations=1, num_epoch=0,
                  eval_score_higher_is_better=True, best_eval_score=None,
-                 logger=None, tensorboard_formatter=None, skip_train_validation=False):
-        if logger is None:
-            self.logger = utils.get_logger('UNet3DTrainer', level=logging.DEBUG)
-        else:
-            self.logger = logger
+                 tensorboard_formatter=None, skip_train_validation=False):
 
-        self.logger.info(model)
         self.model = model
         self.optimizer = optimizer
         self.scheduler = lr_scheduler
@@ -67,6 +64,8 @@ class UNet3DTrainer:
         self.log_after_iters = log_after_iters
         self.validate_iters = validate_iters
         self.eval_score_higher_is_better = eval_score_higher_is_better
+
+        logger.info(model)
         logger.info(f'eval_score_higher_is_better: {eval_score_higher_is_better}')
 
         if best_eval_score is not None:
@@ -89,7 +88,7 @@ class UNet3DTrainer:
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders,
-                        logger=None, tensorboard_formatter=None, skip_train_validation=False):
+                        tensorboard_formatter=None, skip_train_validation=False):
         logger.info(f"Loading checkpoint '{checkpoint_path}'...")
         state = utils.load_checkpoint(checkpoint_path, model, optimizer)
         logger.info(
@@ -108,7 +107,6 @@ class UNet3DTrainer:
                    validate_after_iters=state['validate_after_iters'],
                    log_after_iters=state['log_after_iters'],
                    validate_iters=state['validate_iters'],
-                   logger=logger,
                    tensorboard_formatter=tensorboard_formatter,
                    skip_train_validation=skip_train_validation)
 
@@ -119,7 +117,7 @@ class UNet3DTrainer:
                         validate_after_iters=100, log_after_iters=100,
                         validate_iters=None, num_iterations=1, num_epoch=0,
                         eval_score_higher_is_better=True, best_eval_score=None,
-                        logger=None, tensorboard_formatter=None, skip_train_validation=False):
+                        tensorboard_formatter=None, skip_train_validation=False):
         logger.info(f"Logging pre-trained model from '{pre_trained}'...")
         utils.load_checkpoint(pre_trained, model, None)
         checkpoint_dir = os.path.split(pre_trained)[0]
@@ -135,7 +133,6 @@ class UNet3DTrainer:
                    validate_after_iters=validate_after_iters,
                    log_after_iters=log_after_iters,
                    validate_iters=validate_iters,
-                   logger=logger,
                    tensorboard_formatter=tensorboard_formatter,
                    skip_train_validation=skip_train_validation)
 
@@ -165,7 +162,7 @@ class UNet3DTrainer:
         self.model.train()
 
         for i, t in enumerate(train_loader):
-            self.logger.info(
+            logger.info(
                 f'Training iteration {self.num_iterations}. Batch {i}. Epoch [{self.num_epoch}/{self.max_num_epochs - 1}]')
 
             input, target, weight = self._split_training_batch(t)
@@ -212,14 +209,14 @@ class UNet3DTrainer:
                     train_eval_scores.update(eval_score.item(), self._batch_size(input))
 
                 # log stats, params and images
-                self.logger.info(
+                logger.info(
                     f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
                 self._log_stats('train', train_losses.avg, train_eval_scores.avg)
                 self._log_params()
                 self._log_images(input, target, output)
 
             if self.max_num_iterations < self.num_iterations:
-                self.logger.info(
+                logger.info(
                     f'Maximum number of iterations {self.max_num_iterations} exceeded. Finishing training...')
                 return True
 
@@ -228,14 +225,14 @@ class UNet3DTrainer:
         return False
 
     def validate(self, val_loader):
-        self.logger.info('Validating...')
+        logger.info('Validating...')
 
         val_losses = utils.RunningAverage()
         val_scores = utils.RunningAverage()
 
         with torch.no_grad():
             for i, t in enumerate(val_loader):
-                self.logger.info(f'Validation iteration {i}')
+                logger.info(f'Validation iteration {i}')
 
                 input, target, weight = self._split_training_batch(t)
 
@@ -255,7 +252,7 @@ class UNet3DTrainer:
                     break
 
             self._log_stats('val', val_losses.avg, val_scores.avg)
-            self.logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
+            logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
             return val_scores.avg
 
     def _split_training_batch(self, t):
@@ -292,7 +289,7 @@ class UNet3DTrainer:
             is_best = eval_score < self.best_eval_score
 
         if is_best:
-            self.logger.info(f'Saving new best evaluation metric: {eval_score}')
+            logger.info(f'Saving new best evaluation metric: {eval_score}')
             self.best_eval_score = eval_score
 
         return is_best
@@ -312,7 +309,7 @@ class UNet3DTrainer:
             'log_after_iters': self.log_after_iters,
             'validate_iters': self.validate_iters
         }, is_best, checkpoint_dir=self.checkpoint_dir,
-            logger=self.logger)
+            logger=logger)
 
     def _log_lr(self):
         lr = self.optimizer.param_groups[0]['lr']
@@ -328,7 +325,7 @@ class UNet3DTrainer:
             self.writer.add_scalar(tag, value, self.num_iterations)
 
     def _log_params(self):
-        self.logger.info('Logging model parameters and gradients')
+        logger.info('Logging model parameters and gradients')
         for name, value in self.model.named_parameters():
             self.writer.add_histogram(name, value.data.cpu().numpy(), self.num_iterations)
             self.writer.add_histogram(name + '/grad', value.grad.data.cpu().numpy(), self.num_iterations)

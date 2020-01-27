@@ -172,8 +172,8 @@ def unpad(patch, index, shape, pad_width=4):
     return patch[patch_index], index
 
 
-def create_feature_maps(init_channel_number, number_of_fmaps):
-    return [init_channel_number * 2 ** k for k in range(number_of_fmaps)]
+def number_of_features_per_level(init_channel_number, num_levels):
+    return [init_channel_number * 2 ** k for k in range(num_levels)]
 
 
 # Code taken from https://github.com/cremi/cremi_python

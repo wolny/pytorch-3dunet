@@ -6,7 +6,7 @@ from pytorch3dunet.unet3d import utils
 from pytorch3dunet.unet3d.config import load_config
 from pytorch3dunet.unet3d.model import get_model
 
-logger = utils.get_logger('UNet3DPredictor')
+logger = utils.get_logger('UNet3DPredict')
 
 
 def _get_output_file(dataset, suffix='_predictions'):

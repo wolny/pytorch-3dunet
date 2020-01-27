@@ -90,36 +90,36 @@ class TestCriterion:
         assert ap(input, target) == 1.0
 
     def test_average_precision_real_data(self):
-        l_file = 'resources/sample_patch.h5'
+        l_file = 'resources/sample_ovule.h5'
         with h5py.File(l_file, 'r') as f:
-            label = f['big_label'][...]
+            label = f['label'][64:128, 64:128, 64:128]
             ltb = LabelToAffinities((1, 2, 4, 6), aggregate_affinities=True)
             pred = ltb(label)
-            # don't compare instances smaller than 25K voxels
-            ap = BoundaryAveragePrecision(min_instance_size=25000)
-            assert ap(pred, label) > 0.5
+            # don't compare instances smaller than 10K voxels
+            ap = BoundaryAveragePrecision(min_instance_size=10000)
+            assert ap(pred, label) > 0.4
 
     def test_adapted_rand_error(self):
-        l_file = 'resources/sample_patch.h5'
+        l_file = 'resources/sample_ovule.h5'
         with h5py.File(l_file, 'r') as f:
-            label = f['big_label'][...]
+            label = f['label'][64:128, 64:128, 64:128]
             input = np.expand_dims(label, axis=0)
             arand = AdaptedRandError()
             assert arand(input, label) == 0
 
     def test_adapted_rand_error_on_real_data(self):
-        l_file = 'resources/sample_patch.h5'
+        l_file = 'resources/sample_ovule.h5'
         with h5py.File(l_file, 'r') as f:
-            label = f['big_label'][...]
+            label = f['label'][64:128, 64:128, 64:128]
             ltb = StandardLabelToBoundary()
             pred = ltb(label)
             arand = BoundaryAdaptedRandError(all_stats=True)
             assert arand(pred, label) < 0.5
 
     def test_adapted_rand_from_embeddings(self):
-        l_file = 'resources/sample_patch.h5'
+        l_file = 'resources/sample_ovule.h5'
         with h5py.File(l_file, 'r') as f:
-            label = f['big_label'][...]
+            label = f['label'][64:128, 64:128, 64:128]
             pred = np.expand_dims(np.random.rand(*label.shape), axis=0)
             arand = EmbeddingsAdaptedRandError(min_cluster_size=50)
             assert arand(pred, label) <= 1.0

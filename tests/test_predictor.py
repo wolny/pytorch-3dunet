@@ -34,8 +34,8 @@ class TestPredictor:
 
         slice_builder_config = {
             'name': 'SliceBuilder',
-            'patch_shape': (100, 200, 200),
-            'stride_shape': (60, 150, 150)
+            'patch_shape': (64, 200, 200),
+            'stride_shape': (40, 150, 150)
         }
 
         transformer_config = {
@@ -44,7 +44,7 @@ class TestPredictor:
             ]
         }
 
-        gt_file = 'resources/sample_cells.h5'
+        gt_file = 'resources/sample_ovule.h5'
         output_file = os.path.join(tmpdir, 'output_segmentation.h5')
 
         dataset = HDF5Dataset(gt_file, phase='test',

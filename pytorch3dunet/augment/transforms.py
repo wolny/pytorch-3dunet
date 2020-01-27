@@ -101,7 +101,7 @@ class RandomRotate:
 
 class RandomContrast:
     """
-        Adjust contrast by scaling each voxel to `mean + alpha * (v - mean)`.
+    Adjust contrast by scaling each voxel to `mean + alpha * (v - mean)`.
     """
 
     def __init__(self, random_state, alpha=(0.5, 1.5), mean=0.0, execution_probability=0.1, **kwargs):
@@ -121,7 +121,7 @@ class RandomContrast:
 
 
 # it's relatively slow, i.e. ~1s per patch of size 64x200x200, so use multiple workers in the DataLoader
-# remember to use spline_order=3 when transforming the labels
+# remember to use spline_order=0 when transforming the labels
 class ElasticDeformation:
     """
     Apply elasitc deformations of 3D patches on a per-voxel mesh. Assumes ZYX axis order (or CZYX if the data is 4D).
@@ -481,7 +481,7 @@ class Normalize:
 
     def __call__(self, m):
         norm_0_1 = (m - self.min_value) / self.value_range
-        return 2 * norm_0_1 - 1
+        return np.clip(2 * norm_0_1 - 1, -1, 1)
 
 
 class AdditiveGaussianNoise:

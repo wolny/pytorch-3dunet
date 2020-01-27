@@ -16,6 +16,8 @@ model:
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
   final_sigmoid: false
+  # if True applies the final normalization layer (sigmoid or softmax), otherwise the networks returns the output from the final convolution layer; use False for regression problems, e.g. de-noising
+  is_segmentation: true
 # predictor configuration
 predictor:
   # standard in memory predictor
@@ -33,7 +35,7 @@ loaders:
   test:
     # paths to the test datasets
     file_paths:
-      - '../resources/random_raw4D.h5'
+      - '../resources/random4D.h5'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:

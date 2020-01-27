@@ -171,13 +171,13 @@ class TestUNet3DTrainer:
                                 log_after_iters=log_after_iters,
                                 validate_after_iters=validate_after_iters,
                                 max_num_iterations=max_num_iterations,
-                                logger=logger, tensorboard_formatter=formatter)
+                                tensorboard_formatter=formatter)
         trainer.fit()
         # test loading the trainer from the checkpoint
         trainer = UNet3DTrainer.from_checkpoint(os.path.join(tmpdir, 'last_checkpoint.pytorch'),
                                                 model, optimizer, lr_scheduler,
                                                 loss_criterion, eval_criterion,
-                                                loaders, logger=logger, tensorboard_formatter=formatter)
+                                                loaders, tensorboard_formatter=formatter)
         return trainer
 
     @staticmethod

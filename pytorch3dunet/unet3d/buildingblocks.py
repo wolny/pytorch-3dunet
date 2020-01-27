@@ -1,3 +1,5 @@
+from functools import partial
+
 import torch
 from torch import nn as nn
 from torch.nn import functional as F
@@ -39,7 +41,7 @@ def create_conv(in_channels, out_channels, kernel_size, order, num_groups, paddi
         elif char == 'e':
             modules.append(('ELU', nn.ELU(inplace=True)))
         elif char == 'c':
-            # add learnable bias only in the absence of gatchnorm/groupnorm
+            # add learnable bias only in the absence of batchnorm/groupnorm
             bias = not ('g' in order or 'b' in order)
             modules.append(('conv', conv3d(in_channels, out_channels, kernel_size, bias, padding=padding)))
         elif char == 'g':
@@ -231,9 +233,8 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
     """
-    A single module for decoder path consisting of the upsample layer
-    (either learned ConvTranspose3d or interpolation) followed by a DoubleConv
-    module.
+    A single module for decoder path consisting of the upsampling layer
+    (either learned ConvTranspose3d or nearest neighbor interpolation) followed by a basic module (DoubleConv or ExtResNetBlock).
     Args:
         in_channels (int): number of input channels
         out_channels (int): number of output channels
@@ -247,24 +248,21 @@ class Decoder(nn.Module):
         num_groups (int): number of groups for the GroupNorm
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size=3,
-                 scale_factor=(2, 2, 2), basic_module=DoubleConv, conv_layer_order='crg', num_groups=8):
+    def __init__(self, in_channels, out_channels, kernel_size=3, scale_factor=(2, 2, 2), basic_module=DoubleConv,
+                 conv_layer_order='crg', num_groups=8, mode='nearest'):
         super(Decoder, self).__init__()
         if basic_module == DoubleConv:
-            # if DoubleConv is the basic_module use nearest neighbor interpolation for upsampling
-            self.upsample = None
+            # if DoubleConv is the basic_module use interpolation for upsampling and concatenation joining
+            self.upsampling = Upsampling(transposed_conv=False, in_channels=in_channels, out_channels=out_channels,
+                                         kernel_size=kernel_size, scale_factor=scale_factor, mode=mode)
+            # concat joining
+            self.joining = partial(self._joining, concat=True)
         else:
-            # otherwise use ConvTranspose3d (bear in mind your GPU memory)
-            # make sure that the output size reverses the MaxPool3d from the corresponding encoder
-            # (D_out = (D_in − 1) ×  stride[0] − 2 ×  padding[0] +  kernel_size[0] +  output_padding[0])
-            # also scale the number of channels from in_channels to out_channels so that summation joining
-            # works correctly
-            self.upsample = nn.ConvTranspose3d(in_channels,
-                                               out_channels,
-                                               kernel_size=kernel_size,
-                                               stride=scale_factor,
-                                               padding=1,
-                                               output_padding=1)
+            # if basic_module=ExtResNetBlock use transposed convolution upsampling and summation joining
+            self.upsampling = Upsampling(transposed_conv=True, in_channels=in_channels, out_channels=out_channels,
+                                         kernel_size=kernel_size, scale_factor=scale_factor, mode=mode)
+            # sum joining
+            self.joining = partial(self._joining, concat=False)
             # adapt the number of in_channels for the ExtResNetBlock
             in_channels = out_channels
 
@@ -275,19 +273,54 @@ class Decoder(nn.Module):
                                          num_groups=num_groups)
 
     def forward(self, encoder_features, x):
-        if self.upsample is None:
-            # use nearest neighbor interpolation and concatenation joining
-            output_size = encoder_features.size()[2:]
-            x = F.interpolate(x, size=output_size, mode='nearest')
-            # concatenate encoder_features (encoder path) with the upsampled input across channel dimension
-            x = torch.cat((encoder_features, x), dim=1)
-        else:
-            # use ConvTranspose3d and summation joining
-            x = self.upsample(x)
-            x += encoder_features
-
+        x = self.upsampling(encoder_features=encoder_features, x=x)
+        x = self.joining(encoder_features, x)
         x = self.basic_module(x)
         return x
+
+    @staticmethod
+    def _joining(encoder_features, x, concat):
+        if concat:
+            return torch.cat((encoder_features, x), dim=1)
+        else:
+            return encoder_features + x
+
+
+class Upsampling(nn.Module):
+    """
+    Upsamples a given multi-channel 3D data using either interpolation or learned transposed convolution.
+
+    Args:
+        transposed_conv (bool): if True uses ConvTranspose3d for upsampling, otherwise uses interpolation
+        concat_joining (bool): if True uses concatenation joining between encoder and decoder features, otherwise
+            uses summation joining (see Residual U-Net)
+        in_channels (int): number of input channels for transposed conv
+        out_channels (int): number of output channels for transpose conv
+        kernel_size (int or tuple): size of the convolving kernel
+        scale_factor (int or tuple): stride of the convolution
+        mode (str): algorithm used for upsampling:
+            'nearest' | 'linear' | 'bilinear' | 'trilinear' | 'area'. Default: 'nearest'
+    """
+
+    def __init__(self, transposed_conv, in_channels=None, out_channels=None, kernel_size=3,
+                 scale_factor=(2, 2, 2), mode='nearest'):
+        super(Upsampling, self).__init__()
+
+        if transposed_conv:
+            # make sure that the output size reverses the MaxPool3d from the corresponding encoder
+            # (D_out = (D_in − 1) ×  stride[0] − 2 ×  padding[0] +  kernel_size[0] +  output_padding[0])
+            self.upsample = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size, stride=scale_factor,
+                                               padding=1)
+        else:
+            self.upsample = partial(self._interpolate, mode=mode)
+
+    def forward(self, encoder_features, x):
+        output_size = encoder_features.size()[2:]
+        return self.upsample(x, output_size)
+
+    @staticmethod
+    def _interpolate(x, size, mode):
+        return F.interpolate(x, size=size, mode=mode)
 
 
 class FinalConv(nn.Sequential):

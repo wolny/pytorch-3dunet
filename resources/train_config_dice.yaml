@@ -2,7 +2,7 @@
 manual_seed: 0
 # model configuration
 model:
-  # model class
+  # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
   in_channels: 1
@@ -16,6 +16,8 @@ model:
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
   final_sigmoid: true
+  # if True applies the final normalization layer (sigmoid or softmax), otherwise the networks returns the output from the final convolution layer; use False for regression problems, e.g. de-noising
+  is_segmentation: true
 # trainer configuration
 trainer:
   # path to the checkpoint directory
@@ -51,12 +53,15 @@ eval_metric:
   name: MeanIoU
   # a target label that is ignored during metric evaluation
   ignore_index: null
+# learning rate scheduler configuration
 lr_scheduler:
   name: MultiStepLR
   milestones: [10, 30, 60]
   gamma: 0.2
 # data loaders configuration
 loaders:
+  # number of patches per batch
+  batch_size: 1
   # how many subprocesses to use for data loading
   num_workers: 4
   # path to the raw data within the H5
@@ -69,7 +74,7 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - '../resources/random_label3D.h5'
+      - '../resources/random3D.h5'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -83,26 +88,36 @@ loaders:
     # data transformations/augmentations
     transformer:
       raw:
+        # re-scale the values to be 0-mean and 1-std
         - name: Standardize
+        # randomly flips an image across randomly chosen axis
         - name: RandomFlip
+        # rotate an image by 90 degrees around a randomly chosen plane
         - name: RandomRotate90
+        # rotate an image by a random degrees from taken from (-angle_spectrum, angle_spectrum) interval
         - name: RandomRotate
-          # rotate only in ZY only
+          # rotate only in ZY only since most volumetric data is anisotropic
           axes: [[2, 1]]
           angle_spectrum: 15
           mode: reflect
+        # apply elasitc deformations of 3D patches on a per-voxel mesh
         - name: ElasticDeformation
           spline_order: 3
+        # randomly adjust contrast
         - name: RandomContrast
+        # apply additive Gaussian noise
         - name: AdditiveGaussianNoise
+        # apply additive Poisson noise
         - name: AdditivePoissonNoise
+        # convert to torch tensor
         - name: ToTensor
+          # add additional 'channel' axis when the input data is 3D
           expand_dims: true
       label:
         - name: RandomFlip
         - name: RandomRotate90
         - name: RandomRotate
-          # rotate only in ZY only
+          # rotate only in ZY only since most volumetric data is anisotropic
           axes: [[2, 1]]
           angle_spectrum: 15
           mode: reflect
@@ -110,13 +125,12 @@ loaders:
           spline_order: 0
         - name: ToTensor
           expand_dims: true
-          dtype: 'long'
 
   # configuration of the validation loaders
   val:
     # paths to the validation datasets
     file_paths:
-      - '../resources/random_label3D.h5'
+      - '../resources/random3D.h5'
 
     # SliceBuilder configuration
     slice_builder:

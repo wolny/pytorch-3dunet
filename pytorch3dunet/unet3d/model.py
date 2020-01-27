@@ -2,15 +2,13 @@ import importlib
 
 import torch.nn as nn
 
-from pytorch3dunet.unet3d.buildingblocks import Encoder, Decoder, DoubleConv, ExtResNetBlock, SingleConv
-from pytorch3dunet.unet3d.utils import create_feature_maps
+from pytorch3dunet.unet3d.buildingblocks import Encoder, Decoder, DoubleConv, ExtResNetBlock
+from pytorch3dunet.unet3d.utils import number_of_features_per_level
 
 
-class UNet3D(nn.Module):
+class Abstract3DUNet(nn.Module):
     """
-    3DUnet model from
-    `"3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation"
-        <https://arxiv.org/pdf/1606.06650.pdf>`.
+    Base class for standard and residual UNet.
 
     Args:
         in_channels (int): number of input channels
@@ -25,47 +23,58 @@ class UNet3D(nn.Module):
         final_sigmoid (bool): if True apply element-wise nn.Sigmoid after the
             final 1x1 convolution, otherwise apply nn.Softmax. MUST be True if nn.BCELoss (two-class) is used
             to train the model. MUST be False if nn.CrossEntropyLoss (multi-class) is used to train the model.
+        basic_module: basic model for the encoder/decoder (DoubleConv, ExtResNetBlock, ....)
         layer_order (string): determines the order of layers
             in `SingleConv` module. e.g. 'crg' stands for Conv3d+ReLU+GroupNorm3d.
             See `SingleConv` for more info
-        init_channel_number (int): number of feature maps in the first conv layer of the encoder; default: 64
+        f_maps (int, tuple): if int: number of feature maps in the first conv layer of the encoder (default: 64);
+            if tuple: number of feature maps at each level
         num_groups (int): number of groups for the GroupNorm
+        num_levels (int): number of levels in the encoder/decoder path (applied only if f_maps is an int)
+        is_segmentation (bool): if True (semantic segmentation problem) Sigmoid/Softmax normalization is applied
+            after the final convolution; if False (regression problem) the normalization layer is skipped at the end
+        testing (bool): if True (testing mode) the `final_activation` (if present, i.e. `is_segmentation=true`)
+            will be applied as the last operation during the forward pass; if False the model is in training mode
+            and the `final_activation` (even if present) won't be applied; default: False
     """
 
-    def __init__(self, in_channels, out_channels, final_sigmoid, f_maps=64, layer_order='gcr', num_groups=8,
-                 **kwargs):
-        super(UNet3D, self).__init__()
+    def __init__(self, in_channels, out_channels, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
+                 num_groups=8, num_levels=4, is_segmentation=True, testing=False, **kwargs):
+        super(Abstract3DUNet, self).__init__()
 
-        # Set testing mode to false by default. It has to be set to true in test mode, otherwise the `final_activation`
-        # layer won't be applied
-        self.testing = kwargs.get('testing', False)
+        self.testing = testing
 
         if isinstance(f_maps, int):
-            # use 4 levels in the encoder path as suggested in the paper
-            f_maps = create_feature_maps(f_maps, number_of_fmaps=4)
+            f_maps = number_of_features_per_level(f_maps, num_levels=num_levels)
 
-        # create encoder path consisting of Encoder modules. The length of the encoder is equal to `len(f_maps)`
-        # uses DoubleConv as a basic_module for the Encoder
+        # create encoder path consisting of Encoder modules. Depth of the encoder is equal to `len(f_maps)`
         encoders = []
         for i, out_feature_num in enumerate(f_maps):
             if i == 0:
-                encoder = Encoder(in_channels, out_feature_num, apply_pooling=False, basic_module=DoubleConv,
+                encoder = Encoder(in_channels, out_feature_num, apply_pooling=False, basic_module=basic_module,
                                   conv_layer_order=layer_order, num_groups=num_groups)
             else:
-                encoder = Encoder(f_maps[i - 1], out_feature_num, basic_module=DoubleConv,
+                # TODO: adapt for anisotropy in the data, i.e. use proper pooling kernel to make the data isotropic after 1-2 pooling operations
+                # currently pools with a constant kernel: (2, 2, 2)
+                encoder = Encoder(f_maps[i - 1], out_feature_num, basic_module=basic_module,
                                   conv_layer_order=layer_order, num_groups=num_groups)
             encoders.append(encoder)
 
         self.encoders = nn.ModuleList(encoders)
 
         # create decoder path consisting of the Decoder modules. The length of the decoder is equal to `len(f_maps) - 1`
-        # uses DoubleConv as a basic_module for the Decoder
         decoders = []
         reversed_f_maps = list(reversed(f_maps))
         for i in range(len(reversed_f_maps) - 1):
-            in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
+            if basic_module == DoubleConv:
+                in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
+            else:
+                in_feature_num = reversed_f_maps[i]
+
             out_feature_num = reversed_f_maps[i + 1]
-            decoder = Decoder(in_feature_num, out_feature_num, basic_module=DoubleConv,
+            # TODO: if non-standard pooling was used, make sure to use correct striding for transpose conv
+            # currently strides with a constant stride: (2, 2, 2)
+            decoder = Decoder(in_feature_num, out_feature_num, basic_module=basic_module,
                               conv_layer_order=layer_order, num_groups=num_groups)
             decoders.append(decoder)
 
@@ -75,115 +84,14 @@ class UNet3D(nn.Module):
         # channels to the number of labels
         self.final_conv = nn.Conv3d(f_maps[0], out_channels, 1)
 
-        if final_sigmoid:
-            self.final_activation = nn.Sigmoid()
-        else:
-            self.final_activation = nn.Softmax(dim=1)
-
-    def forward(self, x):
-        # encoder part
-        encoders_features = []
-        for encoder in self.encoders:
-            x = encoder(x)
-            # reverse the encoder outputs to be aligned with the decoder
-            encoders_features.insert(0, x)
-
-        # remove the last encoder's output from the list
-        # !!remember: it's the 1st in the list
-        encoders_features = encoders_features[1:]
-
-        # decoder part
-        for decoder, encoder_features in zip(self.decoders, encoders_features):
-            # pass the output from the corresponding encoder and the output
-            # of the previous decoder
-            x = decoder(encoder_features, x)
-
-        x = self.final_conv(x)
-
-        # apply final_activation (i.e. Sigmoid or Softmax) only at test time; during training/evaluation the network
-        # outputs logits and it's up to the user to normalize it before visualising with tensorboard
-        # or computing validation metric
-        if self.testing:
-            x = self.final_activation(x)
-
-        return x
-
-
-class ResidualUNet3D(nn.Module):
-    """
-    Residual 3DUnet model implementation based on https://arxiv.org/pdf/1706.00120.pdf.
-    Uses ExtResNetBlock instead of DoubleConv as a basic building block as well as summation joining instead
-    of concatenation joining. Since the model effectively becomes a residual net, in theory it allows for deeper UNet.
-
-    Args:
-        in_channels (int): number of input channels
-        out_channels (int): number of output segmentation masks;
-            Note that that the of out_channels might correspond to either
-            different semantic classes or to different binary segmentation mask.
-            It's up to the user of the class to interpret the out_channels and
-            use the proper loss criterion during training (i.e. NLLLoss (multi-class)
-            or BCELoss (two-class) respectively)
-        f_maps (int, tuple): number of feature maps at each level of the encoder; if it's an integer the number
-            of feature maps is given by the geometric progression: f_maps ^ k, k=1,2,3,4,5
-        final_sigmoid (bool): if True apply element-wise nn.Sigmoid after the
-            final 1x1 convolution, otherwise apply nn.Softmax. MUST be True if nn.BCELoss (two-class) is used
-            to train the model. MUST be False if nn.CrossEntropyLoss (multi-class) is used to train the model.
-        conv_layer_order (string): determines the order of layers
-            in `SingleConv` module. e.g. 'crg' stands for Conv3d+ReLU+GroupNorm3d.
-            See `SingleConv` for more info
-        init_channel_number (int): number of feature maps in the first conv layer of the encoder; default: 64
-        num_groups (int): number of groups for the GroupNorm
-        skip_final_activation (bool): if True, skips the final normalization layer (sigmoid/softmax) and returns the
-            logits directly
-    """
-
-    def __init__(self, in_channels, out_channels, final_sigmoid, f_maps=32, conv_layer_order='cge', num_groups=8,
-                 skip_final_activation=False, **kwargs):
-        super(ResidualUNet3D, self).__init__()
-
-        # Set testing mode to false by default. It has to be set to true in test mode, otherwise the `final_activation`
-        # layer won't be applied
-        self.testing = kwargs.get('testing', False)
-
-        if isinstance(f_maps, int):
-            # use 5 levels in the encoder path as suggested in the paper
-            f_maps = create_feature_maps(f_maps, number_of_fmaps=5)
-
-        # create encoder path consisting of Encoder modules. The length of the encoder is equal to `len(f_maps)`
-        # uses ExtResNetBlock as a basic_module for the Encoder
-        encoders = []
-        for i, out_feature_num in enumerate(f_maps):
-            if i == 0:
-                encoder = Encoder(in_channels, out_feature_num, apply_pooling=False, basic_module=ExtResNetBlock,
-                                  conv_layer_order=conv_layer_order, num_groups=num_groups)
-            else:
-                encoder = Encoder(f_maps[i - 1], out_feature_num, basic_module=ExtResNetBlock,
-                                  conv_layer_order=conv_layer_order, num_groups=num_groups)
-            encoders.append(encoder)
-
-        self.encoders = nn.ModuleList(encoders)
-
-        # create decoder path consisting of the Decoder modules. The length of the decoder is equal to `len(f_maps) - 1`
-        # uses ExtResNetBlock as a basic_module for the Decoder
-        decoders = []
-        reversed_f_maps = list(reversed(f_maps))
-        for i in range(len(reversed_f_maps) - 1):
-            decoder = Decoder(reversed_f_maps[i], reversed_f_maps[i + 1], basic_module=ExtResNetBlock,
-                              conv_layer_order=conv_layer_order, num_groups=num_groups)
-            decoders.append(decoder)
-
-        self.decoders = nn.ModuleList(decoders)
-
-        # in the last layer a 1×1 convolution reduces the number of output
-        # channels to the number of labels
-        self.final_conv = nn.Conv3d(f_maps[0], out_channels, 1)
-
-        if not skip_final_activation:
+        if is_segmentation:
+            # semantic segmentation problem
             if final_sigmoid:
                 self.final_activation = nn.Sigmoid()
             else:
                 self.final_activation = nn.Softmax(dim=1)
         else:
+            # regression problem
             self.final_activation = None
 
     def forward(self, x):
@@ -206,7 +114,7 @@ class ResidualUNet3D(nn.Module):
 
         x = self.final_conv(x)
 
-        # apply final_activation (i.e. Sigmoid or Softmax) only for prediction. During training the network outputs
+        # apply final_activation (i.e. Sigmoid or Softmax) only during prediction. During training the network outputs
         # logits and it's up to the user to normalize it before visualising with tensorboard or computing validation metric
         if self.testing and self.final_activation is not None:
             x = self.final_activation(x)
@@ -214,87 +122,39 @@ class ResidualUNet3D(nn.Module):
         return x
 
 
-class Noise2NoiseUNet3D(nn.Module):
+class UNet3D(Abstract3DUNet):
+    """
+    3DUnet model from
+    `"3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation"
+        <https://arxiv.org/pdf/1606.06650.pdf>`.
+
+    Uses `DoubleConv` as a basic_module and nearest neighbor upsampling in the decoder
+    """
+
+    def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',
+                 num_groups=8, num_levels=4, is_segmentation=True, **kwargs):
+        super(UNet3D, self).__init__(in_channels=in_channels, out_channels=out_channels, final_sigmoid=final_sigmoid,
+                                     basic_module=DoubleConv, f_maps=f_maps, layer_order=layer_order,
+                                     num_groups=num_groups, num_levels=num_levels, is_segmentation=is_segmentation,
+                                     **kwargs)
+
+
+class ResidualUNet3D(Abstract3DUNet):
     """
     Residual 3DUnet model implementation based on https://arxiv.org/pdf/1706.00120.pdf.
-    Uses ExtResNetBlock instead of DoubleConv as a basic building block as well as summation joining instead
-    of concatenation joining. Since the model effectively becomes a residual net, in theory it allows for deeper UNet.
-
-    Args:
-        in_channels (int): number of input channels
-        out_channels (int): number of output segmentation masks;
-            Note that that the of out_channels might correspond to either
-            different semantic classes or to different binary segmentation mask.
-            It's up to the user of the class to interpret the out_channels and
-            use the proper loss criterion during training (i.e. NLLLoss (multi-class)
-            or BCELoss (two-class) respectively)
-        f_maps (int, tuple): number of feature maps at each level of the encoder; if it's an integer the number
-            of feature maps is given by the geometric progression: f_maps ^ k, k=1,2,3,4,5
-        init_channel_number (int): number of feature maps in the first conv layer of the encoder; default: 64
-        num_groups (int): number of groups for the GroupNorm
+    Uses ExtResNetBlock as a basic building block, summation joining instead
+    of concatenation joining and transposed convolutions for upsampling (watch out for block artifacts).
+    Since the model effectively becomes a residual net, in theory it allows for deeper UNet.
     """
 
-    def __init__(self, in_channels, out_channels, f_maps=16, num_groups=8, **kwargs):
-        super(Noise2NoiseUNet3D, self).__init__()
-
-        # Use LeakyReLU activation everywhere except the last layer
-        conv_layer_order = 'clg'
-
-        if isinstance(f_maps, int):
-            # use 5 levels in the encoder path as suggested in the paper
-            f_maps = create_feature_maps(f_maps, number_of_fmaps=5)
-
-        # create encoder path consisting of Encoder modules. The length of the encoder is equal to `len(f_maps)`
-        # uses DoubleConv as a basic_module for the Encoder
-        encoders = []
-        for i, out_feature_num in enumerate(f_maps):
-            if i == 0:
-                encoder = Encoder(in_channels, out_feature_num, apply_pooling=False, basic_module=DoubleConv,
-                                  conv_layer_order=conv_layer_order, num_groups=num_groups)
-            else:
-                encoder = Encoder(f_maps[i - 1], out_feature_num, basic_module=DoubleConv,
-                                  conv_layer_order=conv_layer_order, num_groups=num_groups)
-            encoders.append(encoder)
-
-        self.encoders = nn.ModuleList(encoders)
-
-        # create decoder path consisting of the Decoder modules. The length of the decoder is equal to `len(f_maps) - 1`
-        # uses DoubleConv as a basic_module for the Decoder
-        decoders = []
-        reversed_f_maps = list(reversed(f_maps))
-        for i in range(len(reversed_f_maps) - 1):
-            in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
-            out_feature_num = reversed_f_maps[i + 1]
-            decoder = Decoder(in_feature_num, out_feature_num, basic_module=DoubleConv,
-                              conv_layer_order=conv_layer_order, num_groups=num_groups)
-            decoders.append(decoder)
-
-        self.decoders = nn.ModuleList(decoders)
-
-        # 1x1x1 conv + simple ReLU in the final convolution
-        self.final_conv = SingleConv(f_maps[0], out_channels, kernel_size=1, order='cr', padding=0)
-
-    def forward(self, x):
-        # encoder part
-        encoders_features = []
-        for encoder in self.encoders:
-            x = encoder(x)
-            # reverse the encoder outputs to be aligned with the decoder
-            encoders_features.insert(0, x)
-
-        # remove the last encoder's output from the list
-        # !!remember: it's the 1st in the list
-        encoders_features = encoders_features[1:]
-
-        # decoder part
-        for decoder, encoder_features in zip(self.decoders, encoders_features):
-            # pass the output from the corresponding encoder and the output
-            # of the previous decoder
-            x = decoder(encoder_features, x)
-
-        x = self.final_conv(x)
-
-        return x
+    def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',
+                 num_groups=8, num_levels=5, is_segmentation=True, **kwargs):
+        super(ResidualUNet3D, self).__init__(in_channels=in_channels, out_channels=out_channels,
+                                             final_sigmoid=final_sigmoid,
+                                             basic_module=ExtResNetBlock, f_maps=f_maps, layer_order=layer_order,
+                                             num_groups=num_groups, num_levels=num_levels,
+                                             is_segmentation=is_segmentation,
+                                             **kwargs)
 
 
 def get_model(config):

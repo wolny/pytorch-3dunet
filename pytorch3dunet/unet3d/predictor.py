@@ -10,7 +10,7 @@ from pytorch3dunet.datasets.hdf5 import SliceBuilder
 from pytorch3dunet.unet3d.utils import get_logger
 from pytorch3dunet.unet3d.utils import unpad
 
-logger = get_logger('UNet3DTrainer')
+logger = get_logger('UNet3DPredictor')
 
 
 class _AbstractPredictor:

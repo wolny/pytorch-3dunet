@@ -5,8 +5,8 @@ import time
 import hdbscan
 import numpy as np
 import torch
-import torch.nn.functional as F
 from skimage import measure
+from skimage.measure import compare_psnr
 from sklearn.cluster import MeanShift
 
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
@@ -677,7 +677,7 @@ class PSNR:
     def __call__(self, input, target):
         assert input.size() == target.size()
 
-        return 10 * torch.log10(1 / torch.max(F.mse_loss(input, target), torch.tensor(0.01).to(input.device)))
+        return compare_psnr(target.detach().cpu().numpy(), input.detach().cpu().numpy())
 
 
 def get_evaluation_metric(config):
