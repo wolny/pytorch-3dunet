@@ -31,7 +31,8 @@ loaders:
   # how many subprocesses to use for data loading
   num_workers: 8
   test:
-    # paths to the test datasets
+    # paths to the test datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
+    # inside this this directory will be included as well (non-recursively)
     file_paths:
       - '../resources/sample_ovule.h5'
 

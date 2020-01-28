@@ -72,7 +72,8 @@ loaders:
   weight_internal_path: null
   # configuration of the train loader
   train:
-    # paths to the training datasets
+    # absolute paths to the training datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
+    # inside this this directory will be included as well (non-recursively)
     file_paths:
       - '../resources/random3D.h5'
 
@@ -128,7 +129,8 @@ loaders:
 
   # configuration of the validation loaders
   val:
-    # paths to the validation datasets
+    # paths to the validation datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
+    # inside this this directory will be included as well (non-recursively)
     file_paths:
       - '../resources/random3D.h5'
 

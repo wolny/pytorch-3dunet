@@ -1,5 +1,8 @@
 import collections
+import glob
 import importlib
+import os
+from itertools import chain
 
 import h5py
 import numpy as np
@@ -374,6 +377,20 @@ def _get_slice_builder(raws, labels, weight_maps, config):
     return slice_builder_cls(raws, labels, weight_maps, **config)
 
 
+def _traverse_file_paths(file_paths):
+    assert isinstance(file_paths, list)
+    results = []
+    for file_path in file_paths:
+        if os.path.isdir(file_path):
+            # if file path is a directory take all H5 files in that directory
+            iters = [glob.glob(os.path.join(file_path, ext)) for ext in ['*.h5', '*.hdf', '*.hdf5', '*.hd5']]
+            for fp in chain(*iters):
+                results.append(fp)
+        else:
+            results.append(file_path)
+    return results
+
+
 def _create_datasets(dataset_config, phase,
                      raw_internal_path,
                      label_internal_path,
@@ -383,8 +400,9 @@ def _create_datasets(dataset_config, phase,
     slice_builder_config = dataset_config['slice_builder']
     transformer_config = dataset_config['transformer']
 
-    file_paths = dataset_config['file_paths']
-    assert isinstance(file_paths, list)
+    # file_paths may contain both files and directories; if the file_path is a directory all H5 files inside
+    # are going to be included in the final file_paths
+    file_paths = _traverse_file_paths(dataset_config['file_paths'])
 
     datasets = []
     for file_path in file_paths:

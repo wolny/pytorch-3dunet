@@ -1,10 +1,11 @@
+import os
 from tempfile import NamedTemporaryFile
 
 import h5py
 import numpy as np
 from torch.utils.data import DataLoader
 
-from pytorch3dunet.datasets.hdf5 import HDF5Dataset
+from pytorch3dunet.datasets.hdf5 import HDF5Dataset, _traverse_file_paths
 
 
 class TestHDF5Dataset:
@@ -89,6 +90,28 @@ class TestHDF5Dataset:
         for (img, label) in data_loader:
             for i in range(label.shape[0]):
                 assert np.allclose(img, label[i])
+
+    def test_traverse_file_paths(self, tmpdir):
+        test_tmp_dir = os.path.join(tmpdir, 'test')
+        os.mkdir(test_tmp_dir)
+
+        expected_files = [
+            os.path.join(tmpdir, 'f1.h5'),
+            os.path.join(test_tmp_dir, 'f2.h5'),
+            os.path.join(test_tmp_dir, 'f3.hdf'),
+            os.path.join(test_tmp_dir, 'f4.hdf5'),
+            os.path.join(test_tmp_dir, 'f5.hd5')
+        ]
+        # create expected files
+        for ef in expected_files:
+            with h5py.File(ef, 'w') as f:
+                f.create_dataset('raw', data=np.random.randn(4, 4, 4))
+
+        # make sure that traverse_file_paths runs correctly
+        file_paths = [os.path.join(tmpdir, 'f1.h5'), test_tmp_dir]
+        actual_files = _traverse_file_paths(file_paths)
+
+        assert expected_files == actual_files
 
 
 def create_random_dataset(shape, ignore_index=False, raw_datasets=['raw'], label_datasets=['label']):
