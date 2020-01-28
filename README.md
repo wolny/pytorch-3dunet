@@ -90,13 +90,18 @@ The HDF5 files should contain the raw/label data sets in the following axis orde
 
 One can monitor the training progress with Tensorboard `tensorboard --logdir <checkpoint_dir>/logs/` (you need `tensorflow` installed in your conda env), where `checkpoint_dir` is the path to the checkpoint directory specified in the config.
 
-To try out training on randomly generated data right away:
-1. Checkout the repository
-2. 
+To try out training on randomly generated data right away, just checkout the repository and run: 
 ```
 cd pytorch3dunet
-train3dunet --config ../resources/train_config_ce.yaml # train with CrossEntropyLoss
-train3dunet --config ../resources/train_config_dice.yaml # train with DiceLoss
+train3dunet --config ../resources/train_config_ce.yaml # train with CrossEntropyLoss (segmentation)
+#train3dunet --config ../resources/train_config_dice.yaml # train with DiceLoss (segmentation)
+#train3dunet --config ../resources/train_config_regression.yaml # train with SmoothL1Loss (regression)
+```
+
+To try out a boundary prediction task given a sample 3D confocal volume of plant cells (cell membrane marker), run:
+```
+cd pytorch3dunet
+train3dunet --config ../resources/train_boundary.yaml
 ```
 
 
