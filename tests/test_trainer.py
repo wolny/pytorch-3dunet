@@ -130,7 +130,7 @@ class TestUNet3DTrainer:
         test_config.update({
             # get device to train on
             'device': device,
-            'loss': {'name': loss, 'weight': np.random.rand(2).astype(np.float32)},
+            'loss': {'name': loss, 'weight': np.random.rand(2).astype(np.float32), 'pos_weight': 3.},
             'eval_metric': {'name': val_metric}
         })
         test_config['model']['final_sigmoid'] = binary_loss

@@ -157,6 +157,20 @@ class GeneralizedDiceLoss(_AbstractDiceLoss):
         return 2 * (intersect.sum() / denominator.sum())
 
 
+class BCEDiceLoss(nn.Module):
+    """Linear combination of BCE and Dice losses"""
+
+    def __init__(self, alpha, beta):
+        super(BCEDiceLoss, self).__init__()
+        self.alpha = alpha
+        self.bce = nn.BCEWithLogitsLoss()
+        self.beta = beta
+        self.dice = DiceLoss()
+
+    def forward(self, input, target):
+        return self.alpha * self.bce(input, target) + self.beta * self.dice(input, target)
+
+
 class WeightedCrossEntropyLoss(nn.Module):
     """WeightedCrossEntropyLoss (WCE) as described in https://arxiv.org/pdf/1707.03237.pdf
     """
@@ -329,14 +343,18 @@ def get_loss_criterion(config):
     return loss
 
 
-SUPPORTED_LOSSES = ['BCEWithLogitsLoss', 'CrossEntropyLoss', 'WeightedCrossEntropyLoss', 'PixelWiseCrossEntropyLoss',
-                    'GeneralizedDiceLoss', 'DiceLoss', 'TagsAngularLoss', 'MSELoss',
+SUPPORTED_LOSSES = ['BCEWithLogitsLoss', 'BCEDiceLoss', 'CrossEntropyLoss', 'WeightedCrossEntropyLoss',
+                    'PixelWiseCrossEntropyLoss', 'GeneralizedDiceLoss', 'DiceLoss', 'TagsAngularLoss', 'MSELoss',
                     'SmoothL1Loss', 'L1Loss', 'WeightedSmoothL1Loss']
 
 
 def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
     if name == 'BCEWithLogitsLoss':
         return nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    elif name == 'BCEDiceLoss':
+        alpha = loss_config.get('alphs', 1.)
+        beta = loss_config.get('beta', 1.)
+        return BCEDiceLoss(alpha, beta)
     elif name == 'CrossEntropyLoss':
         if ignore_index is None:
             ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss

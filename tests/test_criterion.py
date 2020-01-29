@@ -7,7 +7,7 @@ from skimage import measure
 from pytorch3dunet.augment.transforms import LabelToAffinities, StandardLabelToBoundary
 from pytorch3dunet.embeddings.contrastive_loss import ContrastiveLoss
 from pytorch3dunet.unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, \
-    DiceLoss, TagsAngularLoss, WeightedSmoothL1Loss, _MaskingLossWrapper, SkipLastTargetChannelWrapper
+    DiceLoss, TagsAngularLoss, WeightedSmoothL1Loss, _MaskingLossWrapper, SkipLastTargetChannelWrapper, BCEDiceLoss
 from pytorch3dunet.unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
     BoundaryAdaptedRandError, EmbeddingsAdaptedRandError
 
@@ -137,6 +137,11 @@ class TestCriterion:
         results = np.array(results)
         assert np.all(results > 0)
         assert np.all(results < 1)
+
+    def test_bce_dice_loss(self):
+        results = _compute_criterion(BCEDiceLoss(1., 1.))
+        results = np.array(results)
+        assert np.all(results > 0)
 
     def test_weighted_ce(self):
         criterion = WeightedCrossEntropyLoss()
