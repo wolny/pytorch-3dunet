@@ -1,14 +1,13 @@
 import h5py
 import numpy as np
-import pytest
 import torch
 import torch.nn as nn
 from skimage import measure
 
 from pytorch3dunet.augment.transforms import LabelToAffinities, StandardLabelToBoundary
 from pytorch3dunet.embeddings.contrastive_loss import ContrastiveLoss
-from pytorch3dunet.unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, BCELossWrapper, \
-    DiceLoss, TagsAngularLoss, WeightedSmoothL1Loss
+from pytorch3dunet.unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, \
+    DiceLoss, TagsAngularLoss, WeightedSmoothL1Loss, _MaskingLossWrapper, SkipLastTargetChannelWrapper
 from pytorch3dunet.unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
     BoundaryAdaptedRandError, EmbeddingsAdaptedRandError
 
@@ -30,9 +29,10 @@ def _eval_criterion(criterion, batch_shape, n_times=100):
     results = []
     # compute criterion n_times
     for i in range(n_times):
-        input = torch.rand(batch_shape)
+        input = torch.rand(batch_shape, requires_grad=True)
         target = torch.zeros(batch_shape).random_(0, 2)
-        results.append(criterion(input, target))
+        output = criterion(input, target)
+        results.append(output)
 
     return results
 
@@ -138,20 +138,6 @@ class TestCriterion:
         assert np.all(results > 0)
         assert np.all(results < 1)
 
-    def test_weighted_generalized_dice_loss(self):
-        shape = [1, 0, 30, 30, 30]
-        results = []
-        for C in range(1, 5):
-            batch_shape = list(shape)
-            batch_shape[1] = C
-            batch_shape = tuple(batch_shape)
-            results = results + _eval_criterion(GeneralizedDiceLoss(weight=torch.rand(C)), batch_shape)
-
-        # check that all of the coefficients belong to [0, 1]
-        results = np.array(results)
-        assert np.all(results > 0)
-        assert np.all(results < 1)
-
     def test_weighted_ce(self):
         criterion = WeightedCrossEntropyLoss()
         shape = [1, 0, 30, 30, 30]
@@ -162,47 +148,32 @@ class TestCriterion:
             input_shape[1] = C
             input_shape = tuple(input_shape)
             for i in range(100):
-                input = torch.rand(input_shape)
+                input = torch.rand(input_shape, requires_grad=True)
                 target = torch.zeros(target_shape, dtype=torch.long).random_(0, C)
-                results.append(criterion(input, target))
+                output = criterion(input, target)
+                output.backward()
+                results.append(output)
 
         results = np.array(results)
         assert np.all(results >= 0)
 
-    def test_ignore_index_loss_wrapper_unsupported_loss(self):
-        with pytest.raises(RuntimeError):
-            BCELossWrapper(nn.CrossEntropyLoss())
-
     def test_ignore_index_loss(self):
-        loss = BCELossWrapper(nn.BCELoss(), ignore_index=-1)
-        input = torch.zeros((3, 3))
+        loss = _MaskingLossWrapper(nn.BCEWithLogitsLoss(), ignore_index=-1)
+        input = torch.rand((3, 3))
         input[1, 1] = 1.
+        input.requires_grad = True
         target = -1. * torch.ones((3, 3))
         target[1, 1] = 1.
-        output = loss(input, target)
-        assert output.item() == 0
-
-    def test_ignore_index_loss_backward(self):
-        loss = BCELossWrapper(nn.BCELoss(), ignore_index=-1)
-        input = torch.zeros((3, 3), requires_grad=True)
-        target = -1. * torch.ones((3, 3))
         output = loss(input, target)
         output.backward()
-        assert output.item() == 0
 
-    def test_ignore_index_loss_with_dice_coeff(self):
-        loss = DiceCoefficient(ignore_index=-1)
-        input = torch.zeros((3, 3))
-        input[1, 1] = 1.
-        target = -1. * torch.ones((3, 3))
-        target[1, 1] = 1.
-
-        actual = loss(input, target)
-
-        target = input.clone()
-        expected = loss(input, target)
-
-        assert expected == actual
+    def test_skip_last_target_channel(self):
+        loss = SkipLastTargetChannelWrapper(nn.BCEWithLogitsLoss())
+        input = torch.rand(1, 1, 3, 3, 3, requires_grad=True)
+        target = torch.empty(1, 2, 3, 3, 3).random_(2)
+        output = loss(input, target)
+        output.backward()
+        assert output.item() > 0
 
     def test_tags_angular_loss(self):
         coeff = [1.0, 0.8, 0.5]
@@ -218,16 +189,17 @@ class TestCriterion:
     def test_contrastive_loss(self):
         loss_criterion = ContrastiveLoss(0.5, 1.5)
         C = 10
-        input = torch.randn(3, 16, 64, 64, 64)
+        input = torch.randn(3, 16, 64, 64, 64, requires_grad=True)
         target = torch.randint(C, (3, 64, 64, 64))
 
         loss = loss_criterion(input, target)
+        loss.backward()
         assert loss > 0
 
     def test_weighted_smooth_l1loss(self):
         loss_criterion = WeightedSmoothL1Loss(threshold=0., initial_weight=0.1)
-        input = torch.randn(3, 16, 64, 64, 64)
+        input = torch.randn(3, 16, 64, 64, 64, requires_grad=True)
         target = torch.randn(3, 16, 64, 64, 64)
         loss = loss_criterion(input, target)
+        loss.backward()
         assert loss > 0
-

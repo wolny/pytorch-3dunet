@@ -24,18 +24,12 @@ class DiceCoefficient:
     DO NOT USE this metric when training with DiceLoss, otherwise the results will be biased towards the loss.
     """
 
-    def __init__(self, epsilon=1e-5, ignore_index=None, **kwargs):
+    def __init__(self, epsilon=1e-6, **kwargs):
         self.epsilon = epsilon
-        self.ignore_index = ignore_index
 
     def __call__(self, input, target):
-        """
-        :param input: 5D probability maps torch tensor (NxCxDxHxW)
-        :param target: 4D or 5D ground truth torch tensor. 4D (NxDxHxW) tensor will be expanded to 5D as one-hot
-        :return: Soft Dice Coefficient averaged over all channels/classes
-        """
         # Average across channels in order to get the final score
-        return torch.mean(compute_per_channel_dice(input, target, epsilon=self.epsilon, ignore_index=self.ignore_index))
+        return torch.mean(compute_per_channel_dice(input, target, epsilon=self.epsilon))
 
 
 class MeanIoU:

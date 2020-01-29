@@ -18,6 +18,8 @@ model:
 # loss function to be used during training
 loss:
   name: BCEWithLogitsLoss
+  # a weight of positive examples (give more weight to the boundary)
+  pos_weight: 10.
   # a target value that is ignored and does not contribute to the input gradient
   ignore_index: null
   # skip the last channel in the target (i.e. when last channel contains data not relevant for the loss)
