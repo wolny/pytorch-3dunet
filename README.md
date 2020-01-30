@@ -45,18 +45,18 @@ Note: use this loss function only if the labels in the training dataset are very
 ## Supported Evaluation Metrics
 
 ### Semantic Segmentation
-- **MeanIoU** - Mean intersection over union
-- **DiceCoefficient** - Dice Coefficient (computes per channel Dice Coefficient and returns the average)
+- _MeanIoU_ - Mean intersection over union
+- _DiceCoefficient_ - Dice Coefficient (computes per channel Dice Coefficient and returns the average)
 If a 3D U-Net was trained to predict cell boundaries, one can use the following semantic instance segmentation metrics
 (the metrics below are computed by running connected components on thresholded boundary map and comparing the resulted instances to the ground truth instance segmentation): 
-- **BoundaryAveragePrecision** - Average Precision
-- **AdaptedRandError** - Adapted Rand Error (see http://brainiac2.mit.edu/SNEMI3D/evaluation for a detailed explanation)
+- _BoundaryAveragePrecision_ - Average Precision
+- _AdaptedRandError_ - Adapted Rand Error (see http://brainiac2.mit.edu/SNEMI3D/evaluation for a detailed explanation)
 
 If not specified `MeanIoU` will be used by default.
 
 
 ### Regression
-- **PSNR** - peak signal to noise ration
+- _PSNR_ - peak signal to noise ration
 
 
 ## Getting Started
