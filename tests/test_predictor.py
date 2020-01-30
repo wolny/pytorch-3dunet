@@ -4,7 +4,7 @@ import h5py
 import torch
 from torch.utils.data import DataLoader
 
-from pytorch3dunet.datasets.hdf5 import HDF5Dataset, prediction_collate
+from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, prediction_collate
 from pytorch3dunet.unet3d.predictor import EmbeddingsPredictor
 from pytorch3dunet.unet3d.utils import adapted_rand
 
@@ -47,10 +47,10 @@ class TestPredictor:
         gt_file = 'resources/sample_ovule.h5'
         output_file = os.path.join(tmpdir, 'output_segmentation.h5')
 
-        dataset = HDF5Dataset(gt_file, phase='test',
-                              slice_builder_config=slice_builder_config,
-                              transformer_config=transformer_config,
-                              raw_internal_path='label')
+        dataset = StandardHDF5Dataset(gt_file, phase='test',
+                                      slice_builder_config=slice_builder_config,
+                                      transformer_config=transformer_config,
+                                      raw_internal_path='label')
 
         loader = DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False, collate_fn=prediction_collate)
 

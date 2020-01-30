@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 from torch.utils.data import DataLoader
 
-from pytorch3dunet.datasets.hdf5 import HDF5Dataset, _traverse_file_paths
+from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, _traverse_file_paths
 
 
 class TestHDF5Dataset:
@@ -22,7 +22,7 @@ class TestHDF5Dataset:
                 raw = f['raw'][...]
                 label = f['label'][...]
 
-                dataset = HDF5Dataset(path, phase=phase,
+                dataset = StandardHDF5Dataset(path, phase=phase,
                                       slice_builder_config=create_slice_builder(patch_shape, stride_shape),
                                       transformer_config=transformer_config[phase],
                                       raw_internal_path='raw',
@@ -46,7 +46,7 @@ class TestHDF5Dataset:
         patch_shape = (32, 64, 64)
         stride_shape = (32, 64, 64)
         phase = 'train'
-        dataset = HDF5Dataset(path, phase=phase,
+        dataset = StandardHDF5Dataset(path, phase=phase,
                               slice_builder_config=create_slice_builder(patch_shape, stride_shape),
                               transformer_config=transformer_config[phase],
                               raw_internal_path='raw',
@@ -61,7 +61,7 @@ class TestHDF5Dataset:
         patch_shape = (32, 64, 64)
         stride_shape = (32, 64, 64)
         phase = 'train'
-        dataset = HDF5Dataset(path, phase=phase,
+        dataset = StandardHDF5Dataset(path, phase=phase,
                               slice_builder_config=create_slice_builder(patch_shape, stride_shape),
                               transformer_config=transformer_config[phase],
                               raw_internal_path=['raw1', 'raw2'], label_internal_path=['label1', 'label2'])
@@ -81,7 +81,7 @@ class TestHDF5Dataset:
             f.create_dataset('raw', data=raw)
             f.create_dataset('label', data=label)
         phase = 'train'
-        dataset = HDF5Dataset(tmp_path, phase=phase,
+        dataset = StandardHDF5Dataset(tmp_path, phase=phase,
                               slice_builder_config=create_slice_builder((16, 64, 64), (8, 32, 32)),
                               transformer_config=transformer_config[phase])
 

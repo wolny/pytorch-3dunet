@@ -62,6 +62,10 @@ trainer:
   iters: 100000
 # Configure training and validation loaders
 loaders:
+  # class of the HDF5 dataset, currently StandardHDF5Dataset and LazyHDF5Dataset are supported.
+  # When using LazyHDF5Dataset make sure to set `num_workers = 1`, due to a bug in h5py which corrupts the data
+  # when reading from multiple threads.
+  dataset: StandardHDF5Dataset
   # how many subprocesses to use for data loading
   num_workers: 4
   # path to the raw data within the H5
