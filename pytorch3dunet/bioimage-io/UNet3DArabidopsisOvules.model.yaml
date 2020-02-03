@@ -1,0 +1,88 @@
+name: UNet3DArabidopsisOvules
+description: A 3d U-Net trained to predict the cell boundaries in confocal stacks of Arabidopsis ovules
+cite:
+  - text: "Wolny, Adrian et al. Accurate and Versatile 3D Segmentation of Plant Tissues at Cellular Resolution. BioRxiv 2020."
+    doi: https://doi.org/10.1101/2020.01.17.910562
+authors:
+  - Adrian Wolny;@bioimage-io
+documentation: ../README.md
+tags: [unet3d, pytorch, arabidopsis, ovuls, cell membrane, segmentation, plant tissue]
+
+format_version: 0.1.0
+language: python
+framework: pytorch
+
+# todo: import path with '..'  # add a root_dir?
+source: ..pytorch3dunet.model.UNet3D
+optional_kwargs:
+  in_channels: 1
+  out_channels: 1
+  layer_order: gcr  # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
+  f_maps: 32  # initial number of feature maps
+  final_sigmoid: true  # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
+
+# TODO test data
+test_input: ../resources/sample_ovule.h5/raw # ../test_input.npy
+test_output: null # ../test_output.npy
+thumbnail: null # ./nuclei_thumbnail.png
+
+# TODO inputs/outputs
+#inputs:
+#  - name: raw
+#    axes: bcyx
+#    data_type: float32
+#    data_range: [-inf, inf]
+#    shape: [1, 1, 128, 128]
+##        min: [1, 1, 32, 32]
+##        step: [0, 0, 32, 32]
+#outputs:
+#  - name: output
+#    axes: bcyx
+#    data_type: float32
+#    data_range: [0, 1]
+#    shape: [1, 1, 128, 128]
+#    halo: [0, 0, 32, 32]
+##    shape:
+##        reference_input: raw
+##        scale: [1, 1, 1, 1]
+##        offset: [0, 0, 0, 0]
+
+prediction:
+    preprocess:
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/27cd9f0ec3a45330e20d57cc7a3f82c13bda7b98/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
+          kwargs: {apply_to: [0]}
+    weights:
+        source: todo.doi
+        hash: {md5: TODO}
+    postprocess: null
+    dependencies: conda:../environment.yaml
+
+# todo: training
+#training:
+#    setup:
+#        reader:
+#            spec: https://github.com/bioimage-io/python-bioimage-io/blob/89d681a52afab1d94362745942d0b34edf7ecf87/specs/readers/BroadNucleusDataBinarized.reader.yaml
+#        sampler:
+#            spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/ca837b91cc134004f3f61310b3f77e7d2ed8403c/specs/samplers/GrayscaleImageSampler.sampler.yaml
+#        preprocess:
+#            - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/ca837b91cc134004f3f61310b3f77e7d2ed8403c/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
+#              kwargs: {apply_to: [0]}
+#        loss:
+#            - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/ca837b91cc134004f3f61310b3f77e7d2ed8403c/specs/transformations/Sigmoid.transformation.yaml
+#              kwargs: {apply_to: [0]}
+#            - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/ca837b91cc134004f3f61310b3f77e7d2ed8403c/specs/transformations/BCELoss.transformation.yaml
+#        optimizer:
+#            source: torch.optim.Adam
+#            optional_kwargs: {lr: 0.002}
+#        # validation:
+#        #   - {}
+#
+#    source: pybio.torch.training.simple_training
+#    required_kwargs: [model_spec]
+#    optional_kwargs: {n_iterations: 25}
+#    # enable different ways of specifying the dependencies.
+#    # this would hold all training dependencies, e.g. as a frozen conda environment
+#    # or as a pom.xml
+#    dependencies: # this is a file to the dependencies
+#        conda:../environment.yaml
+#    description: "Train the unet via binary cross entropy"
