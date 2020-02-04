@@ -99,7 +99,7 @@ def main():
     device = config['device']
     if torch.cuda.device_count() > 1 and not device.type == 'cpu':
         model = nn.DataParallel(model)
-        logger.info(f'Using {torch.cuda.device_count} GPUs for training')
+        logger.info(f'Using {torch.cuda.device_count()} GPUs for training')
 
     # put the model on GPUs
     logger.info(f"Sending the model to '{config['device']}'")

@@ -543,9 +543,9 @@ def get_train_loaders(config):
     batch_size = loaders_config.get('batch_size', 1)
     if torch.cuda.device_count() > 1 and not config['device'].type == 'cpu':
         logger.info(
-            f'{torch.cuda.device_count} GPUs available. Using batch_size = {torch.cuda.device_count} * {batch_size}')
-        batch_size = batch_size * torch.cuda.device_count
-        
+            f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}')
+        batch_size = batch_size * torch.cuda.device_count()
+
     logger.info(f'Batch size for train/val loader: {batch_size}')
     # when training with volumetric data use batch_size of 1 due to GPU memory constraints
     return {
@@ -601,8 +601,8 @@ def get_test_loaders(config):
     batch_size = loaders_config.get('batch_size', 1)
     if torch.cuda.device_count() > 1 and not config['device'].type == 'cpu':
         logger.info(
-            f'{torch.cuda.device_count} GPUs available. Using batch_size = {torch.cuda.device_count} * {batch_size}')
-        batch_size = batch_size * torch.cuda.device_count
+            f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}')
+        batch_size = batch_size * torch.cuda.device_count()
 
     logger.info(f'Batch size for dataloader: {batch_size}')
 
