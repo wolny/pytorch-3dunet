@@ -137,6 +137,16 @@ In order to predict on your own data, just provide the path to your model as wel
 ### Prediction tips
 In order to avoid checkerboard artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: [64 128 128] stride: [32 96 96]` will give you a 'halo' of 32 voxels in each direction.
 
+## Data Parallelism
+By default, if multiple GPUs are available training/prediction will be run on all the GPUs using [DataParallel](https://pytorch.org/tutorials/beginner/blitz/data_parallel_tutorial.html).
+If training/prediction on all available GPUs is not desirable, restrict the number of GPUs using `CUDA_VISIBLE_DEVICES`, e.g.
+```bash
+CUDA_VISIBLE_DEVICES=0,1 train3dunet --config <CONFIG>
+``` 
+or
+```bash
+CUDA_VISIBLE_DEVICES=0,1 predict3dunet --config <CONFIG>
+```
 
 ## Sample configuration files
 
