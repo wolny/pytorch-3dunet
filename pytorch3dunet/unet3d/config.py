@@ -30,4 +30,4 @@ def load_config():
 
 
 def _load_config_yaml(config_file):
-    return yaml.load(open(config_file, 'r'))
+    return yaml.safe_load(open(config_file, 'r'))

@@ -541,6 +541,11 @@ def get_train_loaders(config):
     num_workers = loaders_config.get('num_workers', 1)
     logger.info(f'Number of workers for train/val dataloader: {num_workers}')
     batch_size = loaders_config.get('batch_size', 1)
+    if torch.cuda.device_count() > 1 and not config['device'].type == 'cpu':
+        logger.info(
+            f'{torch.cuda.device_count} GPUs available. Using batch_size = {torch.cuda.device_count} * {batch_size}')
+        batch_size = batch_size * torch.cuda.device_count
+        
     logger.info(f'Batch size for train/val loader: {batch_size}')
     # when training with volumetric data use batch_size of 1 due to GPU memory constraints
     return {
@@ -594,6 +599,11 @@ def get_test_loaders(config):
     logger.info(f'Number of workers for the dataloader: {num_workers}')
 
     batch_size = loaders_config.get('batch_size', 1)
+    if torch.cuda.device_count() > 1 and not config['device'].type == 'cpu':
+        logger.info(
+            f'{torch.cuda.device_count} GPUs available. Using batch_size = {torch.cuda.device_count} * {batch_size}')
+        batch_size = batch_size * torch.cuda.device_count
+
     logger.info(f'Batch size for dataloader: {batch_size}')
 
     # use generator in order to create data loaders lazily one by one

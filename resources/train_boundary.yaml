@@ -66,6 +66,8 @@ loaders:
   # When using LazyHDF5Dataset make sure to set `num_workers = 1`, due to a bug in h5py which corrupts the data
   # when reading from multiple threads.
   dataset: StandardHDF5Dataset
+  # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
+  batch_size: 1
   # how many subprocesses to use for data loading
   num_workers: 4
   # path to the raw data within the H5

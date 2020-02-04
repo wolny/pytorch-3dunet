@@ -1,6 +1,9 @@
 import importlib
 import os
 
+import torch
+import torch.nn as nn
+
 from pytorch3dunet.datasets.hdf5 import get_test_loaders
 from pytorch3dunet.unet3d import utils
 from pytorch3dunet.unet3d.config import load_config
@@ -48,8 +51,14 @@ def main():
     model_path = config['model_path']
     logger.info(f'Loading model from {model_path}...')
     utils.load_checkpoint(model_path, model)
-    logger.info(f"Sending the model to '{config['device']}'")
-    model = model.to(config['device'])
+    # use DataParallel if more than 1 GPU available
+    device = config['device']
+    if torch.cuda.device_count() > 1 and not device.type == 'cpu':
+        model = nn.DataParallel(model)
+        logger.info(f'Using {torch.cuda.device_count} GPUs for prediction')
+
+    logger.info(f"Sending the model to '{device}'")
+    model = model.to(device)
 
     logger.info('Loading HDF5 datasets...')
     for test_loader in get_test_loaders(config):

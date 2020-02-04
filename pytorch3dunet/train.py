@@ -1,6 +1,7 @@
 import importlib
 
 import torch
+import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
@@ -94,9 +95,16 @@ def main():
 
     # Create the model
     model = get_model(config)
+    # use DataParallel if more than 1 GPU available
+    device = config['device']
+    if torch.cuda.device_count() > 1 and not device.type == 'cpu':
+        model = nn.DataParallel(model)
+        logger.info(f'Using {torch.cuda.device_count} GPUs for training')
+
     # put the model on GPUs
     logger.info(f"Sending the model to '{config['device']}'")
-    model = model.to(config['device'])
+    model = model.to(device)
+
     # Log the number of learnable parameters
     logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
 
