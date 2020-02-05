@@ -22,18 +22,19 @@ The code allows for training the U-Net for both: **semantic segmentation** (bina
 ## Supported Loss Functions
 
 ### Semantic Segmentation
+- _BCEWithLogitsLoss_ (binary cross-entropy)
+- _DiceLoss_ (standard `DiceLoss` defined as `1 - DiceCoefficient` used for binary semantic segmentation; when more than 2 classes are present in the ground truth, it computes the `DiceLoss` per channel and averages the values).
+- _BCEDiceLoss_ (Linear combination of BCE and Dice losses, i.e. `alpha * BCE + beta * Dice`, `alpha, beta` can be specified in the `loss` section of the config)
+- _CrossEntropyLoss_ (one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config)
+- _PixelWiseCrossEntropyLoss_ (one can specify not only class weights but also per pixel weights in order to give more gradient to important (or under-represented) regions in the ground truth)
+- _WeightedCrossEntropyLoss_ (see 'Weighted cross-entropy (WCE)' in the below paper for a detailed explanation; one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config)
+- _GeneralizedDiceLoss_ (see 'Generalized Dice Loss (GDL)' in the below paper for a detailed explanation; one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config). 
+Note: use this loss function only if the labels in the training dataset are very imbalanced e.g. one class having at least 3 orders of magnitude more voxels than the others. Otherwise use standard _DiceLoss_.
+
 
 For a detailed explanation of some of the supported loss functions see:
 [Generalised Dice overlap as a deep learning loss function for highly unbalanced segmentations](https://arxiv.org/pdf/1707.03237.pdf)
 Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
-
-- _WeightedCrossEntropyLoss_ (see 'Weighted cross-entropy (WCE)' in the above paper for a detailed explanation; one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config)
-- _CrossEntropyLoss_ (one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config)
-- _PixelWiseCrossEntropyLoss_ (one can specify not only class weights but also per pixel weights in order to give more gradient to important (or under-represented) regions in the ground truth)
-- _BCEWithLogitsLoss_ (binary cross-entropy)
-- _DiceLoss_ standard Dice loss (standard `DiceLoss` defined as `1 - DiceCoefficient` used for binary semantic segmentation; when more than 2 classes are present in the ground truth, it computes the `DiceLoss` per channel and averages the values).
-- _GeneralizedDiceLoss_ (see 'Generalized Dice Loss (GDL)' in the above paper for a detailed explanation; one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config). 
-Note: use this loss function only if the labels in the training dataset are very imbalanced e.g. one class having at least 3 orders of magnitude more voxels than the others. Otherwise use standard _DiceLoss_.
 
 ### Regression
 - _MSELoss_
@@ -49,14 +50,14 @@ Note: use this loss function only if the labels in the training dataset are very
 - _DiceCoefficient_ - Dice Coefficient (computes per channel Dice Coefficient and returns the average)
 If a 3D U-Net was trained to predict cell boundaries, one can use the following semantic instance segmentation metrics
 (the metrics below are computed by running connected components on thresholded boundary map and comparing the resulted instances to the ground truth instance segmentation): 
-- _BoundaryAveragePrecision_ - Average Precision
+- _BoundaryAveragePrecision_ - Average Precision applied to the boundary probability maps: thresholds the boundary maps given by the network, runs connected components to get the segmentation and computes AP between the resulting segmentation and the ground truth
 - _AdaptedRandError_ - Adapted Rand Error (see http://brainiac2.mit.edu/SNEMI3D/evaluation for a detailed explanation)
 
 If not specified `MeanIoU` will be used by default.
 
 
 ### Regression
-- _PSNR_ - peak signal to noise ration
+- _PSNR_ - peak signal to noise ratio
 
 
 ## Getting Started
@@ -106,7 +107,7 @@ train3dunet --config ../resources/train_boundary.yaml
 
 
 ### Training tips
-When training with binary-based losses, i.e.: `BCEWithLogitsLoss`, `DiceLoss`, `GeneralizedDiceLoss`:
+When training with binary-based losses, i.e.: `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss`:
 1. the label data has to be 4D (one target binary mask per channel).
 If you have a 3D binary data (foreground/background), you can just change `ToTensor` transform for the label to contain `expand_dims: true`, see e.g. [train_config_dice.yaml](resources/train_config_dice.yaml).
 2. `final_sigmoid=True` has to be present in the `model` section of the config, since every output channel gives the probability of the foreground.
