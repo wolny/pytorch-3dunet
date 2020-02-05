@@ -154,4 +154,3 @@ loaders:
       label:
         - name: ToTensor
           expand_dims: true
-          dtype: 'long'

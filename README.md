@@ -18,6 +18,11 @@ The code allows for training the U-Net for both: **semantic segmentation** (bina
 - NVIDIA GPU
 - CUDA CuDNN
 
+### Running on Windows
+The package has not been tested on Windows, however some reported using it on Windows. One thing to keep in mind:
+when training with `CrossEntropyLoss`: the label type in the config file should be change from `long` to `int64`,
+otherwise there will be an error: `RuntimeError: Expected object of scalar type Long but got scalar type Int for argument #2 'target'`.
+
 
 ## Supported Loss Functions
 
