@@ -1,0 +1,284 @@
+name: UNet3DArabidopsisOvules
+description: A 3d U-Net trained to predict the cell boundaries in confocal stacks of Arabidopsis ovules
+cite:
+  - text: "Wolny, Adrian et al. Accurate and Versatile 3D Segmentation of Plant Tissues at Cellular Resolution. BioRxiv 2020."
+    doi: https://doi.org/10.1101/2020.01.17.910562
+authors:
+  - Adrian Wolny;@bioimage-io
+documentation: README.md
+tags: [unet3d, pytorch, arabidopsis, ovuls, cell membrane, segmentation, plant tissue]
+
+format_version: 0.1.0
+language: python
+framework: pytorch
+
+source: pytorch3dunet.model.UNet3D
+optional_kwargs:
+  in_channels: 1
+  out_channels: 1
+  layer_order: gcr  # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
+  f_maps: 32  # initial number of feature maps
+  num_groups: 8  # number of groups in the groupnorm
+  final_sigmoid: true  # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
+
+# TODO test data
+test_input: resources/sample_ovule.h5/raw # ../test_input.npy
+test_output: null # ../test_output.npy
+thumbnail: null # ./nuclei_thumbnail.png
+
+# TODO inputs/outputs
+#inputs:
+#  - name: raw
+#    axes: bcyx
+#    data_type: float32
+#    data_range: [-inf, inf]
+#    shape: [1, 1, 128, 128]
+##        min: [1, 1, 32, 32]
+##        step: [0, 0, 32, 32]
+#outputs:
+#  - name: output
+#    axes: bcyx
+#    data_type: float32
+#    data_range: [0, 1]
+#    shape: [1, 1, 128, 128]
+#    halo: [0, 0, 32, 32]
+##    shape:
+##        reference_input: raw
+##        scale: [1, 1, 1, 1]
+##        offset: [0, 0, 0, 0]
+
+prediction:
+    preprocess:
+        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/a1121e389d4dcbf2bb20398b87427b9c6f7c94ec/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
+          kwargs: {apply_to: [0]}
+    weights:
+        source: https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2Funet_bce_ds2x&files=best_checkpoint.pytorch
+        hash: {md5: TODO}
+    postprocess: []
+    dependencies: conda:environment.yaml
+
+# todo: training
+#training:
+#    setup:
+#        reader:
+#            spec: https://github.com/bioimage-io/python-bioimage-io/blob/89d681a52afab1d94362745942d0b34edf7ecf87/specs/readers/BroadNucleusDataBinarized.reader.yaml
+#        sampler:
+#            spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/ca837b91cc134004f3f61310b3f77e7d2ed8403c/specs/samplers/GrayscaleImageSampler.sampler.yaml
+#        preprocess:
+#            - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/ca837b91cc134004f3f61310b3f77e7d2ed8403c/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
+#              kwargs: {apply_to: [0]}
+#        loss:
+#            - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/ca837b91cc134004f3f61310b3f77e7d2ed8403c/specs/transformations/Sigmoid.transformation.yaml
+#              kwargs: {apply_to: [0]}
+#            - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/ca837b91cc134004f3f61310b3f77e7d2ed8403c/specs/transformations/BCELoss.transformation.yaml
+#        optimizer:
+#            source: torch.optim.Adam
+#            optional_kwargs: {lr: 0.002}
+#        # validation:
+#        #   - {}
+#
+#    source: pybio.torch.training.simple_training
+#    required_kwargs: [model_spec]
+#    optional_kwargs: {n_iterations: 25}
+#    # enable different ways of specifying the dependencies.
+#    # this would hold all training dependencies, e.g. as a frozen conda environment
+#    # or as a pom.xml
+#    dependencies: # this is a file to the dependencies
+#        conda:../environment.yaml
+#    description: "Train the unet via binary cross entropy"
+
+
+original:  # training config
+  # use a fixed random seed to guarantee that when you run the code twice you will get the same outcome
+  manual_seed: 0
+  model:
+    name: UNet3D
+    # number of input channels to the model
+    in_channels: 1
+    # number of output channels
+    out_channels: 1
+    # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
+    layer_order: gcr
+    # initial number of feature maps
+    f_maps: 32
+    # number of groups in the groupnorm
+    num_groups: 8
+    # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
+    final_sigmoid: true
+  # loss function to be used during training
+  loss:
+    name: BCEWithLogitsLoss
+    # a target value that is ignored and does not contribute to the input gradient
+    ignore_index: null
+    # skip the last channel in the target (i.e. when last channel contains data not relevant for the loss)
+    skip_last_target: true
+  optimizer:
+    # initial learning rate
+    learning_rate: 0.0002
+    # weight decay
+    weight_decay: 0.00001
+  # evaluation metric
+  eval_metric:
+    # use AdaptedRandError metric
+    name: BoundaryAdaptedRandError
+    # probability maps threshold
+    threshold: 0.4
+    # use the last target channel to compute the metric
+    use_last_target: true
+    # use only the first channel for computing the metric
+    use_first_input: true
+  lr_scheduler:
+    name: ReduceLROnPlateau
+    # make sure to use the 'min' mode cause lower AdaptedRandError is better
+    mode: min
+    factor: 0.5
+    patience: 30
+  trainer:
+    # model with lower eval score is considered better
+    eval_score_higher_is_better: False
+    # path to the checkpoint directory
+    checkpoint_dir: '/g/kreshuk/wolny/workspace/for-pytorch-3dunet/FOR_paper_ovules/final/unet/bce/ds2x'
+    # path to latest checkpoint; if provided the training will be resumed from that checkpoint
+    resume: '/g/kreshuk/wolny/workspace/for-pytorch-3dunet/FOR_paper_ovules/final/unet/bce/ds2x/last_checkpoint.pytorch'
+    # how many iterations between validations
+    validate_after_iters: 500
+    # how many iterations between tensorboard logging
+    log_after_iters: 100
+    # max number of epochs
+    epochs: 1000
+    # max number of iterations
+    iters: 150000
+  # Configure training and validation loaders
+  loaders:
+    # how many subprocesses to use for data loading
+    num_workers: 8
+    # path to the raw data within the H5
+    raw_internal_path: /raw
+    # path to the the label data withtin the H5
+    label_internal_path: /label
+    # configuration of the train loader
+    train:
+      # paths to the training datasets
+      file_paths:
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_226_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_290_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_291_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_394_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_396_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_401_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_403_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_404_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_405_A_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_405_B_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_416_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_422_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_425_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_428_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_434_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_439_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_440_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_444_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_445_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_449_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_450_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_451_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_454_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_457_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_458_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_463_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_473_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_487_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_494_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_509_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_512_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_517_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_525_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_527_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_530_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_534_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_535_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_536_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/train/N_563_ds2x.h5'
+
+      # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
+      slice_builder:
+        name: FilterSliceBuilder
+        # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+        patch_shape: [80, 170, 170]
+        # train stride between patches
+        stride_shape: [20, 40, 40]
+        # minimum volume of the labels in the patch
+        threshold: 0.6
+        # probability of accepting patches which do not fulfil the threshold criterion
+        slack_acceptance: 0.01
+
+      transformer:
+        raw:
+          - name: Standardize
+          - name: RandomFlip
+          - name: RandomRotate90
+          - name: RandomRotate
+            # rotate only in ZY plane due to anisotropy
+            axes: [[2, 1]]
+            angle_spectrum: 15
+            mode: reflect
+          - name: ElasticDeformation
+            spline_order: 3
+          - name: AdditiveGaussianNoise
+            execution_probability: 0.25
+          - name: AdditivePoissonNoise
+            execution_probability: 0.25
+          - name: ToTensor
+            expand_dims: true
+        label:
+          - name: RandomFlip
+          - name: RandomRotate90
+          - name: RandomRotate
+            # rotate only in ZY plane due to anisotropy
+            axes: [[2, 1]]
+            angle_spectrum: 15
+            mode: reflect
+          - name: ElasticDeformation
+            spline_order: 0
+          - name: StandardLabelToBoundary
+            # append original ground truth labels to the last channel (to be able to compute the eval metric)
+            append_label: true
+            # guassian blur and threshold the boundary map in order to help with overfitting
+            blur: true
+            # stddev of Gaussian kernel
+            sigma: 1.0
+          - name: ToTensor
+            expand_dims: false
+
+    # configuration of the val loader
+    val:
+      # paths to the val datasets
+      file_paths:
+        - '/g/kreshuk/wolny/Datasets/Ovules/val/N_420_ds2x.h5'
+        - '/g/kreshuk/wolny/Datasets/Ovules/val/N_464_ds2x.h5'
+
+      # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
+      slice_builder:
+        name: FilterSliceBuilder
+        # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+        patch_shape: [80, 170, 170]
+        # train stride between patches
+        stride_shape: [20, 40, 40]
+        # minimum volume of the labels in the patch
+        threshold: 0.6
+        # probability of accepting patches which do not fulfil the threshold criterion
+        slack_acceptance: 0.01
+
+      # data augmentation
+      transformer:
+        raw:
+          - name: Standardize
+          - name: ToTensor
+            expand_dims: true
+        label:
+          - name: StandardLabelToBoundary
+            append_label: true
+            blur: true
+            sigma: 1.0
+          - name: ToTensor
+            expand_dims: false
