@@ -13,6 +13,8 @@ before_install:
   - conda update -q conda
   # Useful for debugging any issues with conda
   - conda info -a
+  # install conda-build
+  - conda install -q conda-build
 
 install:
   # build conda recipe
