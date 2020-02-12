@@ -1,12 +1,13 @@
 import os
 
 import h5py
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
 from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, prediction_collate
 from pytorch3dunet.unet3d.predictor import EmbeddingsPredictor
-from pytorch3dunet.unet3d.utils import adapted_rand
+from pytorch3dunet.unet3d.utils import adapted_rand, remove_halo
 
 
 class FakePredictor(EmbeddingsPredictor):
@@ -65,3 +66,20 @@ class TestPredictor:
                 arand_error = adapted_rand(segm, gt)
 
                 assert arand_error < 0.1
+
+    def test_remove_halo(self):
+        patch_halo = (4, 4, 4)
+        shape = (128, 128, 128)
+        input = np.random.randint(0, 10, size=(1, 16, 16, 16))
+
+        index = (slice(0, 1), slice(12, 28), slice(16, 32), slice(16, 32))
+        u_patch, u_index = remove_halo(input, index, shape, patch_halo)
+
+        assert np.array_equal(input[:, 4:12, 4:12, 4:12], u_patch)
+        assert u_index == (slice(0, 1), slice(16, 24), slice(20, 28), slice(20, 28))
+
+        index = (slice(0, 1), slice(112, 128), slice(112, 128), slice(112, 128))
+        u_patch, u_index = remove_halo(input, index, shape, patch_halo)
+
+        assert np.array_equal(input[:, 4:16, 4:16, 4:16], u_patch)
+        assert u_index == (slice(0, 1), slice(116, 128), slice(116, 128), slice(116, 128))

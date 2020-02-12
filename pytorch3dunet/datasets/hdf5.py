@@ -34,7 +34,9 @@ class SliceBuilder:
 
         patch_shape = tuple(patch_shape)
         stride_shape = tuple(stride_shape)
-        self._check_patch_shape(patch_shape)
+        skip_shape_check = kwargs.get('skip_shape_check', False)
+        if not skip_shape_check:
+            self._check_patch_shape(patch_shape)
 
         self._raw_slices = self._build_slices(raw_datasets[0], patch_shape, stride_shape)
         if label_datasets is None:
@@ -217,27 +219,38 @@ class AbstractHDF5Dataset(Dataset):
     patch by patch with a given stride.
     """
 
-    def __init__(self, file_path, phase, slice_builder_config, transformer_config,
-                 raw_internal_path='raw', label_internal_path='label',
-                 weight_internal_path=None, mirror_padding=False, pad_width=20):
+    def __init__(self, file_path,
+                 phase,
+                 slice_builder_config,
+                 transformer_config,
+                 mirror_padding=(16, 32, 32),
+                 raw_internal_path='raw',
+                 label_internal_path='label',
+                 weight_internal_path=None):
         """
         :param file_path: path to H5 file containing raw data as well as labels and per pixel weights (optional)
         :param phase: 'train' for training, 'val' for validation, 'test' for testing; data augmentation is performed
             only during the 'train' phase
         :para'/home/adrian/workspace/ilastik-datasets/VolkerDeconv/train'm slice_builder_config: configuration of the SliceBuilder
         :param transformer_config: data augmentation configuration
+        :param mirror_padding (int or tuple): number of voxels padded to each axis
         :param raw_internal_path (str or list): H5 internal path to the raw dataset
         :param label_internal_path (str or list): H5 internal path to the label dataset
         :param weight_internal_path (str or list): H5 internal path to the per pixel weights
-        :param mirror_padding (bool): pad with the reflection of the vector mirrored on the first and last values
-            along each axis. Only applicable during the 'test' phase
-        :param pad_width: number of voxels padded to the edges of each axis (only if `mirror_padding=True`)
         """
         assert phase in ['train', 'val', 'test']
+        if phase in ['train', 'val']:
+            mirror_padding = None
+
+        if mirror_padding is not None:
+            if isinstance(mirror_padding, int):
+                mirror_padding = (mirror_padding,) * 3
+            else:
+                assert len(mirror_padding) == 3, f"Invalid mirror_padding: {mirror_padding}"
+
+        self.mirror_padding = mirror_padding
         self.phase = phase
         self.file_path = file_path
-        self.mirror_padding = mirror_padding
-        self.pad_width = pad_width
 
         # convert raw_internal_path, label_internal_path and weight_internal_path to list for ease of computation
         if isinstance(raw_internal_path, str):
@@ -284,14 +297,16 @@ class AbstractHDF5Dataset(Dataset):
             self.weight_maps = None
 
             # add mirror padding if needed
-            if self.mirror_padding:
+            if self.mirror_padding is not None:
+                z, y, x = self.mirror_padding
+                pad_width = ((z, z), (y, y), (x, x))
                 padded_volumes = []
                 for raw in self.raws:
                     if raw.ndim == 4:
-                        channels = [np.pad(r, pad_width=self.pad_width, mode='reflect') for r in raw]
+                        channels = [np.pad(r, pad_width=pad_width, mode='reflect') for r in raw]
                         padded_volume = np.stack(channels)
                     else:
-                        padded_volume = np.pad(raw, pad_width=self.pad_width, mode='reflect')
+                        padded_volume = np.pad(raw, pad_width=pad_width, mode='reflect')
 
                     padded_volumes.append(padded_volume)
 
@@ -385,10 +400,16 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
     Fast but might consume a lot of memory.
     """
 
-    def __init__(self, file_path, phase, slice_builder_config, transformer_config, raw_internal_path='raw',
-                 label_internal_path='label', weight_internal_path=None, mirror_padding=False, pad_width=20):
-        super().__init__(file_path, phase, slice_builder_config, transformer_config, raw_internal_path,
-                         label_internal_path, weight_internal_path, mirror_padding, pad_width)
+    def __init__(self, file_path, phase, slice_builder_config, transformer_config, mirror_padding=(16, 32, 32),
+                 raw_internal_path='raw', label_internal_path='label', weight_internal_path=None):
+        super().__init__(file_path=file_path,
+                         phase=phase,
+                         slice_builder_config=slice_builder_config,
+                         transformer_config=transformer_config,
+                         mirror_padding=mirror_padding,
+                         raw_internal_path=raw_internal_path,
+                         label_internal_path=label_internal_path,
+                         weight_internal_path=weight_internal_path)
 
     @staticmethod
     def create_h5_file(file_path, internal_paths):
@@ -419,10 +440,16 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
     This can be workaround by using only a single worker thread, i.e. set `num_workers: 1` in the config.
     """
 
-    def __init__(self, file_path, phase, slice_builder_config, transformer_config, raw_internal_path='raw',
-                 label_internal_path='label', weight_internal_path=None, mirror_padding=False, pad_width=20):
-        super().__init__(file_path, phase, slice_builder_config, transformer_config, raw_internal_path,
-                         label_internal_path, weight_internal_path, mirror_padding, pad_width)
+    def __init__(self, file_path, phase, slice_builder_config, transformer_config, mirror_padding=(16, 32, 32),
+                 raw_internal_path='raw', label_internal_path='label', weight_internal_path=None):
+        super().__init__(file_path=file_path,
+                         phase=phase,
+                         slice_builder_config=slice_builder_config,
+                         transformer_config=transformer_config,
+                         mirror_padding=mirror_padding,
+                         raw_internal_path=raw_internal_path,
+                         label_internal_path=label_internal_path,
+                         weight_internal_path=weight_internal_path)
 
     @staticmethod
     def create_h5_file(file_path, internal_paths):
@@ -481,8 +508,8 @@ def _traverse_file_paths(file_paths):
     return results
 
 
-def _create_datasets(dataset_class, dataset_config, phase, raw_internal_path, label_internal_path, weight_internal_path,
-                     mirror_padding=False, pad_width=None):
+def _create_datasets(dataset_class, dataset_config, phase, mirror_padding, raw_internal_path,
+                     label_internal_path, weight_internal_path):
     slice_builder_config = dataset_config['slice_builder']
     transformer_config = dataset_config['transformer']
 
@@ -494,10 +521,14 @@ def _create_datasets(dataset_class, dataset_config, phase, raw_internal_path, la
     for file_path in file_paths:
         try:
             logger.info(f'Loading {phase} set from: {file_path}...')
-            dataset = dataset_class(file_path=file_path, phase=phase, slice_builder_config=slice_builder_config,
-                                    transformer_config=transformer_config, raw_internal_path=raw_internal_path,
-                                    label_internal_path=label_internal_path, weight_internal_path=weight_internal_path,
-                                    mirror_padding=mirror_padding, pad_width=pad_width)
+            dataset = dataset_class(file_path=file_path,
+                                    phase=phase,
+                                    slice_builder_config=slice_builder_config,
+                                    transformer_config=transformer_config,
+                                    mirror_padding=mirror_padding,
+                                    raw_internal_path=raw_internal_path,
+                                    label_internal_path=label_internal_path,
+                                    weight_internal_path=weight_internal_path)
             datasets.append(dataset)
         except Exception:
             logger.error(f'Skipping {phase} set: {file_path}', exc_info=True)
@@ -530,11 +561,11 @@ def get_train_loaders(config):
     assert set(loaders_config['train']['file_paths']).isdisjoint(loaders_config['val']['file_paths']), \
         "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
 
-    train_datasets = _create_datasets(dataset_class, loaders_config['train'], phase='train',
+    train_datasets = _create_datasets(dataset_class, loaders_config['train'], phase='train', mirror_padding=None,
                                       raw_internal_path=raw_internal_path, label_internal_path=label_internal_path,
                                       weight_internal_path=weight_internal_path)
 
-    val_datasets = _create_datasets(dataset_class, loaders_config['val'], phase='val',
+    val_datasets = _create_datasets(dataset_class, loaders_config['val'], phase='val', mirror_padding=None,
                                     raw_internal_path=raw_internal_path, label_internal_path=label_internal_path,
                                     weight_internal_path=weight_internal_path)
 
@@ -586,14 +617,16 @@ def get_test_loaders(config):
     # get h5 internal paths for raw and label
     raw_internal_path = loaders_config['raw_internal_path']
     # configure mirror padding
-    mirror_padding = loaders_config.get('mirror_padding', False)
-    pad_width = loaders_config.get('pad_width', 20)
-    if mirror_padding:
-        logger.info(f'Using mirror padding. Pad width: {pad_width}')
+    mirror_padding = loaders_config.get('mirror_padding', (16, 32, 32))
+    if mirror_padding is not None:
+        logger.info(f'Using mirror padding: {mirror_padding}')
+    else:
+        logger.info('Mirror padding disabled')
 
-    test_datasets = _create_datasets(dataset_class, loaders_config['test'], phase='test',
+    test_datasets = _create_datasets(dataset_class, loaders_config['test'],
+                                     phase='test', mirror_padding=mirror_padding,
                                      raw_internal_path=raw_internal_path, label_internal_path=None,
-                                     weight_internal_path=None, mirror_padding=mirror_padding, pad_width=pad_width)
+                                     weight_internal_path=None)
 
     num_workers = loaders_config.get('num_workers', 1)
     logger.info(f'Number of workers for the dataloader: {num_workers}')

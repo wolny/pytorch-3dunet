@@ -13,7 +13,8 @@ PyTorch implementation 3D U-Net and its variants:
 
 The code allows for training the U-Net for both: **semantic segmentation** (binary and multi-class) and **regression** problems (e.g. de-noising, learning deconvolutions).
 
- 
+## 2D U-Net
+Training the standard 2D U-Net is also possible, see [train_config_2d](resources/train_config_2d_boundary.yml) for example configuration.
 
 ## Prerequisites
 - Linux
@@ -166,6 +167,9 @@ CUDA_VISIBLE_DEVICES=0,1 predict3dunet --config <CONFIG>
 
 ### Regression
 * [train on a random noise sample](resources/train_config_regression.yaml) / [predict using the network trained on a regression problem](resources/test_config_regression.yaml)
+
+### 2D (semantic segmentation)
+* [train to predict cell boundaries in 2D](resources/train_config_2d_boundary.yml) / [predict cell boundaries in 2D](resources/test_config_2d_boundary.yml)
 
 ## Contribute
 If you want to contribute back, please make a pull request.

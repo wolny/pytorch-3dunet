@@ -27,8 +27,7 @@ loaders:
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
   batch_size: 1
   # mirror pad the raw data for sharper prediction near the boundaries of the volume
-  mirror_padding: true
-  pad_width: 20
+  mirror_padding: [0, 32, 32]
   # path to the raw data within the H5
   raw_internal_path: raw
   # how many subprocesses to use for data loading
