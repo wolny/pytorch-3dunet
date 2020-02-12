@@ -36,10 +36,13 @@ class Abstract3DUNet(nn.Module):
         testing (bool): if True (testing mode) the `final_activation` (if present, i.e. `is_segmentation=true`)
             will be applied as the last operation during the forward pass; if False the model is in training mode
             and the `final_activation` (even if present) won't be applied; default: False
+        conv_kernel_size (int or tuple): size of the convolving kernel in the basic_module
+        pool_kernel_size (int or tuple): the size of the window
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
-                 num_groups=8, num_levels=4, is_segmentation=True, testing=False, **kwargs):
+                 num_groups=8, num_levels=4, is_segmentation=True, testing=False,
+                 conv_kernel_size=3, pool_kernel_size=2, **kwargs):
         super(Abstract3DUNet, self).__init__()
 
         self.testing = testing
@@ -51,13 +54,21 @@ class Abstract3DUNet(nn.Module):
         encoders = []
         for i, out_feature_num in enumerate(f_maps):
             if i == 0:
-                encoder = Encoder(in_channels, out_feature_num, apply_pooling=False, basic_module=basic_module,
-                                  conv_layer_order=layer_order, num_groups=num_groups)
+                encoder = Encoder(in_channels, out_feature_num,
+                                  apply_pooling=False,  # skip pooling in the firs encoder
+                                  basic_module=basic_module,
+                                  conv_layer_order=layer_order,
+                                  conv_kernel_size=conv_kernel_size,
+                                  num_groups=num_groups)
             else:
                 # TODO: adapt for anisotropy in the data, i.e. use proper pooling kernel to make the data isotropic after 1-2 pooling operations
-                # currently pools with a constant kernel: (2, 2, 2)
-                encoder = Encoder(f_maps[i - 1], out_feature_num, basic_module=basic_module,
-                                  conv_layer_order=layer_order, num_groups=num_groups)
+                encoder = Encoder(f_maps[i - 1], out_feature_num,
+                                  basic_module=basic_module,
+                                  conv_layer_order=layer_order,
+                                  conv_kernel_size=conv_kernel_size,
+                                  num_groups=num_groups,
+                                  pool_kernel_size=pool_kernel_size)
+
             encoders.append(encoder)
 
         self.encoders = nn.ModuleList(encoders)
@@ -74,8 +85,11 @@ class Abstract3DUNet(nn.Module):
             out_feature_num = reversed_f_maps[i + 1]
             # TODO: if non-standard pooling was used, make sure to use correct striding for transpose conv
             # currently strides with a constant stride: (2, 2, 2)
-            decoder = Decoder(in_feature_num, out_feature_num, basic_module=basic_module,
-                              conv_layer_order=layer_order, num_groups=num_groups)
+            decoder = Decoder(in_feature_num, out_feature_num,
+                              basic_module=basic_module,
+                              conv_layer_order=layer_order,
+                              conv_kernel_size=conv_kernel_size,
+                              num_groups=num_groups)
             decoders.append(decoder)
 
         self.decoders = nn.ModuleList(decoders)
@@ -167,3 +181,24 @@ def get_model(config):
     model_config = config['model']
     model_class = _model_class(model_config['name'])
     return model_class(**model_config)
+
+
+class UNet2D(Abstract3DUNet):
+    """
+    Just a standard 2D Unet. Arises naturally by specifying conv_kernel_size=(1, 3, 3), pool_kernel_size=(1, 2, 2).
+    """
+
+    def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',
+                 num_groups=8, num_levels=4, is_segmentation=True, **kwargs):
+        super(UNet2D, self).__init__(in_channels=in_channels,
+                                     out_channels=out_channels,
+                                     final_sigmoid=final_sigmoid,
+                                     basic_module=DoubleConv,
+                                     f_maps=f_maps,
+                                     layer_order=layer_order,
+                                     num_groups=num_groups,
+                                     num_levels=num_levels,
+                                     is_segmentation=is_segmentation,
+                                     conv_kernel_size=(1, 3, 3),
+                                     pool_kernel_size=(1, 2, 2),
+                                     **kwargs)
