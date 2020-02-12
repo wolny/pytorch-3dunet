@@ -25,7 +25,7 @@ def create_conv(in_channels, out_channels, kernel_size, order, num_groups, paddi
             'ce' -> conv + ELU
             'bcr' -> batchnorm + conv + ReLU
         num_groups (int): number of groups for the GroupNorm
-        padding (int): add zero-padding to the input
+        padding (int or tuple): add zero-padding added to all three sides of the input
 
     Return:
         list of tuple (name, module)
@@ -78,13 +78,14 @@ class SingleConv(nn.Sequential):
     Args:
         in_channels (int): number of input channels
         out_channels (int): number of output channels
-        kernel_size (int): size of the convolving kernel
+        kernel_size (int or tuple): size of the convolving kernel
         order (string): determines the order of layers, e.g.
             'cr' -> conv + ReLU
             'crg' -> conv + ReLU + groupnorm
             'cl' -> conv + LeakyReLU
             'ce' -> conv + ELU
         num_groups (int): number of groups for the GroupNorm
+        padding (int or tuple):
     """
 
     def __init__(self, in_channels, out_channels, kernel_size=3, order='gcr', num_groups=8, padding=1):
@@ -107,16 +108,17 @@ class DoubleConv(nn.Sequential):
         in_channels (int): number of input channels
         out_channels (int): number of output channels
         encoder (bool): if True we're in the encoder path, otherwise we're in the decoder
-        kernel_size (int): size of the convolving kernel
+        kernel_size (int or tuple): size of the convolving kernel
         order (string): determines the order of layers, e.g.
             'cr' -> conv + ReLU
             'crg' -> conv + ReLU + groupnorm
             'cl' -> conv + LeakyReLU
             'ce' -> conv + ELU
         num_groups (int): number of groups for the GroupNorm
+        padding (int or tuple): add zero-padding added to all three sides of the input
     """
 
-    def __init__(self, in_channels, out_channels, encoder, kernel_size=3, order='gcr', num_groups=8):
+    def __init__(self, in_channels, out_channels, encoder, kernel_size=3, order='gcr', num_groups=8, padding=1):
         super(DoubleConv, self).__init__()
         if encoder:
             # we're in the encoder path
@@ -132,10 +134,12 @@ class DoubleConv(nn.Sequential):
 
         # conv1
         self.add_module('SingleConv1',
-                        SingleConv(conv1_in_channels, conv1_out_channels, kernel_size, order, num_groups))
+                        SingleConv(conv1_in_channels, conv1_out_channels, kernel_size, order, num_groups,
+                                   padding=padding))
         # conv2
         self.add_module('SingleConv2',
-                        SingleConv(conv2_in_channels, conv2_out_channels, kernel_size, order, num_groups))
+                        SingleConv(conv2_in_channels, conv2_out_channels, kernel_size, order, num_groups,
+                                   padding=padding))
 
 
 class ExtResNetBlock(nn.Module):
@@ -204,11 +208,12 @@ class Encoder(nn.Module):
         conv_layer_order (string): determines the order of layers
             in `DoubleConv` module. See `DoubleConv` for more info.
         num_groups (int): number of groups for the GroupNorm
+        padding (int or tuple): add zero-padding added to all three sides of the input
     """
 
     def __init__(self, in_channels, out_channels, conv_kernel_size=3, apply_pooling=True,
                  pool_kernel_size=2, pool_type='max', basic_module=DoubleConv, conv_layer_order='gcr',
-                 num_groups=8):
+                 num_groups=8, padding=1):
         super(Encoder, self).__init__()
         assert pool_type in ['max', 'avg']
         if apply_pooling:
@@ -223,7 +228,8 @@ class Encoder(nn.Module):
                                          encoder=True,
                                          kernel_size=conv_kernel_size,
                                          order=conv_layer_order,
-                                         num_groups=num_groups)
+                                         num_groups=num_groups,
+                                         padding=padding)
 
     def forward(self, x):
         if self.pooling is not None:
@@ -247,10 +253,11 @@ class Decoder(nn.Module):
         conv_layer_order (string): determines the order of layers
             in `DoubleConv` module. See `DoubleConv` for more info.
         num_groups (int): number of groups for the GroupNorm
+        padding (int or tuple): add zero-padding added to all three sides of the input
     """
 
     def __init__(self, in_channels, out_channels, conv_kernel_size=3, scale_factor=(2, 2, 2), basic_module=DoubleConv,
-                 conv_layer_order='gcr', num_groups=8, mode='nearest'):
+                 conv_layer_order='gcr', num_groups=8, mode='nearest', padding=1):
         super(Decoder, self).__init__()
         if basic_module == DoubleConv:
             # if DoubleConv is the basic_module use interpolation for upsampling and concatenation joining
@@ -271,7 +278,8 @@ class Decoder(nn.Module):
                                          encoder=False,
                                          kernel_size=conv_kernel_size,
                                          order=conv_layer_order,
-                                         num_groups=num_groups)
+                                         num_groups=num_groups,
+                                         padding=padding)
 
     def forward(self, encoder_features, x):
         x = self.upsampling(encoder_features=encoder_features, x=x)

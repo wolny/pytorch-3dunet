@@ -38,11 +38,12 @@ class Abstract3DUNet(nn.Module):
             and the `final_activation` (even if present) won't be applied; default: False
         conv_kernel_size (int or tuple): size of the convolving kernel in the basic_module
         pool_kernel_size (int or tuple): the size of the window
+        conv_padding (int or tuple): add zero-padding added to all three sides of the input
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
                  num_groups=8, num_levels=4, is_segmentation=True, testing=False,
-                 conv_kernel_size=3, pool_kernel_size=2, **kwargs):
+                 conv_kernel_size=3, pool_kernel_size=2, conv_padding=1, **kwargs):
         super(Abstract3DUNet, self).__init__()
 
         self.testing = testing
@@ -59,7 +60,8 @@ class Abstract3DUNet(nn.Module):
                                   basic_module=basic_module,
                                   conv_layer_order=layer_order,
                                   conv_kernel_size=conv_kernel_size,
-                                  num_groups=num_groups)
+                                  num_groups=num_groups,
+                                  padding=conv_padding)
             else:
                 # TODO: adapt for anisotropy in the data, i.e. use proper pooling kernel to make the data isotropic after 1-2 pooling operations
                 encoder = Encoder(f_maps[i - 1], out_feature_num,
@@ -67,7 +69,8 @@ class Abstract3DUNet(nn.Module):
                                   conv_layer_order=layer_order,
                                   conv_kernel_size=conv_kernel_size,
                                   num_groups=num_groups,
-                                  pool_kernel_size=pool_kernel_size)
+                                  pool_kernel_size=pool_kernel_size,
+                                  padding=conv_padding)
 
             encoders.append(encoder)
 
@@ -89,7 +92,8 @@ class Abstract3DUNet(nn.Module):
                               basic_module=basic_module,
                               conv_layer_order=layer_order,
                               conv_kernel_size=conv_kernel_size,
-                              num_groups=num_groups)
+                              num_groups=num_groups,
+                              padding=conv_padding)
             decoders.append(decoder)
 
         self.decoders = nn.ModuleList(decoders)
@@ -171,18 +175,6 @@ class ResidualUNet3D(Abstract3DUNet):
                                              **kwargs)
 
 
-def get_model(config):
-    def _model_class(class_name):
-        m = importlib.import_module('pytorch3dunet.unet3d.model')
-        clazz = getattr(m, class_name)
-        return clazz
-
-    assert 'model' in config, 'Could not find model configuration'
-    model_config = config['model']
-    model_class = _model_class(model_config['name'])
-    return model_class(**model_config)
-
-
 class UNet2D(Abstract3DUNet):
     """
     Just a standard 2D Unet. Arises naturally by specifying conv_kernel_size=(1, 3, 3), pool_kernel_size=(1, 2, 2).
@@ -201,4 +193,17 @@ class UNet2D(Abstract3DUNet):
                                      is_segmentation=is_segmentation,
                                      conv_kernel_size=(1, 3, 3),
                                      pool_kernel_size=(1, 2, 2),
+                                     conv_padding=(0, 1, 1),
                                      **kwargs)
+
+
+def get_model(config):
+    def _model_class(class_name):
+        m = importlib.import_module('pytorch3dunet.unet3d.model')
+        clazz = getattr(m, class_name)
+        return clazz
+
+    assert 'model' in config, 'Could not find model configuration'
+    model_config = config['model']
+    model_class = _model_class(model_config['name'])
+    return model_class(**model_config)

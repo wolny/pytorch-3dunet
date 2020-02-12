@@ -22,6 +22,11 @@ def train_config():
     config_path = os.path.join(TEST_FILES, 'config_train.yml')
     return yaml.load(open(config_path, 'r'))
 
+@pytest.fixture
+def train_config_2d():
+    config_path = os.path.join(TEST_FILES, 'config_train_2d.yml')
+    return yaml.load(open(config_path, 'r'))
+
 
 @pytest.fixture
 def random_input(tmpdir):

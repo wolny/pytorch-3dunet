@@ -40,8 +40,10 @@ class TestUNet3DTrainer:
         with capsys.disabled():
             assert_train_save_load(tmpdir, train_config, 'CrossEntropyLoss', 'MeanIoU', 'ResidualUNet3D')
 
-    def test_2d_unet(self, tmpdir, capsys):
-        pass
+    def test_2d_unet(self, tmpdir, capsys, train_config_2d):
+        with capsys.disabled():
+            assert_train_save_load(tmpdir, train_config_2d, 'CrossEntropyLoss', 'MeanIoU', 'UNet2D',
+                                   shape=(3, 1, 128, 128))
 
 
 def assert_train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map=False, shape=(3, 64, 64, 64)):
