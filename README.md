@@ -73,9 +73,8 @@ If not specified `MeanIoU` will be used by default.
 ## Installation
 - The easiest way to install `pytorch-3dunet` package is via conda:
 ```
-conda create --name 3dunet python=3.7
-conda activate 3dunet 
-conda install -c conda-forge -c awolny pytorch-3dunet
+conda create -n 3dunet -c conda-forge -c awolny python=3.7 pytorch-3dunet
+conda activate 3dunet
 ```
 After installation the following commands are accessible within the conda environment:
 `train3dunet` for training the network and `predict3dunet` for prediction (see below).
