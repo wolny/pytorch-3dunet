@@ -37,7 +37,7 @@ before_deploy:
 
 deploy:
   - provider: script
-    script: anaconda -t $CONDA_UPLOAD_TOKEN upload $HOME/miniconda3/conda-bld/**/pytorch-3dunet-*.tar.bz2
+    script: anaconda -t $CONDA_UPLOAD_TOKEN upload $HOME/miniconda/conda-bld/**/pytorch-3dunet-*.tar.bz2
     on:
       tags: true
     skip_cleanup: true
