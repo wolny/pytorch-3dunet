@@ -145,25 +145,26 @@ def find_maximum_patch_size(model, device):
         model(patch)
 
 
-def unpad(patch, index, shape, pad_width=4):
+def remove_halo(patch, index, shape, patch_halo):
     """
     Remove `pad_width` voxels around the edges of a given patch.
     """
+    assert len(patch_halo) == 3
 
-    def _new_slices(slicing, max_size):
+    def _new_slices(slicing, max_size, pad):
         if slicing.start == 0:
             p_start = 0
             i_start = 0
         else:
-            p_start = pad_width
-            i_start = slicing.start + pad_width
+            p_start = pad
+            i_start = slicing.start + pad
 
         if slicing.stop == max_size:
             p_stop = None
             i_stop = max_size
         else:
-            p_stop = -pad_width
-            i_stop = slicing.stop - pad_width
+            p_stop = -pad
+            i_stop = slicing.stop - pad
 
         return slice(p_start, p_stop), slice(i_start, i_stop)
 
@@ -172,9 +173,9 @@ def unpad(patch, index, shape, pad_width=4):
     i_c, i_z, i_y, i_x = index
     p_c = slice(0, patch.shape[0])
 
-    p_z, i_z = _new_slices(i_z, D)
-    p_y, i_y = _new_slices(i_y, H)
-    p_x, i_x = _new_slices(i_x, W)
+    p_z, i_z = _new_slices(i_z, D, patch_halo[0])
+    p_y, i_y = _new_slices(i_y, H, patch_halo[1])
+    p_x, i_x = _new_slices(i_x, W, patch_halo[2])
 
     patch_index = (p_c, p_z, p_y, p_x)
     index = (i_c, i_z, i_y, i_x)

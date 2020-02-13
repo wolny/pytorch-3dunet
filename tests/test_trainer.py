@@ -1,5 +1,3 @@
-import copy
-import logging
 import os
 from tempfile import NamedTemporaryFile
 
@@ -13,194 +11,126 @@ from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.trainer import UNet3DTrainer
-from pytorch3dunet.unet3d.utils import get_logger, DefaultTensorboardFormatter
-
-CONFIG_BASE = {
-    'model': {
-        'name': 'UNet3D',
-        'in_channels': 3,
-        'out_channels': 2,
-        'f_maps': 16
-    },
-    'optimizer': {
-        'learning_rate': 0.0002,
-        'weight_decay': 0.0001
-    },
-    'lr_scheduler': {
-        'name': 'MultiStepLR',
-        'milestones': [2, 3],
-        'gamma': 0.5
-    },
-    'loaders': {
-        'raw_internal_path': 'raw',
-        'label_internal_path': 'label',
-        'weight_internal_path': None,
-
-        'train': {
-            'slice_builder': {
-                'name': 'SliceBuilder',
-                'patch_shape': (32, 64, 64),
-                'stride_shape': (32, 64, 64)
-            },
-            'transformer': {
-                'raw': [{'name': 'Normalize'}, {'name': 'ToTensor', 'expand_dims': True}],
-                'label': [{'name': 'ToTensor', 'expand_dims': False}],
-                'weight': [{'name': 'ToTensor', 'expand_dims': False}]
-            }
-        },
-        'val': {
-            'slice_builder': {
-                'name': 'SliceBuilder',
-                'patch_shape': (32, 64, 64),
-                'stride_shape': (32, 64, 64)
-            },
-            'transformer': {
-                'raw': [{'name': 'Normalize'}, {'name': 'ToTensor', 'expand_dims': True}],
-                'label': [{'name': 'ToTensor', 'expand_dims': False}],
-                'weight': [{'name': 'ToTensor', 'expand_dims': False}]
-            }
-        }
-    }
-}
+from pytorch3dunet.unet3d.utils import DefaultTensorboardFormatter
 
 
 class TestUNet3DTrainer:
-    def test_ce_loss(self, tmpdir, capsys):
+    def test_ce_loss(self, tmpdir, capsys, train_config):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'CrossEntropyLoss', 'MeanIoU')
+            assert_train_save_load(tmpdir, train_config, 'CrossEntropyLoss', 'MeanIoU', 'UNet3D')
 
-            assert trainer.max_num_epochs == 1
-            assert trainer.log_after_iters == 2
-            assert trainer.validate_after_iters == 2
-            assert trainer.max_num_iterations == 4
-
-    def test_wce_loss(self, tmpdir, capsys):
+    def test_wce_loss(self, tmpdir, capsys, train_config):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'WeightedCrossEntropyLoss', 'MeanIoU')
+            assert_train_save_load(tmpdir, train_config, 'WeightedCrossEntropyLoss', 'MeanIoU', 'UNet3D')
 
-            assert trainer.max_num_epochs == 1
-            assert trainer.log_after_iters == 2
-            assert trainer.validate_after_iters == 2
-            assert trainer.max_num_iterations == 4
-
-    def test_bce_loss(self, tmpdir, capsys):
+    def test_bce_loss(self, tmpdir, capsys, train_config):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'BCEWithLogitsLoss', 'DiceCoefficient')
+            assert_train_save_load(tmpdir, train_config, 'BCEWithLogitsLoss', 'DiceCoefficient', 'UNet3D')
 
-            assert trainer.max_num_epochs == 1
-            assert trainer.log_after_iters == 2
-            assert trainer.validate_after_iters == 2
-            assert trainer.max_num_iterations == 4
-
-    def test_dice_loss(self, tmpdir, capsys):
+    def test_dice_loss(self, tmpdir, capsys, train_config):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'DiceLoss', 'MeanIoU')
+            assert_train_save_load(tmpdir, train_config, 'DiceLoss', 'MeanIoU', 'UNet3D')
 
-            assert trainer.max_num_epochs == 1
-            assert trainer.log_after_iters == 2
-            assert trainer.validate_after_iters == 2
-            assert trainer.max_num_iterations == 4
-
-    def test_pce_loss(self, tmpdir, capsys):
+    def test_pce_loss(self, tmpdir, capsys, train_config):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'PixelWiseCrossEntropyLoss', 'MeanIoU', weight_map=True)
+            assert_train_save_load(tmpdir, train_config, 'PixelWiseCrossEntropyLoss', 'MeanIoU', 'UNet3D',
+                                   weight_map=True)
 
-            assert trainer.max_num_epochs == 1
-            assert trainer.log_after_iters == 2
-            assert trainer.validate_after_iters == 2
-            assert trainer.max_num_iterations == 4
-
-    def test_residual_unet(self, tmpdir, capsys):
+    def test_residual_unet(self, tmpdir, capsys, train_config):
         with capsys.disabled():
-            trainer = self._train_save_load(tmpdir, 'CrossEntropyLoss', 'MeanIoU', model='ResidualUNet3D')
+            assert_train_save_load(tmpdir, train_config, 'CrossEntropyLoss', 'MeanIoU', 'ResidualUNet3D')
 
-            assert trainer.max_num_epochs == 1
-            assert trainer.log_after_iters == 2
-            assert trainer.validate_after_iters == 2
-            assert trainer.max_num_iterations == 4
+    def test_2d_unet(self, tmpdir, capsys, train_config_2d):
+        with capsys.disabled():
+            assert_train_save_load(tmpdir, train_config_2d, 'CrossEntropyLoss', 'MeanIoU', 'UNet2D',
+                                   shape=(3, 1, 128, 128))
 
-    def _train_save_load(self, tmpdir, loss, val_metric, model='UNet3D', max_num_epochs=1, log_after_iters=2,
-                         validate_after_iters=2, max_num_iterations=4, weight_map=False):
-        binary_loss = loss in ['BCEWithLogitsLoss', 'DiceLoss', 'GeneralizedDiceLoss']
 
-        device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+def assert_train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map=False, shape=(3, 64, 64, 64)):
+    max_num_epochs = train_config['trainer']['epochs']
+    log_after_iters = train_config['trainer']['log_after_iters']
+    validate_after_iters = train_config['trainer']['validate_after_iters']
+    max_num_iterations = train_config['trainer']['iters']
 
-        test_config = copy.deepcopy(CONFIG_BASE)
-        test_config['model']['name'] = model
-        test_config.update({
-            # get device to train on
-            'device': device,
-            'loss': {'name': loss, 'weight': np.random.rand(2).astype(np.float32), 'pos_weight': 3.},
-            'eval_metric': {'name': val_metric}
-        })
-        test_config['model']['final_sigmoid'] = binary_loss
+    trainer = _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, shape)
 
-        if weight_map:
-            test_config['loaders']['weight_internal_path'] = 'weight_map'
+    assert trainer.num_iterations == max_num_iterations
+    assert trainer.max_num_epochs == max_num_epochs
+    assert trainer.log_after_iters == log_after_iters
+    assert trainer.validate_after_iters == validate_after_iters
+    assert trainer.max_num_iterations == max_num_iterations
 
-        loss_criterion = get_loss_criterion(test_config)
-        eval_criterion = get_evaluation_metric(test_config)
-        model = get_model(test_config)
-        model = model.to(device)
 
-        if loss in ['BCEWithLogitsLoss']:
-            label_dtype = 'float32'
-        else:
-            label_dtype = 'long'
-        test_config['loaders']['train']['transformer']['label'][0]['dtype'] = label_dtype
-        test_config['loaders']['val']['transformer']['label'][0]['dtype'] = label_dtype
+def _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, shape):
+    binary_loss = loss in ['BCEWithLogitsLoss', 'DiceLoss', 'BCEDiceLoss', 'GeneralizedDiceLoss']
 
-        train, val = TestUNet3DTrainer._create_random_dataset((3, 128, 128, 128), (3, 64, 64, 64), binary_loss)
-        test_config['loaders']['train']['file_paths'] = [train]
-        test_config['loaders']['val']['file_paths'] = [val]
+    device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
-        loaders = get_train_loaders(test_config)
+    train_config['model']['name'] = model
+    train_config.update({
+        # get device to train on
+        'device': device,
+        'loss': {'name': loss, 'weight': np.random.rand(2).astype(np.float32), 'pos_weight': 3.},
+        'eval_metric': {'name': val_metric}
+    })
+    train_config['model']['final_sigmoid'] = binary_loss
 
-        optimizer = _create_optimizer(test_config, model)
+    if weight_map:
+        train_config['loaders']['weight_internal_path'] = 'weight_map'
 
-        test_config['lr_scheduler']['name'] = 'MultiStepLR'
-        lr_scheduler = _create_lr_scheduler(test_config, optimizer)
+    loss_criterion = get_loss_criterion(train_config)
+    eval_criterion = get_evaluation_metric(train_config)
+    model = get_model(train_config)
+    model = model.to(device)
 
-        logger = get_logger('UNet3DTrainer', logging.DEBUG)
+    if loss in ['BCEWithLogitsLoss']:
+        label_dtype = 'float32'
+        train_config['loaders']['train']['transformer']['label'][0]['dtype'] = label_dtype
+        train_config['loaders']['val']['transformer']['label'][0]['dtype'] = label_dtype
 
-        formatter = DefaultTensorboardFormatter()
-        trainer = UNet3DTrainer(model, optimizer, lr_scheduler,
-                                loss_criterion, eval_criterion,
-                                device, loaders, tmpdir,
-                                max_num_epochs=max_num_epochs,
-                                log_after_iters=log_after_iters,
-                                validate_after_iters=validate_after_iters,
-                                max_num_iterations=max_num_iterations,
-                                tensorboard_formatter=formatter)
-        trainer.fit()
-        # test loading the trainer from the checkpoint
-        trainer = UNet3DTrainer.from_checkpoint(os.path.join(tmpdir, 'last_checkpoint.pytorch'),
-                                                model, optimizer, lr_scheduler,
-                                                loss_criterion, eval_criterion,
-                                                loaders, tensorboard_formatter=formatter)
-        return trainer
+    train = _create_random_dataset(shape, binary_loss)
+    val = _create_random_dataset(shape, binary_loss)
+    train_config['loaders']['train']['file_paths'] = [train]
+    train_config['loaders']['val']['file_paths'] = [val]
 
-    @staticmethod
-    def _create_random_dataset(train_shape, val_shape, channel_per_class):
-        result = []
+    loaders = get_train_loaders(train_config)
 
-        for shape in [train_shape, val_shape]:
-            tmp = NamedTemporaryFile(delete=False)
+    optimizer = _create_optimizer(train_config, model)
+    lr_scheduler = _create_lr_scheduler(train_config, optimizer)
 
-            with h5py.File(tmp.name, 'w') as f:
-                l_shape = w_shape = shape
-                # make sure that label and weight tensors are 3D
-                if len(shape) == 4:
-                    l_shape = shape[1:]
-                    w_shape = shape[1:]
+    formatter = DefaultTensorboardFormatter()
+    trainer = UNet3DTrainer(model, optimizer, lr_scheduler,
+                            loss_criterion, eval_criterion,
+                            device, loaders, tmpdir,
+                            max_num_epochs=train_config['trainer']['epochs'],
+                            log_after_iters=train_config['trainer']['log_after_iters'],
+                            validate_after_iters=train_config['trainer']['log_after_iters'],
+                            max_num_iterations=train_config['trainer']['iters'],
+                            tensorboard_formatter=formatter)
+    trainer.fit()
+    # test loading the trainer from the checkpoint
+    trainer = UNet3DTrainer.from_checkpoint(os.path.join(tmpdir, 'last_checkpoint.pytorch'),
+                                            model, optimizer, lr_scheduler,
+                                            loss_criterion, eval_criterion,
+                                            loaders, tensorboard_formatter=formatter)
+    return trainer
 
-                if channel_per_class:
-                    l_shape = (2,) + l_shape
 
-                f.create_dataset('raw', data=np.random.rand(*shape))
-                f.create_dataset('label', data=np.random.randint(0, 2, l_shape))
-                f.create_dataset('weight_map', data=np.random.rand(*w_shape))
+def _create_random_dataset(shape, channel_per_class):
+    tmp = NamedTemporaryFile(delete=False)
 
-            result.append(tmp.name)
+    with h5py.File(tmp.name, 'w') as f:
+        l_shape = w_shape = shape
+        # make sure that label and weight tensors are 3D
+        if len(shape) == 4:
+            l_shape = shape[1:]
+            w_shape = shape[1:]
 
-        return result
+        if channel_per_class:
+            l_shape = (2,) + l_shape
+
+        f.create_dataset('raw', data=np.random.rand(*shape))
+        f.create_dataset('label', data=np.random.randint(0, 2, l_shape))
+        f.create_dataset('weight_map', data=np.random.rand(*w_shape))
+
+    return tmp.name

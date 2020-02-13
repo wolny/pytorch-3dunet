@@ -8,7 +8,7 @@ from sklearn.cluster import MeanShift
 
 from pytorch3dunet.datasets.hdf5 import SliceBuilder
 from pytorch3dunet.unet3d.utils import get_logger
-from pytorch3dunet.unet3d.utils import unpad
+from pytorch3dunet.unet3d.utils import remove_halo
 
 logger = get_logger('UNet3DPredictor')
 
@@ -85,8 +85,9 @@ class StandardPredictor(_AbstractPredictor):
 
         logger.info(f'The shape of the output prediction maps (CDHW): {prediction_maps_shape}')
 
-        avoid_block_artifacts = self.predictor_config.get('avoid_block_artifacts', True)
-        logger.info(f'Avoid block artifacts: {avoid_block_artifacts}')
+        patch_halo = self.predictor_config.get('patch_halo', (4, 8, 8))
+        self._validate_halo(patch_halo, self.config['loaders']['test']['slice_builder'])
+        logger.info(f'Using patch_halo: {patch_halo}')
 
         # create destination H5 file
         h5_output_file = h5py.File(self.output_file, 'w')
@@ -135,18 +136,12 @@ class StandardPredictor(_AbstractPredictor):
 
                         logger.info(f'Saving predictions for slice:{index}...')
 
-                        if avoid_block_artifacts:
-                            # unpad in order to avoid block artifacts in the output probability maps
-                            u_prediction, u_index = unpad(pred, index, volume_shape)
-                            # accumulate probabilities into the output prediction array
-                            prediction_map[u_index] += u_prediction
-                            # count voxel visits for normalization
-                            normalization_mask[u_index] += 1
-                        else:
-                            # accumulate probabilities into the output prediction array
-                            prediction_map[index] += pred
-                            # count voxel visits for normalization
-                            normalization_mask[index] += 1
+                        # remove halo in order to avoid block artifacts in the output probability maps
+                        u_prediction, u_index = remove_halo(pred, index, volume_shape, patch_halo)
+                        # accumulate probabilities into the output prediction array
+                        prediction_map[u_index] += u_prediction
+                        # count voxel visits for normalization
+                        normalization_mask[u_index] += 1
 
         # save results to
         self._save_results(prediction_maps, normalization_masks, output_heads, h5_output_file, self.loader.dataset)
@@ -161,20 +156,37 @@ class StandardPredictor(_AbstractPredictor):
         return prediction_maps, normalization_masks
 
     def _save_results(self, prediction_maps, normalization_masks, output_heads, output_file, dataset):
+        def _slice_from_pad(pad):
+            if pad == 0:
+                return slice(None, None)
+            else:
+                return slice(pad, -pad)
+
         # save probability maps
         prediction_datasets = self._get_output_dataset_names(output_heads, prefix='predictions')
         for prediction_map, normalization_mask, prediction_dataset in zip(prediction_maps, normalization_masks,
                                                                           prediction_datasets):
             prediction_map = prediction_map / normalization_mask
 
-            if dataset.mirror_padding:
-                pad_width = dataset.pad_width
-                logger.info(f'Dataset loaded with mirror padding, pad_width: {pad_width}. Cropping before saving...')
+            if dataset.mirror_padding is not None:
+                z_s, y_s, x_s = [_slice_from_pad(p) for p in dataset.mirror_padding]
 
-                prediction_map = prediction_map[:, pad_width:-pad_width, pad_width:-pad_width, pad_width:-pad_width]
+                logger.info(f'Dataset loaded with mirror padding: {dataset.mirror_padding}. Cropping before saving...')
+
+                prediction_map = prediction_map[:, z_s, y_s, x_s]
 
             logger.info(f'Saving predictions to: {output_file}/{prediction_dataset}...')
             output_file.create_dataset(prediction_dataset, data=prediction_map, compression="gzip")
+
+    @staticmethod
+    def _validate_halo(patch_halo, slice_builder_config):
+        patch = slice_builder_config['patch_shape']
+        stride = slice_builder_config['stride_shape']
+
+        patch_overlap = np.subtract(patch, stride)
+
+        assert np.all(
+            patch_overlap - patch_halo >= 0), f"Not enough patch overlap for stride: {stride} and halo: {patch_halo}"
 
 
 class LazyPredictor(StandardPredictor):

@@ -9,7 +9,7 @@ from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, _traverse_file_path
 
 
 class TestHDF5Dataset:
-    def test_hdf5_dataset(self):
+    def test_hdf5_dataset(self, transformer_config):
         path = create_random_dataset((128, 128, 128))
 
         patch_shapes = [(127, 127, 127), (69, 70, 70), (32, 64, 64)]
@@ -23,10 +23,11 @@ class TestHDF5Dataset:
                 label = f['label'][...]
 
                 dataset = StandardHDF5Dataset(path, phase=phase,
-                                      slice_builder_config=create_slice_builder(patch_shape, stride_shape),
-                                      transformer_config=transformer_config[phase],
-                                      raw_internal_path='raw',
-                                      label_internal_path='label')
+                                              slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
+                                              transformer_config=transformer_config[phase]['transformer'],
+                                              mirror_padding=None,
+                                              raw_internal_path='raw',
+                                              label_internal_path='label')
 
                 # create zero-arrays of the same shape as the original dataset in order to verify if every element
                 # was visited during the iteration
@@ -41,49 +42,51 @@ class TestHDF5Dataset:
                 assert np.all(visit_raw)
                 assert np.all(visit_label)
 
-    def test_hdf5_with_multiple_label_datasets(self):
+    def test_hdf5_with_multiple_label_datasets(self, transformer_config):
         path = create_random_dataset((128, 128, 128), label_datasets=['label1', 'label2'])
         patch_shape = (32, 64, 64)
         stride_shape = (32, 64, 64)
         phase = 'train'
         dataset = StandardHDF5Dataset(path, phase=phase,
-                              slice_builder_config=create_slice_builder(patch_shape, stride_shape),
-                              transformer_config=transformer_config[phase],
-                              raw_internal_path='raw',
-                              label_internal_path=['label1', 'label2'])
+                                      slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
+                                      transformer_config=transformer_config[phase]['transformer'],
+                                      raw_internal_path='raw',
+                                      label_internal_path=['label1', 'label2'])
 
         for raw, labels in dataset:
             assert len(labels) == 2
 
-    def test_hdf5_with_multiple_raw_and_label_datasets(self):
+    def test_hdf5_with_multiple_raw_and_label_datasets(self, transformer_config):
         path = create_random_dataset((128, 128, 128), raw_datasets=['raw1', 'raw2'],
                                      label_datasets=['label1', 'label2'])
         patch_shape = (32, 64, 64)
         stride_shape = (32, 64, 64)
         phase = 'train'
         dataset = StandardHDF5Dataset(path, phase=phase,
-                              slice_builder_config=create_slice_builder(patch_shape, stride_shape),
-                              transformer_config=transformer_config[phase],
-                              raw_internal_path=['raw1', 'raw2'], label_internal_path=['label1', 'label2'])
+                                      slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
+                                      transformer_config=transformer_config[phase]['transformer'],
+                                      raw_internal_path=['raw1', 'raw2'], label_internal_path=['label1', 'label2'])
 
         for raws, labels in dataset:
             assert len(raws) == 2
             assert len(labels) == 2
 
-    def test_augmentation(self):
+    def test_augmentation(self, transformer_config):
         raw = np.random.rand(32, 96, 96)
         # assign raw to label's channels for ease of comparison
         label = np.stack(raw for _ in range(3))
-
+        # create temporary h5 file
         tmp_file = NamedTemporaryFile()
         tmp_path = tmp_file.name
         with h5py.File(tmp_path, 'w') as f:
             f.create_dataset('raw', data=raw)
             f.create_dataset('label', data=label)
+
+        # set phase='train' in order to execute the train transformers
         phase = 'train'
         dataset = StandardHDF5Dataset(tmp_path, phase=phase,
-                              slice_builder_config=create_slice_builder((16, 64, 64), (8, 32, 32)),
-                              transformer_config=transformer_config[phase])
+                                      slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32)),
+                                      transformer_config=transformer_config[phase]['transformer'])
 
         # test augmentations using DataLoader with 4 worker threads
         data_loader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=True)
@@ -114,7 +117,12 @@ class TestHDF5Dataset:
         assert expected_files == actual_files
 
 
-def create_random_dataset(shape, ignore_index=False, raw_datasets=['raw'], label_datasets=['label']):
+def create_random_dataset(shape, ignore_index=False, raw_datasets=None, label_datasets=None):
+    if label_datasets is None:
+        label_datasets = ['label']
+    if raw_datasets is None:
+        raw_datasets = ['raw']
+
     tmp_file = NamedTemporaryFile(delete=False)
 
     with h5py.File(tmp_file.name, 'w') as f:
@@ -130,35 +138,9 @@ def create_random_dataset(shape, ignore_index=False, raw_datasets=['raw'], label
     return tmp_file.name
 
 
-def create_slice_builder(patch_shape, stride_shape):
+def _slice_builder_conf(patch_shape, stride_shape):
     return {
         'name': 'SliceBuilder',
         'patch_shape': patch_shape,
         'stride_shape': stride_shape
     }
-
-
-transformer_config = {
-    'train': {
-        'raw': [
-            {'name': 'RandomFlip'},
-            {'name': 'RandomRotate90'},
-            {'name': 'RandomRotate', 'angle_spectrum': 5, 'axes': [[1, 0]]},
-            {'name': 'RandomRotate', 'angle_spectrum': 30, 'axes': [[2, 1]]},
-            {'name': 'ElasticDeformation', 'spline_order': 3},
-            {'name': 'ToTensor', 'expand_dims': True}
-        ],
-        'label': [
-            {'name': 'RandomFlip'},
-            {'name': 'RandomRotate90'},
-            {'name': 'RandomRotate', 'angle_spectrum': 5, 'axes': [[1, 0]]},
-            {'name': 'RandomRotate', 'angle_spectrum': 30, 'axes': [[2, 1]]},
-            {'name': 'ElasticDeformation', 'spline_order': 3},
-            {'name': 'ToTensor', 'expand_dims': False}
-        ]
-    },
-    'test': {
-        'raw': [{'name': 'ToTensor', 'expand_dims': True}],
-        'label': [{'name': 'ToTensor', 'expand_dims': False}]
-    }
-}

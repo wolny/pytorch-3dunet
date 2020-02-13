@@ -1,0 +1,83 @@
+manual_seed: 0
+model:
+  # model class, e.g. UNet3D, ResidualUNet3D
+  name: UNet3D
+  in_channels: 3
+  out_channels: 2
+  layer_order: gcr
+  f_maps: 16
+  num_groups: 4
+  final_sigmoid: false
+  is_segmentation: true
+trainer:
+  batch_size: 1
+  checkpoint_dir: 3dunet
+  resume: null
+  validate_after_iters: 2
+  log_after_iters: 2
+  epochs: 1
+  iters: 2
+  eval_score_higher_is_better: True
+optimizer:
+  learning_rate: 0.0002
+  weight_decay: 0.00001
+loss:
+  name: CrossEntropyLoss
+eval_metric:
+  name: MeanIoU
+  ignore_index: null
+lr_scheduler:
+  name: MultiStepLR
+  milestones: [2, 3]
+  gamma: 0.5
+loaders:
+  dataset: StandardHDF5Dataset
+  batch_size: 1
+  num_workers: 4
+  raw_internal_path: raw
+  label_internal_path: label
+  weight_internal_path: null
+  train:
+    file_paths:
+      - ''
+
+    slice_builder:
+      name: SliceBuilder
+      patch_shape: [32, 64, 64]
+      stride_shape: [32, 64, 64]
+
+    transformer:
+      raw:
+        - name: Standardize
+        - name: ToTensor
+          expand_dims: true
+      label:
+        - name: ToTensor
+          # do not expand dims for cross-entropy loss
+          expand_dims: false
+          # cross-entropy loss requires target to be of type 'long'
+          dtype: 'long'
+      weight:
+        - name: ToTensor
+          expand_dims: false
+  val:
+    file_paths:
+      - ''
+
+    slice_builder:
+      name: SliceBuilder
+      patch_shape: [32, 64, 64]
+      stride_shape: [32, 64, 64]
+
+    transformer:
+      raw:
+        - name: Standardize
+        - name: ToTensor
+          expand_dims: true
+      label:
+        - name: ToTensor
+          expand_dims: false
+          dtype: 'long'
+      weight:
+        - name: ToTensor
+          expand_dims: false
