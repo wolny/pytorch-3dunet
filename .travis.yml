@@ -10,13 +10,14 @@ before_install:
   - source "$HOME/miniconda/etc/profile.d/conda.sh"
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
+  - conda config --set anaconda_upload no
   - conda update -q conda
   # Useful for debugging any issues with conda
   - conda info -a
-  # install conda-build and anaconda-client
-  - conda install -q conda-build anaconda-client
 
 install:
+  # install conda-build
+  - conda install -q conda-build anaconda-client
   # build conda recipe
   - conda build -c conda-forge --python=$TRAVIS_PYTHON_VERSION conda-recipe
 
