@@ -51,6 +51,7 @@ class TestPredictor:
         dataset = StandardHDF5Dataset(gt_file, phase='test',
                                       slice_builder_config=slice_builder_config,
                                       transformer_config=transformer_config,
+                                      mirror_padding=None,
                                       raw_internal_path='label')
 
         loader = DataLoader(dataset, batch_size=1, num_workers=1, shuffle=False, collate_fn=prediction_collate)

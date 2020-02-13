@@ -13,8 +13,8 @@ before_install:
   - conda update -q conda
   # Useful for debugging any issues with conda
   - conda info -a
-  # install conda-build
-  - conda install -q conda-build
+  # install conda-build and anaconda-client
+  - conda install -q conda-build anaconda-client
 
 install:
   # build conda recipe
@@ -28,4 +28,11 @@ before_script:
   - conda install pytest
 
 script:
-  - pytest
+  - pytest -v
+
+deploy:
+  - provider: script
+    script: anaconda -t $CONDA_UPLOAD_TOKEN upload $HOME/miniconda3/conda-bld/**/pytorch-3dunet-*.tar.bz2
+    on:
+      tags: true
+    skip_cleanup: true
