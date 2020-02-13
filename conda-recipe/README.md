@@ -8,5 +8,5 @@ In order to create conda package:
 1. Make sure that `bumpversion` is installed in your conda env
 2. Checkout master branch
 3. Run `bumpversion patch` (or `major` or `minor`)
-4. Run `git push --tags` (trigger Travis build) 
+4. Run `git push --follow-tags` (trigger Travis build) 
 5. The rest is going to be made by Travis (i.e. conda build + upload)
