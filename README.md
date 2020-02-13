@@ -84,6 +84,12 @@ After installation the following commands are accessible within the conda enviro
 python setup.py install
 ```
 
+### Installation tips
+Make sure that the installed `pytorch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. You can re-install `pytorch` compatible with your CUDA in the `3dunet` env by:
+```
+conda install -c pytorch torchvision cudatoolkit=<YOU_CUDA_VERSION> pytorch
+```
+
 ## Train
 Given that `pytorch-3dunet` package was installed via conda as described above, one can train the network by simply invoking:
 ```
