@@ -168,7 +168,7 @@ CUDA_VISIBLE_DEVICES=0,1 predict3dunet --config <CONFIG>
 * [train with cross-entropy loss](resources/train_config_ce.yaml) / [predict using the network trained with cross-entropy loss](resources/test_config_ce.yaml)
 * [train with Dice loss](resources/train_config_dice.yaml) / [predict using the network trained with Dice loss](resources/test_config_dice.yaml)
 * [train using 4D input](resources/train_config_4d_input.yaml) / [predict on the 4D input](resources/test_config_4d_input.yaml)
-* [train to predict cell boundaries from the confocal microscope](resources/train_boundary.yaml) / [predict using the network on the boundary classification task](resources/test_boundary.yaml)
+* [train to predict cell boundaries from the confocal microscope](resources/train_config_boundary.yaml) / [predict using the network on the boundary classification task](resources/test_config_boundary.yaml)
 
 ### Regression
 * [train on a random noise sample](resources/train_config_regression.yaml) / [predict using the network trained on a regression problem](resources/test_config_regression.yaml)
