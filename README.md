@@ -14,7 +14,7 @@ PyTorch implementation 3D U-Net and its variants:
 The code allows for training the U-Net for both: **semantic segmentation** (binary and multi-class) and **regression** problems (e.g. de-noising, learning deconvolutions).
 
 ## 2D U-Net
-Training the standard 2D U-Net is also possible, see [train_config_2d](resources/train_config_2d_boundary.yml) for example configuration.
+Training the standard 2D U-Net is also possible, see [train_config_2d](resources/train_config_2d_boundary.yml) for example configuration. Just make sure to keep the singleton z-dimension in your H5 dataset (i.e. `(1, Y, X)` instead of `(Y, X)`) , cause data loading / data augmentation requires tensors of rank 3 always.
 
 ## Prerequisites
 - Linux
@@ -73,9 +73,8 @@ If not specified `MeanIoU` will be used by default.
 ## Installation
 - The easiest way to install `pytorch-3dunet` package is via conda:
 ```
-conda create --name 3dunet python=3.7
-conda activate 3dunet 
-conda install -c conda-forge -c awolny pytorch-3dunet
+conda create -n 3dunet -c conda-forge -c awolny python=3.7 pytorch-3dunet
+conda activate 3dunet
 ```
 After installation the following commands are accessible within the conda environment:
 `train3dunet` for training the network and `predict3dunet` for prediction (see below).
@@ -83,6 +82,12 @@ After installation the following commands are accessible within the conda enviro
 - One can also install directly from source:
 ```
 python setup.py install
+```
+
+### Installation tips
+Make sure that the installed `pytorch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. You can re-install `pytorch` compatible with your CUDA in the `3dunet` env by:
+```
+conda install -c pytorch torchvision cudatoolkit=<YOU_CUDA_VERSION> pytorch
 ```
 
 ## Train
