@@ -17,7 +17,7 @@ before_install:
 
 install:
   # install conda-build
-  - conda install -q conda-build anaconda-client
+  - conda install -q conda-build
   # build conda recipe
   - conda build -c conda-forge --python=$TRAVIS_PYTHON_VERSION conda-recipe
 
@@ -30,6 +30,10 @@ before_script:
 
 script:
   - pytest -v
+
+before_deploy:
+  # install anaconda-client
+  - conda install -q anaconda-client
 
 deploy:
   - provider: script
