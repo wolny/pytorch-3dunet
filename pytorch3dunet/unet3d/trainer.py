@@ -1,6 +1,7 @@
 import os
 
 import torch
+import torch.nn as nn
 from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
@@ -295,10 +296,17 @@ class UNet3DTrainer:
         return is_best
 
     def _save_checkpoint(self, is_best):
+        # remove `module` prefix from layer names when using `nn.DataParallel`
+        # see: https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/20
+        if isinstance(self.model, nn.DataParallel):
+            state_dict = self.model.module.state_dict()
+        else:
+            state_dict = self.model.state_dict()
+
         utils.save_checkpoint({
             'epoch': self.num_epoch + 1,
             'num_iterations': self.num_iterations,
-            'model_state_dict': self.model.state_dict(),
+            'model_state_dict': state_dict,
             'best_eval_score': self.best_eval_score,
             'eval_score_higher_is_better': self.eval_score_higher_is_better,
             'optimizer_state_dict': self.optimizer.state_dict(),
