@@ -20,16 +20,17 @@ class RandomFlip:
     otherwise the models won't converge.
     """
 
-    def __init__(self, random_state, **kwargs):
+    def __init__(self, random_state, axis_prob=0.5, **kwargs):
         assert random_state is not None, 'RandomState cannot be None'
         self.random_state = random_state
         self.axes = (0, 1, 2)
+        self.axis_prob = axis_prob
 
     def __call__(self, m):
         assert m.ndim in [3, 4], 'Supports only 3D (DxHxW) or 4D (CxDxHxW) images'
 
         for axis in self.axes:
-            if self.random_state.uniform() > 0.5:
+            if self.random_state.uniform() > self.axis_prob:
                 if m.ndim == 3:
                     m = np.flip(m, axis)
                 else:
@@ -51,6 +52,8 @@ class RandomRotate90:
 
     def __init__(self, random_state, **kwargs):
         self.random_state = random_state
+        # always rotate around z-axis
+        self.axis = (1, 2)
 
     def __call__(self, m):
         assert m.ndim in [3, 4], 'Supports only 3D (DxHxW) or 4D (CxDxHxW) images'
@@ -59,9 +62,9 @@ class RandomRotate90:
         k = self.random_state.randint(0, 4)
         # rotate k times around a given plane
         if m.ndim == 3:
-            m = np.rot90(m, k, (1, 2))
+            m = np.rot90(m, k, self.axis)
         else:
-            channels = [np.rot90(m[c], k, (1, 2)) for c in range(m.shape[0])]
+            channels = [np.rot90(m[c], k, self.axis) for c in range(m.shape[0])]
             m = np.stack(channels, axis=0)
 
         return m
@@ -73,7 +76,7 @@ class RandomRotate:
     Rotation axis is picked at random from the list of provided axes.
     """
 
-    def __init__(self, random_state, angle_spectrum=10, axes=None, mode='constant', order=0, **kwargs):
+    def __init__(self, random_state, angle_spectrum=30, axes=None, mode='reflect', order=0, **kwargs):
         if axes is None:
             axes = [(1, 0), (2, 1), (2, 0)]
         else:
@@ -128,17 +131,21 @@ class ElasticDeformation:
     Based on: https://github.com/fcalvet/image_tools/blob/master/image_augmentation.py#L62
     """
 
-    def __init__(self, random_state, spline_order, alpha=15, sigma=3, execution_probability=0.1, **kwargs):
+    def __init__(self, random_state, spline_order, alpha=2000, sigma=50, execution_probability=0.1, apply_3d=True,
+                 **kwargs):
         """
         :param spline_order: the order of spline interpolation (use 0 for labeled images)
         :param alpha: scaling factor for deformations
         :param sigma: smoothing factor for Gaussian filter
+        :param execution_probability: probability of executing this transform
+        :param apply_3d: if True apply deformations in each axis
         """
         self.random_state = random_state
         self.spline_order = spline_order
         self.alpha = alpha
         self.sigma = sigma
         self.execution_probability = execution_probability
+        self.apply_3d = apply_3d
 
     def __call__(self, m):
         if self.random_state.uniform() < self.execution_probability:
@@ -149,12 +156,17 @@ class ElasticDeformation:
             else:
                 volume_shape = m[0].shape
 
-            dz = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="constant",
-                                 cval=0) * self.alpha
-            dy = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="constant",
-                                 cval=0) * self.alpha
-            dx = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="constant",
-                                 cval=0) * self.alpha
+            if self.apply_3d:
+                dz = gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="reflect") * self.alpha
+            else:
+                dz = np.zeros_like(m)
+
+            dy, dx = [
+                gaussian_filter(
+                    self.random_state.randn(*volume_shape),
+                    self.sigma, mode="reflect"
+                ) * self.alpha for _ in range(2)
+            ]
 
             z_dim, y_dim, x_dim = volume_shape
             z, y, x = np.meshgrid(np.arange(z_dim), np.arange(y_dim), np.arange(x_dim), indexing='ij')
