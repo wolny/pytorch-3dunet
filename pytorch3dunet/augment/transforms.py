@@ -188,6 +188,39 @@ def blur_boundary(boundary, sigma):
     return boundary
 
 
+class CropToFixed:
+    def __init__(self, random_state, size=(256, 256)):
+        self.random_state = random_state
+        self.crop_y, self.crop_x = size
+
+    def __call__(self, m):
+
+        def _rand_range_and_pad(crop_size, max_size):
+            """
+            Returns a tuple:
+                max_value (int) for the corner dimension. The corner dimension is chosen as `self.random_state(max_value)`
+                pad (int): padding in both directions; if crop_size is lt max_size the pad is 0
+            """
+            if crop_size < max_size:
+                return max_size - crop_size, (0, 0)
+            else:
+                diff = crop_size - max_size
+                diff_half = diff // 2
+                return 1, (diff_half, diff - diff_half)
+
+        _, y, x = m.shape
+
+        y_range, y_pad = _rand_range_and_pad(self.crop_y, y)
+        x_range, x_pad = _rand_range_and_pad(self.crop_x, x)
+
+        y_start = self.random_state.randint(y_range)
+        x_start = self.random_state.randint(x_range)
+
+        result = m[:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
+
+        return np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode='reflect')
+
+
 class AbstractLabelToBoundary:
     AXES_TRANSPOSE = [
         (0, 1, 2),  # X

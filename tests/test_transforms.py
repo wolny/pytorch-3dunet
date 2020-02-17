@@ -1,6 +1,7 @@
 import numpy as np
 
-from pytorch3dunet.augment.transforms import RandomLabelToAffinities, LabelToAffinities, Transformer, Relabel
+from pytorch3dunet.augment.transforms import RandomLabelToAffinities, LabelToAffinities, Transformer, Relabel, \
+    CropToFixed
 
 
 class TestTransforms:
@@ -185,6 +186,33 @@ class TestTransforms:
         transformer = Transformer(config, base_config)
         label_transforms = transformer.label_transform().transforms
         assert label_transforms[3].offsets == (1, 2, 3, 4)
+
+    def test_crop_to_fixed_when_crop_bigger_than_volume(self):
+        m = np.random.rand(200, 200, 200)
+
+        rs1 = np.random.RandomState(13)
+
+        t = CropToFixed(rs1, size=(256, 256))
+
+        expected = np.pad(m, ((0, 0), (28, 28), (28, 28)), mode='reflect')
+
+        assert np.array_equal(expected, t(m))
+
+    def test_crop_to_fixed(self):
+        m = np.random.rand(200, 200, 200)
+
+        rs1 = np.random.RandomState(13)
+        rs2 = np.random.RandomState(13)
+
+        t = CropToFixed(rs1, size=(128, 128))
+
+        r = 200 - 128
+        y_start = rs2.randint(r)
+        x_start = rs2.randint(r)
+
+        m_crop = m[:, y_start:y_start + 128, x_start:x_start + 128]
+
+        assert np.array_equal(m_crop, t(m))
 
 
 def _diagonal_label_volume(size, init=1):
