@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 from torch.utils.data import DataLoader
 
-from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, _traverse_file_paths
+from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, AbstractHDF5Dataset
 
 
 class TestHDF5Dataset:
@@ -112,7 +112,7 @@ class TestHDF5Dataset:
 
         # make sure that traverse_file_paths runs correctly
         file_paths = [os.path.join(tmpdir, 'f1.h5'), test_tmp_dir]
-        actual_files = _traverse_file_paths(file_paths)
+        actual_files = AbstractHDF5Dataset.traverse_h5_paths(file_paths)
 
         assert expected_files == actual_files
 

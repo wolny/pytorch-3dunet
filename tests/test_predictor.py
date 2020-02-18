@@ -5,7 +5,8 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, prediction_collate
+from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset
+from pytorch3dunet.datasets.utils import prediction_collate
 from pytorch3dunet.unet3d.predictor import EmbeddingsPredictor
 from pytorch3dunet.unet3d.utils import adapted_rand, remove_halo
 

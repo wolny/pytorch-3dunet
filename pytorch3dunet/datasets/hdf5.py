@@ -1,23 +1,20 @@
-import collections
 import glob
-import importlib
 import os
 from itertools import chain
 from multiprocessing import Lock
 
 import h5py
 import numpy as np
-import torch
-from torch.utils.data import Dataset, DataLoader, ConcatDataset
 
 import pytorch3dunet.augment.transforms as transforms
+from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('HDF5Dataset')
 lock = Lock()
 
 
-class AbstractHDF5Dataset(Dataset):
+class AbstractHDF5Dataset(ConfigDataset):
     """
     Implementation of torch.utils.data.Dataset backed by the HDF5 files, which iterates over the raw and label datasets
     patch by patch with a given stride.
@@ -117,7 +114,7 @@ class AbstractHDF5Dataset(Dataset):
                 self.raws = padded_volumes
 
         # build slice indices for raw and label data sets
-        slice_builder = _get_slice_builder(self.raws, self.labels, self.weight_maps, slice_builder_config)
+        slice_builder = get_slice_builder(self.raws, self.labels, self.weight_maps, slice_builder_config)
         self.raw_slices = slice_builder.raw_slices
         self.label_slices = slice_builder.label_slices
         self.weight_slices = slice_builder.weight_slices
@@ -196,6 +193,51 @@ class AbstractHDF5Dataset(Dataset):
             else:
                 label_shape = label.shape[1:]
             assert raw_shape == label_shape, 'Raw and labels have to be of the same size'
+
+    @classmethod
+    def create_datasets(cls, dataset_config, phase):
+        phase_config = dataset_config[phase]
+
+        # load data augmentation configuration
+        transformer_config = phase_config['transformer']
+        # load slice builder config
+        slice_builder_config = phase_config['slice_builder']
+        # load files to process
+        file_paths = phase_config['file_paths']
+        # file_paths may contain both files and directories; if the file_path is a directory all H5 files inside
+        # are going to be included in the final file_paths
+        file_paths = cls.traverse_h5_paths(file_paths)
+
+        datasets = []
+        for file_path in file_paths:
+            try:
+                logger.info(f'Loading {phase} set from: {file_path}...')
+                dataset = cls(file_path=file_path,
+                              phase=phase,
+                              slice_builder_config=slice_builder_config,
+                              transformer_config=transformer_config,
+                              mirror_padding=dataset_config.get('mirror_padding', None),
+                              raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
+                              label_internal_path=dataset_config.get('label_internal_path', 'label'),
+                              weight_internal_path=dataset_config.get('weight_internal_path', None))
+                datasets.append(dataset)
+            except Exception:
+                logger.error(f'Skipping {phase} set: {file_path}', exc_info=True)
+        return datasets
+
+    @staticmethod
+    def traverse_h5_paths(file_paths):
+        assert isinstance(file_paths, list)
+        results = []
+        for file_path in file_paths:
+            if os.path.isdir(file_path):
+                # if file path is a directory take all H5 files in that directory
+                iters = [glob.glob(os.path.join(file_path, ext)) for ext in ['*.h5', '*.hdf', '*.hdf5', '*.hd5']]
+                for fp in chain(*iters):
+                    results.append(fp)
+            else:
+                results.append(file_path)
+        return results
 
 
 class StandardHDF5Dataset(AbstractHDF5Dataset):
@@ -283,167 +325,3 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
         # convert to uncompressed
         internal_paths = [f'_uncompressed_{internal_path}' for internal_path in internal_paths]
         return [input_file_h5[internal_path] for internal_path in internal_paths]
-
-
-def _get_hdf5_ds_cls(class_name):
-    m = importlib.import_module('pytorch3dunet.datasets.hdf5')
-    clazz = getattr(m, class_name)
-    return clazz
-
-
-def _get_slice_builder(raws, labels, weight_maps, config):
-    assert 'name' in config
-    logger.info(f"Slice builder config: {config}")
-    slice_builder_cls = _get_hdf5_ds_cls(config['name'])
-    return slice_builder_cls(raws, labels, weight_maps, **config)
-
-
-def _traverse_file_paths(file_paths):
-    assert isinstance(file_paths, list)
-    results = []
-    for file_path in file_paths:
-        if os.path.isdir(file_path):
-            # if file path is a directory take all H5 files in that directory
-            iters = [glob.glob(os.path.join(file_path, ext)) for ext in ['*.h5', '*.hdf', '*.hdf5', '*.hd5']]
-            for fp in chain(*iters):
-                results.append(fp)
-        else:
-            results.append(file_path)
-    return results
-
-
-def _create_datasets(dataset_class, dataset_config, phase, mirror_padding, raw_internal_path,
-                     label_internal_path, weight_internal_path):
-    slice_builder_config = dataset_config['slice_builder']
-    transformer_config = dataset_config['transformer']
-
-    # file_paths may contain both files and directories; if the file_path is a directory all H5 files inside
-    # are going to be included in the final file_paths
-    file_paths = _traverse_file_paths(dataset_config['file_paths'])
-
-    datasets = []
-    for file_path in file_paths:
-        try:
-            logger.info(f'Loading {phase} set from: {file_path}...')
-            dataset = dataset_class(file_path=file_path,
-                                    phase=phase,
-                                    slice_builder_config=slice_builder_config,
-                                    transformer_config=transformer_config,
-                                    mirror_padding=mirror_padding,
-                                    raw_internal_path=raw_internal_path,
-                                    label_internal_path=label_internal_path,
-                                    weight_internal_path=weight_internal_path)
-            datasets.append(dataset)
-        except Exception:
-            logger.error(f'Skipping {phase} set: {file_path}', exc_info=True)
-    return datasets
-
-
-def get_train_loaders(config):
-    """
-    Returns dictionary containing the training and validation loaders
-    (torch.utils.data.DataLoader) backed by the datasets.hdf5.HDF5Dataset.
-
-    :param config: a top level configuration object containing the 'loaders' key
-    :return: dict {
-        'train': <train_loader>
-        'val': <val_loader>
-    }
-    """
-    assert 'loaders' in config, 'Could not find data loaders configuration'
-    loaders_config = config['loaders']
-
-    logger.info('Creating training and validation set loaders...')
-
-    # get dataset class
-    dataset_class = _get_hdf5_ds_cls(loaders_config.get('dataset', 'StandardHDF5Dataset'))
-    # get h5 internal paths for raw and label
-    raw_internal_path = loaders_config['raw_internal_path']
-    label_internal_path = loaders_config['label_internal_path']
-    weight_internal_path = loaders_config.get('weight_internal_path', None)
-
-    assert set(loaders_config['train']['file_paths']).isdisjoint(loaders_config['val']['file_paths']), \
-        "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
-
-    train_datasets = _create_datasets(dataset_class, loaders_config['train'], phase='train', mirror_padding=None,
-                                      raw_internal_path=raw_internal_path, label_internal_path=label_internal_path,
-                                      weight_internal_path=weight_internal_path)
-
-    val_datasets = _create_datasets(dataset_class, loaders_config['val'], phase='val', mirror_padding=None,
-                                    raw_internal_path=raw_internal_path, label_internal_path=label_internal_path,
-                                    weight_internal_path=weight_internal_path)
-
-    num_workers = loaders_config.get('num_workers', 1)
-    logger.info(f'Number of workers for train/val dataloader: {num_workers}')
-    batch_size = loaders_config.get('batch_size', 1)
-    if torch.cuda.device_count() > 1 and not config['device'].type == 'cpu':
-        logger.info(
-            f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}')
-        batch_size = batch_size * torch.cuda.device_count()
-
-    logger.info(f'Batch size for train/val loader: {batch_size}')
-    # when training with volumetric data use batch_size of 1 due to GPU memory constraints
-    return {
-        'train': DataLoader(ConcatDataset(train_datasets), batch_size=batch_size, shuffle=True,
-                            num_workers=num_workers),
-        'val': DataLoader(ConcatDataset(val_datasets), batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    }
-
-
-def prediction_collate(batch):
-    error_msg = "batch must contain tensors or slice; found {}"
-    if isinstance(batch[0], torch.Tensor):
-        return torch.stack(batch, 0)
-    elif isinstance(batch[0], tuple) and isinstance(batch[0][0], slice):
-        return batch
-    elif isinstance(batch[0], collections.Sequence):
-        transposed = zip(*batch)
-        return [prediction_collate(samples) for samples in transposed]
-
-    raise TypeError((error_msg.format(type(batch[0]))))
-
-
-def get_test_loaders(config):
-    """
-    Returns a list of DataLoader, one per each test file.
-
-    :param config: a top level configuration object containing the 'datasets' key
-    :return: generator of DataLoader objects
-    """
-
-    assert 'loaders' in config, 'Could not find data loaders configuration'
-    loaders_config = config['loaders']
-
-    logger.info('Creating test set loaders...')
-
-    # get dataset class
-    dataset_class = _get_hdf5_ds_cls(loaders_config.get('dataset', 'StandardHDF5Dataset'))
-    # get h5 internal paths for raw and label
-    raw_internal_path = loaders_config['raw_internal_path']
-    # configure mirror padding
-    mirror_padding = loaders_config.get('mirror_padding', (16, 32, 32))
-    if mirror_padding is not None:
-        logger.info(f'Using mirror padding: {mirror_padding}')
-    else:
-        logger.info('Mirror padding disabled')
-
-    test_datasets = _create_datasets(dataset_class, loaders_config['test'],
-                                     phase='test', mirror_padding=mirror_padding,
-                                     raw_internal_path=raw_internal_path, label_internal_path=None,
-                                     weight_internal_path=None)
-
-    num_workers = loaders_config.get('num_workers', 1)
-    logger.info(f'Number of workers for the dataloader: {num_workers}')
-
-    batch_size = loaders_config.get('batch_size', 1)
-    if torch.cuda.device_count() > 1 and not config['device'].type == 'cpu':
-        logger.info(
-            f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}')
-        batch_size = batch_size * torch.cuda.device_count()
-
-    logger.info(f'Batch size for dataloader: {batch_size}')
-
-    # use generator in order to create data loaders lazily one by one
-    for test_dataset in test_datasets:
-        logger.info(f'Loading test set from: {test_dataset.file_path}...')
-        yield DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=prediction_collate)

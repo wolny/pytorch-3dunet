@@ -4,7 +4,7 @@ import os
 import torch
 import torch.nn as nn
 
-from pytorch3dunet.datasets.hdf5 import get_test_loaders
+from pytorch3dunet.datasets.utils import get_test_loaders
 from pytorch3dunet.unet3d import utils
 from pytorch3dunet.unet3d.config import load_config
 from pytorch3dunet.unet3d.model import get_model
