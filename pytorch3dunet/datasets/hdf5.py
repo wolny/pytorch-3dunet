@@ -7,7 +7,7 @@ import h5py
 import numpy as np
 
 import pytorch3dunet.augment.transforms as transforms
-from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset
+from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calculate_stats
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('HDF5Dataset')
@@ -72,7 +72,7 @@ class AbstractHDF5Dataset(ConfigDataset):
         self.raws = self.fetch_datasets(input_file, raw_internal_path)
 
         # calculate global min, max, mean and std for normalization
-        min_value, max_value, mean, std = self._calculate_stats(self.raws)
+        min_value, max_value, mean, std = calculate_stats(self.raws)
         logger.info(f'Input stats: min={min_value}, max={max_value}, mean={mean}, std={std}')
 
         self.transformer = transforms.get_transformer(transformer_config, min_value=min_value, max_value=max_value,
@@ -174,25 +174,17 @@ class AbstractHDF5Dataset(ConfigDataset):
         return self.patch_count
 
     @staticmethod
-    def _calculate_stats(inputs):
-        return np.min(inputs), np.max(inputs), np.mean(inputs), np.std(inputs)
-
-    @staticmethod
     def _check_dimensionality(raws, labels):
-        for raw in raws:
-            assert raw.ndim in [3, 4], 'Raw dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
-            if raw.ndim == 3:
-                raw_shape = raw.shape
-            else:
-                raw_shape = raw.shape[1:]
+        def _volume_shape(volume):
+            if volume.ndim == 3:
+                return volume.shape
+            return volume.shape[1:]
 
-        for label in labels:
+        for raw, label in zip(raws, labels):
+            assert raw.ndim in [3, 4], 'Raw dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
             assert label.ndim in [3, 4], 'Label dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
-            if label.ndim == 3:
-                label_shape = label.shape
-            else:
-                label_shape = label.shape[1:]
-            assert raw_shape == label_shape, 'Raw and labels have to be of the same size'
+
+            assert _volume_shape(raw) == _volume_shape(label), 'Raw and labels have to be of the same size'
 
     @classmethod
     def create_datasets(cls, dataset_config, phase):

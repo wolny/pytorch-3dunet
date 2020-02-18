@@ -128,7 +128,7 @@ class AdaptedRandError:
         self.run_target_cc = run_target_cc
         self.save_plots = save_plots
         self.plots_dir = plots_dir
-        if not os.path.exists(plots_dir):
+        if not os.path.exists(plots_dir) and save_plots:
             os.makedirs(plots_dir)
 
     def __call__(self, input, target):
@@ -168,7 +168,8 @@ class AdaptedRandError:
             # compute per channel arand and return the minimum value
             per_channel_arand = []
             for channel_segm in segm:
-                per_channel_arand.append(adapted_rand(channel_segm, _target))
+                arand = adapted_rand(channel_segm, _target)
+                per_channel_arand.append(arand)
 
             # get the min arand across channels
             min_arand, c_index = np.min(per_channel_arand), np.argmin(per_channel_arand)
@@ -471,71 +472,81 @@ class StandardAveragePrecision(_AbstractAP):
         return torch.tensor(self._calculate_average_precision(input, target, target_instances))
 
 
-class DistanceTransformAveragePrecision(_AbstractAP):
+class BatchAwareAP(_AbstractAP):
+    def __init__(self, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None, use_last_target=False, **kwargs):
+        super().__init__(iou_range, ignore_index, min_instance_size)
+        self.use_last_target = use_last_target
+
+    def __call__(self, input, target):
+        assert isinstance(input, torch.Tensor) and isinstance(target, torch.Tensor)
+        assert input.dim() == 5
+        assert target.dim() == 5
+
+        # use the 1st channel only
+        input = input[:, 0, ...].detach().cpu().numpy()  # 4D
+
+        if not self.use_last_target:
+            # use last channel only
+            target = target[:, -1, ...]  # 4D
+        else:
+            target = target[:, 0, ...]  # 4D
+        target = target.detach().cpu().numpy()
+
+        aps = []
+        for inp, tar in zip(input, target):
+            inp = self.input_to_seg(inp)
+            tar = self.target_to_seg(tar)
+            # compute per batch AP and return the average
+            tar, tar_instances = self._filter_instances(tar)
+            aps.append(self._calculate_average_precision(inp, tar, tar_instances))
+        return torch.tensor(aps).mean()
+
+    def input_to_seg(self, input):
+        raise NotImplementedError
+
+    def target_to_seg(self, target):
+        return target
+
+
+class BlobsAveragePrecision(BatchAwareAP):
+    def __init__(self, threshold=0.4, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None, **kwargs):
+        super().__init__(iou_range, ignore_index, min_instance_size, use_last_target=True)
+        self.threshold = threshold
+
+    def input_to_seg(self, input):
+        # threshold and run connected components
+        input = (input > self.threshold).astype(np.uint8)
+        return measure.label(input, background=0, connectivity=1)
+
+
+class DistanceTransformAveragePrecision(BatchAwareAP):
     def __init__(self, threshold=0.1, **kwargs):
         super().__init__()
         self.threshold = threshold
 
-    def __call__(self, input, target):
-        if isinstance(input, torch.Tensor):
-            assert input.dim() == 5
-            # convert to numpy array
-            input = input[0, 0].detach().cpu().numpy()  # 3D distance transform
+    def input_to_seg(self, input):
+        self._dt_to_cc(input, self.threshold)
 
-        if isinstance(target, torch.Tensor):
-            assert target.dim() == 5
-            target = target[0, 0].detach().cpu().numpy()  # 3D distance transform
-
-        if isinstance(input, np.ndarray):
-            assert input.ndim == 3
-
-        if isinstance(target, np.ndarray):
-            assert target.ndim == 3
-
-        predicted_cc = self._dt_to_cc(input, self.threshold)
-        target_cc = self._dt_to_cc(target, self.threshold)
-
-        # get ground truth label set
-        target_cc, target_instances = self._filter_instances(target_cc)
-
-        return torch.tensor(self._calculate_average_precision(predicted_cc, target_cc, target_instances))
+    def target_to_seg(self, target):
+        self._dt_to_cc(target, self.threshold)
 
 
-class QuantizedDistanceTransformAveragePrecision(_AbstractAP):
+class QuantizedDistanceTransformAveragePrecision(BatchAwareAP):
     def __init__(self, threshold=0, **kwargs):
         super().__init__()
         self.threshold = threshold
 
-    def __call__(self, input, target):
-        if isinstance(input, torch.Tensor):
-            assert input.dim() == 5
-            # convert probability maps to label tensor
-            input = torch.argmax(input[0], dim=0)
-            # convert to numpy array
-            input = input.detach().cpu().numpy()  # 3D distance transform
+    def input_to_seg(self, input):
+        self._dt_to_cc(input, self.threshold)
 
-        if isinstance(target, torch.Tensor):
-            assert target.dim() == 4
-            target = target[0].detach().cpu().numpy()  # 3D distance transform
-
-        if isinstance(input, np.ndarray):
-            assert input.ndim == 3
-
-        if isinstance(target, np.ndarray):
-            assert target.ndim == 3
-
-        predicted_cc = self._dt_to_cc(input, self.threshold)
-        target_cc = self._dt_to_cc(target, self.threshold)
-
-        # get ground truth label set
-        target_cc, target_instances = self._filter_instances(target_cc)
-
-        return torch.tensor(self._calculate_average_precision(predicted_cc, target_cc, target_instances))
+    def target_to_seg(self, target):
+        self._dt_to_cc(target, self.threshold)
 
 
-class BoundaryAveragePrecision(_AbstractAP):
+class BoundaryAveragePrecision(BatchAwareAP):
     """
     Computes Average Precision given boundary prediction and ground truth instance segmentation.
+    Uses only the 1st channel of the input.
     """
 
     def __init__(self, threshold=0.4, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None,
@@ -547,64 +558,16 @@ class BoundaryAveragePrecision(_AbstractAP):
         :param min_instance_size: minimum size of the predicted instances to be considered
         :param use_last_target: if True use the last target channel to compute AP
         """
-        super().__init__(ignore_index, min_instance_size, iou_range)
+        super().__init__(iou_range, ignore_index, min_instance_size, use_last_target=use_last_target)
         self.threshold = threshold
-        # always have well defined ignore_index
-        if ignore_index is None:
-            ignore_index = -1
-        self.iou_range = iou_range
-        self.ignore_index = ignore_index
-        self.min_instance_size = min_instance_size
-        self.use_last_target = use_last_target
 
-    def __call__(self, input, target):
-        """
-        :param input: 5D probability maps torch float tensor (NxCxDxHxW) / or 4D numpy.ndarray
-        :param target: 4D or 5D ground truth instance segmentation torch long tensor / or 3D numpy.ndarray
-        :return: highest average precision among channels
-        """
-        if isinstance(input, torch.Tensor):
-            assert input.dim() == 5
-            # convert to numpy array
-            input = input[0].detach().cpu().numpy()  # 4D
-
-        if isinstance(target, torch.Tensor):
-            if not self.use_last_target:
-                assert target.dim() == 4
-                # convert to numpy array
-                target = target[0].detach().cpu().numpy()  # 3D
-            else:
-                # if use_last_target == True the target must be 5D (NxCxDxHxW)
-                assert target.dim() == 5
-                target = target[0, -1].detach().cpu().numpy()  # 3D
-
-        if isinstance(input, np.ndarray):
-            assert input.ndim == 4
-
-        if isinstance(target, np.ndarray):
-            assert target.ndim == 3
-
-        # filter small instances from the target and get ground truth label set (without 'ignore_index')
-        target, target_instances = self._filter_instances(target)
-
-        per_channel_ap = []
-        n_channels = input.shape[0]
-        for c in range(n_channels):
-            predictions = input[c]
-            # threshold probability maps
-            predictions = predictions > self.threshold
-            # for connected component analysis we need to treat boundary signal as background
-            # assign 0-label to boundary mask
-            predictions = np.logical_not(predictions).astype(np.uint8)
-            # run connected components on the predicted mask; consider only 1-connectivity
-            predicted = measure.label(predictions, background=0, connectivity=1)
-            ap = self._calculate_average_precision(predicted, target, target_instances)
-            per_channel_ap.append(ap)
-
-        # get maximum average precision across channels
-        max_ap, c_index = np.max(per_channel_ap), np.argmax(per_channel_ap)
-        LOGGER.info(f'Max average precision: {max_ap}, channel: {c_index}')
-        return torch.tensor(max_ap)
+    def input_to_seg(self, input):
+        input = input > self.threshold
+        # for connected component analysis we need to treat boundary signal as background
+        # assign 0-label to boundary mask
+        input = np.logical_not(input).astype(np.uint8)
+        # run connected components on the predicted mask; consider only 1-connectivity
+        return measure.label(input, background=0, connectivity=1)
 
 
 class WithinAngleThreshold:

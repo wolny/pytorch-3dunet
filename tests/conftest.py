@@ -12,6 +12,13 @@ TEST_FILES = os.path.join(
 
 
 @pytest.fixture
+def ovule_label():
+    path = os.path.join(TEST_FILES, 'sample_ovule.h5')
+    with h5py.File(path, 'r') as f:
+        return f['label'][...]
+
+
+@pytest.fixture
 def transformer_config():
     config_path = os.path.join(TEST_FILES, 'transformer_config.yml')
     return yaml.load(open(config_path, 'r'))
@@ -21,6 +28,7 @@ def transformer_config():
 def train_config():
     config_path = os.path.join(TEST_FILES, 'config_train.yml')
     return yaml.load(open(config_path, 'r'))
+
 
 @pytest.fixture
 def train_config_2d():

@@ -340,3 +340,14 @@ def prediction_collate(batch):
         return [prediction_collate(samples) for samples in transposed]
 
     raise TypeError((error_msg.format(type(batch[0]))))
+
+
+def calculate_stats(images):
+    """
+    Calculates min, max, mean, std given a list of ndarrays
+    """
+    # flatten first since the images might not be the same size
+    flat = np.concatenate(
+        [img.ravel() for img in images]
+    )
+    return np.min(flat), np.max(flat), np.mean(flat), np.std(flat)

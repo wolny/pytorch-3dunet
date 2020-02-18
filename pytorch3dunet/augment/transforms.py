@@ -189,7 +189,7 @@ def blur_boundary(boundary, sigma):
 
 
 class CropToFixed:
-    def __init__(self, random_state, size=(256, 256)):
+    def __init__(self, random_state, size=(256, 256), **kwargs):
         self.random_state = random_state
         self.crop_y, self.crop_x = size
 
@@ -335,6 +335,27 @@ class BlobsWithBoundary:
             if self.blur:
                 boundary = blur_boundary(boundary, self.sigma)
             results.append(boundary)
+
+        if self.append_label:
+            results.append(m)
+
+        return np.stack(results, axis=0)
+
+
+class BlobsToMask:
+    """
+    Returns binary mask from labeled image, i.e. every label greater than 0 is treated as foreground.
+
+    """
+
+    def __init__(self, append_label=False, **kwargs):
+        self.append_label = append_label
+
+    def __call__(self, m):
+        assert m.ndim == 3
+
+        # get the segmentation mask
+        results = [(m > 0).astype('uint8')]
 
         if self.append_label:
             results.append(m)
