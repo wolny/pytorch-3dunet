@@ -6,14 +6,14 @@ import hdbscan
 import numpy as np
 import torch
 from skimage import measure
-from skimage.measure import compare_psnr
-from skimage.metrics import adapted_rand_error
+from skimage.metrics import adapted_rand_error, peak_signal_noise_ratio
 from sklearn.cluster import MeanShift
 
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
-from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, plot_segm
+from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy
+from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, plot_segm, convert_to_numpy
 
-LOGGER = get_logger('EvalMetric')
+logger = get_logger('EvalMetric')
 
 
 class DiceCoefficient:
@@ -119,14 +119,12 @@ class AdaptedRandError:
 
     Args:
         use_last_target (bool): use only the last channel from the target to compute the ARand
-        run_target_cc (bool): run connected components on the target segmentation before computing the Rand score
         save_plots (bool): save predicted segmentation (result from `input_to_segm`) together with GT segmentation as a PNG
         plots_dir (string): directory where the plots are to be saved
     """
 
-    def __init__(self, use_last_target=False, run_target_cc=False, save_plots=False, plots_dir='.', **kwargs):
+    def __init__(self, use_last_target=False, save_plots=False, plots_dir='.', **kwargs):
         self.use_last_target = use_last_target
-        self.run_target_cc = run_target_cc
         self.save_plots = save_plots
         self.plots_dir = plots_dir
         if not os.path.exists(plots_dir) and save_plots:
@@ -144,64 +142,37 @@ class AdaptedRandError:
             average ARand Error across the batch
         """
         # converts input and target to numpy arrays
-        input, target = self._convert_to_numpy(input, target)
+        input, target = convert_to_numpy(input, target)
+        if self.use_last_target:
+            target = target[:, -1, ...]  # 4D
+        else:
+            # use 1st target channel
+            target = target[:, 0, ...]  # 4D
+
         # ensure target is of integer type
         target = target.astype(np.int)
 
         per_batch_arand = []
         for _input, _target in zip(input, target):
-            LOGGER.info(f'Number of ground truth clusters: {len(np.unique(_target))}')
+            logger.info(f'Number of ground truth clusters: {len(np.unique(_target))}')
 
-            # convert _input to segmentation
+            # convert _input to segmentation CDHW
             segm = self.input_to_segm(_input)
-
-            # run connected components if necessary
-            if self.run_target_cc:
-                _target = measure.label(_target, connectivity=1)
+            assert segm.ndim == 4
 
             if self.save_plots:
                 # save predicted and ground truth segmentation
                 plot_segm(segm, _target, self.plots_dir)
 
-            assert segm.ndim == 4
-
             # compute per channel arand and return the minimum value
             per_channel_arand = [adapted_rand_error(_target, channel_segm)[0] for channel_segm in segm]
-            min_arand = np.min(per_channel_arand)
-            per_batch_arand.append(min_arand)
+            logger.info(f'Min ARand for channel: {np.argmin(per_channel_arand)}')
+            per_batch_arand.append(np.min(per_channel_arand))
 
         # return mean arand error
         mean_arand = torch.mean(torch.tensor(per_batch_arand))
-        LOGGER.info(f'ARand: {mean_arand.item()}')
+        logger.info(f'ARand: {mean_arand.item()}')
         return mean_arand
-
-    def _convert_to_numpy(self, input, target):
-        if isinstance(input, torch.Tensor):
-            assert input.dim() == 5
-            # convert to numpy array
-            input = input.detach().cpu().numpy()  # 5D
-
-        if isinstance(target, torch.Tensor):
-            if not self.use_last_target:
-                assert target.dim() == 4
-                # convert to numpy array
-                target = target.detach().cpu().numpy()  # 4D
-            else:
-                # if use_last_target == True the target must be 5D (NxCxDxHxW)
-                assert target.dim() == 5
-                target = target[:, -1, ...].detach().cpu().numpy()  # 4D
-
-        if isinstance(input, np.ndarray):
-            assert input.ndim == 4 or input.ndim == 5
-            if input.ndim == 4:
-                input = np.expand_dims(input, axis=0)
-
-        if isinstance(target, np.ndarray):
-            assert target.ndim == 3 or target.ndim == 4
-            if target.ndim == 3:
-                target = np.expand_dims(target, axis=0)
-
-        return input, target
 
     def input_to_segm(self, input):
         """
@@ -216,11 +187,18 @@ class AdaptedRandError:
 
 
 class BoundaryAdaptedRandError(AdaptedRandError):
-    def __init__(self, threshold=0.4, use_last_target=True, use_first_input=False, invert_pmaps=True,
-                 run_target_cc=False, save_plots=False, plots_dir='.', **kwargs):
-        super().__init__(use_last_target=use_last_target, run_target_cc=run_target_cc, save_plots=save_plots,
-                         plots_dir=plots_dir, **kwargs)
-        self.threshold = threshold
+    """
+    Compute ARand between the input boundary map and target segmentation.
+    Boundary map is thresholded, and connected components is run to get the predicted segmentation
+    """
+
+    def __init__(self, thresholds=None, use_last_target=True, use_first_input=False, invert_pmaps=True,
+                 save_plots=False, plots_dir='.', **kwargs):
+        super().__init__(use_last_target=use_last_target, save_plots=save_plots, plots_dir=plots_dir, **kwargs)
+        if thresholds is None:
+            thresholds = [0.3, 0.4, 0.5, 0.6]
+        assert isinstance(thresholds, list)
+        self.thresholds = thresholds
         self.use_first_input = use_first_input
         self.invert_pmaps = invert_pmaps
 
@@ -228,40 +206,41 @@ class BoundaryAdaptedRandError(AdaptedRandError):
         if self.use_first_input:
             input = np.expand_dims(input[0], axis=0)
 
-        segms = []
+        segs = []
         for predictions in input:
-            # threshold probability maps
-            predictions = predictions > self.threshold
+            for th in self.thresholds:
+                # threshold probability maps
+                predictions = predictions > th
 
-            if self.invert_pmaps:
-                # for connected component analysis we need to treat boundary signal as background
-                # assign 0-label to boundary mask
-                predictions = np.logical_not(predictions)
+                if self.invert_pmaps:
+                    # for connected component analysis we need to treat boundary signal as background
+                    # assign 0-label to boundary mask
+                    predictions = np.logical_not(predictions)
 
-            predictions = predictions.astype(np.uint8)
-            # run connected components on the predicted mask; consider only 1-connectivity
-            segm = measure.label(predictions, background=0, connectivity=1)
-            segms.append(segm)
+                predictions = predictions.astype(np.uint8)
+                # run connected components on the predicted mask; consider only 1-connectivity
+                seg = measure.label(predictions, background=0, connectivity=1)
+                segs.append(seg)
 
-        return np.stack(segms)
+        return np.stack(segs)
 
 
 class GenericAdaptedRandError(AdaptedRandError):
-    def __init__(self, input_channels, threshold=0.4, use_last_target=True, invert_channels=None, run_target_cc=False,
+    def __init__(self, input_channels, thresholds=None, use_last_target=True, invert_channels=None,
                  save_plots=False, plots_dir='.', **kwargs):
-        super().__init__(use_last_target=use_last_target, run_target_cc=run_target_cc, save_plots=save_plots,
-                         plots_dir=plots_dir, **kwargs)
+
+        super().__init__(use_last_target=use_last_target, save_plots=save_plots, plots_dir=plots_dir, **kwargs)
         assert isinstance(input_channels, list) or isinstance(input_channels, tuple)
         self.input_channels = input_channels
-        self.threshold = threshold
+        if thresholds is None:
+            thresholds = [0.3, 0.4, 0.5, 0.6]
+        assert isinstance(thresholds, list)
+        self.thresholds = thresholds
         if invert_channels is None:
             invert_channels = []
         self.invert_channels = invert_channels
 
     def input_to_segm(self, input):
-        # threshold probability maps
-        input = (input > self.threshold).astype(np.uint8)
-
         # pick only the channels specified in the input_channels
         results = []
         for i in self.input_channels:
@@ -273,13 +252,14 @@ class GenericAdaptedRandError(AdaptedRandError):
 
         input = np.stack(results)
 
-        segms = []
+        segs = []
         for predictions in input:
-            # run connected components on the predicted mask; consider only 1-connectivity
-            segm = measure.label(predictions, background=0, connectivity=1)
-            segms.append(segm)
+            for th in self.thresholds:
+                # run connected components on the predicted mask; consider only 1-connectivity
+                seg = measure.label((predictions > th).astype(np.uint8), background=0, connectivity=1)
+                segs.append(seg)
 
-        return np.stack(segms)
+        return np.stack(segs)
 
 
 class EmbeddingsAdaptedRandError(AdaptedRandError):
@@ -287,12 +267,12 @@ class EmbeddingsAdaptedRandError(AdaptedRandError):
                  save_plots=False, plots_dir='.', **kwargs):
         super().__init__(save_plots=save_plots, plots_dir=plots_dir, **kwargs)
 
-        LOGGER.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
+        logger.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
         self.clustering = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
                                           cluster_selection_method=cluster_selection_method)
 
     def input_to_segm(self, embeddings):
-        LOGGER.info("Computing clusters with HDBSCAN...")
+        logger.info("Computing clusters with HDBSCAN...")
 
         # shape of the output segmentation
         output_shape = embeddings.shape[1:]
@@ -302,7 +282,7 @@ class EmbeddingsAdaptedRandError(AdaptedRandError):
         # perform clustering and reshape in order to get the segmentation volume
         start = time.time()
         segm = self.clustering.fit_predict(flattened_embeddings).reshape(output_shape)
-        LOGGER.info(f'Number of clusters found by HDBSCAN: {np.max(segm)}. Duration: {time.time() - start} sec.')
+        logger.info(f'Number of clusters found by HDBSCAN: {np.max(segm)}. Duration: {time.time() - start} sec.')
 
         # assign noise to new cluster (by default hdbscan gives -1 label to outliers)
         noise_label = np.max(segm) + 1
@@ -315,11 +295,12 @@ class EmbeddingsAdaptedRandError(AdaptedRandError):
 class EmbeddingsMeanShiftAdaptedRandError(AdaptedRandError):
     def __init__(self, bandwidth, save_plots=False, plots_dir='.', **kwargs):
         super().__init__(save_plots=save_plots, plots_dir=plots_dir, **kwargs)
-        LOGGER.info(f'MeanShift params: bandwidth: {bandwidth}')
+        logger.info(f'MeanShift params: bandwidth: {bandwidth}')
+        # use bin_seeding to speedup the mean-shift significantly
         self.clustering = MeanShift(bandwidth=bandwidth, bin_seeding=True)
 
     def input_to_segm(self, embeddings):
-        LOGGER.info("Computing clusters with MeanShift...")
+        logger.info("Computing clusters with MeanShift...")
 
         # shape of the output segmentation
         output_shape = embeddings.shape[1:]
@@ -329,172 +310,63 @@ class EmbeddingsMeanShiftAdaptedRandError(AdaptedRandError):
         # perform clustering and reshape in order to get the segmentation volume
         start = time.time()
         segm = self.clustering.fit_predict(flattened_embeddings).reshape(output_shape)
-        LOGGER.info(f'Number of clusters found by MeanShift: {np.max(segm)}. Duration: {time.time() - start} sec.')
+        logger.info(f'Number of clusters found by MeanShift: {np.max(segm)}. Duration: {time.time() - start} sec.')
         return np.expand_dims(segm, axis=0)
 
 
-class _AbstractAP:
-    def __init__(self, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None):
-        self.iou_range = iou_range
-        self.ignore_index = ignore_index
+class GenericAveragePrecision:
+    def __init__(self, min_instance_size=None, use_last_target=False, metric='ap', **kwargs):
         self.min_instance_size = min_instance_size
-
-    def __call__(self, input, target):
-        raise NotImplementedError()
-
-    def _calculate_average_precision(self, predicted, target, target_instances):
-        recall, precision = self._roc_curve(predicted, target, target_instances)
-        recall.insert(0, 0.0)  # insert 0.0 at beginning of list
-        recall.append(1.0)  # insert 1.0 at end of list
-        precision.insert(0, 0.0)  # insert 0.0 at beginning of list
-        precision.append(0.0)  # insert 0.0 at end of list
-        # make the precision(recall) piece-wise constant and monotonically decreasing
-        # by iterating backwards starting from the last precision value (0.0)
-        # see: https://www.jeremyjordan.me/evaluating-image-segmentation-models/ e.g.
-        for i in range(len(precision) - 2, -1, -1):
-            precision[i] = max(precision[i], precision[i + 1])
-        # compute the area under precision recall curve by simple integration of piece-wise constant function
-        ap = 0.0
-        for i in range(1, len(recall)):
-            ap += ((recall[i] - recall[i - 1]) * precision[i])
-        return ap
-
-    def _roc_curve(self, predicted, target, target_instances):
-        ROC = []
-        predicted, predicted_instances = self._filter_instances(predicted)
-
-        # compute precision/recall curve points for various IoU values from a given range
-        for min_iou in np.arange(self.iou_range[0], self.iou_range[1], 0.1):
-            # initialize false negatives set
-            false_negatives = set(target_instances)
-            # initialize false positives set
-            false_positives = set(predicted_instances)
-            # initialize true positives set
-            true_positives = set()
-
-            for pred_label in predicted_instances:
-                target_label = self._find_overlapping_target(pred_label, predicted, target, min_iou)
-                if target_label is not None:
-                    # update TP, FP and FN
-                    if target_label == self.ignore_index:
-                        # ignore if 'ignore_index' is the biggest overlapping
-                        false_positives.discard(pred_label)
-                    else:
-                        true_positives.add(pred_label)
-                        false_positives.discard(pred_label)
-                        false_negatives.discard(target_label)
-
-            tp = len(true_positives)
-            fp = len(false_positives)
-            fn = len(false_negatives)
-
-            recall = tp / (tp + fn)
-            precision = tp / (tp + fp)
-            ROC.append((recall, precision))
-
-        # sort points by recall
-        ROC = np.array(sorted(ROC, key=lambda t: t[0]))
-        # return recall and precision values
-        return list(ROC[:, 0]), list(ROC[:, 1])
-
-    def _find_overlapping_target(self, predicted_label, predicted, target, min_iou):
-        """
-        Return ground truth label which overlaps by at least 'min_iou' with a given input label 'p_label'
-        or None if such ground truth label does not exist.
-        """
-        mask_predicted = predicted == predicted_label
-        overlapping_labels = target[mask_predicted]
-        labels, counts = np.unique(overlapping_labels, return_counts=True)
-        # retrieve the biggest overlapping label
-        target_label_ind = np.argmax(counts)
-        target_label = labels[target_label_ind]
-        # return target label if IoU greater than 'min_iou'; since we're starting from 0.5 IoU there might be
-        # only one target label that fulfill this criterion
-        mask_target = target == target_label
-        # return target_label if IoU > min_iou
-        if self._iou(mask_predicted, mask_target) > min_iou:
-            return target_label
-        return None
-
-    @staticmethod
-    def _iou(prediction, target):
-        """
-        Computes intersection over union
-        """
-        intersection = np.logical_and(prediction, target)
-        union = np.logical_or(prediction, target)
-        return np.nan_to_num(np.sum(intersection) / np.sum(union))
-
-    def _filter_instances(self, input):
-        """
-        Filters instances smaller than 'min_instance_size' by overriding them with 'ignore_index'
-        :param input: input instance segmentation
-        :return: tuple: (instance segmentation with small instances filtered, set of unique labels without the 'ignore_index')
-        """
-        if self.min_instance_size is not None:
-            labels, counts = np.unique(input, return_counts=True)
-            for label, count in zip(labels, counts):
-                if count < self.min_instance_size:
-                    mask = input == label
-                    input[mask] = self.ignore_index
-
-        labels = set(np.unique(input))
-        labels.discard(self.ignore_index)
-        return input, labels
-
-    @staticmethod
-    def _dt_to_cc(distance_transform, threshold):
-        """
-        Threshold a given distance_transform and returns connected components.
-        :param distance_transform: 3D distance transform matrix
-        :param threshold: threshold energy level
-        :return: 3D segmentation volume
-        """
-        boundary = (distance_transform > threshold).astype(np.uint8)
-        return measure.label(boundary, background=0, connectivity=1)
-
-
-class StandardAveragePrecision(_AbstractAP):
-    def __init__(self, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None, **kwargs):
-        super().__init__(iou_range, ignore_index, min_instance_size)
-
-    def __call__(self, input, target):
-        assert isinstance(input, np.ndarray) and isinstance(target, np.ndarray)
-        assert input.ndim == target.ndim == 3
-
-        target, target_instances = self._filter_instances(target)
-
-        return torch.tensor(self._calculate_average_precision(input, target, target_instances))
-
-
-class BatchAwareAP(_AbstractAP):
-    def __init__(self, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None, use_last_target=False, **kwargs):
-        super().__init__(iou_range, ignore_index, min_instance_size)
         self.use_last_target = use_last_target
+        assert metric in ['ap', 'acc']
+        if metric == 'ap':
+            # use AveragePrecision
+            self.metric = AveragePrecision()
+        else:
+            # use Accuracy at 0.5 IoU
+            self.metric = Accuracy(iou_threshold=0.5)
 
     def __call__(self, input, target):
         assert isinstance(input, torch.Tensor) and isinstance(target, torch.Tensor)
         assert input.dim() == 5
         assert target.dim() == 5
 
-        # use the 1st channel only
-        input = input[:, 0, ...].detach().cpu().numpy()  # 4D
-
-        if not self.use_last_target:
-            # use last channel only
+        input, target = convert_to_numpy(input, target)
+        if self.use_last_target:
             target = target[:, -1, ...]  # 4D
         else:
+            # use 1st target channel
             target = target[:, 0, ...]  # 4D
-        target = target.detach().cpu().numpy()
 
-        aps = []
+        batch_aps = []
+        # iterate over the batch
         for inp, tar in zip(input, target):
-            inp = self.input_to_seg(inp)
+            segs = self.input_to_seg(inp)  # 4D
+            # convert target to seg
             tar = self.target_to_seg(tar)
-            # compute per batch AP and return the average
-            tar, tar_instances = self._filter_instances(tar)
-            aps.append(self._calculate_average_precision(inp, tar, tar_instances))
-        return torch.tensor(aps).mean()
+            # filter small instances if necessary
+            tar = self._filter_instances(tar)
+
+            # compute average precision per channel
+            segs_aps = [self.metric(self._filter_instances(seg), tar) for seg in segs]
+
+            logger.info(f'Max Average Precision for channel: {np.argmax(segs_aps)}')
+            # save max AP
+            batch_aps.append(np.max(segs_aps))
+
+        return torch.tensor(batch_aps).mean()
+
+    def _filter_instances(self, input):
+        """
+        Filters instances smaller than 'min_instance_size' by overriding them with 0-index
+        :param input: input instance segmentation
+        """
+        if self.min_instance_size is not None:
+            labels, counts = np.unique(input, return_counts=True)
+            for label, count in zip(labels, counts):
+                if count < self.min_instance_size:
+                    input[input == label] = 0
+        return input
 
     def input_to_seg(self, input):
         raise NotImplementedError
@@ -503,66 +375,65 @@ class BatchAwareAP(_AbstractAP):
         return target
 
 
-class BlobsAveragePrecision(BatchAwareAP):
-    def __init__(self, threshold=0.4, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None, **kwargs):
-        super().__init__(iou_range, ignore_index, min_instance_size, use_last_target=True)
-        self.threshold = threshold
+class BlobsAveragePrecision(GenericAveragePrecision):
+    """
+    Computes Average Precision given foreground prediction and ground truth instance segmentation.
+    Uses only the 1st channel of the input.
+    """
+
+    def __init__(self, thresholds=None, min_instance_size=None, **kwargs):
+        super().__init__(min_instance_size=min_instance_size, use_last_target=True)
+        if thresholds is None:
+            thresholds = [0.3, 0.4, 0.5, 0.6]
+        assert isinstance(thresholds, list)
+        self.thresholds = thresholds
 
     def input_to_seg(self, input):
-        # threshold and run connected components
-        input = (input > self.threshold).astype(np.uint8)
-        return measure.label(input, background=0, connectivity=1)
+        # get 1st channel
+        input = input[0]
+        segs = []
+        for th in self.thresholds:
+            # threshold and run connected components
+            mask = (input > th).astype(np.uint8)
+            seg = measure.label(mask, background=0, connectivity=1)
+            segs.append(seg)
+        return np.stack(segs)
 
 
-class DistanceTransformAveragePrecision(BatchAwareAP):
-    def __init__(self, threshold=0.1, **kwargs):
-        super().__init__()
-        self.threshold = threshold
-
-    def input_to_seg(self, input):
-        self._dt_to_cc(input, self.threshold)
-
-    def target_to_seg(self, target):
-        self._dt_to_cc(target, self.threshold)
-
-
-class QuantizedDistanceTransformAveragePrecision(BatchAwareAP):
-    def __init__(self, threshold=0, **kwargs):
-        super().__init__()
-        self.threshold = threshold
-
-    def input_to_seg(self, input):
-        self._dt_to_cc(input, self.threshold)
-
-    def target_to_seg(self, target):
-        self._dt_to_cc(target, self.threshold)
-
-
-class BoundaryAveragePrecision(BatchAwareAP):
+class BoundaryAveragePrecision(GenericAveragePrecision):
     """
     Computes Average Precision given boundary prediction and ground truth instance segmentation.
     Uses only the 1st channel of the input.
     """
 
-    def __init__(self, threshold=0.4, iou_range=(0.5, 1.0), ignore_index=-1, min_instance_size=None,
-                 use_last_target=False, **kwargs):
-        """
-        :param threshold: probability value at which the input is going to be thresholded
-        :param iou_range: compute ROC curve for the the range of IoU values: range(min,max,0.05)
-        :param ignore_index: label to be ignored during computation
-        :param min_instance_size: minimum size of the predicted instances to be considered
-        :param use_last_target: if True use the last target channel to compute AP
-        """
-        super().__init__(iou_range, ignore_index, min_instance_size, use_last_target=use_last_target)
-        self.threshold = threshold
+    def __init__(self, thresholds=None, min_instance_size=None, **kwargs):
+        super().__init__(min_instance_size=min_instance_size, use_last_target=True)
+        if thresholds is None:
+            thresholds = [0.3, 0.4, 0.5, 0.6]
+        assert isinstance(thresholds, list)
+        self.thresholds = thresholds
 
     def input_to_seg(self, input):
-        input = input > self.threshold
-        # for connected component analysis we need to treat boundary signal as background
-        # assign 0-label to boundary mask
-        input = np.logical_not(input).astype(np.uint8)
-        # run connected components on the predicted mask; consider only 1-connectivity
-        return measure.label(input, background=0, connectivity=1)
+        # get 1st channel only
+        input = input[0]
+        segs = []
+        for th in self.thresholds:
+            seg = measure.label(np.logical_not(input > th).astype(np.uint8), background=0, connectivity=1)
+            segs.append(seg)
+        return np.stack(segs)
+
+
+class PSNR:
+    """
+    Computes Peak Signal to Noise Ratio. Use e.g. as an eval metric for denoising task
+    """
+
+    def __init__(self, **kwargs):
+        pass
+
+    def __call__(self, input, target):
+        input, target = convert_to_numpy(input, target)
+        return peak_signal_noise_ratio(target, input)
 
 
 class WithinAngleThreshold:
@@ -620,16 +491,6 @@ class InverseAngularError:
             total_error += error_radians.sum()
 
         return torch.tensor(1. / total_error)
-
-
-class PSNR:
-    def __init__(self, **kwargs):
-        pass
-
-    def __call__(self, input, target):
-        assert input.size() == target.size()
-
-        return compare_psnr(target.detach().cpu().numpy(), input.detach().cpu().numpy())
 
 
 def get_evaluation_metric(config):

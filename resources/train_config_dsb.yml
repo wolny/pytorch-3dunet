@@ -3,9 +3,9 @@ model:
   name: UNet2D
   in_channels: 1
   out_channels: 1
-  layer_order: gcr
+  layer_order: bcr
   f_maps: 32
-  num_groups: 8
+  # num_groups: 8
   final_sigmoid: true
   is_segmentation: true
 trainer:
@@ -15,7 +15,7 @@ trainer:
   log_after_iters: 20
   epochs: 100
   iters: 100000
-  eval_score_higher_is_better: False
+  eval_score_higher_is_better: True
 optimizer:
   learning_rate: 0.0002
   weight_decay: 0.00001
@@ -23,10 +23,9 @@ loss:
   name: BCEDiceLoss
   skip_last_target: true
 eval_metric:
-  name: GenericAdaptedRandError
-  input_channels: [0]
-  threshold: 0.5
+  name: BlobsAveragePrecision
   use_last_target: true
+  metric: 'ap'
 lr_scheduler:
   name: ReduceLROnPlateau
   mode: max
@@ -91,6 +90,8 @@ loaders:
       label:
         - name: CropToFixed
           size: [256, 256]
+          # always get the same crop for validation
+          centered: true
         - name: Relabel
         - name: BlobsToMask
           append_label: true

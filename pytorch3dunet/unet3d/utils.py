@@ -399,3 +399,23 @@ def plot_segm(segm, ground_truth, plots_dir='.'):
 
         file_name = f'segm_{str(uuid.uuid4())[:8]}.png'
         plt.savefig(os.path.join(plots_dir, file_name))
+
+
+def convert_to_numpy(input, target):
+    """
+    Coverts input and target torch tensors to numpy ndarrays
+
+    Args:
+        input (torch.Tensor): 5D torch tensor
+        target (torch.Tensor): 5D torch tensor
+
+    Returns:
+        tuple (input, target) tensors
+    """
+    assert isinstance(input, torch.Tensor), "Expected input to be torch.Tensor"
+    assert isinstance(target, torch.Tensor), "Expected target to be torch.Tensor"
+
+    input = input.detach().cpu().numpy()  # 5D
+    target = target.detach().cpu().numpy()  # 5D
+
+    return input, target

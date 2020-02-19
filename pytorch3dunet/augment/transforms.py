@@ -189,11 +189,15 @@ def blur_boundary(boundary, sigma):
 
 
 class CropToFixed:
-    def __init__(self, random_state, size=(256, 256), **kwargs):
+    def __init__(self, random_state, size=(256, 256), centered=False, **kwargs):
         self.random_state = random_state
         self.crop_y, self.crop_x = size
+        self.centered = centered
 
     def __call__(self, m):
+        def _padding(pad_total):
+            half_total = pad_total // 2
+            return (half_total, pad_total - half_total)
 
         def _rand_range_and_pad(crop_size, max_size):
             """
@@ -204,20 +208,28 @@ class CropToFixed:
             if crop_size < max_size:
                 return max_size - crop_size, (0, 0)
             else:
-                diff = crop_size - max_size
-                diff_half = diff // 2
-                return 1, (diff_half, diff - diff_half)
+                return 1, _padding(crop_size - max_size)
+
+        def _start_and_pad(crop_size, max_size):
+            if crop_size < max_size:
+                return (max_size - crop_size) // 2, (0, 0)
+            else:
+                return 0, _padding(crop_size - max_size)
 
         _, y, x = m.shape
 
-        y_range, y_pad = _rand_range_and_pad(self.crop_y, y)
-        x_range, x_pad = _rand_range_and_pad(self.crop_x, x)
+        if not self.centered:
+            y_range, y_pad = _rand_range_and_pad(self.crop_y, y)
+            x_range, x_pad = _rand_range_and_pad(self.crop_x, x)
 
-        y_start = self.random_state.randint(y_range)
-        x_start = self.random_state.randint(x_range)
+            y_start = self.random_state.randint(y_range)
+            x_start = self.random_state.randint(x_range)
+
+        else:
+            y_start, y_pad = _start_and_pad(self.crop_y, y)
+            x_start, x_pad = _start_and_pad(self.crop_x, x)
 
         result = m[:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
-
         return np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode='reflect')
 
 
