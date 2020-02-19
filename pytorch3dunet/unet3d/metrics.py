@@ -7,10 +7,11 @@ import numpy as np
 import torch
 from skimage import measure
 from skimage.measure import compare_psnr
+from skimage.metrics import adapted_rand_error
 from sklearn.cluster import MeanShift
 
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
-from pytorch3dunet.unet3d.utils import get_logger, adapted_rand, expand_as_one_hot, plot_segm
+from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, plot_segm
 
 LOGGER = get_logger('EvalMetric')
 
@@ -148,7 +149,6 @@ class AdaptedRandError:
         target = target.astype(np.int)
 
         per_batch_arand = []
-        _batch_inst = 0
         for _input, _target in zip(input, target):
             LOGGER.info(f'Number of ground truth clusters: {len(np.unique(_target))}')
 
@@ -166,19 +166,14 @@ class AdaptedRandError:
             assert segm.ndim == 4
 
             # compute per channel arand and return the minimum value
-            per_channel_arand = []
-            for channel_segm in segm:
-                arand = adapted_rand(channel_segm, _target)
-                per_channel_arand.append(arand)
-
-            # get the min arand across channels
-            min_arand, c_index = np.min(per_channel_arand), np.argmin(per_channel_arand)
-            LOGGER.info(f'Batch: {_batch_inst}. Min AdaptedRand error: {min_arand}, channel: {c_index}')
+            per_channel_arand = [adapted_rand_error(_target, channel_segm)[0] for channel_segm in segm]
+            min_arand = np.min(per_channel_arand)
             per_batch_arand.append(min_arand)
-            _batch_inst += 1
 
         # return mean arand error
-        return torch.mean(torch.tensor(per_batch_arand))
+        mean_arand = torch.mean(torch.tensor(per_batch_arand))
+        LOGGER.info(f'ARand: {mean_arand.item()}')
+        return mean_arand
 
     def _convert_to_numpy(self, input, target):
         if isinstance(input, torch.Tensor):

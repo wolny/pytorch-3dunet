@@ -109,7 +109,7 @@ class TestCriterion:
         ltb = StandardLabelToBoundary()
         pred = ltb(label)
         arand = BoundaryAdaptedRandError(all_stats=True)
-        assert arand(pred, label) < 0.5
+        assert arand(pred, label) < 0.2
 
     def test_adapted_rand_from_embeddings(self, ovule_label):
         label = ovule_label[64:128, 64:128, 64:128]

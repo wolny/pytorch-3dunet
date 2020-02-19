@@ -15,7 +15,7 @@ trainer:
   log_after_iters: 20
   epochs: 100
   iters: 100000
-  eval_score_higher_is_better: True
+  eval_score_higher_is_better: False
 optimizer:
   learning_rate: 0.0002
   weight_decay: 0.00001
@@ -23,8 +23,9 @@ loss:
   name: BCEDiceLoss
   skip_last_target: true
 eval_metric:
-  name: BlobsAveragePrecision
-  threshold: 0.4
+  name: GenericAdaptedRandError
+  input_channels: [0]
+  threshold: 0.5
   use_last_target: true
 lr_scheduler:
   name: ReduceLROnPlateau
