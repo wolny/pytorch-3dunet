@@ -378,19 +378,42 @@ class GenericAveragePrecision:
 class BlobsAveragePrecision(GenericAveragePrecision):
     """
     Computes Average Precision given foreground prediction and ground truth instance segmentation.
-    Uses only the 1st channel of the input.
     """
 
-    def __init__(self, thresholds=None, min_instance_size=None, **kwargs):
-        super().__init__(min_instance_size=min_instance_size, use_last_target=True)
+    def __init__(self, thresholds=None, metric='ap', min_instance_size=None, input_channel=0, **kwargs):
+        super().__init__(min_instance_size=min_instance_size, use_last_target=True, metric=metric)
         if thresholds is None:
-            thresholds = [0.3, 0.4, 0.5, 0.6]
+            thresholds = [0.4, 0.5, 0.6, 0.7, 0.8]
+        assert isinstance(thresholds, list)
+        self.thresholds = thresholds
+        self.input_channel = input_channel
+
+    def input_to_seg(self, input):
+        input = input[self.input_channel]
+        segs = []
+        for th in self.thresholds:
+            # threshold and run connected components
+            mask = (input > th).astype(np.uint8)
+            seg = measure.label(mask, background=0, connectivity=1)
+            segs.append(seg)
+        return np.stack(segs)
+
+
+class BlobsBoundaryAveragePrecision(GenericAveragePrecision):
+    """
+    Computes Average Precision given foreground prediction, boundary prediction and ground truth instance segmentation.
+    Segmentation mask is computed as (P_mask - P_boundary) > th followed by a connected component
+    """
+    def __init__(self, thresholds=None, metric='ap', min_instance_size=None, **kwargs):
+        super().__init__(min_instance_size=min_instance_size, use_last_target=True, metric=metric)
+        if thresholds is None:
+            thresholds = [0.3, 0.4, 0.5, 0.6, 0.7]
         assert isinstance(thresholds, list)
         self.thresholds = thresholds
 
     def input_to_seg(self, input):
-        # get 1st channel
-        input = input[0]
+        # input = P_mask - P_boundary
+        input = input[0] - input[1]
         segs = []
         for th in self.thresholds:
             # threshold and run connected components
@@ -403,19 +426,18 @@ class BlobsAveragePrecision(GenericAveragePrecision):
 class BoundaryAveragePrecision(GenericAveragePrecision):
     """
     Computes Average Precision given boundary prediction and ground truth instance segmentation.
-    Uses only the 1st channel of the input.
     """
 
-    def __init__(self, thresholds=None, min_instance_size=None, **kwargs):
+    def __init__(self, thresholds=None, min_instance_size=None, input_channel=0, **kwargs):
         super().__init__(min_instance_size=min_instance_size, use_last_target=True)
         if thresholds is None:
             thresholds = [0.3, 0.4, 0.5, 0.6]
         assert isinstance(thresholds, list)
         self.thresholds = thresholds
+        self.input_channel = input_channel
 
     def input_to_seg(self, input):
-        # get 1st channel only
-        input = input[0]
+        input = input[self.input_channel]
         segs = []
         for th in self.thresholds:
             seg = measure.label(np.logical_not(input > th).astype(np.uint8), background=0, connectivity=1)

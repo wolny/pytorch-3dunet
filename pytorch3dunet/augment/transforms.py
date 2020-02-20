@@ -360,14 +360,26 @@ class BlobsToMask:
 
     """
 
-    def __init__(self, append_label=False, **kwargs):
+    def __init__(self, append_label=False, boundary=False, cross_entropy=False, **kwargs):
+        self.cross_entropy = cross_entropy
+        self.boundary = boundary
         self.append_label = append_label
 
     def __call__(self, m):
         assert m.ndim == 3
 
         # get the segmentation mask
-        results = [(m > 0).astype('uint8')]
+        mask = (m > 0).astype('uint8')
+        results = [mask]
+
+        if self.boundary:
+            outer = find_boundaries(m, connectivity=2, mode='outer')
+            if self.cross_entropy:
+                # boundary is class 2
+                mask[outer > 0] = 2
+                results = [mask]
+            else:
+                results.append(outer)
 
         if self.append_label:
             results.append(m)

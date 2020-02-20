@@ -65,15 +65,20 @@ class SkipLastTargetChannelWrapper(nn.Module):
     Loss wrapper which removes additional target channel
     """
 
-    def __init__(self, loss):
+    def __init__(self, loss, squeeze_channel=False):
         super(SkipLastTargetChannelWrapper, self).__init__()
         self.loss = loss
+        self.squeeze_channel = squeeze_channel
 
     def forward(self, input, target):
         assert target.size(1) > 1, 'Target tensor has a singleton channel dimension, cannot remove channel'
 
         # skips last target channel if needed
         target = target[:, :-1, ...]
+
+        if self.squeeze_channel:
+            # squeeze channel dimension if singleton
+            target = torch.squeeze(target, dim=1)
         return self.loss(input, target)
 
 
@@ -338,7 +343,7 @@ def get_loss_criterion(config):
         loss = _MaskingLossWrapper(loss, ignore_index)
 
     if skip_last_target:
-        loss = SkipLastTargetChannelWrapper(loss)
+        loss = SkipLastTargetChannelWrapper(loss, loss_config.get('squeeze_channel', False))
 
     return loss
 

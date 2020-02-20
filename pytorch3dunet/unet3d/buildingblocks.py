@@ -5,11 +5,11 @@ from torch import nn as nn
 from torch.nn import functional as F
 
 
-def conv3d(in_channels, out_channels, kernel_size, bias, padding=1):
+def conv3d(in_channels, out_channels, kernel_size, bias, padding):
     return nn.Conv3d(in_channels, out_channels, kernel_size, padding=padding, bias=bias)
 
 
-def create_conv(in_channels, out_channels, kernel_size, order, num_groups, padding=1):
+def create_conv(in_channels, out_channels, kernel_size, order, num_groups, padding):
     """
     Create a list of modules with together constitute a single conv layer with non-linearity
     and optional batchnorm/groupnorm.
