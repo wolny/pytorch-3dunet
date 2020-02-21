@@ -9,7 +9,6 @@ model:
   final_sigmoid: true
   is_segmentation: true
 trainer:
-  batch_size: 1
   checkpoint_dir: 3dunet
   resume: null
   validate_after_iters: 20

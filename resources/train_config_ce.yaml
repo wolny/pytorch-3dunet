@@ -20,8 +20,6 @@ model:
   is_segmentation: true
 # trainer configuration
 trainer:
-  # number of patches per batch
-  batch_size: 1
   # path to the checkpoint directory
   checkpoint_dir: 3dunet
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
