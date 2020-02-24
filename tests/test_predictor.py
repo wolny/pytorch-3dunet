@@ -3,11 +3,13 @@ import os
 import h5py
 import numpy as np
 import torch
+from skimage.metrics import adapted_rand_error
 from torch.utils.data import DataLoader
 
-from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, prediction_collate
+from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset
+from pytorch3dunet.datasets.utils import prediction_collate
 from pytorch3dunet.unet3d.predictor import EmbeddingsPredictor
-from pytorch3dunet.unet3d.utils import adapted_rand, remove_halo
+from pytorch3dunet.unet3d.utils import remove_halo
 
 
 class FakePredictor(EmbeddingsPredictor):
@@ -64,7 +66,7 @@ class TestPredictor:
             with h5py.File(output_file, 'r') as g:
                 gt = f['label'][...]
                 segm = g['segmentation/meanshift'][...]
-                arand_error = adapted_rand(segm, gt)
+                arand_error = adapted_rand_error(gt, segm)[0]
 
                 assert arand_error < 0.1
 

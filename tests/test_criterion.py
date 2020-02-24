@@ -1,4 +1,3 @@
-import h5py
 import numpy as np
 import torch
 import torch.nn as nn
@@ -84,45 +83,44 @@ class TestCriterion:
             input[i:i + 2, :, :] = 1
 
         target = measure.label(np.logical_not(input).astype(np.int), background=0)
-        input = np.expand_dims(input, axis=0)
+        input = torch.tensor(input.reshape((1, 1) + input.shape))
+        target = torch.tensor(target.reshape((1, 1) + target.shape))
         ap = BoundaryAveragePrecision()
         # expect perfect AP
         assert ap(input, target) == 1.0
 
-    def test_average_precision_real_data(self):
-        l_file = 'resources/sample_ovule.h5'
-        with h5py.File(l_file, 'r') as f:
-            label = f['label'][64:128, 64:128, 64:128]
-            ltb = LabelToAffinities((1, 2, 4, 6), aggregate_affinities=True)
-            pred = ltb(label)
-            # don't compare instances smaller than 10K voxels
-            ap = BoundaryAveragePrecision(min_instance_size=10000)
-            assert ap(pred, label) > 0.4
+    def test_average_precision_real_data(self, ovule_label):
+        label = ovule_label[64:128, 64:128, 64:128]
+        ltb = LabelToAffinities((1, 2, 4, 6), aggregate_affinities=True)
+        pred = ltb(label)
+        label = torch.tensor(label.reshape((1, 1) + label.shape).astype('int64'))
+        pred = torch.tensor(np.expand_dims(pred, 0))
+        ap = BoundaryAveragePrecision()
+        assert ap(pred, label) > 0.5
 
-    def test_adapted_rand_error(self):
-        l_file = 'resources/sample_ovule.h5'
-        with h5py.File(l_file, 'r') as f:
-            label = f['label'][64:128, 64:128, 64:128]
-            input = np.expand_dims(label, axis=0)
-            arand = AdaptedRandError()
-            assert arand(input, label) == 0
+    def test_adapted_rand_error(self, ovule_label):
+        label = ovule_label[64:128, 64:128, 64:128].astype('int64')
+        input = torch.tensor(label.reshape((1, 1) + label.shape))
+        label = torch.tensor(label.reshape((1, 1) + label.shape))
+        arand = AdaptedRandError()
+        assert arand(input, label) == 0
 
-    def test_adapted_rand_error_on_real_data(self):
-        l_file = 'resources/sample_ovule.h5'
-        with h5py.File(l_file, 'r') as f:
-            label = f['label'][64:128, 64:128, 64:128]
-            ltb = StandardLabelToBoundary()
-            pred = ltb(label)
-            arand = BoundaryAdaptedRandError(all_stats=True)
-            assert arand(pred, label) < 0.5
+    def test_adapted_rand_error_on_real_data(self, ovule_label):
+        label = ovule_label[64:128, 64:128, 64:128].astype('int64')
+        ltb = StandardLabelToBoundary()
+        pred = ltb(label)
+        label = torch.tensor(label.reshape((1, 1) + label.shape))
+        pred = torch.tensor(np.expand_dims(pred, 0))
+        arand = BoundaryAdaptedRandError(use_last_target=True)
+        assert arand(pred, label) < 0.2
 
-    def test_adapted_rand_from_embeddings(self):
-        l_file = 'resources/sample_ovule.h5'
-        with h5py.File(l_file, 'r') as f:
-            label = f['label'][64:128, 64:128, 64:128]
-            pred = np.expand_dims(np.random.rand(*label.shape), axis=0)
-            arand = EmbeddingsAdaptedRandError(min_cluster_size=50)
-            assert arand(pred, label) <= 1.0
+    def test_adapted_rand_from_embeddings(self, ovule_label):
+        label = ovule_label[64:128, 64:128, 64:128].astype('int64')
+        pred = np.random.rand(*label.shape).reshape((1, 1) + label.shape)
+        label = torch.tensor(label.reshape((1, 1) + label.shape))
+        pred = torch.tensor(pred)
+        arand = EmbeddingsAdaptedRandError(min_cluster_size=50)
+        assert arand(pred, label) <= 1.0
 
     def test_generalized_dice_loss(self):
         results = _compute_criterion(GeneralizedDiceLoss())

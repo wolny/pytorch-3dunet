@@ -164,4 +164,4 @@ loaders:
       label:
         - name: ToTensor
           expand_dims: false
-          dtype: 'long'
+          dtype: 'int64'

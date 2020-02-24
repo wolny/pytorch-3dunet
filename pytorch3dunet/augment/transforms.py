@@ -188,6 +188,51 @@ def blur_boundary(boundary, sigma):
     return boundary
 
 
+class CropToFixed:
+    def __init__(self, random_state, size=(256, 256), centered=False, **kwargs):
+        self.random_state = random_state
+        self.crop_y, self.crop_x = size
+        self.centered = centered
+
+    def __call__(self, m):
+        def _padding(pad_total):
+            half_total = pad_total // 2
+            return (half_total, pad_total - half_total)
+
+        def _rand_range_and_pad(crop_size, max_size):
+            """
+            Returns a tuple:
+                max_value (int) for the corner dimension. The corner dimension is chosen as `self.random_state(max_value)`
+                pad (int): padding in both directions; if crop_size is lt max_size the pad is 0
+            """
+            if crop_size < max_size:
+                return max_size - crop_size, (0, 0)
+            else:
+                return 1, _padding(crop_size - max_size)
+
+        def _start_and_pad(crop_size, max_size):
+            if crop_size < max_size:
+                return (max_size - crop_size) // 2, (0, 0)
+            else:
+                return 0, _padding(crop_size - max_size)
+
+        _, y, x = m.shape
+
+        if not self.centered:
+            y_range, y_pad = _rand_range_and_pad(self.crop_y, y)
+            x_range, x_pad = _rand_range_and_pad(self.crop_x, x)
+
+            y_start = self.random_state.randint(y_range)
+            x_start = self.random_state.randint(x_range)
+
+        else:
+            y_start, y_pad = _start_and_pad(self.crop_y, y)
+            x_start, x_pad = _start_and_pad(self.crop_x, x)
+
+        result = m[:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
+        return np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode='reflect')
+
+
 class AbstractLabelToBoundary:
     AXES_TRANSPOSE = [
         (0, 1, 2),  # X
@@ -302,6 +347,39 @@ class BlobsWithBoundary:
             if self.blur:
                 boundary = blur_boundary(boundary, self.sigma)
             results.append(boundary)
+
+        if self.append_label:
+            results.append(m)
+
+        return np.stack(results, axis=0)
+
+
+class BlobsToMask:
+    """
+    Returns binary mask from labeled image, i.e. every label greater than 0 is treated as foreground.
+
+    """
+
+    def __init__(self, append_label=False, boundary=False, cross_entropy=False, **kwargs):
+        self.cross_entropy = cross_entropy
+        self.boundary = boundary
+        self.append_label = append_label
+
+    def __call__(self, m):
+        assert m.ndim == 3
+
+        # get the segmentation mask
+        mask = (m > 0).astype('uint8')
+        results = [mask]
+
+        if self.boundary:
+            outer = find_boundaries(m, connectivity=2, mode='outer')
+            if self.cross_entropy:
+                # boundary is class 2
+                mask[outer > 0] = 2
+                results = [mask]
+            else:
+                results.append(outer)
 
         if self.append_label:
             results.append(m)

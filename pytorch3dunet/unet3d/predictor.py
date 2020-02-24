@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from sklearn.cluster import MeanShift
 
-from pytorch3dunet.datasets.hdf5 import SliceBuilder
+from pytorch3dunet.datasets.utils import SliceBuilder
 from pytorch3dunet.unet3d.utils import get_logger
 from pytorch3dunet.unet3d.utils import remove_halo
 

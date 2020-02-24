@@ -143,9 +143,11 @@ class UNet3DTrainer:
             should_terminate = self.train(self.loaders['train'])
 
             if should_terminate:
-                break
+                logger.info('Stopping criterion is satisfied. Finishing training')
+                return
 
             self.num_epoch += 1
+        logger.info(f"Reached maximum number of epochs: {self.max_num_epochs}. Finishing training...")
 
     def train(self, train_loader):
         """Trains the model for 1 epoch.
@@ -216,12 +218,27 @@ class UNet3DTrainer:
                 self._log_params()
                 self._log_images(input, target, output)
 
-            if self.max_num_iterations < self.num_iterations:
-                logger.info(
-                    f'Maximum number of iterations {self.max_num_iterations} exceeded. Finishing training...')
+            if self.should_stop():
                 return True
 
             self.num_iterations += 1
+
+        return False
+
+    def should_stop(self):
+        """
+        Training will terminate if maximum number of iterations is exceeded or the learning rate drops below
+        some predefined threshold (1e-6 in our case)
+        """
+        if self.max_num_iterations < self.num_iterations:
+            logger.info(f'Maximum number of iterations {self.max_num_iterations} exceeded.')
+            return True
+
+        min_lr = 1e-6
+        lr = self.optimizer.param_groups[0]['lr']
+        if lr < min_lr:
+            logger.info(f'Learning rate below the minimum {min_lr}.')
+            return True
 
         return False
 
