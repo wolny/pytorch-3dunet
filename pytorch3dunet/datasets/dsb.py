@@ -2,11 +2,9 @@ import os
 
 import imageio
 import numpy as np
-import yaml
 
 from pytorch3dunet.augment import transforms
-from pytorch3dunet.datasets.utils import ConfigDataset, calculate_stats, get_train_loaders
-from pytorch3dunet.unet3d.metrics import BlobsAveragePrecision
+from pytorch3dunet.datasets.utils import ConfigDataset, calculate_stats
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('DSB2018Dataset')
@@ -104,17 +102,3 @@ class DSB2018Dataset(ConfigDataset):
             files_data.append(img)
 
         return files_data
-
-
-if __name__ == '__main__':
-    config = yaml.safe_load(open('/home/adrian/workspace/pytorch-3dunet/resources/train_config_dsb.yml', 'r'))
-    train_loader = get_train_loaders(config)['train']
-
-    e = BlobsAveragePrecision()
-
-    print(len(train_loader.dataset))
-    for raw, label in train_loader:
-        l = label.numpy()
-        l = l[0, 1]
-        ap = e(l, l)
-        print(ap)
