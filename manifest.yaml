@@ -1,2 +1,2 @@
 models:
-  - bioimage-io/UNet3DArabidopsisOvules.model.yaml
+  - bioimage-io/UNet3DArabidopsisOvules.model/UNet3DArabidopsisOvules.model.yaml

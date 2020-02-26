@@ -14,7 +14,9 @@ def dummy_input():
 
 
 def test_dummy_input(cache_path, dummy_input):
-    spec_path = Path(__file__).parent / "../../bioimage-io/UNet3DArabidopsisOvules.model.yaml"
+    spec_path = (
+        Path(__file__).parent / "../../bioimage-io/UNet3DArabidopsisOvules.model/UNet3DArabidopsisOvules.model.yaml"
+    )
     assert spec_path.exists()
 
     pybio_model = load_spec_and_kwargs(str(spec_path), cache_path=cache_path)
@@ -24,7 +26,9 @@ def test_dummy_input(cache_path, dummy_input):
 
 
 def test_Net3DArabidopsisOvules_forward(cache_path, dummy_input):
-    spec_path = Path(__file__).parent / "../../bioimage-io/UNet3DArabidopsisOvules.model.yaml"
+    spec_path = (
+        Path(__file__).parent / "../../bioimage-io/UNet3DArabidopsisOvules.model/UNet3DArabidopsisOvules.model.yaml"
+    )
     assert spec_path.exists()
 
     pybio_model = load_spec_and_kwargs(str(spec_path), cache_path=cache_path)
