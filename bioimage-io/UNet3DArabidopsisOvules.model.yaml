@@ -1,5 +1,5 @@
-name: UNet3DArabidopsisOvules
-description: A 3d U-Net trained to predict the cell boundaries in confocal stacks of Arabidopsis ovules
+name: 3D UNet Arabidopsis Ovules
+description: A 3d U-Net trained to predict the cell boundaries in confocal stacks of Arabidopsis ovules.
 cite:
   - text: "Wolny, Adrian et al. Accurate and Versatile 3D Segmentation of Plant Tissues at Cellular Resolution. BioRxiv 2020."
     doi: https://doi.org/10.1101/2020.01.17.910562
@@ -7,6 +7,7 @@ authors:
   - Adrian Wolny;@bioimage-io
 documentation: README.md
 tags: [unet3d, pytorch, arabidopsis, ovuls, cell membrane, segmentation, plant tissue]
+license: MIT
 
 format_version: 0.1.0
 language: python
@@ -23,10 +24,9 @@ optional_kwargs:
   is_segmentation: true  # don't touch, use postprocessing instead
   testing: false  # don't touch, use postprocessing instead
 
-# TODO test data
-test_input: resources/sample_ovule.h5/raw # ../test_input.npy
+test_input: resources/sample_ovule.h5/raw
 test_output: null # ../test_output.npy
-thumbnail: null # ./nuclei_thumbnail.png
+covers: [] # ./nuclei_thumbnail.png
 
 inputs:
   - name: raw
@@ -47,16 +47,20 @@ outputs:
         offset: [0, 0, 0, 0, 0]
 
 prediction:
-    preprocess:
-        - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/a1121e389d4dcbf2bb20398b87427b9c6f7c94ec/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
-          kwargs: {apply_to: [0]}
-    weights:
-        source: https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2Funet_bce_dice_ds3x&files=best_checkpoint.pytorch
-        hash: {md5: TODO}
-    postprocess: # todo: add postprocessing for training as well?
-      - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/e097cf3a4f405fadf79d7eef69ffe35a05121952/specs/transformations/Sigmoid.transformation.yaml
+  preprocess:
+    - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/EnsureTorch.transformation.yaml
+    - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/Cast.transformation.yaml
+      kwargs: {dtype: float32}
+    - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
+      kwargs: {apply_to: [0]}
+  weights:
+    source: https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2Funet_bce_dice_ds3x&files=best_checkpoint.pytorch
+    hash: {md5: e12a0df1065da265aeeba81802b28f77}
+  postprocess:
+    - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/Sigmoid.transformation.yaml
+    - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/EnsureNumpy.transformation.yaml
 
-    dependencies: conda:environment.yaml
+  dependencies: conda:environment.yaml
 
 # todo: training
 #training:
