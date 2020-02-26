@@ -254,25 +254,32 @@ class Decoder(nn.Module):
             in `DoubleConv` module. See `DoubleConv` for more info.
         num_groups (int): number of groups for the GroupNorm
         padding (int or tuple): add zero-padding added to all three sides of the input
+        upsample (boole): should the input be upsampled
     """
 
     def __init__(self, in_channels, out_channels, conv_kernel_size=3, scale_factor=(2, 2, 2), basic_module=DoubleConv,
-                 conv_layer_order='gcr', num_groups=8, mode='nearest', padding=1):
+                 conv_layer_order='gcr', num_groups=8, mode='nearest', padding=1, upsample=True):
         super(Decoder, self).__init__()
-        if basic_module == DoubleConv:
-            # if DoubleConv is the basic_module use interpolation for upsampling and concatenation joining
-            self.upsampling = Upsampling(transposed_conv=False, in_channels=in_channels, out_channels=out_channels,
-                                         kernel_size=conv_kernel_size, scale_factor=scale_factor, mode=mode)
+
+        if upsample:
+            if basic_module == DoubleConv:
+                # if DoubleConv is the basic_module use interpolation for upsampling and concatenation joining
+                self.upsampling = InterpolateUpsampling(mode=mode)
+                # concat joining
+                self.joining = partial(self._joining, concat=True)
+            else:
+                # if basic_module=ExtResNetBlock use transposed convolution upsampling and summation joining
+                self.upsampling = TransposeConvUpsampling(in_channels=in_channels, out_channels=out_channels,
+                                                          kernel_size=conv_kernel_size, scale_factor=scale_factor)
+                # sum joining
+                self.joining = partial(self._joining, concat=False)
+                # adapt the number of in_channels for the ExtResNetBlock
+                in_channels = out_channels
+        else:
+            # no upsampling
+            self.upsampling = NoUpsampling()
             # concat joining
             self.joining = partial(self._joining, concat=True)
-        else:
-            # if basic_module=ExtResNetBlock use transposed convolution upsampling and summation joining
-            self.upsampling = Upsampling(transposed_conv=True, in_channels=in_channels, out_channels=out_channels,
-                                         kernel_size=conv_kernel_size, scale_factor=scale_factor, mode=mode)
-            # sum joining
-            self.joining = partial(self._joining, concat=False)
-            # adapt the number of in_channels for the ExtResNetBlock
-            in_channels = out_channels
 
         self.basic_module = basic_module(in_channels, out_channels,
                                          encoder=False,
@@ -295,12 +302,102 @@ class Decoder(nn.Module):
             return encoder_features + x
 
 
-class Upsampling(nn.Module):
-    """
-    Upsamples a given multi-channel 3D data using either interpolation or learned transposed convolution.
+def create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups,
+                    pool_kernel_size):
+    # create encoder path consisting of Encoder modules. Depth of the encoder is equal to `len(f_maps)`
+    encoders = []
+    for i, out_feature_num in enumerate(f_maps):
+        if i == 0:
+            encoder = Encoder(in_channels, out_feature_num,
+                              apply_pooling=False,  # skip pooling in the firs encoder
+                              basic_module=basic_module,
+                              conv_layer_order=layer_order,
+                              conv_kernel_size=conv_kernel_size,
+                              num_groups=num_groups,
+                              padding=conv_padding)
+        else:
+            # TODO: adapt for anisotropy in the data, i.e. use proper pooling kernel to make the data isotropic after 1-2 pooling operations
+            encoder = Encoder(f_maps[i - 1], out_feature_num,
+                              basic_module=basic_module,
+                              conv_layer_order=layer_order,
+                              conv_kernel_size=conv_kernel_size,
+                              num_groups=num_groups,
+                              pool_kernel_size=pool_kernel_size,
+                              padding=conv_padding)
 
+        encoders.append(encoder)
+
+    return nn.ModuleList(encoders)
+
+
+def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups, upsample):
+    # create decoder path consisting of the Decoder modules. The length of the decoder list is equal to `len(f_maps) - 1`
+    decoders = []
+    reversed_f_maps = list(reversed(f_maps))
+    for i in range(len(reversed_f_maps) - 1):
+        if basic_module == DoubleConv:
+            in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
+        else:
+            in_feature_num = reversed_f_maps[i]
+
+        out_feature_num = reversed_f_maps[i + 1]
+
+        # TODO: if non-standard pooling was used, make sure to use correct striding for transpose conv
+        # currently strides with a constant stride: (2, 2, 2)
+
+        _upsample = True
+        if i == 0:
+            # upsampling can be skipped only for the 1st decoder, afterwards it should always be present
+            _upsample = upsample
+
+        decoder = Decoder(in_feature_num, out_feature_num,
+                          basic_module=basic_module,
+                          conv_layer_order=layer_order,
+                          conv_kernel_size=conv_kernel_size,
+                          num_groups=num_groups,
+                          padding=conv_padding,
+                          upsample=_upsample)
+        decoders.append(decoder)
+    return nn.ModuleList(decoders)
+
+
+class AbstractUpsampling(nn.Module):
+    """
+    Abstract class for upsampling. A given implementation should upsample a given 5D input tensor using either
+    interpolation or learned transposed convolution.
+    """
+
+    def __init__(self, upsample):
+        super(AbstractUpsampling, self).__init__()
+        self.upsample = upsample
+
+    def forward(self, encoder_features, x):
+        # get the spatial dimensions of the output given the encoder_features
+        output_size = encoder_features.size()[2:]
+        # upsample the input and return
+        return self.upsample(x, output_size)
+
+
+class InterpolateUpsampling(AbstractUpsampling):
+    """
     Args:
-        transposed_conv (bool): if True uses ConvTranspose3d for upsampling, otherwise uses interpolation
+        mode (str): algorithm used for upsampling:
+            'nearest' | 'linear' | 'bilinear' | 'trilinear' | 'area'. Default: 'nearest'
+            used only if transposed_conv is False
+    """
+
+    def __init__(self, mode='nearest'):
+        upsample = partial(self._interpolate, mode=mode)
+        super().__init__(upsample)
+
+    @staticmethod
+    def _interpolate(x, size, mode):
+        return F.interpolate(x, size=size, mode=mode)
+
+
+class TransposeConvUpsampling(AbstractUpsampling):
+    """
+    Args:
         in_channels (int): number of input channels for transposed conv
             used only if transposed_conv is True
         out_channels (int): number of output channels for transpose conv
@@ -309,27 +406,20 @@ class Upsampling(nn.Module):
             used only if transposed_conv is True
         scale_factor (int or tuple): stride of the convolution
             used only if transposed_conv is True
-        mode (str): algorithm used for upsampling:
-            'nearest' | 'linear' | 'bilinear' | 'trilinear' | 'area'. Default: 'nearest'
-            used only if transposed_conv is False
+
     """
 
-    def __init__(self, transposed_conv, in_channels=None, out_channels=None, kernel_size=3,
-                 scale_factor=(2, 2, 2), mode='nearest'):
-        super(Upsampling, self).__init__()
+    def __init__(self, in_channels=None, out_channels=None, kernel_size=3, scale_factor=(2, 2, 2)):
+        # make sure that the output size reverses the MaxPool3d from the corresponding encoder
+        upsample = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size, stride=scale_factor,
+                                      padding=1)
+        super().__init__(upsample)
 
-        if transposed_conv:
-            # make sure that the output size reverses the MaxPool3d from the corresponding encoder
-            # (D_out = (D_in − 1) ×  stride[0] − 2 ×  padding[0] +  kernel_size[0] +  output_padding[0])
-            self.upsample = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size, stride=scale_factor,
-                                               padding=1)
-        else:
-            self.upsample = partial(self._interpolate, mode=mode)
 
-    def forward(self, encoder_features, x):
-        output_size = encoder_features.size()[2:]
-        return self.upsample(x, output_size)
+class NoUpsampling(AbstractUpsampling):
+    def __init__(self):
+        super().__init__(self._no_upsampling)
 
     @staticmethod
-    def _interpolate(x, size, mode):
-        return F.interpolate(x, size=size, mode=mode)
+    def _no_upsampling(x, size):
+        return x

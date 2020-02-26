@@ -218,8 +218,6 @@ class _TensorboardFormatter:
 
             return tag, img
 
-        assert name in ['inputs', 'targets', 'predictions']
-
         tagged_images = self.process_batch(name, batch)
 
         return list(map(_check_img, tagged_images))
@@ -250,7 +248,7 @@ class DefaultTensorboardFormatter(_TensorboardFormatter):
                     img = batch[batch_idx, channel_idx, slice_idx, ...]
                     tagged_images.append((tag, self._normalize_img(img)))
         else:
-            # batch hafrom sklearn.decomposition import PCAs no channel dim: NDHW
+            # batch has no channel dim: NDHW
             slice_idx = batch.shape[1] // 2  # get the middle slice
             for batch_idx in range(batch.shape[0]):
                 tag = tag_template.format(name, batch_idx, 0, slice_idx)
@@ -270,12 +268,7 @@ class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
         self.plot_variance = plot_variance
 
     def process_batch(self, name, batch):
-        if name == 'inputs':
-            assert batch.ndim == 5
-            # skip coordinate channels and take only the first 'raw' channel
-            batch = batch[:, 0, ...]
-            return super().process_batch(name, batch)
-        elif name == 'predictions':
+        if name == 'predictions' or name == 'predictions1':
             return self._embeddings_to_rgb(batch)
         else:
             return super().process_batch(name, batch)
@@ -290,6 +283,7 @@ class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
         for batch_idx in range(batch.shape[0]):
             tag = tag_template.format(batch_idx, slice_idx)
             img = batch[batch_idx, :, slice_idx, ...]  # CHW
+            # get the PCA projection
             rgb_img = self._pca_project(img)
             tagged_images.append((tag, rgb_img))
             if self.plot_variance:
@@ -405,21 +399,19 @@ def plot_segm(segm, ground_truth, plots_dir='.'):
         plt.savefig(os.path.join(plots_dir, file_name))
 
 
-def convert_to_numpy(input, target):
+def convert_to_numpy(*inputs):
     """
-    Coverts input and target torch tensors to numpy ndarrays
+    Coverts input tensors to numpy ndarrays
 
     Args:
-        input (torch.Tensor): 5D torch tensor
-        target (torch.Tensor): 5D torch tensor
+        inputs (iteable of torch.Tensor): torch tensor
 
     Returns:
-        tuple (input, target) tensors
+        tuple of ndarrays
     """
-    assert isinstance(input, torch.Tensor), "Expected input to be torch.Tensor"
-    assert isinstance(target, torch.Tensor), "Expected target to be torch.Tensor"
 
-    input = input.detach().cpu().numpy()  # 5D
-    target = target.detach().cpu().numpy()  # 5D
+    def _to_numpy(i):
+        assert isinstance(i, torch.Tensor), "Expected input to be torch.Tensor"
+        return i.detach().cpu().numpy()
 
-    return input, target
+    return (_to_numpy(i) for i in inputs)

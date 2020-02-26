@@ -4,9 +4,9 @@ import torch.nn as nn
 from skimage import measure
 
 from pytorch3dunet.augment.transforms import LabelToAffinities, StandardLabelToBoundary
-from pytorch3dunet.embeddings.contrastive_loss import ContrastiveLoss
 from pytorch3dunet.unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, \
-    DiceLoss, TagsAngularLoss, WeightedSmoothL1Loss, _MaskingLossWrapper, SkipLastTargetChannelWrapper, BCEDiceLoss
+    DiceLoss, TagsAngularLoss, WeightedSmoothL1Loss, _MaskingLossWrapper, SkipLastTargetChannelWrapper, BCEDiceLoss, \
+    ContrastiveLoss
 from pytorch3dunet.unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
     BoundaryAdaptedRandError, EmbeddingsAdaptedRandError
 

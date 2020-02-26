@@ -12,7 +12,7 @@ logger = get_logger('DSB2018Dataset')
 
 class DSB2018Dataset(ConfigDataset):
     def __init__(self, root_dir, phase, transformer_config, mirror_padding=(0, 32, 32), expand_dims=True):
-        assert os.path.isdir(root_dir), 'root_dir is not a directory'
+        assert os.path.isdir(root_dir), f'{root_dir} is not a directory'
         assert phase in ['train', 'val', 'test']
 
         # use mirror padding only during the 'test' phase
