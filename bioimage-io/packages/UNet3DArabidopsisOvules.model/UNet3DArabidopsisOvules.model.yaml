@@ -1,0 +1,63 @@
+name: 3D UNet Arabidopsis Ovules
+description: A 3d U-Net trained to predict the cell boundaries in confocal stacks of Arabidopsis ovules.
+cite:
+  - text: "Wolny, Adrian et al. Accurate and Versatile 3D Segmentation of Plant Tissues at Cellular Resolution. BioRxiv 2020."
+    doi: https://doi.org/10.1101/2020.01.17.910562
+authors:
+  - Adrian Wolny;@bioimage-io
+documentation: README.md
+tags: [unet3d, pytorch, arabidopsis, ovuls, cell membrane, segmentation, plant tissue]
+license: MIT
+
+format_version: 0.1.0
+language: python
+framework: pytorch
+
+source: pytorch3dunet.unet3d.model.UNet3D
+optional_kwargs:
+  in_channels: 1
+  out_channels: 1
+  layer_order: gcr  # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
+  f_maps: [32, 64, 128, 256]   # initial number of feature maps
+  num_groups: 8  # number of groups in the groupnorm
+  final_sigmoid: true  # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
+  is_segmentation: true  # don't touch, use postprocessing instead
+  testing: false  # don't touch, use postprocessing instead
+
+test_input: resources/sample_ovule.h5/raw
+test_output: null # ../test_output.npy
+covers: [] # ./nuclei_thumbnail.png
+
+inputs:
+  - name: raw
+    axes: bczyx
+    data_type: float32
+    data_range: [-inf, inf]
+    shape: [1, 1, 112, 202, 202]
+
+outputs:
+  - name: cell_boundaries
+    axes: bczyx
+    data_type: float32
+    data_range: [0, 1]
+    halo: [0, 0, 32, 32, 32]
+    shape:
+        reference_input: raw
+        scale: [1, 1, 1, 1, 1]
+        offset: [0, 0, 0, 0, 0]
+
+prediction:
+  preprocess:
+    - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/EnsureTorch.transformation.yaml
+    - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/Cast.transformation.yaml
+      kwargs: {dtype: float32}
+    - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
+      kwargs: {apply_to: [0]}
+  weights:
+    source: best_model_state_dict.pth
+    hash: {md5: e12a0df1065da265aeeba81802b28f77}
+  postprocess:
+    - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/Sigmoid.transformation.yaml
+    - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/EnsureNumpy.transformation.yaml
+
+  dependencies: conda:environment.yaml
