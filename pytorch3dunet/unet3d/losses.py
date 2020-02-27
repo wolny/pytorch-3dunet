@@ -375,99 +375,132 @@ class ContrastiveLoss(nn.Module):
         self.beta = beta
         self.gamma = gamma
 
-    def _compute_cluster_means(self, input_, target, ndim):
+    def _compute_cluster_means(self, input_, target, spatial_ndim):
+        """
+        Computes mean embeddings per instance, embeddings withing a given instance and the number of voxels per instance.
 
-        dim_arg = (3, 4) if ndim == 2 else (3, 4, 5)
+        C - number of instances
+        E - embedding dimension
+        SPATIAL - volume shape, i.e. DxHxW for 3D/ HxW for 2D
 
-        embedding_dims = input_.size()[1]
+        Args:
+            input_: tensor of pixel embeddings, shape: ExSPATIAL
+            target: one-hot encoded target instances, shape: CxSPATIAL
+            spatial_ndim: rank of the spacial tensor
+        """
+        dim_arg = (2, 3) if spatial_ndim == 2 else (2, 3, 4)
 
-        # expand target: NxCxSPATIAL -> # NxCx1xSPATIAL
-        target = target.unsqueeze(2)
+        embedding_dim = input_.size()[0]
 
-        # NOTE we could try to reuse this in '_compute_variance_term',
-        # but it has another dimensionality, so we would need to drop one axis
-        # get number of voxels in each cluster output: NxCx1(SPATIAL)
+        # get number of voxels in each cluster output: Cx1x1(SPATIAL)
         num_voxels_per_instance = torch.sum(target, dim=dim_arg, keepdim=True)
 
-        # expand target: NxCx1xSPATIAL -> # NxCxExSPATIAL
+        # expand target: Cx1xSPATIAL -> CxExSPATIAL
         shape = list(target.size())
-        shape[2] = embedding_dims
+        shape[1] = embedding_dim
         target = target.expand(shape)
 
-        # expand input_: NxExSPATIAL -> Nx1xExSPATIAL
-        input_ = input_.unsqueeze(1)
+        # expand input_: ExSPATIAL -> 1xExSPATIAL
+        input_ = input_.unsqueeze(0)
 
-        # sum embeddings in each instance (multiply first via broadcasting) output: NxCxEx1(SPATIAL)
+        # sum embeddings in each instance (multiply first via broadcasting); embeddings_per_instance shape CxExSPATIAL
         embeddings_per_instance = input_ * target
+        # num's shape: CxEx1(SPATIAL)
         num = torch.sum(embeddings_per_instance, dim=dim_arg, keepdim=True)
 
-        # compute mean embeddings per instance NxCxEx1(SPATIAL)
+        # compute mean embeddings per instance CxEx1(SPATIAL)
         mean_embeddings = num / num_voxels_per_instance
 
         # return mean embeddings and additional tensors needed for further computations
-        return mean_embeddings, embeddings_per_instance
+        return mean_embeddings, embeddings_per_instance, num_voxels_per_instance
 
-    def _compute_variance_term(self, cluster_means, embeddings_per_instance, target, ndim):
-        dim_arg = (2, 3) if ndim == 2 else (2, 3, 4)
+    def _compute_variance_term(self, cluster_means, embeddings_per_instance, target, num_voxels_per_instance, C,
+                               spatial_ndim):
+        """
+        Computes the variance term, i.e. intra-cluster pull force that draws embeddings towards the mean embedding
 
-        # compute the distance to cluster means, result:(NxCxSPATIAL)
-        embedding_norms = torch.norm(embeddings_per_instance - cluster_means, self.norm, dim=2)
+        C - number of clusters (instances)
+        E - embedding dimension
+        SPATIAL - volume shape, i.e. DxHxW for 3D/ HxW for 2D
+        SPATIAL_SINGLETON - singleton dim with the rank of the volume, i.e. (1,1,1) for 3D, (1,1) for 2D
 
-        # get per instance distances (apply instance mask)
-        embedding_norms = embedding_norms * target
+        Args:
+            cluster_means: mean embedding of each instance, tensor (CxExSPATIAL_SINGLETON)
+            embeddings_per_instance: embeddings vectors per instance, tensor (CxExSPATIAL); for a given instance `k`
+                embeddings_per_instance[k, ...] contains 0 outside of the instance mask target[k, ...]
+            target: instance mask, tensor (CxSPATIAL); each label is represented as one-hot vector
+            num_voxels_per_instance: number of voxels per instance Cx1x1(SPATIAL)
+            C: number of instances (clusters)
+            spatial_ndim: rank of the spacial tensor
+        """
 
-        # zero out distances less than delta_var and sum to get the variance (NxC)
-        embedding_variance = torch.clamp(embedding_norms - self.delta_var, min=0) ** 2
-        embedding_variance = torch.sum(embedding_variance, dim=dim_arg)
+        dim_arg = (2, 3) if spatial_ndim == 2 else (2, 3, 4)
 
-        # get number of voxels per instance (NxC)
-        num_voxels_per_instance = torch.sum(target, dim=dim_arg)
+        # compute the distance to cluster means, (norm across embedding dimension); result:(Cx1xSPATIAL)
+        dist_to_mean = torch.norm(embeddings_per_instance - cluster_means, self.norm, dim=1, keepdim=True)
+
+        # get distances to mean embedding per instance (apply instance mask)
+        dist_to_mean = dist_to_mean * target
+
+        # zero out distances less than delta_var (hinge)
+        hinge_dist = torch.clamp(dist_to_mean - self.delta_var, min=0) ** 2
+        # sum up hinged distances
+        dist_sum = torch.sum(hinge_dist, dim=dim_arg, keepdim=True)
 
         # normalize the variance term
-        C = target.size()[1]
-        variance_term = torch.sum(embedding_variance / num_voxels_per_instance, dim=1) / C
+        variance_term = torch.sum(dist_sum / num_voxels_per_instance) / C
         return variance_term
 
-    def _compute_distance_term(self, cluster_means, C, ndim):
+    def _compute_distance_term(self, cluster_means, C):
+        """
+        Compute the distance term, i.e an inter-cluster push-force that pushes clusters away from each other, increasing
+        the distance between cluster centers
+
+        Args:
+            cluster_means: mean embedding of each instance, tensor (CxExSPATIAL_SINGLETON)
+            C: number of instances (clusters)
+            spatial_ndim: rank of the spacial tensor
+        """
         if C == 1:
             # just one cluster in the batch, so distance term does not contribute to the loss
             return 0.
 
-        # squeeze space dims
-        for _ in range(ndim):
-            cluster_means = cluster_means.squeeze(-1)
         # expand cluster_means tensor in order to compute the pair-wise distance between cluster means
+        # CxE -> CxCxE
         cluster_means = cluster_means.unsqueeze(1)
         shape = list(cluster_means.size())
         shape[1] = C
 
-        # NxCxCxExSPATIAL(1)
+        # cm_matrix1 is CxCxE
         cm_matrix1 = cluster_means.expand(shape)
         # transpose the cluster_means matrix in order to compute pair-wise distances
-        cm_matrix2 = cm_matrix1.permute(0, 2, 1, 3)
-        # compute pair-wise distances (NxCxC)
-        dist_matrix = torch.norm(cm_matrix1 - cm_matrix2, p=self.norm, dim=3)
+        cm_matrix2 = cm_matrix1.permute(1, 0, 2)
+        # compute pair-wise distances between cluster means, result is a CxC tensor
+        dist_matrix = torch.norm(cm_matrix1 - cm_matrix2, p=self.norm, dim=2)
 
         # create matrix for the repulsion distance (i.e. cluster centers further apart than 2 * delta_dist
         # are not longer repulsed)
         repulsion_dist = 2 * self.delta_dist * (1 - torch.eye(C))
-        # 1xCxC
-        repulsion_dist = repulsion_dist.unsqueeze(0).to(cluster_means.device)
-        # zero out distances grater than 2*delta_dist (NxCxC)
+        repulsion_dist = repulsion_dist.to(cluster_means.device)
+        # zero out distances grater than 2*delta_dist (hinge)
         hinged_dist = torch.clamp(repulsion_dist - dist_matrix, min=0) ** 2
         # sum all of the hinged pair-wise distances
-        hinged_dist = torch.sum(hinged_dist, dim=(1, 2))
+        dist_sum = torch.sum(hinged_dist)
         # normalized by the number of paris and return
-        return hinged_dist / (C * (C - 1))
+        distance_term = dist_sum / (C * (C - 1))
+        return distance_term
 
-    def _compute_regularizer_term(self, cluster_means, C, ndim):
-        # squeeze space dims
-        for _ in range(ndim):
-            cluster_means = cluster_means.squeeze(-1)
-        norms = torch.norm(cluster_means, p=self.norm, dim=2)
-        assert norms.size()[1] == C
+    def _compute_regularizer_term(self, cluster_means, C):
+        """
+        Computes the regularizer term, i.e. a small pull-force that draws all clusters towards origin to keep
+        the network activations bounded
+        """
+        # compute the norm of the mean embeddings
+        norms = torch.norm(cluster_means, p=self.norm, dim=1)
+        assert norms.size()[0] == C
         # return the average norm per batch
-        return torch.sum(norms, dim=1).div(C)
+        regularizer_term = torch.sum(norms) / C
+        return regularizer_term
 
     def forward(self, input_, target):
         """
@@ -486,32 +519,44 @@ class ContrastiveLoss(nn.Module):
         # and sum it up in the per_instance variable
         per_instance_loss = 0.
         for single_input, single_target in zip(input_, target):
-            # add singleton batch dimension required for further computation
-            single_input = single_input.unsqueeze(0)
-            single_target = single_target.unsqueeze(0)
-
             # get number of instances in the batch instance
             instances = torch.unique(single_target)
             assert check_consecutive(instances)
+            # get the number of instances
             C = instances.size()[0]
 
             # SPATIAL = D X H X W in 3d case, H X W in 2d case
-            # expand each label as a one-hot vector: N x SPATIAL -> N x C x SPATIAL
-            single_target = expand_as_one_hot(single_target, C)
+            # expand each label as a one-hot vector: SPATIAL -> C x SPATIAL
+            # `expand_as_one_hot` requires batch dimension; later so we need to squeeze the result
+            single_target = expand_as_one_hot(single_target.unsqueeze(0), C).squeeze(0)
 
-            # compare spatial dimensions
-            assert single_input.dim() in (4, 5)
+            # compare shapes of input and output; single_input is ExSPATIAL, single_target is CxSPATIAL
+            assert single_input.dim() in (3, 4)
             assert single_input.dim() == single_target.dim()
-            assert single_input.size()[2:] == single_target.size()[2:]
-            spatial_dims = single_input.dim() - 2
+            # compare spatial dimensions
+            assert single_input.size()[1:] == single_target.size()[1:]
+            spatial_dims = single_input.dim() - 1
 
-            # compute mean embeddings and assign embeddings to instances
-            cluster_means, embeddings_per_instance = self._compute_cluster_means(single_input,
-                                                                                 single_target, spatial_dims)
+            # expand target: CxSPATIAL -> Cx1xSPATIAL for further computation
+            single_target = single_target.unsqueeze(1)
+            # compute mean embeddings, assign embeddings to instances and get the number of voxels per instance
+            cluster_means, embeddings_per_instance, num_voxels_per_instance = self._compute_cluster_means(single_input,
+                                                                                                          single_target,
+                                                                                                          spatial_dims)
+            # compute variance term, i.e. pull force
             variance_term = self._compute_variance_term(cluster_means, embeddings_per_instance,
-                                                        single_target, spatial_dims)
-            distance_term = self._compute_distance_term(cluster_means, C, spatial_dims)
-            regularization_term = self._compute_regularizer_term(cluster_means, C, spatial_dims)
+                                                        single_target, num_voxels_per_instance, C, spatial_dims)
+
+            # squeeze spatial dims
+            for _ in range(spatial_dims):
+                cluster_means = cluster_means.squeeze(-1)
+
+            # compute distance term, i.e. push force
+            distance_term = self._compute_distance_term(cluster_means, C)
+
+            # compute regularization term
+            regularization_term = self._compute_regularizer_term(cluster_means, C)
+
             # compute total loss and sum it up
             loss = self.alpha * variance_term + self.beta * distance_term + self.gamma * regularization_term
             per_instance_loss += loss

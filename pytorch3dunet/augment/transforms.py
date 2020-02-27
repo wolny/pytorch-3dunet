@@ -626,7 +626,7 @@ class ToTensor:
 class Relabel:
     """
     Relabel a numpy array of labels into a consecutive numbers, e.g.
-    [10,10, 0, 6, 6] -> [2, 2, 0, 1, 1]. Useful when one has an instance segmentation volume
+    [10, 10, 0, 6, 6] -> [2, 2, 0, 1, 1]. Useful when one has an instance segmentation volume
     at hand and would like to create a one-hot-encoding for it. Without a consecutive labeling the task would be harder.
     """
 

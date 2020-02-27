@@ -339,17 +339,20 @@ def get_tensorboard_formatter(config):
 
 def expand_as_one_hot(input, C, ignore_index=None):
     """
-    Converts NxDxHxW label image to NxCxDxHxW, where each label gets converted to its corresponding one-hot vector
-    :param input: 4D input image (NxDxHxW)
-    :param C: number of channels/labels
-    :param ignore_index: ignore index to be kept during the expansion
-    :return: 5D output image (NxCxDxHxW)
+    Converts NxSPATIAL label image to NxCxSPATIAL, where each label gets converted to its corresponding one-hot vector.
+    It is assumed that the batch dimension is present.
+    Args:
+        input (torch.Tensor): 3D/4D input image
+        C (int): number of channels/labels
+        ignore_index (int): ignore index to be kept during the expansion
+    Returns:
+        4D/5D output torch.Tensor (NxCxSPATIAL)
     """
     assert input.dim() == 4
 
-    # expand the input tensor to Nx1xDxHxW before scattering
+    # expand the input tensor to Nx1xSPATIAL before scattering
     input = input.unsqueeze(1)
-    # create result tensor shape (NxCxDxHxW)
+    # create output tensor shape (NxCxSPATIAL)
     shape = list(input.size())
     shape[1] = C
 
