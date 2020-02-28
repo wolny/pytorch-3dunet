@@ -33,14 +33,14 @@ inputs:
     axes: bczyx
     data_type: float32
     data_range: [-inf, inf]
-    shape: [1, 1, 112, 202, 202]
+    shape: [1, 1, 144, 234, 234]
 
 outputs:
   - name: cell_boundaries
     axes: bczyx
     data_type: float32
     data_range: [0, 1]
-    halo: [0, 0, 16, 16, 16]
+    halo: [0, 0, 32, 32, 32]
     shape:
         reference_input: raw
         scale: [1, 1, 1, 1, 1]
