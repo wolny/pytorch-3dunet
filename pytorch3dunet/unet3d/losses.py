@@ -366,7 +366,8 @@ class ContrastiveLoss(nn.Module):
     Also, the implementation does not support masking any instance labels in the loss.
     """
 
-    def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001, ignore_zero_label=False):
+    def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001,
+                 ignore_zero_in_variance=False, ignore_zero_in_distance=False):
         super().__init__()
         self.delta_var = delta_var
         self.delta_dist = delta_dist
@@ -374,7 +375,8 @@ class ContrastiveLoss(nn.Module):
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
-        self.ignore_zero_label = ignore_zero_label
+        self.ignore_zero_in_variance = ignore_zero_in_variance
+        self.ignore_zero_in_distance = ignore_zero_in_distance
 
     def _compute_cluster_means(self, input_, target, spatial_ndim):
         """
@@ -451,6 +453,9 @@ class ContrastiveLoss(nn.Module):
             dist_to_mean = dist_to_mean * dist_mask
             # decrease number of instances
             C -= 1
+            # if there is only 0-label in the target return 0
+            if C == 0:
+                return 0.
 
         # zero out distances less than delta_var (hinge)
         hinge_dist = torch.clamp(dist_to_mean - self.delta_var, min=0) ** 2
@@ -495,6 +500,9 @@ class ContrastiveLoss(nn.Module):
         repulsion_dist = repulsion_dist.to(cluster_means.device)
 
         if ignore_zero_label:
+            if C == 2:
+                # just two cluster instances, including one which is ignored, i.e. distance term does not contribute to the loss
+                return 0.
             # set the distance to 0-label to be 2*delta_dist + epsilon so that it does not contribute to the loss because of the hinge at 2*delta_dist
             dist_mask = torch.ones_like(dist_matrix)
             ignore_dist = 2 * self.delta_dist + 1e-4
@@ -544,7 +552,7 @@ class ContrastiveLoss(nn.Module):
         # and sum it up in the per_instance variable
         per_instance_loss = 0.
         for single_input, single_target in zip(input_, target):
-            ignore_zero_label, single_target = self._should_ignore_zero(single_target)
+            ignore_zero_in_variance, ignore_zero_in_distance, single_target = self._should_ignore_zero(single_target)
 
             # get number of instances in the batch instance
             instances = torch.unique(single_target)
@@ -573,14 +581,14 @@ class ContrastiveLoss(nn.Module):
             # compute variance term, i.e. pull force
             variance_term = self._compute_variance_term(cluster_means, embeddings_per_instance,
                                                         single_target, num_voxels_per_instance,
-                                                        C, spatial_dims, ignore_zero_label)
+                                                        C, spatial_dims, ignore_zero_in_variance)
 
             # squeeze spatial dims
             for _ in range(spatial_dims):
                 cluster_means = cluster_means.squeeze(-1)
 
             # compute distance term, i.e. push force
-            distance_term = self._compute_distance_term(cluster_means, C, ignore_zero_label)
+            distance_term = self._compute_distance_term(cluster_means, C, ignore_zero_in_distance)
 
             # compute regularization term
             # do not ignore 0-label in the regularizer, we still want the activations of 0-label to be bounded
@@ -595,19 +603,20 @@ class ContrastiveLoss(nn.Module):
 
     def _should_ignore_zero(self, target):
         # set default values
-        ignore_zero_label = False
+        ignore_zero_in_variance = False
+        ignore_zero_in_distance = False
         single_target = target
 
-        if self.ignore_zero_label:
+        if self.ignore_zero_in_variance or self.ignore_zero_in_distance:
             assert target.dim() == 4, "Expects target to be 2xDxHxW when ignore_zero_label is True"
             # get relabeled target
             single_target = target[0]
             # get original target and ignore 0-label only if 0-label was present in the original target
             original = target[1]
-            if 0 in original:
-                ignore_zero_label = True
+            ignore_zero_in_variance = self.ignore_zero_in_variance and (0 in original)
+            ignore_zero_in_distance = self.ignore_zero_in_distance and (0 in original)
 
-        return ignore_zero_label, single_target
+        return ignore_zero_in_variance, ignore_zero_in_distance, single_target
 
 
 class SegEmbLoss(nn.Module):
