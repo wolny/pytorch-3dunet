@@ -366,7 +366,7 @@ class ContrastiveLoss(nn.Module):
     Also, the implementation does not support masking any instance labels in the loss.
     """
 
-    def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001):
+    def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001, ignore_zero_label=False):
         super().__init__()
         self.delta_var = delta_var
         self.delta_dist = delta_dist
@@ -374,6 +374,7 @@ class ContrastiveLoss(nn.Module):
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
+        self.ignore_zero_label = ignore_zero_label
 
     def _compute_cluster_means(self, input_, target, spatial_ndim):
         """
@@ -415,7 +416,7 @@ class ContrastiveLoss(nn.Module):
         return mean_embeddings, embeddings_per_instance, num_voxels_per_instance
 
     def _compute_variance_term(self, cluster_means, embeddings_per_instance, target, num_voxels_per_instance, C,
-                               spatial_ndim):
+                               spatial_ndim, ignore_zero_label):
         """
         Computes the variance term, i.e. intra-cluster pull force that draws embeddings towards the mean embedding
 
@@ -432,6 +433,7 @@ class ContrastiveLoss(nn.Module):
             num_voxels_per_instance: number of voxels per instance Cx1x1(SPATIAL)
             C: number of instances (clusters)
             spatial_ndim: rank of the spacial tensor
+            ignore_zero_label: if True ignores the cluster corresponding to the 0-label
         """
 
         dim_arg = (2, 3) if spatial_ndim == 2 else (2, 3, 4)
@@ -442,6 +444,14 @@ class ContrastiveLoss(nn.Module):
         # get distances to mean embedding per instance (apply instance mask)
         dist_to_mean = dist_to_mean * target
 
+        if ignore_zero_label:
+            # zero out distances corresponding to 0-label cluster, so that it does not contribute to the loss
+            dist_mask = torch.ones_like(dist_to_mean)
+            dist_mask[0] = 0
+            dist_to_mean = dist_to_mean * dist_mask
+            # decrease number of instances
+            C -= 1
+
         # zero out distances less than delta_var (hinge)
         hinge_dist = torch.clamp(dist_to_mean - self.delta_var, min=0) ** 2
         # sum up hinged distances
@@ -451,7 +461,7 @@ class ContrastiveLoss(nn.Module):
         variance_term = torch.sum(dist_sum / num_voxels_per_instance) / C
         return variance_term
 
-    def _compute_distance_term(self, cluster_means, C):
+    def _compute_distance_term(self, cluster_means, C, ignore_zero_label):
         """
         Compute the distance term, i.e an inter-cluster push-force that pushes clusters away from each other, increasing
         the distance between cluster centers
@@ -460,6 +470,7 @@ class ContrastiveLoss(nn.Module):
             cluster_means: mean embedding of each instance, tensor (CxExSPATIAL_SINGLETON)
             C: number of instances (clusters)
             spatial_ndim: rank of the spacial tensor
+            ignore_zero_label: if True ignores the cluster corresponding to the 0-label
         """
         if C == 1:
             # just one cluster in the batch, so distance term does not contribute to the loss
@@ -482,6 +493,18 @@ class ContrastiveLoss(nn.Module):
         # are not longer repulsed)
         repulsion_dist = 2 * self.delta_dist * (1 - torch.eye(C))
         repulsion_dist = repulsion_dist.to(cluster_means.device)
+
+        if ignore_zero_label:
+            # set the distance to 0-label to be 2*delta_dist + epsilon so that it does not contribute to the loss because of the hinge at 2*delta_dist
+            dist_mask = torch.ones_like(dist_matrix)
+            ignore_dist = 2 * self.delta_dist + 1e-4
+            dist_mask[0, 1:] = ignore_dist
+            dist_mask[1:, 0] = ignore_dist
+            # mask the dist_matrix
+            dist_matrix = dist_matrix * dist_mask
+            # decrease number of instances
+            C -= 1
+
         # zero out distances grater than 2*delta_dist (hinge)
         hinged_dist = torch.clamp(repulsion_dist - dist_matrix, min=0) ** 2
         # sum all of the hinged pair-wise distances
@@ -509,6 +532,8 @@ class ContrastiveLoss(nn.Module):
                                     expects float32 tensor
              target (torch.tensor): ground truth instance segmentation (NxDxHxW)
                                     expects int64 tensor
+                                    if self.ignore_zero_label is True then expects target of shape Nx2xDxHxW where
+                                    relabeled version is in target[:,0,...] and the original labeling is in target[:,1,...]
 
         Returns:
             Combined loss defined as: alpha * variance_term + beta * distance_term + gamma * regularization_term
@@ -519,6 +544,8 @@ class ContrastiveLoss(nn.Module):
         # and sum it up in the per_instance variable
         per_instance_loss = 0.
         for single_input, single_target in zip(input_, target):
+            ignore_zero_label, single_target = self._should_ignore_zero(single_target)
+
             # get number of instances in the batch instance
             instances = torch.unique(single_target)
             assert check_consecutive(instances)
@@ -545,16 +572,18 @@ class ContrastiveLoss(nn.Module):
                                                                                                           spatial_dims)
             # compute variance term, i.e. pull force
             variance_term = self._compute_variance_term(cluster_means, embeddings_per_instance,
-                                                        single_target, num_voxels_per_instance, C, spatial_dims)
+                                                        single_target, num_voxels_per_instance,
+                                                        C, spatial_dims, ignore_zero_label)
 
             # squeeze spatial dims
             for _ in range(spatial_dims):
                 cluster_means = cluster_means.squeeze(-1)
 
             # compute distance term, i.e. push force
-            distance_term = self._compute_distance_term(cluster_means, C)
+            distance_term = self._compute_distance_term(cluster_means, C, ignore_zero_label)
 
             # compute regularization term
+            # do not ignore 0-label in the regularizer, we still want the activations of 0-label to be bounded
             regularization_term = self._compute_regularizer_term(cluster_means, C)
 
             # compute total loss and sum it up
@@ -563,6 +592,22 @@ class ContrastiveLoss(nn.Module):
 
         # reduce across the batch dimension
         return per_instance_loss.div(n_batches)
+
+    def _should_ignore_zero(self, target):
+        # set default values
+        ignore_zero_label = False
+        single_target = target
+
+        if self.ignore_zero_label:
+            assert target.dim() == 4, "Expects target to be 2xDxHxW when ignore_zero_label is True"
+            # get relabeled target
+            single_target = target[0]
+            # get original target and ignore 0-label only if 0-label was present in the original target
+            original = target[1]
+            if 0 in original:
+                ignore_zero_label = True
+
+        return ignore_zero_label, single_target
 
 
 class SegEmbLoss(nn.Module):
@@ -619,10 +664,17 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
     elif name == 'L1Loss':
         return L1Loss()
     elif name == 'ContrastiveLoss':
-        return ContrastiveLoss(loss_config['delta_var'], loss_config['delta_dist'], loss_config['norm'],
-                               loss_config['alpha'], loss_config['beta'], loss_config['gamma'])
+        return ContrastiveLoss(loss_config['delta_var'],
+                               loss_config['delta_dist'],
+                               loss_config['norm'],
+                               loss_config['alpha'],
+                               loss_config['beta'],
+                               loss_config['gamma'],
+                               loss_config.get('ignore_zero_label', False))
     elif name == 'SegEmbLoss':
-        return SegEmbLoss(loss_config['delta_var'], loss_config['delta_dist'], loss_config.get('w1', 1.),
+        return SegEmbLoss(loss_config['delta_var'],
+                          loss_config['delta_dist'],
+                          loss_config.get('w1', 1.),
                           loss_config.get('w2', 1.))
     elif name == 'WeightedSmoothL1Loss':
         return WeightedSmoothL1Loss(threshold=loss_config['threshold'], initial_weight=loss_config['initial_weight'],

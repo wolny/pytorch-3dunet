@@ -630,13 +630,15 @@ class Relabel:
     at hand and would like to create a one-hot-encoding for it. Without a consecutive labeling the task would be harder.
     """
 
-    def __init__(self, **kwargs):
-        pass
+    def __init__(self, append_original=False, **kwargs):
+        self.append_original = append_original
 
     def __call__(self, m):
         _, unique_labels = np.unique(m, return_inverse=True)
-        m = unique_labels.reshape(m.shape)
-        return m
+        result = unique_labels.reshape(m.shape)
+        if self.append_original:
+            result = np.stack([result, m])
+        return result
 
 
 class Identity:
