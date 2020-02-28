@@ -16,3 +16,5 @@ dependencies:
   - pyyaml
   - hdbscan
   - pytest
+  - pip:
+    - git+https://github.com/bioimage-io/python-bioimage-io#egg=pybio

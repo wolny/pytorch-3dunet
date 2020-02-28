@@ -27,6 +27,7 @@ before_script:
   - conda activate test-environment
   # install test dependencies
   - conda install pytest
+  - pip install git+https://github.com/bioimage-io/python-bioimage-io#egg=pybio
 
 script:
   - pytest -v
