@@ -24,9 +24,9 @@ optional_kwargs:
   is_segmentation: true  # don't touch, use postprocessing instead
   testing: false  # don't touch, use postprocessing instead
 
-test_input: resources/sample_ovule.h5/raw
-test_output: null # ../test_output.npy
-covers: [] # ./nuclei_thumbnail.png
+test_input: sample_ovule.h5/raw
+test_output: sample_ovule_output.npy
+covers: [ilastik(4), ilastik(5), ilastik(6), ilastik(7), ilastik(8)]
 
 inputs:
   - name: raw
@@ -40,7 +40,7 @@ outputs:
     axes: bczyx
     data_type: float32
     data_range: [0, 1]
-    halo: [0, 0, 32, 32, 32]
+    halo: [0, 0, 16, 16, 16]
     shape:
         reference_input: raw
         scale: [1, 1, 1, 1, 1]
