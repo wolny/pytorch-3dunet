@@ -24,8 +24,8 @@ optional_kwargs:
   is_segmentation: true  # don't touch, use postprocessing instead
   testing: false  # don't touch, use postprocessing instead
 
-test_input: sample_ovule.h5/raw
-test_output: sample_ovule_output.npy
+test_input: test_input.npy
+test_output: test_output.npy
 covers: [ilastik(4), ilastik(5), ilastik(6), ilastik(7), ilastik(8)]
 
 inputs:

@@ -14,7 +14,7 @@ from pytorch3dunet.unet3d.model import UNet3D
 
 @pytest.fixture
 def dummy_input():
-    return [numpy.random.uniform(-2, 2, [1, 1, 112, 202, 202]).astype(numpy.float32)]
+    return [numpy.random.uniform(-2, 2, [1, 1, 144, 234, 234]).astype(numpy.float32)]
 
 
 def test_dummy_input(cache_path, dummy_input):
@@ -41,9 +41,9 @@ def test_Net3DArabidopsisOvules_forward(cache_path):
 
     assert isinstance(pybio_model.spec.prediction.weights.source, BytesIO)
     assert pybio_model.spec.test_input is not None
-    assert pybio_model.spec.test_input.as_posix().endswith(".h5/raw"), pybio_model.spec.test_input.as_posix()
-    # assert pybio_model.spec.test_output is not None
-    # assert pybio_model.spec.test_output.suffix == ".npy", pybio_model.spec.test_output.suffix
+    assert pybio_model.spec.test_input.suffix == ".npy", pybio_model.spec.test_input.suffix
+    assert pybio_model.spec.test_output is not None
+    assert pybio_model.spec.test_output.suffix == ".npy", pybio_model.spec.test_output.suffix
 
     model: torch.nn.Module = get_instance(pybio_model)
     assert isinstance(model, UNet3D)
@@ -53,13 +53,7 @@ def test_Net3DArabidopsisOvules_forward(cache_path):
     pre_transformations = [get_instance(trf) for trf in pybio_model.spec.prediction.preprocess]
     post_transformations = [get_instance(trf) for trf in pybio_model.spec.prediction.postprocess]
 
-    # load test data
-    h5_input_file, group = str(pybio_model.spec.test_input).split(".h5")
-    with h5py.File(h5_input_file + ".h5", mode="r") as f:
-        test_ipt = f[group][:]
-
-    # add batch dim to test_ipt # todo: change test input
-    test_ipt = test_ipt[None, None, :112, :202, :202]
+    test_ipt = numpy.load(str(pybio_model.spec.test_input))
     assert test_ipt.shape == pybio_model.spec.inputs[0].shape
     test_out = numpy.load(str(pybio_model.spec.test_output))
     assert pybio_model.spec.outputs[0].shape.reference_input == pybio_model.spec.inputs[0].name
