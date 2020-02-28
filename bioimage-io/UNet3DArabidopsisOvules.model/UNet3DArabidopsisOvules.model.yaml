@@ -26,7 +26,7 @@ optional_kwargs:
 
 test_input: test_input.npy
 test_output: test_output.npy
-covers: [ilastik(4), ilastik(5), ilastik(6), ilastik(7), ilastik(8)]
+covers: [ilastik(4).png, ilastik(5).png, ilastik(6).png, ilastik(7).png, ilastik(8).png]
 
 inputs:
   - name: raw
