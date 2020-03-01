@@ -679,7 +679,8 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                loss_config['alpha'],
                                loss_config['beta'],
                                loss_config['gamma'],
-                               loss_config.get('ignore_zero_label', False))
+                               loss_config.get('ignore_zero_in_variance', False),
+                               loss_config.get('ignore_zero_in_distance', False))
     elif name == 'SegEmbLoss':
         return SegEmbLoss(loss_config['delta_var'],
                           loss_config['delta_dist'],
