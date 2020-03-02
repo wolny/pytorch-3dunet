@@ -58,7 +58,7 @@ def test_Net3DArabidopsisOvules_forward(cache_path):
     assert len(ipt.shape) == 5
     assert ipt.shape == pybio_model.spec.inputs[0].shape
 
-    expected = numpy.load(str(pybio_model.spec.expectedput))
+    expected = numpy.load(str(pybio_model.spec.test_output))
     assert pybio_model.spec.outputs[0].shape.reference_input == pybio_model.spec.inputs[0].name
     assert all([s == 1 for s in pybio_model.spec.outputs[0].shape.scale])
     assert all([off == 0 for off in pybio_model.spec.outputs[0].shape.offset])
