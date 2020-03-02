@@ -14,7 +14,7 @@ from pytorch3dunet.unet3d.model import UNet3D
 
 @pytest.fixture
 def dummy_input():
-    return [numpy.random.uniform(-2, 2, [1, 1, 144, 234, 234]).astype(numpy.float32)]
+    return [numpy.random.uniform(-2, 2, [1, 1, 80, 160, 160]).astype(numpy.float32)]
 
 
 def test_dummy_input(cache_path, dummy_input):
@@ -54,16 +54,20 @@ def test_Net3DArabidopsisOvules_forward(cache_path):
     pre_transformations = [get_instance(trf) for trf in pybio_model.spec.prediction.preprocess]
     post_transformations = [get_instance(trf) for trf in pybio_model.spec.prediction.postprocess]
 
-    test_ipt = numpy.load(str(pybio_model.spec.test_input))
-    assert test_ipt.shape == pybio_model.spec.inputs[0].shape
-    test_out = numpy.load(str(pybio_model.spec.test_output))
+    ipt = numpy.load(str(pybio_model.spec.test_input))
+    assert len(ipt.shape) == 5
+    assert ipt.shape == pybio_model.spec.inputs[0].shape
+
+    expected = numpy.load(str(pybio_model.spec.test_output))
     assert pybio_model.spec.outputs[0].shape.reference_input == pybio_model.spec.inputs[0].name
     assert all([s == 1 for s in pybio_model.spec.outputs[0].shape.scale])
     assert all([off == 0 for off in pybio_model.spec.outputs[0].shape.offset])
-    assert test_out.shape == pybio_model.spec.inputs[0].shape
+    assert expected.shape == pybio_model.spec.inputs[0].shape
 
-    test_roi = (slice(None), slice(None), slice(0, 32), slice(0, 32), slice(0, 32))  # to lower test mem consumption
-    ipt = apply_transformations(pre_transformations, test_ipt[test_roi])
+    test_roi = (slice(0, 1), slice(0, 1), slice(0, 32), slice(0, 32), slice(0, 32))  # to lower test mem consumption
+    ipt = ipt[test_roi]
+    expected = expected[test_roi]
+    ipt = apply_transformations(pre_transformations, ipt)
     assert isinstance(ipt, list)
     assert len(ipt) == 1
     ipt = ipt[0]
@@ -73,5 +77,6 @@ def test_Net3DArabidopsisOvules_forward(cache_path):
     assert len(out) == 1
     out = out[0]
     # assert out.shape == pybio_model.spec.inputs[0].shape  # test_roi makes test invalid
+    numpy.save("out.npy", out)
     assert str(out.dtype).split(".")[-1] == pybio_model.spec.outputs[0].data_type
-    assert numpy.allclose(test_out[test_roi], out, atol=0.1)  # test_roi requires atol >0.07876602
+    assert numpy.allclose(expected, out, atol=0.1)  # test_roi requires bigger atol
