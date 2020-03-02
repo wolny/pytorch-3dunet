@@ -5,7 +5,7 @@ cite:
     doi: https://doi.org/10.1101/2020.01.17.910562
 authors:
   - Adrian Wolny;@bioimage-io
-documentation: README.md
+documentation: ../../README.md
 tags: [unet3d, pytorch, arabidopsis, ovuls, cell membrane, segmentation, plant tissue]
 license: MIT
 
@@ -33,14 +33,14 @@ inputs:
     axes: bczyx
     data_type: float32
     data_range: [-inf, inf]
-    shape: [1, 1, 160, 160, 160]
+    shape: [1, 1, 80, 160, 160]
 
 outputs:
   - name: cell_boundaries
     axes: bczyx
     data_type: float32
     data_range: [0, 1]
-    halo: [0, 0, 16, 16, 16]
+    halo: [0, 0, 8, 16, 16]
     shape:
         reference_input: raw
         scale: [1, 1, 1, 1, 1]
