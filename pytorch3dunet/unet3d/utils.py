@@ -1,3 +1,4 @@
+import datetime
 import importlib
 import io
 import logging
@@ -262,6 +263,23 @@ class DefaultTensorboardFormatter(_TensorboardFormatter):
         return np.nan_to_num((img - np.min(img)) / np.ptp(img))
 
 
+def _pca_project(embeddings):
+    assert embeddings.ndim == 3
+    # reshape (C, H, W) -> (C, H * W) and transpose
+    flattened_embeddings = embeddings.reshape(embeddings.shape[0], -1).transpose()
+    # init PCA with 3 principal components: one for each RGB channel
+    pca = PCA(n_components=3)
+    # fit the model with embeddings and apply the dimensionality reduction
+    flattened_embeddings = pca.fit_transform(flattened_embeddings)
+    # reshape back to original
+    shape = list(embeddings.shape)
+    shape[0] = 3
+    img = flattened_embeddings.transpose().reshape(shape)
+    # normalize to [0, 255]
+    img = 255 * (img - np.min(img)) / np.ptp(img)
+    return img.astype('uint8')
+
+
 class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
     def __init__(self, plot_variance=False, **kwargs):
         super().__init__(**kwargs)
@@ -284,29 +302,13 @@ class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
             tag = tag_template.format(batch_idx, slice_idx)
             img = batch[batch_idx, :, slice_idx, ...]  # CHW
             # get the PCA projection
-            rgb_img = self._pca_project(img)
+            rgb_img = _pca_project(img)
             tagged_images.append((tag, rgb_img))
             if self.plot_variance:
                 cum_explained_variance_img = self._plot_cum_explained_variance(img)
                 tagged_images.append((f'cumulative_explained_variance/batch_{batch_idx}', cum_explained_variance_img))
 
         return tagged_images
-
-    def _pca_project(self, embeddings):
-        assert embeddings.ndim == 3
-        # reshape (C, H, W) -> (C, H * W) and transpose
-        flattened_embeddings = embeddings.reshape(embeddings.shape[0], -1).transpose()
-        # init PCA with 3 principal components: one for each RGB channel
-        pca = PCA(n_components=3)
-        # fit the model with embeddings and apply the dimensionality reduction
-        flattened_embeddings = pca.fit_transform(flattened_embeddings)
-        # reshape back to original
-        shape = list(embeddings.shape)
-        shape[0] = 3
-        img = flattened_embeddings.transpose().reshape(shape)
-        # normalize to [0, 255]
-        img = 255 * (img - np.min(img)) / np.ptp(img)
-        return img.astype('uint8')
 
     def _plot_cum_explained_variance(self, embeddings):
         # reshape (C, H, W) -> (C, H * W) and transpose
@@ -400,6 +402,26 @@ def plot_segm(segm, ground_truth, plots_dir='.'):
 
         file_name = f'segm_{str(uuid.uuid4())[:8]}.png'
         plt.savefig(os.path.join(plots_dir, file_name))
+
+
+def plot_emb(inp, seg, tar, plots_dir='.'):
+    f, axarr = plt.subplots(1, 3)
+
+    mid_z = seg.shape[0] // 2
+
+    rgb_emb = _pca_project(np.squeeze(inp))
+    rgb_emb = np.transpose(rgb_emb, (1, 2, 0))
+    axarr[0].imshow(rgb_emb)
+    axarr[0].set_title('Embeddings')
+
+    axarr[1].imshow(seg[mid_z], cmap='prism')
+    axarr[1].set_title('Predicted')
+
+    axarr[2].imshow(tar[mid_z], cmap='prism')
+    axarr[2].set_title('Ground truth')
+
+    file_name = f'segm_{datetime.datetime.now().time()}.png'
+    plt.savefig(os.path.join(plots_dir, file_name), bbox_inches='tight', transparent=True)
 
 
 def convert_to_numpy(*inputs):
