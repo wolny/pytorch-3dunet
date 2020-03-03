@@ -1,8 +1,10 @@
+import math
+
 import torch
 import torch.nn.functional as F
 from torch import nn as nn
 from torch.autograd import Variable
-from torch.nn import MSELoss, SmoothL1Loss, L1Loss
+from torch.nn import MSELoss, SmoothL1Loss, L1Loss, BCELoss
 
 from pytorch3dunet.unet3d.utils import expand_as_one_hot
 
@@ -86,18 +88,21 @@ class _AbstractDiceLoss(nn.Module):
     Base class for different implementations of Dice loss.
     """
 
-    def __init__(self, weight=None, sigmoid_normalization=True):
+    def __init__(self, weight=None, normalization='sigmoid'):
         super(_AbstractDiceLoss, self).__init__()
         self.register_buffer('weight', weight)
         # The output from the network during training is assumed to be un-normalized probabilities and we would
         # like to normalize the logits. Since Dice (or soft Dice in this case) is usually used for binary data,
         # normalizing the channels with Sigmoid is the default choice even for multi-class segmentation problems.
         # However if one would like to apply Softmax in order to get the proper probability distribution from the
-        # output, just specify sigmoid_normalization=False.
-        if sigmoid_normalization:
+        # output, just specify `normalization=Softmax`
+        assert normalization in ['sigmoid', 'softmax', 'none']
+        if normalization == 'sigmoid':
             self.normalization = nn.Sigmoid()
-        else:
+        elif normalization == 'softmax':
             self.normalization = nn.Softmax(dim=1)
+        else:
+            self.normalization = lambda x: x
 
     def dice(self, input, target, weight):
         # actual Dice score computation; to be implemented by the subclass
@@ -120,8 +125,8 @@ class DiceLoss(_AbstractDiceLoss):
     The input to the loss function is assumed to be a logit and will be normalized by the Sigmoid function.
     """
 
-    def __init__(self, weight=None, sigmoid_normalization=True):
-        super().__init__(weight, sigmoid_normalization)
+    def __init__(self, weight=None, normalization='sigmoid'):
+        super().__init__(weight, normalization)
 
     def dice(self, input, target, weight):
         return compute_per_channel_dice(input, target, weight=self.weight)
@@ -131,8 +136,8 @@ class GeneralizedDiceLoss(_AbstractDiceLoss):
     """Computes Generalized Dice Loss (GDL) as described in https://arxiv.org/pdf/1707.03237.pdf.
     """
 
-    def __init__(self, sigmoid_normalization=True, epsilon=1e-6):
-        super().__init__(weight=None, sigmoid_normalization=sigmoid_normalization)
+    def __init__(self, normalization='sigmoid', epsilon=1e-6):
+        super().__init__(weight=None, normalization=normalization)
         self.epsilon = epsilon
 
     def dice(self, input, target, weight):
@@ -356,7 +361,7 @@ def check_consecutive(labels):
     return (labels[0] == 0) and (diff == 1).all()
 
 
-class ContrastiveLoss(nn.Module):
+class _AbstractContrastiveLoss(nn.Module):
     """
     Implementation of contrastive loss defined in https://arxiv.org/pdf/1708.02551.pdf
     'Semantic Instance Segmentation with a Discriminative Loss Function'
@@ -366,8 +371,8 @@ class ContrastiveLoss(nn.Module):
     Also, the implementation does not support masking any instance labels in the loss.
     """
 
-    def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001,
-                 ignore_zero_in_variance=False, ignore_zero_in_distance=False):
+    def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001, delta=1.,
+                 ignore_zero_in_variance=False, ignore_zero_in_distance=False, aux_loss_ignore_zero=True):
         super().__init__()
         self.delta_var = delta_var
         self.delta_dist = delta_dist
@@ -375,8 +380,10 @@ class ContrastiveLoss(nn.Module):
         self.alpha = alpha
         self.beta = beta
         self.gamma = gamma
+        self.delta = delta
         self.ignore_zero_in_variance = ignore_zero_in_variance
         self.ignore_zero_in_distance = ignore_zero_in_distance
+        self.aux_loss_ignore_zero = aux_loss_ignore_zero
 
     def _compute_cluster_means(self, input_, target, spatial_ndim):
         """
@@ -533,6 +540,17 @@ class ContrastiveLoss(nn.Module):
         regularizer_term = torch.sum(norms) / C
         return regularizer_term
 
+    def auxiliary_loss(self, embeddings, cluster_means, target):
+        """
+        Computes auxiliary loss based on embeddings and a given list of target instances together with their mean embeddings
+
+        Args:
+            embeddings (torch.tensor): pixel embeddings (ExSPATIAL)
+            cluster_means (torch.tensor): mean embeddings per instance (CxExSINGLETON_SPATIAL)
+            target (torch.tensor): ground truth instance segmentation (SPATIAL)
+        """
+        raise NotImplementedError
+
     def forward(self, input_, target):
         """
         Args:
@@ -553,6 +571,8 @@ class ContrastiveLoss(nn.Module):
         per_instance_loss = 0.
         for single_input, single_target in zip(input_, target):
             ignore_zero_in_variance, ignore_zero_in_distance, single_target = self._should_ignore_zero(single_target)
+            # save original target tensor
+            orig_target = single_target
 
             # get number of instances in the batch instance
             instances = torch.unique(single_target)
@@ -578,10 +598,14 @@ class ContrastiveLoss(nn.Module):
             cluster_means, embeddings_per_instance, num_voxels_per_instance = self._compute_cluster_means(single_input,
                                                                                                           single_target,
                                                                                                           spatial_dims)
+
             # compute variance term, i.e. pull force
             variance_term = self._compute_variance_term(cluster_means, embeddings_per_instance,
                                                         single_target, num_voxels_per_instance,
                                                         C, spatial_dims, ignore_zero_in_variance)
+
+            # compute the auxiliary loss
+            aux_loss = self.auxiliary_loss(single_input, cluster_means, orig_target)
 
             # squeeze spatial dims
             for _ in range(spatial_dims):
@@ -595,7 +619,11 @@ class ContrastiveLoss(nn.Module):
             regularization_term = self._compute_regularizer_term(cluster_means, C)
 
             # compute total loss and sum it up
-            loss = self.alpha * variance_term + self.beta * distance_term + self.gamma * regularization_term
+            loss = self.alpha * variance_term + \
+                   self.beta * distance_term + \
+                   self.gamma * regularization_term + \
+                   self.delta * aux_loss
+
             per_instance_loss += loss
 
         # reduce across the batch dimension
@@ -617,6 +645,145 @@ class ContrastiveLoss(nn.Module):
             ignore_zero_in_distance = self.ignore_zero_in_distance and (0 in original)
 
         return ignore_zero_in_variance, ignore_zero_in_distance, single_target
+
+
+class ContrastiveLoss(_AbstractContrastiveLoss):
+    def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001,
+                 ignore_zero_in_variance=False, ignore_zero_in_distance=False):
+        super(ContrastiveLoss, self).__init__(delta_var, delta_dist, norm=norm,
+                                              alpha=alpha, beta=beta, gamma=gamma, delta=0.,
+                                              ignore_zero_in_variance=ignore_zero_in_variance,
+                                              ignore_zero_in_distance=ignore_zero_in_distance)
+
+    def auxiliary_loss(self, embeddings, cluster_means, target):
+        # no auxiliary loss in the standard ContrastiveLoss
+        return 0.
+
+
+class LovaszSoftmaxLoss(nn.Module):
+    """
+    Copied from: https://github.com/bermanmaxim/LovaszSoftmax/blob/master/pytorch/lovasz_losses.py
+    """
+
+    def forward(self, input, target):
+        return self.lovasz_hinge_flat(*self.flatten_binary_scores(input, target, ignore=None))
+
+    @staticmethod
+    def lovasz_hinge_flat(logits, labels):
+        """
+        Binary Lovasz hinge loss
+          logits: [P] Variable, logits at each prediction (between -\infty and +\infty)
+          labels: [P] Tensor, binary ground truth labels (0 or 1)
+        """
+        if len(labels) == 0:
+            # only void pixels, the gradients should be 0
+            return logits.sum() * 0.
+        signs = 2. * labels.float() - 1.
+        errors = (1. - logits * Variable(signs))
+        errors_sorted, perm = torch.sort(errors, dim=0, descending=True)
+        perm = perm.data
+        gt_sorted = labels[perm]
+        grad = LovaszSoftmaxLoss.lovasz_grad(gt_sorted)
+        loss = torch.dot(F.relu(errors_sorted), Variable(grad))
+        return loss
+
+    @staticmethod
+    def lovasz_grad(gt_sorted):
+        """
+        Computes gradient of the Lovasz extension w.r.t sorted errors
+        See Alg. 1 in paper
+        """
+        p = len(gt_sorted)
+        gts = gt_sorted.sum()
+        intersection = gts - gt_sorted.float().cumsum(0)
+        union = gts + (1 - gt_sorted).float().cumsum(0)
+        jaccard = 1. - intersection / union
+        if p > 1:  # cover 1-pixel case
+            jaccard[1:p] = jaccard[1:p] - jaccard[0:-1]
+        return jaccard
+
+    @staticmethod
+    def flatten_binary_scores(scores, labels, ignore=None):
+        """
+        Flattens predictions in the batch (binary case)
+        Remove labels equal to 'ignore'
+        """
+        scores = scores.view(-1)
+        labels = labels.view(-1)
+        if ignore is None:
+            return scores, labels
+        valid = (labels != ignore)
+        vscores = scores[valid]
+        vlabels = labels[valid]
+        return vscores, vlabels
+
+
+class AuxContrastiveLoss(_AbstractContrastiveLoss):
+    def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf,
+                 norm='fro', alpha=1., beta=1., gamma=0.001, delta=1.,
+                 aux_loss_ignore_zero=True):
+        super().__init__(delta_var, delta_dist, norm=norm, alpha=alpha, beta=beta, gamma=gamma, delta=delta,
+                         ignore_zero_in_variance=False,
+                         ignore_zero_in_distance=False,
+                         aux_loss_ignore_zero=aux_loss_ignore_zero)
+        # ignore instance corresponding to 0-label
+        self.delta_var = delta_var
+        # init auxiliary loss
+        assert aux_loss in ['bce', 'dice', 'lovasz']
+        if aux_loss == 'bce':
+            self.aux_loss = BCELoss()
+        elif aux_loss == 'dice':
+            self.aux_loss = DiceLoss(normalization='none')
+        else:
+            self.aux_loss = LovaszSoftmaxLoss()
+        # init dist_to_mask function which maps per-instance distance map to the instance probability map
+        self.dist_to_mask = self._create_dist_to_mask_fun(dist_to_mask_conf, delta_var)
+
+    def _create_dist_to_mask_fun(self, dist_to_mask_conf, delta_var):
+        name = dist_to_mask_conf['name']
+        assert name in ['logistic', 'gaussian']
+        if name == 'logistic':
+            return self.Logistic(delta_var, dist_to_mask_conf.get('k', 10.))
+        else:
+            return self.Gaussian(delta_var, dist_to_mask_conf.get('pmaps_threshold', 0.5))
+
+    def auxiliary_loss(self, embeddings, cluster_means, target):
+        assert embeddings.size()[1:] == target.size()
+
+        per_instance_loss = 0.
+        for i, cm in enumerate(cluster_means):
+            if i == 0 and self.aux_loss_ignore_zero:
+                # ignore 0-label
+                continue
+            # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
+            dist_to_mean = torch.norm(embeddings - cm, self.norm, dim=0)
+            # convert distance map to instance pmaps
+            inst_pmap = self.dist_to_mask(dist_to_mean)
+            # compute the auxiliary loss between the instance_pmap and the ground truth instance mask
+            assert i in target
+            inst_mask = (target == i).float()
+            loss = self.aux_loss(inst_pmap, inst_mask)
+            per_instance_loss += loss
+
+        return per_instance_loss
+
+    class Logistic(nn.Module):
+        def __init__(self, delta_var, k=10.):
+            super().__init__()
+            self.delta_var = delta_var
+            self.k = k
+
+        def forward(self, dist_map):
+            return torch.sigmoid(-self.k * (dist_map - self.delta_var))
+
+    class Gaussian(nn.Module):
+        def __init__(self, delta_var, pmaps_threshold):
+            super().__init__()
+            # dist_var^2 = -2*sigma*ln(pmaps_threshold)
+            self.two_sigma = delta_var * delta_var / (-math.log(pmaps_threshold))
+
+        def forward(self, dist_map):
+            return torch.exp(- dist_map * dist_map / self.two_sigma)
 
 
 class SegEmbLoss(nn.Module):
@@ -658,11 +825,11 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
     elif name == 'PixelWiseCrossEntropyLoss':
         return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index)
     elif name == 'GeneralizedDiceLoss':
-        sigmoid_normalization = loss_config.get('sigmoid_normalization', True)
-        return GeneralizedDiceLoss(sigmoid_normalization=sigmoid_normalization)
+        normalization = loss_config.get('normalization', 'sigmoid')
+        return GeneralizedDiceLoss(normalization=normalization)
     elif name == 'DiceLoss':
-        sigmoid_normalization = loss_config.get('sigmoid_normalization', True)
-        return DiceLoss(weight=weight, sigmoid_normalization=sigmoid_normalization)
+        normalization = loss_config.get('normalization', 'sigmoid')
+        return DiceLoss(weight=weight, normalization=normalization)
     elif name == 'TagsAngularLoss':
         tags_coefficients = loss_config['tags_coefficients']
         return TagsAngularLoss(tags_coefficients)
@@ -681,6 +848,17 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                loss_config['gamma'],
                                loss_config.get('ignore_zero_in_variance', False),
                                loss_config.get('ignore_zero_in_distance', False))
+    elif name == 'AuxContrastiveLoss':
+        return AuxContrastiveLoss(loss_config['delta_var'],
+                                  loss_config['delta_dist'],
+                                  loss_config['aux_loss'],
+                                  loss_config['dist_to_mask'],
+                                  loss_config['norm'],
+                                  loss_config['alpha'],
+                                  loss_config['beta'],
+                                  loss_config['gamma'],
+                                  loss_config['delta'],
+                                  loss_config.get('aux_loss_ignore_zero', True))
     elif name == 'SegEmbLoss':
         return SegEmbLoss(loss_config['delta_var'],
                           loss_config['delta_dist'],
