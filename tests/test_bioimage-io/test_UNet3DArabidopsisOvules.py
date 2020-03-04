@@ -2,6 +2,7 @@ from io import BytesIO
 from pathlib import Path
 
 import h5py
+import imageio
 import numpy
 import pytest
 import torch
@@ -41,9 +42,9 @@ def test_Net3DArabidopsisOvules_forward(cache_path):
 
     assert isinstance(pybio_model.spec.prediction.weights.source, BytesIO)
     assert pybio_model.spec.test_input is not None
-    assert pybio_model.spec.test_input.suffix == ".npy", pybio_model.spec.test_input.suffix
+    assert pybio_model.spec.test_input.suffix == ".npz", pybio_model.spec.test_input.suffix
     assert pybio_model.spec.test_output is not None
-    assert pybio_model.spec.test_output.suffix == ".npy", pybio_model.spec.test_output.suffix
+    assert pybio_model.spec.test_output.suffix == ".npz", pybio_model.spec.test_output.suffix
 
 
     model: torch.nn.Module = get_instance(pybio_model)
@@ -54,11 +55,11 @@ def test_Net3DArabidopsisOvules_forward(cache_path):
     pre_transformations = [get_instance(trf) for trf in pybio_model.spec.prediction.preprocess]
     post_transformations = [get_instance(trf) for trf in pybio_model.spec.prediction.postprocess]
 
-    ipt = numpy.load(str(pybio_model.spec.test_input))
+    ipt = imageio.imread(pybio_model.spec.test_input)
     assert len(ipt.shape) == 5
     assert ipt.shape == pybio_model.spec.inputs[0].shape
 
-    expected = numpy.load(str(pybio_model.spec.test_output))
+    expected = imageio.imread(pybio_model.spec.test_output)
     assert pybio_model.spec.outputs[0].shape.reference_input == pybio_model.spec.inputs[0].name
     assert all([s == 1 for s in pybio_model.spec.outputs[0].shape.scale])
     assert all([off == 0 for off in pybio_model.spec.outputs[0].shape.offset])
@@ -77,6 +78,5 @@ def test_Net3DArabidopsisOvules_forward(cache_path):
     assert len(out) == 1
     out = out[0]
     # assert out.shape == pybio_model.spec.inputs[0].shape  # test_roi makes test invalid
-    numpy.save("out.npy", out)
     assert str(out.dtype).split(".")[-1] == pybio_model.spec.outputs[0].data_type
     assert numpy.allclose(expected, out, atol=0.1)  # test_roi requires bigger atol

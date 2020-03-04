@@ -8,7 +8,7 @@ import pytest
 from pybio.spec.utils import cache_uri, get_instance, load_model
 
 MODEL_EXTENSIONS = (".model.yaml", ".model.yml")
-PACKAGE_URL = "https://github.com/wolny/pytorch-3dunet/releases/download/1.2.5/UNet3DArabidopsisOvules.model.zip"
+PACKAGE_URL = "https://github.com/wolny/pytorch-3dunet/releases/download/1.2.6/UNet3DArabidopsisOvules.model.zip"
 
 
 def guess_model_path(file_names: List[str]) -> Optional[str]:
