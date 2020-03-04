@@ -24,8 +24,8 @@ optional_kwargs:
   is_segmentation: true  # don't touch, use postprocessing instead
   testing: false  # don't touch, use postprocessing instead
 
-test_input: test_input.npy
-test_output: test_output.npy
+test_input: test_input.npz
+test_output: test_output.npz
 covers: [ilastik_4.png, ilastik_5.png, ilastik_6.png, ilastik_7.png, ilastik_8.png]
 
 inputs:
