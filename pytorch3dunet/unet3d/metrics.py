@@ -141,6 +141,12 @@ class AdaptedRandError:
         Returns:
             average ARand Error across the batch
         """
+        def _arand_err(gt, seg):
+            n_seg = len(np.unique(seg))
+            if n_seg == 1:
+                return 0.
+            return adapted_rand_error(gt, seg)[0]
+
         # converts input and target to numpy arrays
         input, target = convert_to_numpy(input, target)
         if self.use_last_target:
@@ -154,7 +160,15 @@ class AdaptedRandError:
 
         per_batch_arand = []
         for _input, _target in zip(input, target):
-            logger.info(f'Number of ground truth clusters: {len(np.unique(_target))}')
+            n_clusters = len(np.unique(_target))
+            # skip ARand eval if there is only one label in the patch due to the zero-division error in Arand impl
+            # xxx/skimage/metrics/_adapted_rand_error.py:70: RuntimeWarning: invalid value encountered in double_scalars
+            # precision = sum_p_ij2 / sum_a2
+            logger.info(f'Number of ground truth clusters: {n_clusters}')
+            if n_clusters == 1:
+                logger.info('Skipping ARandError computation: only 1 label present in the ground truth')
+                per_batch_arand.append(0.)
+                continue
 
             # convert _input to segmentation CDHW
             segm = self.input_to_segm(_input)
@@ -165,7 +179,7 @@ class AdaptedRandError:
                 plot_segm(segm, _target, self.plots_dir)
 
             # compute per channel arand and return the minimum value
-            per_channel_arand = [adapted_rand_error(_target, channel_segm)[0] for channel_segm in segm]
+            per_channel_arand = [_arand_err(_target, channel_segm) for channel_segm in segm]
             logger.info(f'Min ARand for channel: {np.argmin(per_channel_arand)}')
             per_batch_arand.append(np.min(per_channel_arand))
 
