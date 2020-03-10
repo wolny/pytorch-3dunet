@@ -162,7 +162,7 @@ def remove_halo(patch, index, shape, patch_halo):
             p_stop = None
             i_stop = max_size
         else:
-            p_stop = -pad
+            p_stop = -pad if pad != 0 else 1
             i_stop = slicing.stop - pad
 
         return slice(p_start, p_stop), slice(i_start, i_stop)
