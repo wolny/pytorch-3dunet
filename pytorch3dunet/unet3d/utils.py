@@ -1,17 +1,16 @@
-import datetime
 import importlib
 import io
 import logging
 import os
 import shutil
 import sys
-import uuid
 
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from PIL import Image
+from numpy import linalg as LA
 from sklearn.decomposition import PCA
 
 plt.ioff()
@@ -316,7 +315,7 @@ class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
         # fit PCA to the data
         pca = PCA().fit(flattened_embeddings)
 
-        plt.figure()
+        plt.clf()
         # plot cumulative explained variance ratio
         plt.plot(np.cumsum(pca.explained_variance_ratio_))
         plt.xlabel('number of components')
@@ -325,7 +324,6 @@ class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
         plt.savefig(buf, format='jpeg')
         buf.seek(0)
         img = np.asarray(Image.open(buf)).transpose(2, 0, 1)
-        plt.close('all')
         return img
 
 
@@ -333,6 +331,82 @@ def get_tensorboard_formatter(config):
     if config is None:
         return DefaultTensorboardFormatter()
 
+    class_name = config['name']
+    m = importlib.import_module('pytorch3dunet.unet3d.utils')
+    clazz = getattr(m, class_name)
+    return clazz(**config)
+
+
+class AbstractSamplePlotter:
+    def __init__(self, plot_dir, **kwargs):
+        self.plot_dir = plot_dir
+        self.time = 0
+        self.current_dir = None
+
+    def update_current_dir(self):
+        self.time += 1
+        self.current_dir = os.path.join(self.plot_dir, str(self.time))
+        os.makedirs(self.current_dir, exist_ok=False)
+
+    def __call__(self, i, input, output, target, phase):
+        assert self.current_dir is not None, 'update_current_dir() was not called'
+        self.plot(i, input, output, target, phase)
+
+    def plot(self, i, input, output, target, phase):
+        raise NotImplementedError
+
+
+class EmbeddingSamplePlotter(AbstractSamplePlotter):
+    def __init__(self, plot_dir, epsilon, **kwargs):
+        super().__init__(plot_dir, **kwargs)
+        self.epsilon = epsilon
+
+    def plot(self, i, input, embeddings, target, phase):
+        if target.dim() == 5:
+            # use 1st target channel
+            target = target[:, 0, ...]
+
+        if input.dim() == 5:
+            input = input[:, 0, ...]
+
+        input, embeddings, target = convert_to_numpy(input, embeddings, target)
+
+        i_batch = 0
+        # iterate over the batch
+        for inp, emb, tar in zip(input, embeddings, target):
+            seg = self._embedding_to_seg(emb, tar)
+            file_path = os.path.join(self.current_dir, f'batch{i}_inst{i_batch}.png')
+            plot_emb(inp, emb, seg, tar, file_path)
+            i_batch += 1
+
+    def _embedding_to_seg(self, embeddings, target):
+        result = np.zeros(shape=embeddings.shape[1:], dtype=np.uint32)
+
+        spatial_dims = (1, 2) if result.ndim == 2 else (1, 2, 3)
+
+        labels, counts = np.unique(target, return_counts=True)
+        for label, size in zip(labels, counts):
+            # skip 0-label
+            if label == 0:
+                continue
+
+            # get the mask for this instance
+            instance_mask = (target == label)
+
+            # mask out all embeddings not in this instance
+            embeddings_per_instance = embeddings * instance_mask
+
+            # compute the cluster mean
+            mean_embedding = np.sum(embeddings_per_instance, axis=spatial_dims, keepdims=True) / size
+            # compute the instance mask, i.e. get the epsilon-ball
+            inst_mask = LA.norm(embeddings - mean_embedding, axis=0) < self.epsilon
+            # save instance
+            result[inst_mask] = label
+
+        return result
+
+
+def get_sample_plotter(config):
     class_name = config['name']
     m = importlib.import_module('pytorch3dunet.unet3d.utils')
     clazz = getattr(m, class_name)
@@ -374,54 +448,49 @@ def expand_as_one_hot(input, C, ignore_index=None):
         return torch.zeros(shape).to(input.device).scatter_(1, input, 1)
 
 
-def plot_segm(segm, ground_truth, plots_dir='.'):
+def plot_segm(inp, seg, tar, file_path):
     """
-    Saves predicted and ground truth segmentation into a PNG files (one per channel).
-
-    :param segm: 4D ndarray (CDHW)
-    :param ground_truth: 4D ndarray (CDHW)
-    :param plots_dir: directory where to save the plots
+    Saves predicted and ground truth segmentation into a PNG.
     """
-    assert segm.ndim == 4
-    if ground_truth.ndim == 3:
-        stacked = [ground_truth for _ in range(segm.shape[0])]
-        ground_truth = np.stack(stacked)
-
-    assert ground_truth.ndim == 4
-
-    f, axarr = plt.subplots(1, 2)
-
-    for seg, gt in zip(segm, ground_truth):
-        mid_z = seg.shape[0] // 2
-
-        axarr[0].imshow(seg[mid_z], cmap='prism')
-        axarr[0].set_title('Predicted segmentation')
-
-        axarr[1].imshow(gt[mid_z], cmap='prism')
-        axarr[1].set_title('Ground truth segmentation')
-
-        file_name = f'segm_{str(uuid.uuid4())[:8]}.png'
-        plt.savefig(os.path.join(plots_dir, file_name))
-
-
-def plot_emb(inp, seg, tar, plots_dir='.'):
+    plt.clf()
     f, axarr = plt.subplots(1, 3)
 
     mid_z = seg.shape[0] // 2
 
-    rgb_emb = _pca_project(np.squeeze(inp))
-    rgb_emb = np.transpose(rgb_emb, (1, 2, 0))
-    axarr[0].imshow(rgb_emb)
-    axarr[0].set_title('Embeddings')
+    axarr[0].imshow(inp[mid_z])
+    axarr[0].set_title('Input')
 
     axarr[1].imshow(seg[mid_z], cmap='prism')
-    axarr[1].set_title('Predicted')
+    axarr[1].set_title('Predicted segmentation')
 
     axarr[2].imshow(tar[mid_z], cmap='prism')
     axarr[2].set_title('Ground truth')
 
-    file_name = f'segm_{datetime.datetime.now().time()}.png'
-    plt.savefig(os.path.join(plots_dir, file_name), bbox_inches='tight', transparent=True)
+    plt.savefig(file_path, bbox_inches='tight', transparent=True)
+
+
+def plot_emb(inp, emb, seg, tar, file_path):
+    plt.clf()
+    f, axarr = plt.subplots(1, 4)
+
+    mid_z = seg.shape[0] // 2
+
+    rgb_emb = _pca_project(np.squeeze(emb))
+    rgb_emb = np.transpose(rgb_emb, (1, 2, 0))
+
+    axarr[0].imshow(inp[mid_z])
+    axarr[0].set_title('Input')
+
+    axarr[1].imshow(rgb_emb)
+    axarr[1].set_title('Embeddings')
+
+    axarr[2].imshow(seg[mid_z], cmap='prism')
+    axarr[2].set_title('Predicted')
+
+    axarr[3].imshow(tar[mid_z], cmap='prism')
+    axarr[3].set_title('Ground truth')
+
+    plt.savefig(file_path, bbox_inches='tight', transparent=True)
 
 
 def convert_to_numpy(*inputs):

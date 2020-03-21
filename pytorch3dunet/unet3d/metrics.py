@@ -1,5 +1,4 @@
 import importlib
-import os
 import time
 
 import hdbscan
@@ -12,7 +11,7 @@ from sklearn.cluster import MeanShift
 
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
 from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy
-from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, plot_segm, convert_to_numpy, plot_emb
+from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, convert_to_numpy
 
 logger = get_logger('EvalMetric')
 
@@ -120,16 +119,10 @@ class AdaptedRandError:
 
     Args:
         use_last_target (bool): use only the last channel from the target to compute the ARand
-        save_plots (bool): save predicted segmentation (result from `input_to_segm`) together with GT segmentation as a PNG
-        plots_dir (string): directory where the plots are to be saved
     """
 
-    def __init__(self, use_last_target=False, save_plots=False, plots_dir='.', **kwargs):
+    def __init__(self, use_last_target=False, **kwargs):
         self.use_last_target = use_last_target
-        self.save_plots = save_plots
-        self.plots_dir = plots_dir
-        if not os.path.exists(plots_dir) and save_plots:
-            os.makedirs(plots_dir)
 
     def __call__(self, input, target):
         """
@@ -142,6 +135,7 @@ class AdaptedRandError:
         Returns:
             average ARand Error across the batch
         """
+
         def _arand_err(gt, seg):
             n_seg = len(np.unique(seg))
             if n_seg == 1:
@@ -175,10 +169,6 @@ class AdaptedRandError:
             segm = self.input_to_segm(_input)
             assert segm.ndim == 4
 
-            if self.save_plots:
-                # save predicted and ground truth segmentation
-                plot_segm(segm, _target, self.plots_dir)
-
             # compute per channel arand and return the minimum value
             per_channel_arand = [_arand_err(_target, channel_segm) for channel_segm in segm]
             logger.info(f'Min ARand for channel: {np.argmin(per_channel_arand)}')
@@ -206,7 +196,6 @@ class BoundaryAdaptedRandError(AdaptedRandError):
     Compute ARand between the input boundary map and target segmentation.
     Boundary map is thresholded, and connected components is run to get the predicted segmentation
     """
-
     def __init__(self, thresholds=None, use_last_target=True, input_channel=None, invert_pmaps=True,
                  save_plots=False, plots_dir='.', **kwargs):
         super().__init__(use_last_target=use_last_target, save_plots=save_plots, plots_dir=plots_dir, **kwargs)
@@ -241,10 +230,9 @@ class BoundaryAdaptedRandError(AdaptedRandError):
 
 
 class GenericAdaptedRandError(AdaptedRandError):
-    def __init__(self, input_channels, thresholds=None, use_last_target=True, invert_channels=None,
-                 save_plots=False, plots_dir='.', **kwargs):
+    def __init__(self, input_channels, thresholds=None, use_last_target=True, invert_channels=None, **kwargs):
 
-        super().__init__(use_last_target=use_last_target, save_plots=save_plots, plots_dir=plots_dir, **kwargs)
+        super().__init__(use_last_target=use_last_target, **kwargs)
         assert isinstance(input_channels, list) or isinstance(input_channels, tuple)
         self.input_channels = input_channels
         if thresholds is None:
@@ -279,8 +267,8 @@ class GenericAdaptedRandError(AdaptedRandError):
 
 class EmbeddingsAdaptedRandError(AdaptedRandError):
     def __init__(self, min_cluster_size=100, min_samples=None, metric='euclidean', cluster_selection_method='eom',
-                 save_plots=False, plots_dir='.', **kwargs):
-        super().__init__(save_plots=save_plots, plots_dir=plots_dir, **kwargs)
+                 **kwargs):
+        super().__init__(**kwargs)
 
         logger.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
         self.clustering = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
@@ -308,8 +296,8 @@ class EmbeddingsAdaptedRandError(AdaptedRandError):
 
 # Just for completeness, however sklean MeanShift implementation is just too slow for clustering embeddings
 class EmbeddingsMeanShiftAdaptedRandError(AdaptedRandError):
-    def __init__(self, bandwidth, save_plots=False, plots_dir='.', **kwargs):
-        super().__init__(save_plots=save_plots, plots_dir=plots_dir, **kwargs)
+    def __init__(self, bandwidth, **kwargs):
+        super().__init__(**kwargs)
         logger.info(f'MeanShift params: bandwidth: {bandwidth}')
         # use bin_seeding to speedup the mean-shift significantly
         self.clustering = MeanShift(bandwidth=bandwidth, bin_seeding=True)
@@ -330,8 +318,7 @@ class EmbeddingsMeanShiftAdaptedRandError(AdaptedRandError):
 
 
 class GenericAveragePrecision:
-    def __init__(self, min_instance_size=None, use_last_target=False, metric='ap', save_plots=False, plots_dir='.',
-                 **kwargs):
+    def __init__(self, min_instance_size=None, use_last_target=False, metric='ap', **kwargs):
         self.min_instance_size = min_instance_size
         self.use_last_target = use_last_target
         assert metric in ['ap', 'acc']
@@ -341,11 +328,6 @@ class GenericAveragePrecision:
         else:
             # use Accuracy at 0.5 IoU
             self.metric = Accuracy(iou_threshold=0.5)
-
-        self.save_plots = save_plots
-        self.plots_dir = plots_dir
-        if not os.path.exists(plots_dir) and save_plots:
-            os.makedirs(plots_dir)
 
     def __call__(self, input, target):
         if target.dim() == 5:
@@ -376,10 +358,6 @@ class GenericAveragePrecision:
             # convert target to seg
             tar = self.target_to_seg(tar)
 
-            if self.save_plots:
-                # save predicted and ground truth segmentation
-                self._plot(inp, segs, tar)
-
             # filter small instances if necessary
             tar = self._filter_instances(tar)
 
@@ -392,9 +370,6 @@ class GenericAveragePrecision:
             i_batch += 1
 
         return torch.tensor(batch_aps).mean()
-
-    def _plot(self, inp, segs, tar):
-        plot_segm(segs, tar, self.plots_dir)
 
     def _filter_instances(self, input):
         """
@@ -427,11 +402,8 @@ class Embeddings2HGenericAveragePrecision(GenericAveragePrecision):
             4. remove the object from the foreground mask
     """
 
-    def __init__(self, pmaps_threshold, epsilon, max_instance_num=1000, min_instance_size=None, metric='ap',
-                 save_plots=False, plots_dir='.',
-                 **kwargs):
-        super().__init__(min_instance_size, use_last_target=True, metric=metric, save_plots=save_plots,
-                         plots_dir=plots_dir, **kwargs)
+    def __init__(self, pmaps_threshold, epsilon, max_instance_num=1000, min_instance_size=None, metric='ap', **kwargs):
+        super().__init__(min_instance_size, use_last_target=True, metric=metric, **kwargs)
         self.pmaps_threshold = pmaps_threshold
         self.epsilon = epsilon
         self.max_instance_num = max_instance_num
@@ -479,9 +451,8 @@ class EmbeddingsGenericAveragePrecision(GenericAveragePrecision):
             3. add the object to the list of instances
     """
 
-    def __init__(self, epsilon, min_instance_size=None, metric='ap', save_plots=False, plots_dir='.', **kwargs):
-        super().__init__(min_instance_size, use_last_target=False, metric=metric, save_plots=save_plots,
-                         plots_dir=plots_dir, **kwargs)
+    def __init__(self, epsilon, min_instance_size=None, metric='ap', **kwargs):
+        super().__init__(min_instance_size, use_last_target=False, metric=metric, **kwargs)
         self.epsilon = epsilon
 
     def input_to_seg(self, embeddings, target=None):
@@ -511,9 +482,6 @@ class EmbeddingsGenericAveragePrecision(GenericAveragePrecision):
             result[inst_mask] = label
 
         return np.expand_dims(result, 0)
-
-    def _plot(self, inp, segs, tar):
-        plot_emb(inp, segs[0], tar, self.plots_dir)
 
 
 class BlobsAveragePrecision(GenericAveragePrecision):

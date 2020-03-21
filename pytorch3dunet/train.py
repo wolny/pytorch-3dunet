@@ -3,23 +3,27 @@ import importlib
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.config import load_config
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
-from pytorch3dunet.unet3d.trainer import UNet3DTrainer
-from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter
+from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, get_sample_plotter
 from pytorch3dunet.unet3d.utils import get_number_of_learnable_parameters
 
-logger = get_logger('UNet3DTrain')
+logger = get_logger('TrainingSetup')
 
 
 def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders):
     assert 'trainer' in config, 'Could not find trainer configuration'
     trainer_config = config['trainer']
+
+    trainer_classname = trainer_config.get('name', 'UNet3DTrainer')
+    logger.info(f'NetworkTrainer class: {trainer_classname}')
+    # get trainer class
+    m = importlib.import_module('pytorch3dunet.unet3d.trainer')
+    trainer_class = getattr(m, trainer_classname)
 
     resume = trainer_config.get('resume', None)
     pre_trained = trainer_config.get('pre_trained', None)
@@ -27,26 +31,36 @@ def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval
 
     # get tensorboard formatter
     tensorboard_formatter = get_tensorboard_formatter(trainer_config.get('tensorboard_formatter', None))
+    # get sample plotter
+    sample_plotter = get_sample_plotter(trainer_config.get('sample_plotter', None))
 
     if resume is not None:
         # continue training from a given checkpoint
-        return UNet3DTrainer.from_checkpoint(resume, model,
-                                             optimizer, lr_scheduler, loss_criterion,
-                                             eval_criterion, loaders, tensorboard_formatter=tensorboard_formatter)
+        return trainer_class.from_checkpoint(resume, model,
+                                             optimizer, lr_scheduler,
+                                             loss_criterion, eval_criterion,
+                                             loaders,
+                                             tensorboard_formatter=tensorboard_formatter,
+                                             sample_plotter=sample_plotter,
+                                             skip_train_validation=skip_train_validation)
     elif pre_trained is not None:
         # fine-tune a given pre-trained model
-        return UNet3DTrainer.from_pretrained(pre_trained, model, optimizer, lr_scheduler, loss_criterion,
-                                             eval_criterion, device=config['device'], loaders=loaders,
+        return trainer_class.from_pretrained(pre_trained, model,
+                                             optimizer, lr_scheduler,
+                                             loss_criterion, eval_criterion,
+                                             device=config['device'], loaders=loaders,
                                              max_num_epochs=trainer_config['epochs'],
                                              max_num_iterations=trainer_config['iters'],
                                              validate_after_iters=trainer_config['validate_after_iters'],
                                              log_after_iters=trainer_config['log_after_iters'],
-                                             eval_score_higher_is_better=trainer_config['eval_score_higher_is_better'],
+                                             eval_score_higher_is_better=trainer_config[
+                                                 'eval_score_higher_is_better'],
                                              tensorboard_formatter=tensorboard_formatter,
+                                             sample_plotter=sample_plotter,
                                              skip_train_validation=skip_train_validation)
     else:
         # start training from scratch
-        return UNet3DTrainer(model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
+        return trainer_class(model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
                              config['device'], loaders, trainer_config['checkpoint_dir'],
                              max_num_epochs=trainer_config['epochs'],
                              max_num_iterations=trainer_config['iters'],
@@ -54,6 +68,7 @@ def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval
                              log_after_iters=trainer_config['log_after_iters'],
                              eval_score_higher_is_better=trainer_config['eval_score_higher_is_better'],
                              tensorboard_formatter=tensorboard_formatter,
+                             sample_plotter=sample_plotter,
                              skip_train_validation=skip_train_validation)
 
 
@@ -68,16 +83,14 @@ def _create_optimizer(config, model):
 
 def _create_lr_scheduler(config, optimizer):
     lr_config = config.get('lr_scheduler', None)
-    if lr_config is None:
-        # use ReduceLROnPlateau as a default scheduler
-        return ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=20, verbose=True)
-    else:
+    if lr_config is not None:
         class_name = lr_config.pop('name')
         m = importlib.import_module('torch.optim.lr_scheduler')
         clazz = getattr(m, class_name)
         # add optimizer to the config
         lr_config['optimizer'] = optimizer
         return clazz(**lr_config)
+    return None
 
 
 def main():
