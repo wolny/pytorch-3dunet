@@ -12,6 +12,7 @@ import torch
 from PIL import Image
 from numpy import linalg as LA
 from sklearn.decomposition import PCA
+from torch import optim
 
 plt.ioff()
 plt.switch_backend('agg')
@@ -509,3 +510,22 @@ def convert_to_numpy(*inputs):
         return i.detach().cpu().numpy()
 
     return (_to_numpy(i) for i in inputs)
+
+
+def create_optimizer(optimizer_config, model):
+    learning_rate = optimizer_config['learning_rate']
+    weight_decay = optimizer_config.get('weight_decay', 0)
+    betas = tuple(optimizer_config.get('betas', (0.9, 0.999)))
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, betas=betas, weight_decay=weight_decay)
+    return optimizer
+
+
+def create_lr_scheduler(lr_config, optimizer):
+    if lr_config is not None:
+        class_name = lr_config.pop('name')
+        m = importlib.import_module('torch.optim.lr_scheduler')
+        clazz = getattr(m, class_name)
+        # add optimizer to the config
+        lr_config['optimizer'] = optimizer
+        return clazz(**lr_config)
+    return None

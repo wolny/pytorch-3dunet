@@ -38,7 +38,7 @@ def create_conv(in_channels, out_channels, kernel_size, order, num_groups, paddi
         if char == 'r':
             modules.append(('ReLU', nn.ReLU(inplace=True)))
         elif char == 'l':
-            modules.append(('LeakyReLU', nn.LeakyReLU(negative_slope=0.1, inplace=True)))
+            modules.append(('LeakyReLU', nn.LeakyReLU(inplace=True)))
         elif char == 'e':
             modules.append(('ELU', nn.ELU(inplace=True)))
         elif char == 'c':

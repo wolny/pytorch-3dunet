@@ -228,8 +228,7 @@ class RandomFilterSliceBuilder(EmbeddingsSliceBuilder):
         self._label_slices = list(label_slices)
 
 
-def _get_cls(class_name):
-    modules = ['pytorch3dunet.datasets.hdf5', 'pytorch3dunet.datasets.dsb', 'pytorch3dunet.datasets.utils']
+def get_class(class_name, modules):
     for module in modules:
         m = importlib.import_module(module)
         clazz = getattr(m, class_name, None)
@@ -238,10 +237,15 @@ def _get_cls(class_name):
     raise RuntimeError(f'Unsupported dataset class: {class_name}')
 
 
+def _loader_classes(class_name):
+    modules = ['pytorch3dunet.datasets.hdf5', 'pytorch3dunet.datasets.dsb', 'pytorch3dunet.datasets.utils']
+    return get_class(class_name, modules)
+
+
 def get_slice_builder(raws, labels, weight_maps, config):
     assert 'name' in config
     logger.info(f"Slice builder config: {config}")
-    slice_builder_cls = _get_cls(config['name'])
+    slice_builder_cls = _loader_classes(config['name'])
     return slice_builder_cls(raws, labels, weight_maps, **config)
 
 
@@ -265,7 +269,7 @@ def get_train_loaders(config):
     if dataset_cls_str is None:
         dataset_cls_str = 'StandardHDF5Dataset'
         logger.warn(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
-    dataset_class = _get_cls(dataset_cls_str)
+    dataset_class = _loader_classes(dataset_cls_str)
 
     assert set(loaders_config['train']['file_paths']).isdisjoint(loaders_config['val']['file_paths']), \
         "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
@@ -309,7 +313,7 @@ def get_test_loaders(config):
     if dataset_cls_str is None:
         dataset_cls_str = 'StandardHDF5Dataset'
         logger.warn(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
-    dataset_class = _get_cls(dataset_cls_str)
+    dataset_class = _loader_classes(dataset_cls_str)
 
     test_datasets = dataset_class.create_datasets(loaders_config, phase='test')
 

@@ -49,7 +49,7 @@ def main():
     config = load_config()
 
     # Create the model
-    model = get_model(config)
+    model = get_model(config['model'])
 
     # Load model state
     model_path = config['model_path']

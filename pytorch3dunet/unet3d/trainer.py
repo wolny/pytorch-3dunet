@@ -5,38 +5,105 @@ import torch.nn as nn
 from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from pytorch3dunet.unet3d.utils import get_logger
+from pytorch3dunet.datasets.utils import get_train_loaders
+from pytorch3dunet.unet3d.losses import get_loss_criterion
+from pytorch3dunet.unet3d.metrics import get_evaluation_metric
+from pytorch3dunet.unet3d.model import get_model
+from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, get_sample_plotter, create_optimizer, \
+    create_lr_scheduler, get_number_of_learnable_parameters
 from . import utils
 
-logger = get_logger('NetworkTrainer')
+logger = get_logger('UNet3DTrainer')
 
 
-class LearningCurves:
-    """
-    Keeps track of the learning curves.
-    """
+def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders):
+    assert 'trainer' in config, 'Could not find trainer configuration'
+    trainer_config = config['trainer']
 
-    def __init__(self):
-        self.losses = utils.RunningAverage()
-        self.eval_scores = utils.RunningAverage()
+    resume = trainer_config.get('resume', None)
+    pre_trained = trainer_config.get('pre_trained', None)
 
-    def update_loss(self, loss, batch_size):
-        self.losses.update(loss, batch_size)
+    # get tensorboard formatter
+    tensorboard_formatter = get_tensorboard_formatter(trainer_config.pop('tensorboard_formatter', None))
+    # get sample plotter
+    sample_plotter = get_sample_plotter(trainer_config.pop('sample_plotter', None))
 
-    def update_eval(self, eval, batch_size):
-        self.eval_scores.update(eval, batch_size)
+    if resume is not None:
+        # continue training from a given checkpoint
+        return UNet3DTrainer.from_checkpoint(model=model,
+                                             optimizer=optimizer,
+                                             lr_scheduler=lr_scheduler,
+                                             loss_criterion=loss_criterion,
+                                             eval_criterion=eval_criterion,
+                                             loaders=loaders,
+                                             tensorboard_formatter=tensorboard_formatter,
+                                             sample_plotter=sample_plotter,
+                                             **trainer_config)
+    elif pre_trained is not None:
+        # fine-tune a given pre-trained model
+        return UNet3DTrainer.from_pretrained(model=model,
+                                             optimizer=optimizer,
+                                             lr_scheduler=lr_scheduler,
+                                             loss_criterion=loss_criterion,
+                                             eval_criterion=eval(),
+                                             device=config['device'],
+                                             loaders=loaders,
+                                             **trainer_config)
+    else:
+        # start training from scratch
+        return UNet3DTrainer(model=model,
+                             optimizer=optimizer,
+                             lr_scheduler=lr_scheduler,
+                             loss_criterion=loss_criterion,
+                             eval_criterion=eval_criterion,
+                             device=config['device'],
+                             loaders=loaders,
+                             tensorboard_formatter=tensorboard_formatter,
+                             sample_plotter=sample_plotter,
+                             **trainer_config)
 
-    @property
-    def loss_avg(self):
-        return self.losses.avg
 
-    @property
-    def eval_avg(self):
-        return self.eval_scores.avg
+class UNet3DTrainerBuilder:
+    @staticmethod
+    def build(config):
+        # Create the model
+        model = get_model(config['model'])
+        # use DataParallel if more than 1 GPU available
+        device = config['device']
+        if torch.cuda.device_count() > 1 and not device.type == 'cpu':
+            model = nn.DataParallel(model)
+            logger.info(f'Using {torch.cuda.device_count()} GPUs for training')
+
+        # put the model on GPUs
+        logger.info(f"Sending the model to '{config['device']}'")
+        model = model.to(device)
+
+        # Log the number of learnable parameters
+        logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
+
+        # Create loss criterion
+        loss_criterion = get_loss_criterion(config)
+        # Create evaluation metric
+        eval_criterion = get_evaluation_metric(config)
+
+        # Create data loaders
+        loaders = get_train_loaders(config)
+
+        # Create the optimizer
+        optimizer = create_optimizer(config['optimizer'], model)
+
+        # Create learning rate adjustment strategy
+        lr_scheduler = create_lr_scheduler(config.get('lr_scheduler', None), optimizer)
+
+        # Create model trainer
+        trainer = _create_trainer(config, model=model, optimizer=optimizer, lr_scheduler=lr_scheduler,
+                                  loss_criterion=loss_criterion, eval_criterion=eval_criterion, loaders=loaders)
+
+        return trainer
 
 
-class AbstractTrainer:
-    """Abstract class responsible for model training.
+class UNet3DTrainer:
+    """3D UNet trainer.
 
     Args:
         model (Unet3D): UNet 3D model to be trained
@@ -71,12 +138,12 @@ class AbstractTrainer:
 
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion,
                  eval_criterion, device, loaders, checkpoint_dir,
-                 max_num_epochs, max_num_iterations,
-                 validate_after_iters, log_after_iters,
-                 validate_iters, num_iterations, num_epoch,
-                 eval_score_higher_is_better, best_eval_score,
-                 tensorboard_formatter, sample_plotter,
-                 skip_train_validation, **kwargs):
+                 max_num_epochs=100, max_num_iterations=int(1e5),
+                 validate_after_iters=100, log_after_iters=100,
+                 validate_iters=None, num_iterations=1, num_epoch=0,
+                 eval_score_higher_is_better=True, best_eval_score=None,
+                 tensorboard_formatter=None, sample_plotter=None,
+                 skip_train_validation=False, **kwargs):
 
         self.model = model
         self.optimizer = optimizer
@@ -109,9 +176,9 @@ class AbstractTrainer:
 
         assert tensorboard_formatter is not None, 'TensorboardFormatter must be provided'
         self.tensorboard_formatter = tensorboard_formatter
+        self.sample_plotter = sample_plotter
 
         self.num_iterations = num_iterations
-        self.sample_plotter = sample_plotter
         self.num_epoch = num_epoch
         self.skip_train_validation = skip_train_validation
 
@@ -136,14 +203,14 @@ class AbstractTrainer:
                    validate_after_iters=state['validate_after_iters'],
                    log_after_iters=state['log_after_iters'],
                    validate_iters=state['validate_iters'],
+                   skip_train_validation=state.get('skip_train_validation', False),
                    tensorboard_formatter=tensorboard_formatter,
-                   sample_plotter=sample_plotter,
-                   skip_train_validation=skip_train_validation)
+                   sample_plotter=sample_plotter)
 
     @classmethod
     def from_pretrained(cls, pre_trained, model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
                         device, loaders,
-                        max_num_epochs=100, max_num_iterations=1e5,
+                        max_num_epochs=100, max_num_iterations=int(1e5),
                         validate_after_iters=100, log_after_iters=100,
                         validate_iters=None, num_iterations=1, num_epoch=0,
                         eval_score_higher_is_better=True, best_eval_score=None,
@@ -180,50 +247,53 @@ class AbstractTrainer:
             self.num_epoch += 1
         logger.info(f"Reached maximum number of epochs: {self.max_num_epochs}. Finishing training...")
 
-    def forward_backward_pass(self, batch, learning_curves):
-        """
-        Perform one training iteration. To be implemented by a concrete implementation of the trainer.
-
-        Args:
-            batch (tuple): tuple of torch tensors containing input and target
-            learning_curves (LearningCurves): keeps track of the loss and eval score
-
-        Returns:
-            tuple: input, output, target
-        """
-        raise NotImplementedError
-
-    def val_forward_pass(self, batch, learning_curves):
-        """
-        Perform the forward pass during the validation phase.
-
-        Returns:
-             tuple: input, output, target
-        """
-        raise NotImplementedError
-
     def train(self):
         """Trains the model for 1 epoch.
 
         Returns:
-            `True` if the training should be terminated immediately, `False` otherwise
+            True if the training should be terminated immediately, False otherwise
         """
-
-        # create object to keep track of learning curves during training phase
-        train_curves = self.create_learning_curves()
+        train_losses = utils.RunningAverage()
+        train_eval_scores = utils.RunningAverage()
 
         # sets the model in training mode
         self.model.train()
 
         for t in self.loaders['train']:
-            logger.info(
-                f'Training iteration {self.num_iterations}. Epoch [{self.num_epoch}/{self.max_num_epochs - 1}]')
+            logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
+                        f'Epoch [{self.num_epoch}/{self.max_num_epochs - 1}]')
 
-            # make forward pass and backprop
-            input, output, target = self.forward_backward_pass(t, train_curves)
+            input, target, weight = self._split_training_batch(t)
+
+            output, loss = self._forward_pass(input, target, weight)
+
+            train_losses.update(loss.item(), self._batch_size(input))
+
+            # compute gradients and update parameters
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
 
             if self.num_iterations % self.validate_after_iters == 0:
-                self.validate_and_save()
+                # set the model in eval mode
+                self.model.eval()
+                # evaluate on validation set
+                eval_score = self.validate()
+                # set the model back to training mode
+                self.model.train()
+
+                # adjust learning rate if necessary
+                if isinstance(self.scheduler, ReduceLROnPlateau):
+                    self.scheduler.step(eval_score)
+                else:
+                    self.scheduler.step()
+                # log current learning rate in tensorboard
+                self._log_lr()
+                # remember best validation metric
+                is_best = self._is_best_eval_score(eval_score)
+
+                # save checkpoint
+                self._save_checkpoint(is_best)
 
             if self.num_iterations % self.log_after_iters == 0:
                 # if model contains final_activation layer for normalizing logits apply it, otherwise both
@@ -234,12 +304,12 @@ class AbstractTrainer:
                 # compute eval criterion
                 if not self.skip_train_validation:
                     eval_score = self.eval_criterion(output, target)
-                    train_curves.update_eval(eval_score.item(), self._batch_size(input))
+                    train_eval_scores.update(eval_score.item(), self._batch_size(input))
 
                 # log stats, params and images
                 logger.info(
-                    f'Training stats. Loss: {train_curves.loss_avg}. Evaluation score: {train_curves.eval_avg}')
-                self._log_stats('train', train_curves.loss_avg, train_curves.eval_avg)
+                    f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
+                self._log_stats('train', train_losses.avg, train_eval_scores.avg)
                 self._log_params()
                 self._log_images(input, target, output, 'train_')
 
@@ -249,29 +319,6 @@ class AbstractTrainer:
             self.num_iterations += 1
 
         return False
-
-    def validate_and_save(self):
-        """
-        Computes stats on the validation set, updates learning rate if necessary and saves checkpoints
-        """
-        # set the model in eval mode
-        self.model.eval()
-        # evaluate on validation set
-        eval_score = self.validate()
-        # set the model back to training mode
-        self.model.train()
-        if self.scheduler is not None:
-            # adjust learning rate if necessary
-            if isinstance(self.scheduler, ReduceLROnPlateau):
-                self.scheduler.step(eval_score)
-            else:
-                self.scheduler.step()
-        # log current learning rate in tensorboard
-        self._log_lr()
-        # remember best validation metric
-        is_best = self._is_best_eval_score(eval_score)
-        # save last checkpoint after every validation phase; save best checkpoint only if is_best==true
-        self._save_checkpoint(is_best)
 
     def should_stop(self):
         """
@@ -293,7 +340,8 @@ class AbstractTrainer:
     def validate(self):
         logger.info('Validating...')
 
-        val_curves = self.create_learning_curves()
+        val_losses = utils.RunningAverage()
+        val_scores = utils.RunningAverage()
 
         if self.sample_plotter is not None:
             self.sample_plotter.update_current_dir()
@@ -302,7 +350,10 @@ class AbstractTrainer:
             for i, t in enumerate(self.loaders['val']):
                 logger.info(f'Validation iteration {i}')
 
-                input, output, target = self.val_forward_pass(t, val_curves)
+                input, target, weight = self._split_training_batch(t)
+
+                output, loss = self._forward_pass(input, target, weight)
+                val_losses.update(loss.item(), self._batch_size(input))
 
                 # if model contains final_activation layer for normalizing logits apply it, otherwise
                 # the evaluation metric will be incorrectly computed
@@ -313,7 +364,7 @@ class AbstractTrainer:
                     self._log_images(input, target, output, 'val_')
 
                 eval_score = self.eval_criterion(output, target)
-                val_curves.update_eval(eval_score.item(), self._batch_size(input))
+                val_scores.update(eval_score.item(), self._batch_size(input))
 
                 if self.sample_plotter is not None:
                     self.sample_plotter(i, input, output, target, 'val')
@@ -322,9 +373,36 @@ class AbstractTrainer:
                     # stop validation
                     break
 
-            self._log_stats('val', val_curves.loss_avg, val_curves.eval_avg)
-            logger.info(f'Validation finished. Loss: {val_curves.loss_avg}. Evaluation score: {val_curves.eval_avg}')
-            return val_curves.eval_avg
+            self._log_stats('val', val_losses.avg, val_scores.avg)
+            logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
+            return val_scores.avg
+
+    def _split_training_batch(self, t):
+        def _move_to_device(input):
+            if isinstance(input, tuple) or isinstance(input, list):
+                return tuple([_move_to_device(x) for x in input])
+            else:
+                return input.to(self.device)
+
+        t = _move_to_device(t)
+        weight = None
+        if len(t) == 2:
+            input, target = t
+        else:
+            input, target, weight = t
+        return input, target, weight
+
+    def _forward_pass(self, input, target, weight=None):
+        # forward pass
+        output = self.model(input)
+
+        # compute the loss
+        if weight is None:
+            loss = self.loss_criterion(output, target)
+        else:
+            loss = self.loss_criterion(output, target, weight)
+
+        return output, loss
 
     def _is_best_eval_score(self, eval_score):
         if self.eval_score_higher_is_better:
@@ -358,7 +436,8 @@ class AbstractTrainer:
             'max_num_iterations': self.max_num_iterations,
             'validate_after_iters': self.validate_after_iters,
             'log_after_iters': self.log_after_iters,
-            'validate_iters': self.validate_iters
+            'validate_iters': self.validate_iters,
+            'skip_train_validation': self.skip_train_validation
         }, is_best, checkpoint_dir=self.checkpoint_dir,
             logger=logger)
 
@@ -405,89 +484,3 @@ class AbstractTrainer:
             return input[0].size(0)
         else:
             return input.size(0)
-
-    @staticmethod
-    def create_learning_curves():
-        return LearningCurves()
-
-
-class UNet3DTrainer(AbstractTrainer):
-    def __init__(self, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, device, loaders, checkpoint_dir,
-                 max_num_epochs=100, max_num_iterations=1e5, validate_after_iters=100, log_after_iters=100,
-                 validate_iters=None, num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
-                 best_eval_score=None, tensorboard_formatter=None, sample_plotter=None, skip_train_validation=False,
-                 **kwargs):
-        super().__init__(model, optimizer, lr_scheduler, loss_criterion, eval_criterion, device, loaders,
-                         checkpoint_dir, max_num_epochs, max_num_iterations, validate_after_iters, log_after_iters,
-                         validate_iters, num_iterations, num_epoch, eval_score_higher_is_better, best_eval_score,
-                         tensorboard_formatter, sample_plotter, skip_train_validation, **kwargs)
-
-    def forward_backward_pass(self, batch, learning_curves):
-        input, output, target, loss = self._forward_and_update(batch, learning_curves)
-
-        # compute gradients and update parameters
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-        return input, output, target
-
-    def val_forward_pass(self, batch, learning_curves):
-        input, output, target, _ = self._forward_and_update(batch, learning_curves)
-        return input, output, target
-
-    def _forward_and_update(self, batch, learning_curves):
-        input, target, weight = self._split_training_batch(batch)
-        output, loss = self._forward_pass(input, target, weight)
-        learning_curves.update_loss(loss.item(), self._batch_size(input))
-        return input, output, target, loss
-
-    def _forward_pass(self, input, target, weight=None):
-        # forward pass
-        output = self.model(input)
-
-        # compute the loss
-        if weight is None:
-            loss = self.loss_criterion(output, target)
-        else:
-            loss = self.loss_criterion(output, target, weight)
-
-        return output, loss
-
-    def _split_training_batch(self, t):
-        def _move_to_device(input):
-            if isinstance(input, tuple) or isinstance(input, list):
-                return tuple([_move_to_device(x) for x in input])
-            else:
-                return input.to(self.device)
-
-        t = _move_to_device(t)
-        weight = None
-        if len(t) == 2:
-            input, target = t
-        else:
-            input, target, weight = t
-        return input, target, weight
-
-
-class EmbeddingWGANTrainer(AbstractTrainer):
-    def __init__(self, G, G_optimizer, G_scheduler, emb_loss, eval_criterion,
-                 device, loaders, checkpoint_dir,
-                 max_num_epochs=100, max_num_iterations=1e5, validate_after_iters=100, log_after_iters=100,
-                 validate_iters=None, num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
-                 best_eval_score=None, tensorboard_formatter=None, sample_plotter=None, skip_train_validation=False,
-                 **kwargs):
-        super().__init__(G, G_optimizer, G_scheduler, emb_loss, eval_criterion, device, loaders,
-                         checkpoint_dir, max_num_epochs, max_num_iterations, validate_after_iters, log_after_iters,
-                         validate_iters, num_iterations, num_epoch, eval_score_higher_is_better, best_eval_score,
-                         tensorboard_formatter, sample_plotter, skip_train_validation, **kwargs)
-        self.D = None
-        self.D_optimizer = None
-
-    def forward_backward_pass(self, batch, learning_curves):
-        # pass iteration number
-        pass
-
-    def val_forward_pass(self, batch, learning_curves):
-        # used only during the validation
-        pass
