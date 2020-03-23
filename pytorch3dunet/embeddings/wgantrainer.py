@@ -179,6 +179,10 @@ class EmbeddingWGANTrainer:
 
                 # compute GAN loss
                 _, fake_masks = self._extract_instance_masks(output, target)
+                if fake_masks is not None:
+                    # skip background patches
+                    continue
+
                 G_loss = self.D(fake_masks)
                 G_loss = G_loss.mean(dim=0)
                 G_losses.update(-G_loss.item(), self._batch_size(fake_masks))
@@ -197,6 +201,10 @@ class EmbeddingWGANTrainer:
                 # train with fake masks
                 output = output.detach()  # make sure that G is not updated
                 real_masks, fake_masks = self._extract_instance_masks(output, target)
+                if real_masks is None or fake_masks is None:
+                    # skip background patches
+                    continue
+
                 D_real = self.D(real_masks)
                 # average critic output across batch
                 D_real = D_real.mean(dim=0)
@@ -421,9 +429,12 @@ class EmbeddingWGANTrainer:
                 inst_mask += uniform_noise
                 real_masks.append(inst_mask.unsqueeze(0))
 
+        if len(real_masks) == 0:
+            return None, None
+
         real_masks = torch.stack(real_masks).to(embeddings.device)
         real_masks.clamp_(0, 1)
-        fake_masks = torch.stack(fake_masks)
+        fake_masks = torch.stack(fake_masks).to(embeddings.device)
         return real_masks, fake_masks
 
     def _calc_gp(self, real_masks, fake_masks):
