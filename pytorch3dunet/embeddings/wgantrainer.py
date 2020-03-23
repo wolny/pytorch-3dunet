@@ -150,6 +150,7 @@ class EmbeddingWGANTrainer:
         G_losses = RunningAverage()
         D_losses = RunningAverage()
         G_eval_scores = RunningAverage()
+        Wasserstein_losses = RunningAverage()
 
         # sets the model in training mode
         self.G.train()
@@ -187,7 +188,7 @@ class EmbeddingWGANTrainer:
                 G_loss = G_loss.mean(dim=0)
                 G_losses.update(-G_loss.item(), self._batch_size(fake_masks))
 
-                # weight GAN loss
+                # compute combined embedding and GAN loss; make sure use minimize -G_loss
                 combined_loss = emb_loss - self.gan_loss_weight * G_loss
                 combined_loss.backward()
 
@@ -220,8 +221,11 @@ class EmbeddingWGANTrainer:
                 gp.backward()
 
                 D_cost = D_fake - D_real + gp
+                Wasserstein_D = D_real - D_fake
                 self.D_optimizer.step()
-                D_losses.update(D_cost.item(), 2 * self._batch_size(fake_masks))
+                n_batch = 2 * self._batch_size(fake_masks)
+                D_losses.update(D_cost.item(), n_batch)
+                Wasserstein_losses.update(Wasserstein_D.item(), n_batch)
 
             if self.num_iterations % self.validate_after_iters == 0:
                 # set the model in eval mode
@@ -251,16 +255,27 @@ class EmbeddingWGANTrainer:
 
                 # log stats, params and images
                 logger.info(
-                    f'Training stats. Embedding Loss: {emb_losses.avg}. GAN Loss: {G_losses.avg}. Evaluation score: {G_eval_scores.avg}')
+                    f'Training stats. Embedding Loss: {emb_losses.avg}. GAN Loss: {G_losses.avg}. '
+                    f'Discriminator Loss: {D_losses.avg}. Evaluation score: {G_eval_scores.avg}')
 
                 self.writer.add_scalar('train_embedding_loss', emb_losses.avg, self.num_iterations)
                 self.writer.add_scalar('train_GAN_loss', G_losses.avg, self.num_iterations)
                 self.writer.add_scalar('train_D_loss', D_losses.avg, self.num_iterations)
+                self.writer.add_scalar('Wasserstein_distance', Wasserstein_losses.avg, self.num_iterations)
 
-                self._log_images(input, target, output)
+                inputs_map = {
+                    'inputs': input,
+                    'targets': target,
+                    'predictions': output
+                }
+                self._log_images(inputs_map)
                 # log masks if we're not during G training phase
                 if self.num_iterations % (self.critic_iters + 1) != 0:
-                    pass
+                    inputs_map = {
+                        'real_masks': real_masks,
+                        'fake_masks': fake_masks
+                    }
+                    self._log_images(inputs_map)
 
             if self.should_stop():
                 return True
@@ -370,12 +385,8 @@ class EmbeddingWGANTrainer:
         lr = self.G_optimizer.param_groups[0]['lr']
         self.writer.add_scalar('G_learning_rate', lr, self.num_iterations)
 
-    def _log_images(self, input, target, prediction):
-        inputs_map = {
-            'inputs': input,
-            'targets': target,
-            'predictions': prediction
-        }
+    def _log_images(self, inputs_map):
+        assert isinstance(inputs_map, dict)
         img_sources = {}
         for name, batch in inputs_map.items():
             if isinstance(batch, list) or isinstance(batch, tuple):
