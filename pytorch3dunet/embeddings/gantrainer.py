@@ -202,6 +202,7 @@ class EmbeddingGANTrainer:
                     emb_loss.backward()
                     self.G_optimizer.step()
                     emb_losses.update(emb_loss.item(), self._batch_size(input))
+                    continue
 
                 # compute embedding loss
                 emb_loss = self.G_loss_criterion(output, target)
