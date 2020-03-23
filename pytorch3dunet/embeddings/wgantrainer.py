@@ -179,7 +179,7 @@ class EmbeddingWGANTrainer:
 
                 # compute GAN loss
                 _, fake_masks = self._extract_instance_masks(output, target)
-                if fake_masks is not None:
+                if fake_masks is None:
                     # skip background patches
                     continue
 
