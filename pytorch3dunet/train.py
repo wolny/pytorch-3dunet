@@ -23,7 +23,8 @@ def main():
     # create trainer
     trainer_builder_class = config['trainer'].get('builder', 'UNet3DTrainerBuilder')
     trainer_builder = get_class(trainer_builder_class,
-                                modules=['pytorch3dunet.unet3d.trainer', 'pytorch3dunet.embeddings.wgantrainer'])
+                                modules=['pytorch3dunet.unet3d.trainer', 'pytorch3dunet.embeddings.wgantrainer',
+                                         'pytorch3dunet.embeddings.gantrainer'])
     trainer = trainer_builder.build(config)
     # Start training
     trainer.fit()

@@ -211,6 +211,45 @@ class WGANDiscriminator(nn.Module):
         return np.prod(last_encoder_dim)
 
 
+class GANDiscriminator(nn.Module):
+    def __init__(self, in_channels, layer_order, num_groups, f_maps, patch_shape,
+                 conv_kernel_size=3, pool_kernel_size=2, conv_padding=1, **kwargs):
+        super(GANDiscriminator, self).__init__()
+
+        if isinstance(f_maps, int):
+            f_maps = number_of_features_per_level(f_maps, num_levels=5)
+
+        assert isinstance(f_maps, list) or isinstance(f_maps, tuple)
+        assert len(f_maps) > 1, "Required at least 2 levels in the U-Net"
+
+        # create encoder path
+        self.encoders = create_encoders(in_channels, f_maps, DoubleConv, conv_kernel_size, conv_padding, layer_order,
+                                        num_groups, pool_kernel_size)
+
+        self.final_conv = nn.Conv3d(f_maps[-1], 1, 1)
+        # compute spatial dim of of the
+        self.in_features = self._in_features_linear(patch_shape, depth=len(f_maps) - 1)
+        self.output = nn.Sequential(
+            nn.Linear(self.in_features, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        for encoder in self.encoders:
+            x = encoder(x)
+        x = self.final_conv(x)
+        x = x.view(-1, self.in_features)
+        return self.output(x)
+
+    @staticmethod
+    def _in_features_linear(patch_shape, depth):
+        # get the spatial dim of the last encoder output
+        # assume max_pool with kernel 2
+        ds_factor = 2 ** depth
+        last_encoder_dim = [max(d // ds_factor, 1) for d in patch_shape]
+        return np.prod(last_encoder_dim)
+
+
 def get_model(model_config):
     def _model_class(class_name):
         modules = ['pytorch3dunet.unet3d.model', 'pytorch3dunet.embeddings.embeddingmodel']
