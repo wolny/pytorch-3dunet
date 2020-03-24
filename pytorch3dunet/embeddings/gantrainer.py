@@ -10,7 +10,7 @@ from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.utils import get_logger, get_number_of_learnable_parameters, create_optimizer, \
-    create_lr_scheduler, get_tensorboard_formatter, get_sample_plotter, RunningAverage, save_checkpoint, \
+    create_lr_scheduler, get_tensorboard_formatter, create_sample_plotter, RunningAverage, save_checkpoint, \
     expand_as_one_hot
 
 logger = get_logger('WGANTrainer')
@@ -56,7 +56,7 @@ class EmbeddingGANTrainerBuilder:
         # get tensorboard formatter
         tensorboard_formatter = get_tensorboard_formatter(trainer_config.pop('tensorboard_formatter', None))
         # get sample plotter
-        sample_plotter = get_sample_plotter(trainer_config.pop('sample_plotter', None))
+        sample_plotter = create_sample_plotter(trainer_config.pop('sample_plotter', None))
 
         # Create model trainer
         return EmbeddingGANTrainer(

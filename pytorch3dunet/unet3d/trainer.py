@@ -9,7 +9,7 @@ from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
-from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, get_sample_plotter, create_optimizer, \
+from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, create_sample_plotter, create_optimizer, \
     create_lr_scheduler, get_number_of_learnable_parameters
 from . import utils
 
@@ -26,7 +26,7 @@ def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval
     # get tensorboard formatter
     tensorboard_formatter = get_tensorboard_formatter(trainer_config.pop('tensorboard_formatter', None))
     # get sample plotter
-    sample_plotter = get_sample_plotter(trainer_config.pop('sample_plotter', None))
+    sample_plotter = create_sample_plotter(trainer_config.pop('sample_plotter', None))
 
     if resume is not None:
         # continue training from a given checkpoint

@@ -407,13 +407,6 @@ class EmbeddingSamplePlotter(AbstractSamplePlotter):
         return result
 
 
-def get_sample_plotter(config):
-    class_name = config['name']
-    m = importlib.import_module('pytorch3dunet.unet3d.utils')
-    clazz = getattr(m, class_name)
-    return clazz(**config)
-
-
 def expand_as_one_hot(input, C, ignore_index=None):
     """
     Converts NxSPATIAL label image to NxCxSPATIAL, where each label gets converted to its corresponding one-hot vector.
@@ -521,11 +514,20 @@ def create_optimizer(optimizer_config, model):
 
 
 def create_lr_scheduler(lr_config, optimizer):
-    if lr_config is not None:
-        class_name = lr_config.pop('name')
-        m = importlib.import_module('torch.optim.lr_scheduler')
-        clazz = getattr(m, class_name)
-        # add optimizer to the config
-        lr_config['optimizer'] = optimizer
-        return clazz(**lr_config)
-    return None
+    if lr_config is None:
+        return None
+    class_name = lr_config.pop('name')
+    m = importlib.import_module('torch.optim.lr_scheduler')
+    clazz = getattr(m, class_name)
+    # add optimizer to the config
+    lr_config['optimizer'] = optimizer
+    return clazz(**lr_config)
+
+
+def create_sample_plotter(sample_plotter_config):
+    if sample_plotter_config is None:
+        return None
+    class_name = sample_plotter_config['name']
+    m = importlib.import_module('pytorch3dunet.unet3d.utils')
+    clazz = getattr(m, class_name)
+    return clazz(**sample_plotter_config)
