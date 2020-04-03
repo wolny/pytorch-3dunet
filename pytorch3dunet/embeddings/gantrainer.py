@@ -6,14 +6,15 @@ from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch3dunet.datasets.utils import get_train_loaders
+from pytorch3dunet.embeddings.utils import _extract_instance_masks
 from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.utils import get_logger, get_number_of_learnable_parameters, create_optimizer, \
     create_lr_scheduler, get_tensorboard_formatter, create_sample_plotter, RunningAverage, save_checkpoint, \
-    expand_as_one_hot
+    load_checkpoint
 
-logger = get_logger('WGANTrainer')
+logger = get_logger('GANTrainer')
 
 
 class EmbeddingGANTrainerBuilder:
@@ -58,26 +59,62 @@ class EmbeddingGANTrainerBuilder:
         # get sample plotter
         sample_plotter = create_sample_plotter(trainer_config.pop('sample_plotter', None))
 
-        # Create model trainer
-        return EmbeddingGANTrainer(
-            G=G,
-            D=D,
-            G_optimizer=G_optimizer,
-            D_optimizer=D_optimizer,
-            G_lr_scheduler=G_lr_scheduler,
-            G_loss_criterion=G_loss_criterion,
-            G_eval_criterion=G_eval_criterion,
-            device=device,
-            loaders=loaders,
-            tensorboard_formatter=tensorboard_formatter,
-            sample_plotter=sample_plotter,
-            **trainer_config
-        )
+        resume = trainer_config.get('resume', None)
+        pre_trained = trainer_config.get('pre_trained', None)
+
+        if resume is not None:
+            logger.info(f'Resuming training from: {resume}')
+            return EmbeddingGANTrainer.from_checkpoint(
+                G=G,
+                D=D,
+                G_optimizer=G_optimizer,
+                D_optimizer=D_optimizer,
+                G_lr_scheduler=G_lr_scheduler,
+                G_loss_criterion=G_loss_criterion,
+                G_eval_criterion=G_eval_criterion,
+                device=device,
+                loaders=loaders,
+                tensorboard_formatter=tensorboard_formatter,
+                sample_plotter=sample_plotter,
+                **trainer_config
+            )
+        elif pre_trained is not None:
+            logger.info(f'Using pretrained embedding model: {pre_trained}')
+            return EmbeddingGANTrainer.from_pretrained_emb(
+                G=G,
+                D=D,
+                G_optimizer=G_optimizer,
+                D_optimizer=D_optimizer,
+                G_lr_scheduler=G_lr_scheduler,
+                G_loss_criterion=G_loss_criterion,
+                G_eval_criterion=G_eval_criterion,
+                device=device,
+                loaders=loaders,
+                tensorboard_formatter=tensorboard_formatter,
+                sample_plotter=sample_plotter,
+                **trainer_config
+            )
+        else:
+            # Create model trainer
+            return EmbeddingGANTrainer(
+                G=G,
+                D=D,
+                G_optimizer=G_optimizer,
+                D_optimizer=D_optimizer,
+                G_lr_scheduler=G_lr_scheduler,
+                G_loss_criterion=G_loss_criterion,
+                G_eval_criterion=G_eval_criterion,
+                device=device,
+                loaders=loaders,
+                tensorboard_formatter=tensorboard_formatter,
+                sample_plotter=sample_plotter,
+                **trainer_config
+            )
 
 
 class EmbeddingGANTrainer:
     def __init__(self, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
-                 device, loaders, checkpoint_dir, gan_loss_weight,
+                 device, loaders, checkpoint_dir, gan_loss_weight, D_iters=500, combine_masks=False,
                  max_num_epochs=100, max_num_iterations=int(1e5), validate_after_iters=2000, log_after_iters=500,
                  num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
                  best_eval_score=None, tensorboard_formatter=None, sample_plotter=None,
@@ -103,12 +140,15 @@ class EmbeddingGANTrainer:
         self.D = D
         self.G = G
         self.gan_loss_weight = gan_loss_weight
+        self.D_iters = D_iters
+        self.combine_masks = combine_masks
 
         logger.info('GENERATOR')
         logger.info(self.G)
         logger.info('DISCRIMINATOR')
         logger.info(self.D)
         logger.info(f'eval_score_higher_is_better: {eval_score_higher_is_better}')
+        logger.info(f'D_iters: {D_iters}, gan_loss_weight: {gan_loss_weight}')
 
         if best_eval_score is not None:
             self.best_eval_score = best_eval_score
@@ -125,6 +165,50 @@ class EmbeddingGANTrainer:
         self.dist_to_mask = AuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=0.5)
         # use BCELoss for the GAN discriminator
         self.bce_loss = nn.BCELoss()
+
+    @classmethod
+    def from_checkpoint(cls, checkpoint_path, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion,
+                        G_eval_criterion, loaders, tensorboard_formatter=None, sample_plotter=None, **kwargs):
+        logger.info(f"Loading checkpoint '{checkpoint_path}'...")
+        state = load_checkpoint(checkpoint_path, G, G_optimizer)
+        _ = load_checkpoint(checkpoint_path, D, D_optimizer, model_key='D_model_state_dict',
+                            optimizer_key='D_optimizer_state_dict')
+        logger.info(
+            f"Checkpoint loaded. Epoch: {state['epoch']}. Best val score: {state['best_eval_score']}. Num_iterations: {state['num_iterations']}")
+        checkpoint_dir = os.path.split(checkpoint_path)[0]
+        return cls(G, D, G_optimizer, D_optimizer, G_lr_scheduler,
+                   G_loss_criterion, G_eval_criterion,
+                   torch.device(state['device']),
+                   loaders, checkpoint_dir,
+                   eval_score_higher_is_better=state['eval_score_higher_is_better'],
+                   best_eval_score=state['best_eval_score'],
+                   num_iterations=state['num_iterations'],
+                   num_epoch=state['epoch'],
+                   max_num_epochs=state['max_num_epochs'],
+                   max_num_iterations=state['max_num_iterations'],
+                   validate_after_iters=state['validate_after_iters'],
+                   log_after_iters=state['log_after_iters'],
+                   validate_iters=state['validate_iters'],
+                   skip_train_validation=state.get('skip_train_validation', False),
+                   tensorboard_formatter=tensorboard_formatter,
+                   sample_plotter=sample_plotter,
+                   **kwargs)
+
+    @classmethod
+    def from_pretrained_emb(cls, pre_trained, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion,
+                            G_eval_criterion, loaders, tensorboard_formatter=None, sample_plotter=None, **kwargs):
+        logger.info(f"Loading checkpoint '{pre_trained}'...")
+        state = load_checkpoint(pre_trained, G)
+        logger.info(
+            f"Checkpoint loaded. Epoch: {state['epoch']}. Best val score: {state['best_eval_score']}. Num_iterations: {state['num_iterations']}")
+        return cls(G, D, G_optimizer, D_optimizer, G_lr_scheduler,
+                   G_loss_criterion, G_eval_criterion,
+                   kwargs.pop('device'),
+                   loaders,
+                   checkpoint_dir=kwargs.pop('checkpoint_dir'),
+                   tensorboard_formatter=tensorboard_formatter,
+                   sample_plotter=sample_plotter,
+                   **kwargs)
 
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
@@ -157,20 +241,25 @@ class EmbeddingGANTrainer:
             logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
                         f'Epoch [{self.num_epoch}/{self.max_num_epochs - 1}]')
 
-            input, target, _ = self._split_training_batch(t)
+            input, target = self._split_training_batch(t)
             # forward pass through embedding network (generator)
             output = self.G(input)
 
-            if self.num_iterations % 2 == 0:
+            if (self.num_iterations // self.D_iters) % 2 == 0:
                 # train discriminator
+                self._unfreeze_D()
 
                 # create real and fake masks
                 output_det = output.detach()  # make sure that G is not updated
-                real_masks, fake_masks = self._extract_instance_masks(output_det, target)
+                real_masks, fake_masks = _extract_instance_masks(output_det, target,
+                                                                 self.G_loss_criterion._compute_cluster_means,
+                                                                 self.dist_to_mask,
+                                                                 self.combine_masks)
                 if real_masks is None or fake_masks is None:
                     # skip background patches
                     continue
 
+                # create mask labels for the discriminator
                 real_labels = torch.ones(real_masks.size(0), 1).to(self.device)
                 fake_labels = torch.zeros(fake_masks.size(0), 1).to(self.device)
 
@@ -188,14 +277,17 @@ class EmbeddingGANTrainer:
                 D_loss.backward()
                 self.D_optimizer.step()
 
-                D_losses.update(D_loss, 2 * real_masks.size(0))
+                D_losses.update(D_loss, real_masks.size(0) + fake_masks.size(0))
             else:
                 # train generator
                 self._freeze_D()
 
                 self.G_optimizer.zero_grad()
 
-                _, fake_masks = self._extract_instance_masks(output, target)
+                _, fake_masks = _extract_instance_masks(output, target,
+                                                        self.G_loss_criterion._compute_cluster_means,
+                                                        self.dist_to_mask,
+                                                        self.combine_masks)
                 if fake_masks is None:
                     # train only with embedding loss if only background is present
                     emb_loss = self.G_loss_criterion(output, target)
@@ -209,7 +301,7 @@ class EmbeddingGANTrainer:
                 # emb_loss.backward(retain_graph=True)
                 emb_losses.update(emb_loss.item(), self._batch_size(input))
 
-                # compute loss with fake masks
+                # compute adversarial loss using fake images
                 real_labels = torch.ones(fake_masks.size(0), 1).to(self.device)
                 outputs = self.D(fake_masks)
                 G_loss = self.bce_loss(outputs, real_labels)
@@ -220,8 +312,6 @@ class EmbeddingGANTrainer:
                 # optimize generator
                 combined_loss.backward()
                 self.G_optimizer.step()
-
-                self._unfreeze_D()
 
             if self.num_iterations % self.validate_after_iters == 0:
                 # set the model in eval mode
@@ -255,22 +345,22 @@ class EmbeddingGANTrainer:
                     f'Discriminator Loss: {D_losses.avg}. Evaluation score: {G_eval_scores.avg}')
 
                 self.writer.add_scalar('train_embedding_loss', emb_losses.avg, self.num_iterations)
-                self.writer.add_scalar('train_GAN_loss', G_losses.avg, self.num_iterations)
-                self.writer.add_scalar('train_D_loss', D_losses.avg, self.num_iterations)
-
-                inputs_map = {
-                    'inputs': input,
-                    'targets': target,
-                    'predictions': output
-                }
-                self._log_images(inputs_map)
-                # log masks if we're not during G training phase
-                if self.num_iterations % 2 == 0:
+                if (self.num_iterations // self.D_iters) % 2 == 0:
+                    # discriminator phase
+                    self.writer.add_scalar('train_D_loss', D_losses.avg, self.num_iterations)
+                    # log images
                     inputs_map = {
+                        'inputs': input,
+                        'targets': target,
+                        'predictions': output,
                         'real_masks': real_masks,
                         'fake_masks': fake_masks
+
                     }
                     self._log_images(inputs_map)
+
+                else:
+                    self.writer.add_scalar('train_GAN_loss', G_losses.avg, self.num_iterations)
 
             if self.should_stop():
                 return True
@@ -309,7 +399,7 @@ class EmbeddingGANTrainer:
             for i, t in enumerate(self.loaders['val']):
                 logger.info(f'Validation iteration {i}')
 
-                input, target, _ = self._split_training_batch(t)
+                input, target = self._split_training_batch(t)
 
                 output = self.G(input)
                 loss = self.G_loss_criterion(output, target)
@@ -333,13 +423,8 @@ class EmbeddingGANTrainer:
             else:
                 return input.to(self.device)
 
-        t = _move_to_device(t)
-        weight = None
-        if len(t) == 2:
-            input, target = t
-        else:
-            input, target, weight = t
-        return input, target, weight
+        input, target = _move_to_device(t)
+        return input, target
 
     def _is_best_eval_score(self, eval_score):
         if self.eval_score_higher_is_better:
@@ -357,14 +442,17 @@ class EmbeddingGANTrainer:
         # remove `module` prefix from layer names when using `nn.DataParallel`
         # see: https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/20
         if isinstance(self.G, nn.DataParallel):
-            state_dict = self.G.module.state_dict()
+            G_state_dict = self.G.module.state_dict()
+            D_state_dict = self.D.module.state_dict()
         else:
-            state_dict = self.G.state_dict()
+            G_state_dict = self.G.state_dict()
+            D_state_dict = self.D.state_dict()
 
+        # save generator and discriminator state + metadata
         save_checkpoint({
             'epoch': self.num_epoch + 1,
             'num_iterations': self.num_iterations,
-            'model_state_dict': state_dict,
+            'model_state_dict': G_state_dict,
             'best_eval_score': self.best_eval_score,
             'eval_score_higher_is_better': self.eval_score_higher_is_better,
             'optimizer_state_dict': self.G_optimizer.state_dict(),
@@ -373,7 +461,12 @@ class EmbeddingGANTrainer:
             'max_num_iterations': self.max_num_iterations,
             'validate_after_iters': self.validate_after_iters,
             'log_after_iters': self.log_after_iters,
-        }, is_best, checkpoint_dir=self.checkpoint_dir,
+            # discriminator
+            'D_model_state_dict': D_state_dict,
+            'D_optimizer_state_dict': self.D_optimizer.state_dict()
+        },
+            is_best=is_best,
+            checkpoint_dir=self.checkpoint_dir,
             logger=logger)
 
     def _log_G_lr(self):
@@ -408,48 +501,3 @@ class EmbeddingGANTrainer:
     def _unfreeze_D(self):
         for p in self.D.parameters():
             p.requires_grad = True
-
-    def _extract_instance_masks(self, embeddings, target):
-        # iterate over batch
-        real_masks = []
-        fake_masks = []
-
-        for emb, tar in zip(embeddings, target):
-            cluster_means = self._compute_cluster_means(emb, tar)
-            for i, cm in enumerate(cluster_means):
-                if i == 0:
-                    # ignore 0-label
-                    continue
-
-                # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
-                dist_to_mean = torch.norm(emb - cm, 'fro', dim=0)
-                # convert distance map to instance pmaps
-                inst_pmap = self.dist_to_mask(dist_to_mean)
-                # add channel dim
-                fake_masks.append(inst_pmap.unsqueeze(0))
-
-                assert i in target
-                inst_mask = (tar == i).float()
-                # add noise to instance_mask
-                uniform_noise = torch.randn(inst_mask.size()).to(inst_mask.device) * 0.05
-                inst_mask += uniform_noise
-                real_masks.append(inst_mask.unsqueeze(0))
-
-        if len(real_masks) == 0:
-            return None, None
-
-        real_masks = torch.stack(real_masks).to(embeddings.device)
-        real_masks.clamp_(0, 1)
-        fake_masks = torch.stack(fake_masks).to(embeddings.device)
-        return real_masks, fake_masks
-
-    def _compute_cluster_means(self, emb, tar):
-        instances = torch.unique(tar)
-        C = instances.size(0)
-
-        single_target = expand_as_one_hot(tar.unsqueeze(0), C).squeeze(0)
-        single_target = single_target.unsqueeze(1)
-        spatial_dims = emb.dim() - 1
-
-        cluster_means, _, _ = self.G_loss_criterion._compute_cluster_means(emb, single_target, spatial_dims)
-        return cluster_means

@@ -7,12 +7,13 @@ from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch3dunet.datasets.utils import get_train_loaders
+from pytorch3dunet.embeddings.utils import _extract_instance_masks
 from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.utils import get_logger, get_number_of_learnable_parameters, create_optimizer, \
     create_lr_scheduler, get_tensorboard_formatter, create_sample_plotter, RunningAverage, save_checkpoint, \
-    expand_as_one_hot
+    expand_as_one_hot, load_checkpoint
 
 logger = get_logger('WGANTrainer')
 
@@ -59,27 +60,47 @@ class EmbeddingWGANTrainerBuilder:
         # get sample plotter
         sample_plotter = create_sample_plotter(trainer_config.pop('sample_plotter', None))
 
-        # Create model trainer
-        return EmbeddingWGANTrainer(
-            G=G,
-            D=D,
-            G_optimizer=G_optimizer,
-            D_optimizer=D_optimizer,
-            G_lr_scheduler=G_lr_scheduler,
-            G_loss_criterion=G_loss_criterion,
-            G_eval_criterion=G_eval_criterion,
-            device=device,
-            loaders=loaders,
-            tensorboard_formatter=tensorboard_formatter,
-            sample_plotter=sample_plotter,
-            **trainer_config
-        )
+        resume = trainer_config.get('resume', None)
+        pre_trained = trainer_config.get('pre_trained', None)
+
+        if pre_trained is not None:
+            logger.info(f'Using pretrained embedding model: {pre_trained}')
+            return EmbeddingWGANTrainer.from_pretrained_emb(
+                G=G,
+                D=D,
+                G_optimizer=G_optimizer,
+                D_optimizer=D_optimizer,
+                G_lr_scheduler=G_lr_scheduler,
+                G_loss_criterion=G_loss_criterion,
+                G_eval_criterion=G_eval_criterion,
+                device=device,
+                loaders=loaders,
+                tensorboard_formatter=tensorboard_formatter,
+                sample_plotter=sample_plotter,
+                **trainer_config
+            )
+        else:
+            # Create model trainer
+            return EmbeddingWGANTrainer(
+                G=G,
+                D=D,
+                G_optimizer=G_optimizer,
+                D_optimizer=D_optimizer,
+                G_lr_scheduler=G_lr_scheduler,
+                G_loss_criterion=G_loss_criterion,
+                G_eval_criterion=G_eval_criterion,
+                device=device,
+                loaders=loaders,
+                tensorboard_formatter=tensorboard_formatter,
+                sample_plotter=sample_plotter,
+                **trainer_config
+            )
 
 
 class EmbeddingWGANTrainer:
     def __init__(self, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
                  device, loaders, checkpoint_dir,
-                 gp_lambda, gan_loss_weight, critic_iters,
+                 gp_lambda, gan_loss_weight, critic_iters, combine_masks=False,
                  max_num_epochs=100, max_num_iterations=int(1e5), validate_after_iters=2000, log_after_iters=500,
                  num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
                  best_eval_score=None, tensorboard_formatter=None, sample_plotter=None,
@@ -105,8 +126,9 @@ class EmbeddingWGANTrainer:
         self.D = D
         self.G = G
         self.gp_lambda = gp_lambda
-        self.critic_iters = critic_iters
         self.gan_loss_weight = gan_loss_weight
+        self.critic_iters = critic_iters
+        self.combine_masks = combine_masks
 
         logger.info('GENERATOR')
         logger.info(self.G)
@@ -127,6 +149,23 @@ class EmbeddingWGANTrainer:
 
         # hardcode pmaps_threshold for now
         self.dist_to_mask = AuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=0.5)
+
+    @classmethod
+    def from_pretrained_emb(cls, pre_trained, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion,
+                            G_eval_criterion,
+                            loaders, tensorboard_formatter, sample_plotter, **kwargs):
+        logger.info(f"Loading checkpoint '{pre_trained}'...")
+        state = load_checkpoint(pre_trained, G)
+        logger.info(
+            f"Checkpoint loaded. Epoch: {state['epoch']}. Best val score: {state['best_eval_score']}. Num_iterations: {state['num_iterations']}")
+        return cls(G, D, G_optimizer, D_optimizer, G_lr_scheduler,
+                   G_loss_criterion, G_eval_criterion,
+                   kwargs.pop('device'),
+                   loaders,
+                   checkpoint_dir=kwargs.pop('checkpoint_dir'),
+                   tensorboard_formatter=tensorboard_formatter,
+                   sample_plotter=sample_plotter,
+                   **kwargs)
 
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
@@ -179,7 +218,10 @@ class EmbeddingWGANTrainer:
                 emb_losses.update(emb_loss.item(), self._batch_size(input))
 
                 # compute GAN loss
-                _, fake_masks = self._extract_instance_masks(output, target)
+                _, fake_masks = _extract_instance_masks(output, target,
+                                                        self.G_loss_criterion._compute_cluster_means,
+                                                        self.dist_to_mask,
+                                                        self.combine_masks)
                 if fake_masks is None:
                     # skip background patches
                     continue
@@ -201,7 +243,11 @@ class EmbeddingWGANTrainer:
                 # create real and fake masks
                 # train with fake masks
                 output = output.detach()  # make sure that G is not updated
-                real_masks, fake_masks = self._extract_instance_masks(output, target)
+                real_masks, fake_masks = _extract_instance_masks(output, target,
+                                                                 self.G_loss_criterion._compute_cluster_means,
+                                                                 self.dist_to_mask,
+                                                                 self.combine_masks)
+
                 if real_masks is None or fake_masks is None:
                     # skip background patches
                     continue
@@ -413,40 +459,6 @@ class EmbeddingWGANTrainer:
     def _unfreeze_D(self):
         for p in self.D.parameters():
             p.requires_grad = True
-
-    def _extract_instance_masks(self, embeddings, target):
-        # iterate over batch
-        real_masks = []
-        fake_masks = []
-
-        for emb, tar in zip(embeddings, target):
-            cluster_means = self._compute_cluster_means(emb, tar)
-            for i, cm in enumerate(cluster_means):
-                if i == 0:
-                    # ignore 0-label
-                    continue
-
-                # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
-                dist_to_mean = torch.norm(emb - cm, 'fro', dim=0)
-                # convert distance map to instance pmaps
-                inst_pmap = self.dist_to_mask(dist_to_mean)
-                # add channel dim
-                fake_masks.append(inst_pmap.unsqueeze(0))
-
-                assert i in target
-                inst_mask = (tar == i).float()
-                # add noise to instance_mask
-                uniform_noise = torch.randn(inst_mask.size()).to(inst_mask.device) * 0.05
-                inst_mask += uniform_noise
-                real_masks.append(inst_mask.unsqueeze(0))
-
-        if len(real_masks) == 0:
-            return None, None
-
-        real_masks = torch.stack(real_masks).to(embeddings.device)
-        real_masks.clamp_(0, 1)
-        fake_masks = torch.stack(fake_masks).to(embeddings.device)
-        return real_masks, fake_masks
 
     def _calc_gp(self, real_masks, fake_masks):
         n_batch = real_masks.size(0)

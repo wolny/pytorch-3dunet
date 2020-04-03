@@ -45,7 +45,7 @@ def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval
                                              optimizer=optimizer,
                                              lr_scheduler=lr_scheduler,
                                              loss_criterion=loss_criterion,
-                                             eval_criterion=eval(),
+                                             eval_criterion=eval_criterion,
                                              device=config['device'],
                                              loaders=loaders,
                                              **trainer_config)
@@ -184,7 +184,7 @@ class UNet3DTrainer:
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders,
-                        tensorboard_formatter=None, sample_plotter=None, skip_train_validation=False):
+                        tensorboard_formatter=None, sample_plotter=None, **kwargs):
         logger.info(f"Loading checkpoint '{checkpoint_path}'...")
         state = utils.load_checkpoint(checkpoint_path, model, optimizer)
         logger.info(
@@ -205,7 +205,8 @@ class UNet3DTrainer:
                    validate_iters=state['validate_iters'],
                    skip_train_validation=state.get('skip_train_validation', False),
                    tensorboard_formatter=tensorboard_formatter,
-                   sample_plotter=sample_plotter)
+                   sample_plotter=sample_plotter,
+                   **kwargs)
 
     @classmethod
     def from_pretrained(cls, pre_trained, model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
@@ -215,7 +216,7 @@ class UNet3DTrainer:
                         validate_iters=None, num_iterations=1, num_epoch=0,
                         eval_score_higher_is_better=True, best_eval_score=None,
                         tensorboard_formatter=None, sample_plotter=None,
-                        skip_train_validation=False):
+                        skip_train_validation=False, **kwargs):
         logger.info(f"Logging pre-trained model from '{pre_trained}'...")
         utils.load_checkpoint(pre_trained, model, None)
         checkpoint_dir = os.path.split(pre_trained)[0]
@@ -233,7 +234,8 @@ class UNet3DTrainer:
                    validate_iters=validate_iters,
                    tensorboard_formatter=tensorboard_formatter,
                    sample_plotter=sample_plotter,
-                   skip_train_validation=skip_train_validation)
+                   skip_train_validation=skip_train_validation,
+                   **kwargs)
 
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):

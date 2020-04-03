@@ -47,7 +47,8 @@ def save_checkpoint(state, is_best, checkpoint_dir, logger=None):
         shutil.copyfile(last_file_path, best_file_path)
 
 
-def load_checkpoint(checkpoint_path, model, optimizer=None):
+def load_checkpoint(checkpoint_path, model, optimizer=None,
+                    model_key='model_state_dict', optimizer_key='optimizer_state_dict'):
     """Loads model and training parameters from a given checkpoint_path
     If optimizer is provided, loads optimizer's state_dict of as well.
 
@@ -64,10 +65,10 @@ def load_checkpoint(checkpoint_path, model, optimizer=None):
         raise IOError(f"Checkpoint '{checkpoint_path}' does not exist")
 
     state = torch.load(checkpoint_path, map_location='cpu')
-    model.load_state_dict(state['model_state_dict'])
+    model.load_state_dict(state[model_key])
 
     if optimizer is not None:
-        optimizer.load_state_dict(state['optimizer_state_dict'])
+        optimizer.load_state_dict(state[optimizer_key])
 
     return state
 
