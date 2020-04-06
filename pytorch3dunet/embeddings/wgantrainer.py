@@ -418,14 +418,17 @@ class EmbeddingWGANTrainer:
         # remove `module` prefix from layer names when using `nn.DataParallel`
         # see: https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/20
         if isinstance(self.G, nn.DataParallel):
-            state_dict = self.G.module.state_dict()
+            G_state_dict = self.G.module.state_dict()
+            D_state_dict = self.D.module.state_dict()
         else:
-            state_dict = self.G.state_dict()
+            G_state_dict = self.G.state_dict()
+            D_state_dict = self.D.state_dict()
 
+        # save generator and discriminator state + metadata
         save_checkpoint({
             'epoch': self.num_epoch + 1,
             'num_iterations': self.num_iterations,
-            'model_state_dict': state_dict,
+            'model_state_dict': G_state_dict,
             'best_eval_score': self.best_eval_score,
             'eval_score_higher_is_better': self.eval_score_higher_is_better,
             'optimizer_state_dict': self.G_optimizer.state_dict(),
@@ -434,7 +437,12 @@ class EmbeddingWGANTrainer:
             'max_num_iterations': self.max_num_iterations,
             'validate_after_iters': self.validate_after_iters,
             'log_after_iters': self.log_after_iters,
-        }, is_best, checkpoint_dir=self.checkpoint_dir,
+            # discriminator
+            'D_model_state_dict': D_state_dict,
+            'D_optimizer_state_dict': self.D_optimizer.state_dict()
+        },
+            is_best=is_best,
+            checkpoint_dir=self.checkpoint_dir,
             logger=logger)
 
     def _log_G_lr(self):

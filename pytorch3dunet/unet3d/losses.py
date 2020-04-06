@@ -6,7 +6,8 @@ from torch import nn as nn
 from torch.autograd import Variable
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss, BCELoss
 
-from pytorch3dunet.unet3d.utils import expand_as_one_hot
+from pytorch3dunet.unet3d.model import get_model, WGANDiscriminator
+from pytorch3dunet.unet3d.utils import expand_as_one_hot, load_checkpoint
 
 
 def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
@@ -718,10 +719,57 @@ class LovaszSoftmaxLoss(nn.Module):
         return vscores, vlabels
 
 
+class GANShapePriorLoss(nn.Module):
+    def __init__(self, model_path, D_model_config):
+        super().__init__()
+        assert model_path is not None
+        assert D_model_config is not None
+
+        # load model
+        D = get_model(D_model_config)
+        # send to device
+        D = D.to(torch.device(D_model_config['device']))
+        D.eval()
+
+        load_checkpoint(model_path, D, model_key='D_model_state_dict')
+        # freeze weights
+        for p in D.parameters():
+            p.requires_grad = False
+
+        if isinstance(D, WGANDiscriminator):
+            self.loss = self.WGANLoss(D)
+        else:
+            self.loss = self.GANLoss(D)
+
+    def forward(self, inst_pmap, inst_mask):
+        # add batch and channel dimensions
+        inst_pmap = inst_pmap.view((1, 1) + inst_pmap.size())
+        return self.loss(inst_pmap)
+
+    class WGANLoss:
+        def __init__(self, D):
+            self.D = D
+
+        def __call__(self, inst_pmap):
+            with torch.no_grad():
+                return -self.D(inst_pmap)
+
+    class GANLoss:
+        def __init__(self, D):
+            self.D = D
+            self.bce_loss = nn.BCELoss()
+
+        def __call__(self, inst_pmap):
+            real_labels = torch.ones(inst_pmap.size(0), 1).to(inst_pmap.device)
+            outputs = self.D(inst_pmap)
+            with torch.no_grad():
+                return self.bce_loss(outputs, real_labels)
+
+
 class AuxContrastiveLoss(_AbstractContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf,
                  norm='fro', alpha=1., beta=1., gamma=0.001, delta=1.,
-                 aux_loss_ignore_zero=True):
+                 aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
         super().__init__(delta_var, delta_dist, norm=norm, alpha=alpha, beta=beta, gamma=gamma, delta=delta,
                          ignore_zero_in_variance=False,
                          ignore_zero_in_distance=False,
@@ -729,13 +777,16 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
         # ignore instance corresponding to 0-label
         self.delta_var = delta_var
         # init auxiliary loss
-        assert aux_loss in ['bce', 'dice', 'lovasz']
+        assert aux_loss in ['bce', 'dice', 'lovasz', 'gan']
         if aux_loss == 'bce':
             self.aux_loss = BCELoss()
         elif aux_loss == 'dice':
             self.aux_loss = DiceLoss(normalization='none')
-        else:
+        elif aux_loss == 'lovasz':
             self.aux_loss = LovaszSoftmaxLoss()
+        else:
+            self.aux_loss = GANShapePriorLoss(model_path=model_path, D_model_config=D_model_config)
+
         # init dist_to_mask function which maps per-instance distance map to the instance probability map
         self.dist_to_mask = self._create_dist_to_mask_fun(dist_to_mask_conf, delta_var)
 
@@ -858,7 +909,9 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                   loss_config['beta'],
                                   loss_config['gamma'],
                                   loss_config['delta'],
-                                  loss_config.get('aux_loss_ignore_zero', True))
+                                  loss_config.get('aux_loss_ignore_zero', True),
+                                  loss_config.get('model_path', None),
+                                  loss_config.get('D_model', None))
     elif name == 'SegEmbLoss':
         return SegEmbLoss(loss_config['delta_var'],
                           loss_config['delta_dist'],
