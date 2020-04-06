@@ -111,6 +111,7 @@ class EmbeddingWGANTrainer:
         self.eval_score_higher_is_better = eval_score_higher_is_better
         self.num_epoch = num_epoch
         self.num_iterations = num_iterations
+        self.gen_iterations = 1
         self.log_after_iters = log_after_iters
         self.validate_after_iters = validate_after_iters
         self.max_num_iterations = max_num_iterations
@@ -179,6 +180,13 @@ class EmbeddingWGANTrainer:
             self.num_epoch += 1
         logger.info(f"Reached maximum number of epochs: {self.max_num_epochs}. Finishing training...")
 
+    def _D_iters(self):
+        # make sure Discriminator is trained more at the beginning
+        if self.gen_iterations < 25:
+            return 100
+
+        return self.critic_iters + 1
+
     def train(self):
         """Trains the model for 1 epoch.
 
@@ -207,7 +215,7 @@ class EmbeddingWGANTrainer:
             # forward pass through embedding network (generator)
             output = self.G(input)
 
-            if self.num_iterations % (self.critic_iters + 1) == 0:
+            if self.num_iterations % self._D_iters() == 0:
                 # update G network
                 self._freeze_D()
                 self.G_optimizer.zero_grad()
@@ -237,6 +245,8 @@ class EmbeddingWGANTrainer:
                 self.G_optimizer.step()
 
                 self._unfreeze_D()
+
+                self.gen_iterations += 1
             else:
                 # update D netowrk
                 self.D_optimizer.zero_grad()
