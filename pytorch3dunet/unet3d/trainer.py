@@ -216,7 +216,7 @@ class UNet3DTrainer:
                     f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
                 self._log_stats('train', train_losses.avg, train_eval_scores.avg)
                 self._log_params()
-                self._log_images(input, target, output)
+                self._log_images(input, target, output, 'train_')
 
             if self.should_stop():
                 return True
@@ -255,6 +255,9 @@ class UNet3DTrainer:
                 input, target, weight = self._split_training_batch(t)
 
                 output, loss = self._forward_pass(input, target, weight)
+                if i % 100 == 0:
+                    self._log_images(input, target, output, 'val_')
+
                 val_losses.update(loss.item(), self._batch_size(input))
 
                 # if model contains final_activation layer for normalizing logits apply it, otherwise
@@ -355,7 +358,7 @@ class UNet3DTrainer:
             self.writer.add_histogram(name, value.data.cpu().numpy(), self.num_iterations)
             self.writer.add_histogram(name + '/grad', value.grad.data.cpu().numpy(), self.num_iterations)
 
-    def _log_images(self, input, target, prediction):
+    def _log_images(self, input, target, prediction, prefix=''):
         inputs_map = {
             'inputs': input,
             'targets': target,
@@ -371,7 +374,7 @@ class UNet3DTrainer:
 
         for name, batch in img_sources.items():
             for tag, image in self.tensorboard_formatter(name, batch):
-                self.writer.add_image(tag, image, self.num_iterations, dataformats='CHW')
+                self.writer.add_image(prefix + tag, image, self.num_iterations, dataformats='CHW')
 
     @staticmethod
     def _batch_size(input):
