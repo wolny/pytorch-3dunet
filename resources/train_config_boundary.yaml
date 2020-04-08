@@ -33,12 +33,12 @@ optimizer:
 eval_metric:
   # use AdaptedRandError metric
   name: BoundaryAdaptedRandError
-  # probability maps threshold
-  threshold: 0.4
+  # probability maps thresholds to validate on
+  thresholds: [0.4]
   # use the last target channel to compute the metric
   use_last_target: true
   # use only the first channel for computing the metric
-  use_first_input: true
+  input_channel: 0
 lr_scheduler:
   name: ReduceLROnPlateau
   # make sure to use the 'min' mode cause lower AdaptedRandError is better

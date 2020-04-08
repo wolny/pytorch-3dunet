@@ -69,7 +69,7 @@ class AbstractHDF5Dataset(ConfigDataset):
 
         input_file = self.create_h5_file(file_path, internal_paths)
 
-        self.raws = self.fetch_datasets(input_file, raw_internal_path)
+        self.raws = self.fetch_and_check(input_file, raw_internal_path)
 
         # calculate global min, max, mean and std for normalization
         min_value, max_value, mean, std = calculate_stats(self.raws)
@@ -82,11 +82,11 @@ class AbstractHDF5Dataset(ConfigDataset):
         if phase != 'test':
             # create label/weight transform only in train/val phase
             self.label_transform = self.transformer.label_transform()
-            self.labels = self.fetch_datasets(input_file, label_internal_path)
+            self.labels = self.fetch_and_check(input_file, label_internal_path)
 
             if weight_internal_path is not None:
                 # look for the weight map in the raw file
-                self.weight_maps = self.fetch_datasets(input_file, weight_internal_path)
+                self.weight_maps = self.fetch_and_check(input_file, weight_internal_path)
                 self.weight_transform = self.transformer.weight_transform()
             else:
                 self.weight_maps = None
@@ -129,6 +129,13 @@ class AbstractHDF5Dataset(ConfigDataset):
     @staticmethod
     def fetch_datasets(input_file_h5, internal_paths):
         raise NotImplementedError
+
+    def fetch_and_check(self, input_file_h5, internal_paths):
+        datasets = self.fetch_datasets(input_file_h5, internal_paths)
+        # expand dims if 2d
+        fn = lambda ds: np.expand_dims(ds, axis=0) if ds.ndim == 2 else ds
+        datasets = list(map(fn, datasets))
+        return datasets
 
     def __getitem__(self, idx):
         if idx >= len(self):

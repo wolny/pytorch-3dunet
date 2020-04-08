@@ -298,13 +298,14 @@ class AbstractLabelToBoundary:
 
 
 class StandardLabelToBoundary:
-    def __init__(self, ignore_index=None, append_label=False, blur=False, sigma=1, mode='thick', blobs=False, **kwargs):
+    def __init__(self, ignore_index=None, append_label=False, blur=False, sigma=1, mode='thick', foreground=False,
+                 **kwargs):
         self.ignore_index = ignore_index
         self.append_label = append_label
         self.blur = blur
         self.sigma = sigma
         self.mode = mode
-        self.blobs = blobs
+        self.foreground = foreground
 
     def __call__(self, m):
         assert m.ndim == 3
@@ -314,9 +315,9 @@ class StandardLabelToBoundary:
             boundaries = blur_boundary(boundaries, self.sigma)
 
         results = []
-        if self.blobs:
-            blobs = (m > 0).astype('uint8')
-            results.append(_recover_ignore_index(blobs, m, self.ignore_index))
+        if self.foreground:
+            foreground = (m > 0).astype('uint8')
+            results.append(_recover_ignore_index(foreground, m, self.ignore_index))
 
         results.append(_recover_ignore_index(boundaries, m, self.ignore_index))
 
@@ -481,9 +482,10 @@ class LabelToBoundaryAndAffinities:
     """
 
     def __init__(self, xy_offsets, z_offsets, append_label=False, blur=False, sigma=1, ignore_index=None, mode='thick',
-                 blobs=False, **kwargs):
+                 foreground=False, **kwargs):
         # blur only StandardLabelToBoundary results; we don't want to blur the affinities
-        self.l2b = StandardLabelToBoundary(blur=blur, sigma=sigma, ignore_index=ignore_index, mode=mode, blobs=blobs)
+        self.l2b = StandardLabelToBoundary(blur=blur, sigma=sigma, ignore_index=ignore_index, mode=mode,
+                                           foreground=foreground)
         self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label,
                                      ignore_index=ignore_index)
 
