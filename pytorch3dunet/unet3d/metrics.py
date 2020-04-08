@@ -206,19 +206,19 @@ class BoundaryAdaptedRandError(AdaptedRandError):
     Boundary map is thresholded, and connected components is run to get the predicted segmentation
     """
 
-    def __init__(self, thresholds=None, use_last_target=True, use_first_input=False, invert_pmaps=True,
+    def __init__(self, thresholds=None, use_last_target=True, input_channel=None, invert_pmaps=True,
                  save_plots=False, plots_dir='.', **kwargs):
         super().__init__(use_last_target=use_last_target, save_plots=save_plots, plots_dir=plots_dir, **kwargs)
         if thresholds is None:
             thresholds = [0.3, 0.4, 0.5, 0.6]
         assert isinstance(thresholds, list)
         self.thresholds = thresholds
-        self.use_first_input = use_first_input
+        self.input_channel = input_channel
         self.invert_pmaps = invert_pmaps
 
     def input_to_segm(self, input):
-        if self.use_first_input:
-            input = np.expand_dims(input[0], axis=0)
+        if self.input_channel is not None:
+            input = np.expand_dims(input[self.input_channel], axis=0)
 
         segs = []
         for predictions in input:

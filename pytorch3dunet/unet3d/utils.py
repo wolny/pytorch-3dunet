@@ -229,10 +229,14 @@ class _TensorboardFormatter:
 
 
 class DefaultTensorboardFormatter(_TensorboardFormatter):
-    def __init__(self, **kwargs):
+    def __init__(self, skip_last_target=False, **kwargs):
         super().__init__(**kwargs)
+        self.skip_last_target = skip_last_target
 
     def process_batch(self, name, batch):
+        if name == 'targets' and self.skip_last_target:
+            batch = batch[:, :-1, ...]
+
         tag_template = '{}/batch_{}/channel_{}/slice_{}'
 
         tagged_images = []
