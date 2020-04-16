@@ -623,7 +623,7 @@ class _AbstractContrastiveLoss(nn.Module):
             loss = self.alpha * variance_term + \
                    self.beta * distance_term + \
                    self.gamma * regularization_term + \
-                   self.delta * aux_loss
+                   self.delta * aux_loss.sum()
 
             per_instance_loss += loss
 
@@ -658,7 +658,7 @@ class ContrastiveLoss(_AbstractContrastiveLoss):
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
         # no auxiliary loss in the standard ContrastiveLoss
-        return 0.
+        return torch.tensor(0.)
 
 
 class LovaszSoftmaxLoss(nn.Module):
@@ -751,8 +751,7 @@ class GANShapePriorLoss(nn.Module):
             self.D = D
 
         def __call__(self, inst_pmap):
-            with torch.no_grad():
-                return -self.D(inst_pmap)
+            return -self.D(inst_pmap)
 
     class GANLoss:
         def __init__(self, D):
@@ -762,8 +761,7 @@ class GANShapePriorLoss(nn.Module):
         def __call__(self, inst_pmap):
             real_labels = torch.ones(inst_pmap.size(0), 1).to(inst_pmap.device)
             outputs = self.D(inst_pmap)
-            with torch.no_grad():
-                return self.bce_loss(outputs, real_labels)
+            return self.bce_loss(outputs, real_labels)
 
 
 class AuxContrastiveLoss(_AbstractContrastiveLoss):
@@ -801,7 +799,7 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
     def auxiliary_loss(self, embeddings, cluster_means, target):
         assert embeddings.size()[1:] == target.size()
 
-        per_instance_loss = 0.
+        per_instance_loss = torch.tensor(0.)
         for i, cm in enumerate(cluster_means):
             if i == 0 and self.aux_loss_ignore_zero:
                 # ignore 0-label
