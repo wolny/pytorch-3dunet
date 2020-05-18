@@ -255,15 +255,15 @@ class UNet3DTrainer:
                 input, target, weight = self._split_training_batch(t)
 
                 output, loss = self._forward_pass(input, target, weight)
-                if i % 100 == 0:
-                    self._log_images(input, target, output, 'val_')
-
                 val_losses.update(loss.item(), self._batch_size(input))
 
                 # if model contains final_activation layer for normalizing logits apply it, otherwise
                 # the evaluation metric will be incorrectly computed
                 if hasattr(self.model, 'final_activation') and self.model.final_activation is not None:
                     output = self.model.final_activation(output)
+
+                if i % 100 == 0:
+                    self._log_images(input, target, output, 'val_')
 
                 eval_score = self.eval_criterion(output, target)
                 val_scores.update(eval_score.item(), self._batch_size(input))
