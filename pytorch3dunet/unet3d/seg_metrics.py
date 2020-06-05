@@ -58,8 +58,6 @@ class SegmentationMetrics:
     """
 
     def __init__(self, gt, seg):
-        gt = _relabel(gt)
-        seg = _relabel(seg)
         self.iou_matrix = _iou_matrix(gt, seg)
 
     def metrics(self, iou_threshold):
