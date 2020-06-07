@@ -66,6 +66,7 @@ def main():
 
     output_dir = config['loaders'].get('output_dir', None)
     if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
         logger.info(f'Saving predictions to: {output_dir}')
 
     for test_loader in get_test_loaders(config):
