@@ -12,8 +12,12 @@ from pytorch3dunet.unet3d.model import get_model
 logger = utils.get_logger('UNet3DPredict')
 
 
-def _get_output_file(dataset, suffix='_predictions'):
-    return f'{os.path.splitext(dataset.file_path)[0]}{suffix}.h5'
+def _get_output_file(dataset, suffix='_predictions', output_dir=None):
+    input_dir, file_name = os.path.split(dataset.file_path)
+    if output_dir is None:
+        output_dir = input_dir
+    output_file = os.path.join(output_dir, os.path.splitext(file_name)[0] + suffix + '.h5')
+    return output_file
 
 
 def _get_dataset_names(config, number_of_datasets, prefix='predictions'):
@@ -60,11 +64,14 @@ def main():
     logger.info(f"Sending the model to '{device}'")
     model = model.to(device)
 
-    logger.info('Loading HDF5 datasets...')
+    output_dir = config['loaders'].get('output_dir', None)
+    if output_dir is not None:
+        logger.info(f'Saving predictions to: {output_dir}')
+
     for test_loader in get_test_loaders(config):
         logger.info(f"Processing '{test_loader.dataset.file_path}'...")
 
-        output_file = _get_output_file(test_loader.dataset)
+        output_file = _get_output_file(dataset=test_loader.dataset, output_dir=output_dir)
 
         predictor = _get_predictor(model, test_loader, output_file, config)
         # run the model prediction on the entire dataset and save to the 'output_file' H5

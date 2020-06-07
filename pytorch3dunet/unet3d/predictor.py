@@ -175,7 +175,7 @@ class StandardPredictor(_AbstractPredictor):
 
                 prediction_map = prediction_map[:, z_s, y_s, x_s]
 
-            logger.info(f'Saving predictions to: {output_file}/{prediction_dataset}...')
+            logger.info(f'Saving predictions to: {self.output_file}/{prediction_dataset}...')
             output_file.create_dataset(prediction_dataset, data=prediction_map, compression="gzip")
 
     @staticmethod

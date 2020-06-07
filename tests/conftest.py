@@ -29,6 +29,10 @@ def train_config():
     config_path = os.path.join(TEST_FILES, 'config_train.yml')
     return yaml.load(open(config_path, 'r'))
 
+@pytest.fixture
+def test_config():
+    config_path = os.path.join(TEST_FILES, 'config_test.yml')
+    return yaml.load(open(config_path, 'r'))
 
 @pytest.fixture
 def train_config_2d():

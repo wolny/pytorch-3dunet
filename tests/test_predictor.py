@@ -1,4 +1,5 @@
 import os
+from tempfile import NamedTemporaryFile
 
 import h5py
 import numpy as np
@@ -7,7 +8,9 @@ from skimage.metrics import adapted_rand_error
 from torch.utils.data import DataLoader
 
 from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset
-from pytorch3dunet.datasets.utils import prediction_collate
+from pytorch3dunet.datasets.utils import prediction_collate, get_test_loaders
+from pytorch3dunet.predict import _get_output_file, _get_predictor
+from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.predictor import EmbeddingsPredictor
 from pytorch3dunet.unet3d.utils import remove_halo
 
@@ -29,6 +32,38 @@ class FakeModel:
 
 
 class TestPredictor:
+    def test_stanard_predictor(self, tmpdir, test_config):
+        # Add output dir
+        test_config['loaders']['output_dir'] = tmpdir
+
+        # create random dataset
+        tmp = NamedTemporaryFile(delete=False)
+
+        with h5py.File(tmp.name, 'w') as f:
+            shape = (32, 64, 64)
+            f.create_dataset('raw', data=np.random.rand(*shape))
+
+        # Add input file
+        test_config['loaders']['test']['file_paths'] = [tmp.name]
+
+        # Create the model with random weights
+        model = get_model(test_config)
+        # Create device and update config
+        device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+        test_config['device'] = device
+        model = model.to(device)
+
+        for test_loader in get_test_loaders(test_config):
+
+            output_file = _get_output_file(dataset=test_loader.dataset, output_dir=tmpdir)
+
+            predictor = _get_predictor(model, test_loader, output_file, test_config)
+            # run the model prediction on the entire dataset and save to the 'output_file' H5
+            predictor.predict()
+
+
+
+
     def test_embeddings_predictor(self, tmpdir):
         config = {
             'model': {'output_heads': 1},
