@@ -71,9 +71,7 @@ class AbstractHDF5Dataset(ConfigDataset):
 
         self.raws = self.fetch_and_check(input_file, raw_internal_path)
 
-        # calculate global min, max, mean and std for normalization
-        min_value, max_value, mean, std = calculate_stats(self.raws)
-        logger.info(f'Input stats: min={min_value}, max={max_value}, mean={mean}, std={std}')
+        min_value, max_value, mean, std = self.ds_stats()
 
         self.transformer = transforms.get_transformer(transformer_config, min_value=min_value, max_value=max_value,
                                                       mean=mean, std=std)
@@ -121,6 +119,12 @@ class AbstractHDF5Dataset(ConfigDataset):
 
         self.patch_count = len(self.raw_slices)
         logger.info(f'Number of patches: {self.patch_count}')
+
+    def ds_stats(self):
+        # calculate global min, max, mean and std for normalization
+        min_value, max_value, mean, std = calculate_stats(self.raws)
+        logger.info(f'Input stats: min={min_value}, max={max_value}, mean={mean}, std={std}')
+        return min_value, max_value, mean, std
 
     @staticmethod
     def create_h5_file(file_path, internal_paths):
@@ -324,3 +328,10 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
         # convert to uncompressed
         internal_paths = [f'_uncompressed_{internal_path}' for internal_path in internal_paths]
         return [input_file_h5[internal_path] for internal_path in internal_paths]
+
+    def ds_stats(self):
+        # Do not calculate stats on the whole stacks when using lazy loader,
+        # they min, max, mean, std should be provided in the config
+        logger.info(
+            'Using LazyHDF5Dataset. Make sure that the min/max/mean/std values are provided in the loaders config')
+        return None, None, None, None
