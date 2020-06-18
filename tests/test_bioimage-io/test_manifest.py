@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from pybio.spec import load_spec_and_kwargs, utils
 
 MANIFEST_PATH = Path(__file__).parent / "../../manifest.yaml"
@@ -36,6 +35,7 @@ def required_spec_kwargs():
     return kwargs
 
 
+@pytest.mark.skip
 def test_load_specs_from_manifest(cache_path, category, spec_path, required_spec_kwargs):
     kwargs = required_spec_kwargs.get(spec_path, {})
 

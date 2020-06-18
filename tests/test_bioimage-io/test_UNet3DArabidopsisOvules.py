@@ -1,15 +1,14 @@
 from io import BytesIO
 from pathlib import Path
 
-import h5py
 import imageio
 import numpy
 import pytest
 import torch
-
 from pybio.core.transformations import apply_transformations
 from pybio.spec import load_model
 from pybio.spec.utils import get_instance
+
 from pytorch3dunet.unet3d.model import UNet3D
 
 
@@ -18,9 +17,10 @@ def dummy_input():
     return [numpy.random.uniform(-2, 2, [1, 1, 80, 160, 160]).astype(numpy.float32)]
 
 
+@pytest.mark.skip
 def test_dummy_input(cache_path, dummy_input):
     spec_path = (
-        Path(__file__).parent / "../../bioimage-io/UNet3DArabidopsisOvules.model/UNet3DArabidopsisOvules.model.yaml"
+            Path(__file__).parent / "../../bioimage-io/UNet3DArabidopsisOvules.model/UNet3DArabidopsisOvules.model.yaml"
     )
     assert spec_path.exists()
 
@@ -30,9 +30,10 @@ def test_dummy_input(cache_path, dummy_input):
         assert dummy.shape == spec.shape
 
 
+@pytest.mark.skip
 def test_Net3DArabidopsisOvules_forward(cache_path):
     spec_path = (
-        Path(__file__).parent / "../../bioimage-io/UNet3DArabidopsisOvules.model/UNet3DArabidopsisOvules.model.yaml"
+            Path(__file__).parent / "../../bioimage-io/UNet3DArabidopsisOvules.model/UNet3DArabidopsisOvules.model.yaml"
     ).resolve()
     assert spec_path.exists(), spec_path
     pybio_model = load_model(str(spec_path), cache_path=cache_path)
@@ -45,7 +46,6 @@ def test_Net3DArabidopsisOvules_forward(cache_path):
     assert pybio_model.spec.test_input.suffix == ".npz", pybio_model.spec.test_input.suffix
     assert pybio_model.spec.test_output is not None
     assert pybio_model.spec.test_output.suffix == ".npz", pybio_model.spec.test_output.suffix
-
 
     model: torch.nn.Module = get_instance(pybio_model)
     assert isinstance(model, UNet3D)
