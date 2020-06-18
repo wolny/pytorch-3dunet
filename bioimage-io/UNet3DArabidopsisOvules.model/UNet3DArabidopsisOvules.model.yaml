@@ -24,6 +24,23 @@ optional_kwargs:
   is_segmentation: true  # don't touch, use postprocessing instead
   testing: false  # don't touch, use postprocessing instead
 
+weights:
+    - name: confocal_3D_unet_bce_dice_ds1x
+      source: https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2Funet_bce_dice_ds1x&files=best_checkpoint.pytorch
+      md5: 648f5f409730936a502e1edc32bc851f
+      parent: null
+      description: "Trained with voxel size of (0.235, 0.075, 0.075) microns"
+    - name: confocal_3D_unet_bce_dice_ds2x
+      source: https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2Funet_bce_dice_ds2x&files=best_checkpoint.pytorch
+      md5: dcb7d856c92d41d0e013fde5dd37efd6
+      parent: null
+      description: "Trained with voxel size of (0.235, 0.15, 0.15) microns (default)"
+    - name: confocal_3D_unet_bce_dice_ds3x
+      source: https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2Funet_bce_dice_ds3x&files=best_checkpoint.pytorch
+      md5: e12a0df1065da265aeeba81802b28f77
+      parent: null
+      description: "Trained with voxel size of (0.235, 0.225, 0.225) microns"
+
 test_input: test_input.npz
 test_output: test_output.npz
 covers: [ilastik_4.png, ilastik_5.png, ilastik_6.png, ilastik_7.png, ilastik_8.png]
@@ -54,8 +71,9 @@ prediction:
     - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
       kwargs: {apply_to: [0]}
   weights:
-    source: best_model_state_dict.pth
-    hash: {md5: e12a0df1065da265aeeba81802b28f77}
+    - confocal_3D_unet_bce_dice_ds2x
+    - confocal_3D_unet_bce_dice_ds1x
+    - confocal_3D_unet_bce_dice_ds3x
   postprocess:
     - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/Sigmoid.transformation.yaml
     - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/EnsureNumpy.transformation.yaml

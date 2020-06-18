@@ -29,12 +29,12 @@ weights:
       source: https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2F2dunet_bce_dice_ds1x&files=best_checkpoint.pytorch
       md5: 8667b25b8a078aac08f8c8d9dcadb15a
       parent: null
-      description: "Trained with pixel size of (0.075, 0.075) microns (default)"
+      description: "Trained with pixel size of (0.075, 0.075) microns"
     - name: confocal_2D_unet_bce_dice_ds2x
       source: https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2F2dunet_bce_dice_ds2x&files=best_checkpoint.pytorch
       md5: 47ee0d24991e758eab65f87b2fc22de1
       parent: null
-      description: "Trained with pixel size of (0.15, 0.15) microns"
+      description: "Trained with pixel size of (0.15, 0.15) microns (default)"
     - name: confocal_2D_unet_bce_dice_ds3x
       source: https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2F2dunet_bce_dice_ds3x&files=best_checkpoint.pytorch
       md5: d6c9aaec8d0dd4153b89eab8d80472ee
