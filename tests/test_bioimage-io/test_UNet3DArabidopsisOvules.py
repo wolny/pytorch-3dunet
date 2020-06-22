@@ -1,15 +1,15 @@
 from io import BytesIO
 from pathlib import Path
 
-import h5py
 import imageio
 import numpy
+import numpy as np
 import pytest
 import torch
-
 from pybio.core.transformations import apply_transformations
 from pybio.spec import load_model
 from pybio.spec.utils import get_instance
+
 from pytorch3dunet.unet3d.model import UNet3D
 
 
@@ -37,8 +37,8 @@ def test_Net3DArabidopsisOvules_forward(cache_path):
     assert spec_path.exists(), spec_path
     pybio_model = load_model(str(spec_path), cache_path=cache_path)
     assert pybio_model.spec.outputs[0].shape.reference_input == "raw"
-    assert pybio_model.spec.outputs[0].shape.scale == (1, 1, 1, 1, 1)
-    assert pybio_model.spec.outputs[0].shape.offset == (0, 0, 0, 0, 0)
+    assert np.allclose(pybio_model.spec.outputs[0].shape.scale, (1, 1, 1, 1, 1))
+    assert np.allclose(pybio_model.spec.outputs[0].shape.offset, (0, 0, 0, 0, 0))
 
     assert isinstance(pybio_model.spec.prediction.weights.source, BytesIO)
     assert pybio_model.spec.test_input is not None
