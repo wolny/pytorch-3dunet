@@ -54,7 +54,7 @@ prediction:
     - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/NormalizeZeroMeanUnitVariance.transformation.yaml
       kwargs: {apply_to: [0]}
   weights:
-    source: https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2F2dunet_bce_dice_ds2x&files=best_checkpoint.pytorch
+    source: best_model_state_dict.pth
     hash: {md5: 47ee0d24991e758eab65f87b2fc22de1}
   postprocess:
     - spec: https://github.com/bioimage-io/pytorch-bioimage-io/blob/f71b8ac598267de88cd39e5495abd93dcda1d0a4/specs/transformations/Sigmoid.transformation.yaml
