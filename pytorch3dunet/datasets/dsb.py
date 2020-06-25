@@ -27,7 +27,7 @@ class DSB2018Dataset(ConfigDataset):
         # load raw images
         images_dir = os.path.join(root_dir, 'images')
         assert os.path.isdir(images_dir)
-        self.images = self._load_files(images_dir, expand_dims)
+        self.images, self.paths = self._load_files(images_dir, expand_dims)
         self.file_path = images_dir
 
         min_value, max_value, mean, std = calculate_stats(self.images)
@@ -43,7 +43,7 @@ class DSB2018Dataset(ConfigDataset):
             # load labeled images
             masks_dir = os.path.join(root_dir, 'masks')
             assert os.path.isdir(masks_dir)
-            self.masks = self._load_files(masks_dir, expand_dims)
+            self.masks, _ = self._load_files(masks_dir, expand_dims)
             assert len(self.images) == len(self.masks)
             # load label images transformer
             self.masks_transform = transformer.label_transform()
@@ -71,7 +71,7 @@ class DSB2018Dataset(ConfigDataset):
             mask = self.masks[idx]
             return self.raw_transform(img), self.masks_transform(mask)
         else:
-            return self.raw_transform(img)
+            return self.raw_transform(img), self.paths[idx]
 
     def __len__(self):
         return len(self.images)
@@ -94,6 +94,7 @@ class DSB2018Dataset(ConfigDataset):
     @staticmethod
     def _load_files(dir, expand_dims):
         files_data = []
+        paths = []
         for file in os.listdir(dir):
             path = os.path.join(dir, file)
             img = np.asarray(imageio.imread(path))
@@ -101,5 +102,6 @@ class DSB2018Dataset(ConfigDataset):
                 img = np.expand_dims(img, axis=0)
 
             files_data.append(img)
+            paths.append(path)
 
-        return files_data
+        return files_data, paths

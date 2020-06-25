@@ -335,6 +335,8 @@ def prediction_collate(batch):
         return torch.stack(batch, 0)
     elif isinstance(batch[0], tuple) and isinstance(batch[0][0], slice):
         return batch
+    elif isinstance(batch[0], tuple) and isinstance(batch[0][1], str):
+        return batch[0]
     elif isinstance(batch[0], collections.Sequence):
         transposed = zip(*batch)
         return [prediction_collate(samples) for samples in transposed]

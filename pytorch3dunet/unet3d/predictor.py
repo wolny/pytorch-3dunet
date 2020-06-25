@@ -1,3 +1,4 @@
+import os
 import time
 
 import h5py
@@ -254,6 +255,47 @@ class LazyPredictor(StandardPredictor):
 
             logger.info(f'Deleting {normalization_dataset}...')
             del output_file[normalization_dataset]
+
+
+class DSB2018Predictor(_AbstractPredictor):
+    def __init__(self, model, loader, output_file, config, **kwargs):
+        output_file = os.path.split(output_file)[0]
+        super().__init__(model, loader, output_file, config, **kwargs)
+
+    def _slice_from_pad(self, pad):
+        if pad == 0:
+            return slice(None, None)
+        else:
+            return slice(pad, -pad)
+
+    def predict(self):
+        device = self.config['device']
+        # Sets the module in evaluation mode explicitly
+        self.model.eval()
+        self.model.testing = True
+        # Run predictions on the entire input dataset
+        with torch.no_grad():
+            for img, path in self.loader:
+                logger.info(f'Processing {path}')
+                # add batch dim
+                img = torch.unsqueeze(img, dim=0)
+                # send batch to device
+                img = img.to(device)
+                # forward pass
+                pred = self.model(img)
+                # convert to numpy array
+                pred = pred.cpu().numpy().squeeze()
+
+                if self.loader.dataset.mirror_padding is not None:
+                    z_s, y_s, x_s = [self._slice_from_pad(p) for p in self.loader.dataset.mirror_padding]
+                    pred = pred[y_s, x_s]
+
+                # save to h5 file
+                out_file = os.path.splitext(path)[0] + '_predictions.h5'
+                out_file = os.path.join(self.output_file, os.path.split(out_file)[1])
+                with h5py.File(out_file, 'w') as f:
+                    logger.info(f'Saving output to {out_file}')
+                    f.create_dataset('predictions', data=pred, compression='gzip')
 
 
 class EmbeddingsPredictor(_AbstractPredictor):
