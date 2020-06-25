@@ -70,7 +70,7 @@ class DSB2018Dataset(ConfigDataset):
             mask = self.masks[idx]
             return self.raw_transform(img), self.masks_transform(mask)
         else:
-            raise NotImplementedError
+            return self.raw_transform(img)
 
     def __len__(self):
         return len(self.images)
@@ -88,7 +88,7 @@ class DSB2018Dataset(ConfigDataset):
         if phase != 'test':
             return [cls(file_paths[0], phase, transformer_config, mirror_padding)]
         else:
-            raise NotImplementedError
+            return [cls(file_paths[0], phase, transformer_config, mirror_padding)]
 
     @staticmethod
     def _load_files(dir, expand_dims):
