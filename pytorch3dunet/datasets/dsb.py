@@ -28,6 +28,7 @@ class DSB2018Dataset(ConfigDataset):
         images_dir = os.path.join(root_dir, 'images')
         assert os.path.isdir(images_dir)
         self.images = self._load_files(images_dir, expand_dims)
+        self.file_path = images_dir
 
         min_value, max_value, mean, std = calculate_stats(self.images)
         logger.info(f'Input stats: min={min_value}, max={max_value}, mean={mean}, std={std}')

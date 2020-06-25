@@ -325,8 +325,7 @@ def get_test_loaders(config):
 
     # use generator in order to create data loaders lazily one by one
     for test_dataset in test_datasets:
-        if hasattr(test_dataset, 'file_path'):
-            logger.info(f'Loading test set from: {test_dataset.file_path}...')
+        logger.info(f'Loading test set from: {test_dataset.file_path}...')
         yield DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=prediction_collate)
 
 
