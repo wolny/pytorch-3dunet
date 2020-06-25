@@ -44,6 +44,9 @@ For a detailed explanation of some of the supported loss functions see:
 [Generalised Dice overlap as a deep learning loss function for highly unbalanced segmentations](https://arxiv.org/pdf/1707.03237.pdf)
 Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
 
+**IMPORTANT**: if one wants to use their own loss function, bear in mind that the current model implementation always
+output logits and it's up to the implementation of the loss to normalize it correctly, e.g. by applying Sigmoid or Softmax.
+
 ### Regression
 - _MSELoss_
 - _L1Loss_
@@ -60,6 +63,8 @@ If a 3D U-Net was trained to predict cell boundaries, one can use the following 
 (the metrics below are computed by running connected components on thresholded boundary map and comparing the resulted instances to the ground truth instance segmentation): 
 - _BoundaryAveragePrecision_ - Average Precision applied to the boundary probability maps: thresholds the boundary maps given by the network, runs connected components to get the segmentation and computes AP between the resulting segmentation and the ground truth
 - _AdaptedRandError_ - Adapted Rand Error (see http://brainiac2.mit.edu/SNEMI3D/evaluation for a detailed explanation)
+- _AveragePrecision_ - see https://www.kaggle.com/stkbailey/step-by-step-explanation-of-scoring-metric
+
 
 If not specified `MeanIoU` will be used by default.
 
@@ -95,36 +100,25 @@ Given that `pytorch-3dunet` package was installed via conda as described above, 
 ```
 train3dunet --config <CONFIG>
 ```
-where `CONFIG` is the path to a YAML configuration file, which specifies all aspects of the training procedure.
+where `CONFIG` is the path to a YAML configuration file, which specifies all aspects of the training procedure. 
 
-See e.g. [train_config_ce.yaml](resources/train_config_ce.yaml) which describes how to train a standard 3D U-Net on a randomly generated 3D volume and random segmentation mask ([random_label3D.h5](resources/random3D.h5)) with cross-entropy loss (just a demo). 
+In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the config.
 
-In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the [train_config_ce.yaml](resources/train_config_ce.yaml).
+* sample config for 3D semantic segmentation: [train_config_dice.yaml](resources/train_config_dice.yaml))
+* sample config for 3D regression task: [train_config_regression.yaml](resources/train_config_regression.yaml))
+
 The HDF5 files should contain the raw/label data sets in the following axis order: `DHW` (in case of 3D) `CDHW` (in case of 4D).
 
 One can monitor the training progress with Tensorboard `tensorboard --logdir <checkpoint_dir>/logs/` (you need `tensorflow` installed in your conda env), where `checkpoint_dir` is the path to the checkpoint directory specified in the config.
 
-To try out training on randomly generated data right away, just checkout the repository and run: 
-```
-cd pytorch3dunet
-train3dunet --config ../resources/train_config_ce.yaml # train with CrossEntropyLoss (segmentation)
-#train3dunet --config ../resources/train_config_dice.yaml # train with DiceLoss (segmentation)
-#train3dunet --config ../resources/train_config_regression.yaml # train with SmoothL1Loss (regression)
-```
-
-To try out a boundary prediction task given a sample 3D confocal volume of plant cells (cell membrane marker), run:
-```
-cd pytorch3dunet
-train3dunet --config ../resources/train_boundary.yaml
-```
-
-
 ### Training tips
-When training with binary-based losses, i.e.: `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss`:
-1. the label data has to be 4D (one target binary mask per channel).
+1. When training with binary-based losses, i.e.: `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss`:
+The target data has to be 4D (one target binary mask per channel).
 If you have a 3D binary data (foreground/background), you can just change `ToTensor` transform for the label to contain `expand_dims: true`, see e.g. [train_config_dice.yaml](resources/train_config_dice.yaml).
-2. `final_sigmoid=True` has to be present in the `model` section of the config, since every output channel gives the probability of the foreground.
+When training with `WeightedCrossEntropyLoss`, `CrossEntropyLoss`, `PixelWiseCrossEntropyLoss` the target dataset has to be 3D, see also pytorch documentation for CE loss: https://pytorch.org/docs/master/generated/torch.nn.CrossEntropyLoss.html
+2. `final_sigmoid` in the `model` config section applies only to the inference time:
 When training with cross entropy based losses (`WeightedCrossEntropyLoss`, `CrossEntropyLoss`, `PixelWiseCrossEntropyLoss`) set `final_sigmoid=False` so that `Softmax` normalization is applied to the output.
+When training with `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss` set `final_sigmoid=True`
 
 ## Prediction
 Given that `pytorch-3dunet` package was installed via conda as described above, one can run the prediction via:
@@ -132,21 +126,7 @@ Given that `pytorch-3dunet` package was installed via conda as described above, 
 predict3dunet --config <CONFIG>
 ```
 
-To run the prediction on randomly generated 3D volume (just for demonstration purposes) from [random_label3D.h5](resources/random3D.h5) and a network trained with cross-entropy loss:
-```
-cd pytorch3dunet
-predict3dunet --config ../resources/test_config_ce.yaml
-
-```
-or if trained with `DiceLoss`:
-```
-cd pytorch3dunet
-predict3dunet --config ../resources/test_config_dice.yaml
-
-```
-Predicted volume will be saved to `resources/random_label3D_probabilities.h5`.
-
-In order to predict on your own data, just provide the path to your model as well as paths to HDF5 test files (see[test_config_ce.yaml](resources/test_config_ce.yaml)).
+In order to predict on your own data, just provide the path to your model as well as paths to HDF5 test files (see[test_config_dice.yaml](resources/test_config_dice.yaml)).
 
 ### Prediction tips
 In order to avoid checkerboard artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: [64 128 128] stride: [32 96 96]` will give you a 'halo' of 32 voxels in each direction.
@@ -162,19 +142,17 @@ or
 CUDA_VISIBLE_DEVICES=0,1 predict3dunet --config <CONFIG>
 ```
 
-## Sample configuration files
+## Examples
 
-### Semantic segmentation
-* [train with cross-entropy loss](resources/train_config_ce.yaml) / [predict using the network trained with cross-entropy loss](resources/test_config_ce.yaml)
-* [train with Dice loss](resources/train_config_dice.yaml) / [predict using the network trained with Dice loss](resources/test_config_dice.yaml)
-* [train using 4D input](resources/train_config_4d_input.yaml) / [predict on the 4D input](resources/test_config_4d_input.yaml)
-* [train to predict cell boundaries from the confocal microscope](resources/train_config_boundary.yaml) / [predict using the network on the boundary classification task](resources/test_config_boundary.yaml)
+### Cell boundary predictions for lightsheet images of Arabidopsis thaliana lateral root
 
-### Regression
-* [train on a random noise sample](resources/train_config_regression.yaml) / [predict using the network trained on a regression problem](resources/test_config_regression.yaml)
 
-### 2D (semantic segmentation)
-* [train to predict cell boundaries in 2D](resources/train_config_2d_boundary.yml) / [predict cell boundaries in 2D](resources/test_config_2d_boundary.yml)
+### Cell boundary predictions for confocal images of Arabidopsis thaliana ovules
+
+### Nuclei predictions for lightsheet images of Arabidopsis thaliana lateral root
+
+### 2D nuclei predictions for Kaggle DSB2018
+
 
 ## Contribute
 If you want to contribute back, please make a pull request.

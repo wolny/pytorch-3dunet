@@ -1,11 +1,9 @@
 # path to the checkpoint file containing the model
-model_path: 3dunet/best_checkpoint.pytorch
-# use a fixed random seed to guarantee that when you run the code twice you will get the same outcome
-manual_seed: 0
+model_path: "/home/adrian/Datasets/LateralRootPrimordia/best_checkpoint.pytorch"
 # model configuration
 model:
-  # model class, e.g. UNet3D, ResidualUNet3D
-  name: ResidualUNet3D
+  # model class
+  name: UNet3D
   # number of input channels to the model
   in_channels: 1
   # number of output channels
@@ -13,11 +11,14 @@ model:
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
   layer_order: gcr
   # feature maps scale factor
-  f_maps: 16
+  f_maps: [32, 64, 128, 256]
   # number of groups in the groupnorm
   num_groups: 8
+  # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
+  final_sigmoid: true
   # if True applies the final normalization layer (sigmoid or softmax), otherwise the networks returns the output from the final convolution layer; use False for regression problems, e.g. de-noising
-  is_segmentation: false
+  is_segmentation: true
+# predictor configuration
 predictor:
   # standard in memory predictor
   name: 'StandardPredictor'
@@ -30,25 +31,25 @@ loaders:
   # path to the raw data within the H5
   raw_internal_path: raw
   # how many subprocesses to use for data loading
-  num_workers: 4
+  num_workers: 8
+  # test loaders configuration
   test:
     # paths to the test datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - '../resources/random3D.h5'
+      - '/home/adrian/Datasets/LateralRootPrimordia/t00030_s01_uint8_cropped_gt.h5'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       # SliceBuilder class
       name: SliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [64, 128, 128]
+      patch_shape: [80, 170, 170]
       # train stride between patches
-      stride_shape: [32, 100, 100]
+      stride_shape: [40, 80, 80]
 
     transformer:
         raw:
-          # apply min-max scaling and map the input to [-1, 1]
-          - name: Normalize
+          - name: Standardize
           - name: ToTensor
             expand_dims: true

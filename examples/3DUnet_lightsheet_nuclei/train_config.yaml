@@ -1,3 +1,7 @@
+# Sample configuration file for training a 3D U-Net on a task of predicting the nuclei in 3D stack from the lightsheet
+# microscope. Training done with Binary Cross-Entropy.
+# Training and validation data can be downloaded from: https://osf.io/thxzn/
+
 # use a fixed random seed to guarantee that when you run the code twice you will get the same outcome
 manual_seed: 0
 # model configuration
@@ -7,52 +11,53 @@ model:
   # number of input channels to the model
   in_channels: 1
   # number of output channels
-  out_channels: 2
+  out_channels: 1
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
   layer_order: gcr
-  # feature maps scale factor
-  f_maps: 32
+  # number of features at each level of the U-Net
+  f_maps: [32, 64, 128, 256]
   # number of groups in the groupnorm
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
-  final_sigmoid: false
+  # this is only relevant during inference, during training the network outputs logits and it is up to the loss function
+  # to normalize with Sigmoid or Softmax
+  final_sigmoid: true
   # if True applies the final normalization layer (sigmoid or softmax), otherwise the networks returns the output from the final convolution layer; use False for regression problems, e.g. de-noising
   is_segmentation: true
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: 3dunet
+  checkpoint_dir: "/home/adrian/Datasets/LateralRootPrimordia"
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
   resume: null
   # how many iterations between validations
-  validate_after_iters: 20
+  validate_after_iters: 1000
   # how many iterations between tensorboard logging
-  log_after_iters: 20
+  log_after_iters: 100
   # max number of epochs
-  epochs: 50
+  epochs: 200
   # max number of iterations
-  iters: 100000
+  iters: 60000
   # model with higher eval score is considered better
   eval_score_higher_is_better: True
-# optimizer configuration
+# loss function configuration
+loss:
+  # use BCE loss for training
+  name: BCEWithLogitsLoss
+  # skip last channel in the target containing the labeled nuclei instances
+  skip_last_target: true
 optimizer:
   # initial learning rate
   learning_rate: 0.0002
   # weight decay
-  weight_decay: 0.0001
-# loss function configuration
-loss:
-  # loss function to be used during training
-  name: CrossEntropyLoss
-  # A manual rescaling weight given to each class.
-  weight: null
-  # a target value that is ignored and does not contribute to the input gradient
-  ignore_index: null
-# evaluation metric configuration
+  weight_decay: 0.00001
+# evaluation metric
 eval_metric:
-  name: MeanIoU
-  # a target label that is ignored during metric evaluation
-  ignore_index: null
+  # use average precision metric
+  name: BlobsAveragePrecision
+  # values on which the nuclei probability maps will be thresholded for AP computation
+  thresholds: [0.4, 0.5, 0.6, 0.7, 0.8]
+  metric: 'ap'
 # learning rate scheduler configuration
 lr_scheduler:
   # reduce learning rate when evaluation metric plateaus
@@ -60,9 +65,10 @@ lr_scheduler:
   # use 'max' if eval_score_higher_is_better=True, 'min' otherwise
   mode: max
   # factor by which learning rate will be reduced
-  factor: 0.5
+  factor: 0.2
   # number of *validation runs* with no improvement after which learning rate will be reduced
-  patience: 10
+  patience: 8
+# optimizer configuration
 # data loaders configuration
 loaders:
   # class of the HDF5 dataset, currently StandardHDF5Dataset and LazyHDF5Dataset are supported.
@@ -72,7 +78,7 @@ loaders:
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
   batch_size: 1
   # how many subprocesses to use for data loading
-  num_workers: 4
+  num_workers: 8
   # path to the raw data within the H5
   raw_internal_path: raw
   # path to the the label data within the H5
@@ -81,87 +87,80 @@ loaders:
   weight_internal_path: null
   # configuration of the train loader
   train:
-    # absolute paths to the training datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
-    # inside this this directory will be included as well (non-recursively)
+    # paths to the training datasets
     file_paths:
-      - '../resources/random3D.h5'
+      - '/home/adrian/Datasets/LateralRootPrimordia/t00015_s01_uint8_cropped_gt.h5'
+      - '/home/adrian/Datasets/LateralRootPrimordia/t00045_s01_uint8_cropped_gt.h5'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
-      # SliceBuilder class
-      name: SliceBuilder
+      name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [32, 64, 64]
+      patch_shape: [80, 170, 170]
       # train stride between patches
-      stride_shape: [8, 16, 16]
+      stride_shape: [20, 40, 40]
+      # minimum volume of the labels in the patch
+      threshold: 0.01
+      # probability of accepting patches which do not fulfil the threshold criterion
+      slack_acceptance: 0.01
 
-    # data transformations/augmentations
     transformer:
       raw:
-        # re-scale the values to be 0-mean and 1-std
         - name: Standardize
-        # randomly flips an image across randomly chosen axis
         - name: RandomFlip
-        # rotate an image by 90 degrees around a randomly chosen plane
         - name: RandomRotate90
-        # rotate an image by a random degrees from taken from (-angle_spectrum, angle_spectrum) interval
         - name: RandomRotate
-          # rotate only in ZY only since most volumetric data is anisotropic
+          # rotate only in ZY plane due to anisotropy
           axes: [[2, 1]]
-          angle_spectrum: 15
+          angle_spectrum: 30
           mode: reflect
-        # apply elasitc deformations of 3D patches on a per-voxel mesh
         - name: ElasticDeformation
           spline_order: 3
-        # randomly adjust contrast
-        - name: RandomContrast
-        # apply additive Gaussian noise
-        - name: AdditiveGaussianNoise
-        # apply additive Poisson noise
-        - name: AdditivePoissonNoise
-        # convert to torch tensor
         - name: ToTensor
-          # add additional 'channel' axis when the input data is 3D
           expand_dims: true
       label:
         - name: RandomFlip
         - name: RandomRotate90
         - name: RandomRotate
-          # rotate only in ZY only since most volumetric data is anisotropic
+          # rotate only in ZY plane due to anisotropy
           axes: [[2, 1]]
-          angle_spectrum: 15
+          angle_spectrum: 30
           mode: reflect
         - name: ElasticDeformation
           spline_order: 0
+        - name: BlobsToMask
+          append_label: true
+          boundary: true
         - name: ToTensor
-          # do not expand dims for cross-entropy loss
           expand_dims: false
-          # cross-entropy loss requires target to be of type 'long'
-          dtype: 'long'
 
-  # configuration of the validation loaders
+  # configuration of the val loader
   val:
-    # paths to the validation datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
-    # inside this this directory will be included as well (non-recursively)
+    # paths to the val datasets
     file_paths:
-      - '../resources/random3D_copy.h5'
+      - '/home/adrian/Datasets/LateralRootPrimordia/t00030_s01_uint8_cropped_gt.h5'
 
-    # SliceBuilder configuration
+    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
-      # SliceBuilder class
-      name: SliceBuilder
-      # validation patch (can be bigger than train patch since there is no backprop)
-      patch_shape: [32, 64, 64]
-      # validation stride (validation patches doesn't need to overlap)
-      stride_shape: [32, 64, 64]
+      name: FilterSliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [80, 170, 170]
+      # train stride between patches
+      stride_shape: [80, 170, 170]
+      # minimum volume of the labels in the patch
+      threshold: 0.01
+      # probability of accepting patches which do not fulfil the threshold criterion
+      slack_acceptance: 0.01
 
-    # no data augmentation during validation
+    # data augmentation
     transformer:
       raw:
         - name: Standardize
         - name: ToTensor
           expand_dims: true
       label:
+        - name: BlobsToMask
+          append_label: true
+          boundary: true
         - name: ToTensor
           expand_dims: false
-          dtype: 'int64'
