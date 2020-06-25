@@ -145,14 +145,51 @@ CUDA_VISIBLE_DEVICES=0,1 predict3dunet --config <CONFIG>
 ## Examples
 
 ### Cell boundary predictions for lightsheet images of Arabidopsis thaliana lateral root
+The data can be downloaded from the following OSF project:
+* training set: https://osf.io/9x3g2/
+* validation set: https://osf.io/vs6gb/
+* test set: https://osf.io/tn4xj/
 
+Training and inference configs can be found in [3DUnet_lightsheet_boundary](resources/3DUnet_lightsheet_boundary).
+
+Sample z-slice predictions on the test set (raw input on the left, boundary predictions on the right):
+
+![raw](resources/3DUnet_lightsheet_boundary/root_movie1_t45_raw.png "raw") 
+![pred](resources/3DUnet_lightsheet_boundary/root_movie1_t45_pred.png "predictions")
 
 ### Cell boundary predictions for confocal images of Arabidopsis thaliana ovules
+The data can be downloaded from the following OSF project:
+* training set: https://osf.io/x9yns/
+* validation set: https://osf.io/xp5uf/
+* test set: https://osf.io/8jz7e/
+
+Training and inference configs can be found in [3DUnet_confocal_boundary](resources/3DUnet_confocal_boundary).
+
+Sample z-slice predictions on the test set (raw input on the left, boundary predictions on the right):
+
+![raw](resources/3DUnet_confocal_boundary/ovules_raw.png "raw") 
+![pred](resources/3DUnet_confocal_boundary/ovules_pred.png "predictions")
 
 ### Nuclei predictions for lightsheet images of Arabidopsis thaliana lateral root
+The training and validation sets can be downloaded from the following OSF project: https://osf.io/thxzn/
+
+Training and inference configs can be found in [3DUnet_lightsheet_nuclei](resources/3DUnet_lightsheet_nuclei).
+
+Sample z-slice predictions on the test set:
+
+![raw](resources/3DUnet_lightsheet_nuclei/root_nuclei_t30_raw.png "raw") 
+![pred](resources/3DUnet_lightsheet_nuclei/root_nuclei_t30_pred.png "predictions")
+
 
 ### 2D nuclei predictions for Kaggle DSB2018
+The data can be downloaded from: https://www.kaggle.com/c/data-science-bowl-2018/data
 
+Training and inference configs can be found in [2DUnet_dsb2018](resources/2DUnet_dsb2018).
+
+Sample predictions on the test image (raw input on the left, boundary predictions on the right):
+
+![raw](resources/2DUnet_dsb2018/5f9d29d6388c700f35a3c29fa1b1ce0c1cba6667d05fdb70bd1e89004dcf71ed.png "raw") 
+![pred](resources/2DUnet_dsb2018/5f9d29d6388c700f35a3c29fa1b1ce0c1cba6667d05fdb70bd1e89004dcf71ed_predictions.png "predictions")
 
 ## Contribute
 If you want to contribute back, please make a pull request.

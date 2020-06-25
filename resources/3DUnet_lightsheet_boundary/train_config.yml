@@ -1,0 +1,103 @@
+# Sample configuration file for training a 3D U-Net on a task of predicting the boundaries in 3D stack of the Arabidopsis lateral root
+# acquired with the lightsheet microscope. Training done with a combination of Binary Cross-Entropy and DiceLoss.
+# Download training data from: https://osf.io/9x3g2/
+# Download validation data from: https://osf.io/vs6gb/
+# Download test data from: https://osf.io/tn4xj/
+
+eval_metric:
+  name: BoundaryAdaptedRandError
+  threshold: 0.4
+  use_first_input: true
+  use_last_target: true
+loaders:
+  label_internal_path: /label
+  num_workers: 8
+  raw_internal_path: /raw
+  train:
+    file_paths:
+    - "/home/adrian/Datasets/LateralRoot/Train"
+
+    slice_builder:
+      name: FilterSliceBuilder
+      patch_shape: [80, 144, 144]
+      slack_acceptance: 0.01
+      stride_shape: [20, 40, 40]
+      threshold: 0.6
+    transformer:
+      label:
+      - name: RandomFlip
+      - name: RandomRotate90
+      - angle_spectrum: 20
+        axes: [[2, 1]]
+        mode: reflect
+        name: RandomRotate
+      - name: ElasticDeformation
+        spline_order: 0
+      - append_label: true
+        blur: true
+        name: StandardLabelToBoundary
+        sigma: 1.0
+      - expand_dims: false
+        name: ToTensor
+      raw:
+      - name: Standardize
+      - name: RandomFlip
+      - name: RandomRotate90
+      - angle_spectrum: 20
+        axes: [[2, 1]]
+        mode: reflect
+        name: RandomRotate
+      - name: ElasticDeformation
+        spline_order: 3
+      - expand_dims: true
+        name: ToTensor
+  val:
+    file_paths:
+    - "/home/adrian/Datasets/LateralRoot/Val"
+    slice_builder:
+      name: FilterSliceBuilder
+      patch_shape: [80, 144, 144]
+      slack_acceptance: 0.01
+      stride_shape: [80, 144, 144]
+      threshold: 0.4
+    transformer:
+      label:
+      - append_label: true
+        blur: true
+        name: StandardLabelToBoundary
+        sigma: 1.0
+      - expand_dims: false
+        name: ToTensor
+      raw:
+      - name: Standardize
+      - expand_dims: true
+        name: ToTensor
+loss:
+  ignore_index: null
+  name: BCEDiceLoss
+  skip_last_target: true
+lr_scheduler:
+  factor: 0.2
+  mode: min
+  name: ReduceLROnPlateau
+  patience: 15
+manual_seed: 0
+model:
+  f_maps: 32
+  final_sigmoid: true
+  in_channels: 1
+  layer_order: gcr
+  name: ResidualUNet3D
+  num_groups: 8
+  out_channels: 1
+optimizer:
+  learning_rate: 0.0002
+  weight_decay: 1.0e-05
+trainer:
+  checkpoint_dir: "/home/adrian/Datasets/LateralRoot/"
+  epochs: 1000
+  eval_score_higher_is_better: false
+  iters: 150000
+  log_after_iters: 250
+  resume: null
+  validate_after_iters: 1000
