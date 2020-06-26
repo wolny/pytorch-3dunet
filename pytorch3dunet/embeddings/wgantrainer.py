@@ -208,7 +208,8 @@ class EmbeddingWGANTrainer:
         D_losses = RunningAverage()
         # keeps track of the eval score of the generator (i.e. embedding network)
         G_eval_scores = RunningAverage()
-        Wasserstein_losses = RunningAverage()
+        # keeps track of the estimate of Wasserstein Distance
+        Wasserstein_dist = RunningAverage()
 
         # sets the model in training mode
         self.G.train()
@@ -233,7 +234,6 @@ class EmbeddingWGANTrainer:
 
                 # compute embedding loss
                 emb_loss = self.G_loss_criterion(output, target)
-                # emb_loss.backward(retain_graph=True)
                 emb_losses.update(emb_loss.item(), self._batch_size(input))
 
                 # compute GAN loss
@@ -242,14 +242,16 @@ class EmbeddingWGANTrainer:
                                                        self.dist_to_mask,
                                                        self.combine_masks)
                 if fake_masks is None:
-                    # skip background patches
+                    # skip background patches and backprop only through embedding loss
+                    emb_loss.backward()
+                    self.G_optimizer.step()
                     continue
 
                 G_loss = self.D(fake_masks)
                 G_loss = G_loss.mean(dim=0)
                 G_losses.update(-G_loss.item(), self._batch_size(fake_masks))
 
-                # compute combined embedding and GAN loss; make sure use minimize -G_loss
+                # compute combined embedding and GAN loss; make sure to minimize -G_loss
                 combined_loss = emb_loss - self.gan_loss_weight * G_loss
                 combined_loss.backward()
 
@@ -274,11 +276,13 @@ class EmbeddingWGANTrainer:
                     # skip background patches
                     continue
 
+                # train D with real
                 D_real = self.D(real_masks)
                 # average critic output across batch
                 D_real = D_real.mean(dim=0)
                 D_real.backward(mone)
 
+                # train D with fake
                 D_fake = self.D(fake_masks)
                 # average critic output across batch
                 D_fake = D_fake.mean(dim=0)
@@ -290,10 +294,13 @@ class EmbeddingWGANTrainer:
 
                 D_cost = D_fake - D_real + gp
                 Wasserstein_D = D_real - D_fake
+
+                # update D's weights
                 self.D_optimizer.step()
+
                 n_batch = 2 * self._batch_size(fake_masks)
                 D_losses.update(D_cost.item(), n_batch)
-                Wasserstein_losses.update(Wasserstein_D.item(), n_batch)
+                Wasserstein_dist.update(Wasserstein_D.item(), n_batch)
 
             if self.num_iterations % self.validate_after_iters == 0:
                 # set the model in eval mode
@@ -329,7 +336,7 @@ class EmbeddingWGANTrainer:
                 self.writer.add_scalar('train_embedding_loss', emb_losses.avg, self.num_iterations)
                 self.writer.add_scalar('train_GAN_loss', G_losses.avg, self.num_iterations)
                 self.writer.add_scalar('train_D_loss', D_losses.avg, self.num_iterations)
-                self.writer.add_scalar('Wasserstein_distance', Wasserstein_losses.avg, self.num_iterations)
+                self.writer.add_scalar('Wasserstein_distance', Wasserstein_dist.avg, self.num_iterations)
 
                 inputs_map = {
                     'inputs': input,
