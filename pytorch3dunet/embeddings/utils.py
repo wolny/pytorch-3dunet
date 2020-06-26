@@ -3,19 +3,47 @@ import torch
 from pytorch3dunet.unet3d.utils import expand_as_one_hot
 
 
-def _compute_cluster_means(emb, tar, c_mean_fn):
-    instances = torch.unique(tar)
-    C = instances.size(0)
+class MeanEmbeddingAnchor:
+    def __init__(self, c_mean_fn):
+        """
+        Extracts mean instance embedding as an anchor embedding.
 
-    single_target = expand_as_one_hot(tar.unsqueeze(0), C).squeeze(0)
-    single_target = single_target.unsqueeze(1)
-    spatial_dims = emb.dim() - 1
+        :param c_mean_fn: function to extract mean embeddings given the embeddings and target masks
+        """
+        self.c_mean_fn = c_mean_fn
 
-    cluster_means, _, _ = c_mean_fn(emb, single_target, spatial_dims)
-    return cluster_means
+    def __call__(self, emb, tar):
+        instances = torch.unique(tar)
+        C = instances.size(0)
+
+        single_target = expand_as_one_hot(tar.unsqueeze(0), C).squeeze(0)
+        single_target = single_target.unsqueeze(1)
+        spatial_dims = emb.dim() - 1
+
+        cluster_means, _, _ = self.c_mean_fn(emb, single_target, spatial_dims)
+        return cluster_means
 
 
-def _extract_instance_masks(embeddings, target, c_mean_fn, dist_to_mask_fn, combine_masks):
+class RandomEmbeddingAnchor:
+    """
+    Selects a random pixel inside an instance, gets its embedding and uses is as an anchor embedding
+    """
+
+    def __call__(self, emb, tar):
+        raise NotImplementedError()
+
+
+def extract_instance_masks(embeddings, target, anchor_embeddings_extractor, dist_to_mask_fn, combine_masks):
+    """
+    Extract instance masks given the embeddings, target,
+    anchor embeddings extraction functor (anchor_embeddings_extractor),
+    kernel function computing distance to anchor (dist_to_mask_fn)
+    and whether to combine the masks or not (combine_masks)
+    """
+
+    # TODO: sample anchors and return anchor coordinates
+    # TODO: add different label smoothing strategies
+
     def _add_noise(mask, sigma=0.05):
         gaussian_noise = torch.randn(mask.size()).to(mask.device) * sigma
         mask += gaussian_noise
@@ -26,19 +54,19 @@ def _extract_instance_masks(embeddings, target, c_mean_fn, dist_to_mask_fn, comb
     fake_masks = []
 
     for emb, tar in zip(embeddings, target):
-        cluster_means = _compute_cluster_means(emb, tar, c_mean_fn)
+        anchor_embeddings = anchor_embeddings_extractor(emb, tar)
         rms = []
         fms = []
-        for i, cm in enumerate(cluster_means):
+        for i, anchor_emb in enumerate(anchor_embeddings):
             if i == 0:
                 # ignore 0-label
                 continue
 
-            # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
-            dist_to_mean = torch.norm(emb - cm, 'fro', dim=0)
+            # compute distance map; embeddings is ExSPATIAL, anchor_embeddings is ExSINGLETON_SPATIAL, so we can just broadcast
+            dist_to_mean = torch.norm(emb - anchor_emb, 'fro', dim=0)
             # convert distance map to instance pmaps
             inst_pmap = dist_to_mask_fn(dist_to_mean)
-            # add channel dim
+            # add channel dim and save fake masks
             fms.append(inst_pmap.unsqueeze(0))
 
             assert i in target
@@ -47,6 +75,7 @@ def _extract_instance_masks(embeddings, target, c_mean_fn, dist_to_mask_fn, comb
             inst_mask = _add_noise(inst_mask)
             # clamp values
             inst_mask.clamp_(0, 1)
+            # add channel dim and save real masks
             rms.append(inst_mask.unsqueeze(0))
 
         if combine_masks and len(fms) > 0:

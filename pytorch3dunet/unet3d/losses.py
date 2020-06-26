@@ -816,6 +816,8 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
 
         return per_instance_loss
 
+    # below are the kernel function used to convert the distance map (i.e. `||embeddings - anchor_embedding||`)
+    # into an instance mask
     class Logistic(nn.Module):
         def __init__(self, delta_var, k=10.):
             super().__init__()

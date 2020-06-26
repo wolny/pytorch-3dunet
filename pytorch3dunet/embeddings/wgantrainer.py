@@ -7,13 +7,13 @@ from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch3dunet.datasets.utils import get_train_loaders
-from pytorch3dunet.embeddings.utils import _extract_instance_masks
+from pytorch3dunet.embeddings.utils import extract_instance_masks, MeanEmbeddingAnchor, RandomEmbeddingAnchor
 from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.utils import get_logger, get_number_of_learnable_parameters, create_optimizer, \
     create_lr_scheduler, get_tensorboard_formatter, create_sample_plotter, RunningAverage, save_checkpoint, \
-    expand_as_one_hot, load_checkpoint
+    load_checkpoint
 
 logger = get_logger('WGANTrainer')
 
@@ -100,7 +100,7 @@ class EmbeddingWGANTrainerBuilder:
 class EmbeddingWGANTrainer:
     def __init__(self, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
                  device, loaders, checkpoint_dir,
-                 gp_lambda, gan_loss_weight, critic_iters, combine_masks=False,
+                 gp_lambda, gan_loss_weight, critic_iters, combine_masks=False, anchor_extraction='mean',
                  max_num_epochs=100, max_num_iterations=int(1e5), validate_after_iters=2000, log_after_iters=500,
                  num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
                  best_eval_score=None, tensorboard_formatter=None, sample_plotter=None,
@@ -130,6 +130,13 @@ class EmbeddingWGANTrainer:
         self.gan_loss_weight = gan_loss_weight
         self.critic_iters = critic_iters
         self.combine_masks = combine_masks
+        assert anchor_extraction in ['mean', 'random']
+        if anchor_extraction == 'mean':
+            # function for computing a mean embeddings of target instances
+            c_mean_fn = self.G_loss_criterion._compute_cluster_means
+            self.anchor_embeddings_extrator = MeanEmbeddingAnchor(c_mean_fn)
+        else:
+            self.anchor_embeddings_extrator = RandomEmbeddingAnchor()
 
         logger.info('GENERATOR')
         logger.info(self.G)
@@ -193,9 +200,13 @@ class EmbeddingWGANTrainer:
         Returns:
             True if the training should be terminated immediately, False otherwise
         """
+        # keeps running average of the contrastive loss
         emb_losses = RunningAverage()
+        # keeps track of the generator part of the GAN loss
         G_losses = RunningAverage()
+        # keeps track of the discriminator part of the GAN loss
         D_losses = RunningAverage()
+        # keeps track of the eval score of the generator (i.e. embedding network)
         G_eval_scores = RunningAverage()
         Wasserstein_losses = RunningAverage()
 
@@ -226,10 +237,10 @@ class EmbeddingWGANTrainer:
                 emb_losses.update(emb_loss.item(), self._batch_size(input))
 
                 # compute GAN loss
-                _, fake_masks = _extract_instance_masks(output, target,
-                                                        self.G_loss_criterion._compute_cluster_means,
-                                                        self.dist_to_mask,
-                                                        self.combine_masks)
+                _, fake_masks = extract_instance_masks(output, target,
+                                                       self.anchor_embeddings_extrator,
+                                                       self.dist_to_mask,
+                                                       self.combine_masks)
                 if fake_masks is None:
                     # skip background patches
                     continue
@@ -250,13 +261,14 @@ class EmbeddingWGANTrainer:
             else:
                 # update D netowrk
                 self.D_optimizer.zero_grad()
-                # create real and fake masks
-                # train with fake masks
+
                 output = output.detach()  # make sure that G is not updated
-                real_masks, fake_masks = _extract_instance_masks(output, target,
-                                                                 self.G_loss_criterion._compute_cluster_means,
-                                                                 self.dist_to_mask,
-                                                                 self.combine_masks)
+
+                # create real and fake instance masks
+                real_masks, fake_masks = extract_instance_masks(output, target,
+                                                                self.anchor_embeddings_extrator,
+                                                                self.dist_to_mask,
+                                                                self.combine_masks)
 
                 if real_masks is None or fake_masks is None:
                     # skip background patches
@@ -497,14 +509,3 @@ class EmbeddingWGANTrainer:
 
         gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * self.gp_lambda
         return gradient_penalty
-
-    def _compute_cluster_means(self, emb, tar):
-        instances = torch.unique(tar)
-        C = instances.size()[0]
-
-        single_target = expand_as_one_hot(tar.unsqueeze(0), C).squeeze(0)
-        single_target = single_target.unsqueeze(1)
-        spatial_dims = emb.dim() - 1
-
-        cluster_means, _, _ = self.G_loss_criterion._compute_cluster_means(emb, single_target, spatial_dims)
-        return cluster_means
