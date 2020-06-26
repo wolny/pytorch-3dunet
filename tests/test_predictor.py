@@ -47,7 +47,7 @@ class TestPredictor:
         test_config['loaders']['test']['file_paths'] = [tmp.name]
 
         # Create the model with random weights
-        model = get_model(test_config)
+        model = get_model(test_config['model'])
         # Create device and update config
         device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
         test_config['device'] = device
