@@ -154,8 +154,8 @@ Training and inference configs can be found in [3DUnet_lightsheet_boundary](reso
 
 Sample z-slice predictions on the test set (raw input on the left, boundary predictions on the right):
 
-![raw](resources/3DUnet_lightsheet_boundary/root_movie1_t45_raw.png "raw") 
-![pred](resources/3DUnet_lightsheet_boundary/root_movie1_t45_pred.png "predictions")
+![](resources/3DUnet_lightsheet_boundary/root_movie1_t45_raw.png | width=400) 
+![](resources/3DUnet_lightsheet_boundary/root_movie1_t45_pred.png | width=400)
 
 ### Cell boundary predictions for confocal images of Arabidopsis thaliana ovules
 The data can be downloaded from the following OSF project:
@@ -167,8 +167,8 @@ Training and inference configs can be found in [3DUnet_confocal_boundary](resour
 
 Sample z-slice predictions on the test set (raw input on the left, boundary predictions on the right):
 
-![raw](resources/3DUnet_confocal_boundary/ovules_raw.png "raw") 
-![pred](resources/3DUnet_confocal_boundary/ovules_pred.png "predictions")
+![](resources/3DUnet_confocal_boundary/ovules_raw.png | width=400) 
+![](resources/3DUnet_confocal_boundary/ovules_pred.png | width=400)
 
 ### Nuclei predictions for lightsheet images of Arabidopsis thaliana lateral root
 The training and validation sets can be downloaded from the following OSF project: https://osf.io/thxzn/
@@ -177,8 +177,8 @@ Training and inference configs can be found in [3DUnet_lightsheet_nuclei](resour
 
 Sample z-slice predictions on the test set:
 
-![raw](resources/3DUnet_lightsheet_nuclei/root_nuclei_t30_raw.png "raw") 
-![pred](resources/3DUnet_lightsheet_nuclei/root_nuclei_t30_pred.png "predictions")
+![](resources/3DUnet_lightsheet_nuclei/root_nuclei_t30_raw.png | width=400) 
+![](resources/3DUnet_lightsheet_nuclei/root_nuclei_t30_pred.png | width=400)
 
 
 ### 2D nuclei predictions for Kaggle DSB2018
@@ -188,8 +188,8 @@ Training and inference configs can be found in [2DUnet_dsb2018](resources/2DUnet
 
 Sample predictions on the test image (raw input on the left, boundary predictions on the right):
 
-![raw](resources/2DUnet_dsb2018/5f9d29d6388c700f35a3c29fa1b1ce0c1cba6667d05fdb70bd1e89004dcf71ed.png "raw") 
-![pred](resources/2DUnet_dsb2018/5f9d29d6388c700f35a3c29fa1b1ce0c1cba6667d05fdb70bd1e89004dcf71ed_predictions.png "predictions")
+![](resources/2DUnet_dsb2018/5f9d29d6388c700f35a3c29fa1b1ce0c1cba6667d05fdb70bd1e89004dcf71ed.png | width=400) 
+![](resources/2DUnet_dsb2018/5f9d29d6388c700f35a3c29fa1b1ce0c1cba6667d05fdb70bd1e89004dcf71ed_predictions.png | width=400)
 
 ## Contribute
 If you want to contribute back, please make a pull request.
