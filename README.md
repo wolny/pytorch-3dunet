@@ -152,7 +152,7 @@ The data can be downloaded from the following OSF project:
 
 Training and inference configs can be found in [3DUnet_lightsheet_boundary](resources/3DUnet_lightsheet_boundary).
 
-Sample z-slice predictions on the test set (raw input on the left, boundary predictions on the right):
+Sample z-slice predictions on the test set (top: raw input , bottom: boundary predictions):
 
 <img src="https://github.com/wolny/pytorch-3dunet/blob/master/resources/3DUnet_lightsheet_boundary/root_movie1_t45_raw.png" width="400">
 <img src="https://github.com/wolny/pytorch-3dunet/blob/master/resources/3DUnet_lightsheet_boundary/root_movie1_t45_pred.png" width="400">
@@ -165,7 +165,7 @@ The data can be downloaded from the following OSF project:
 
 Training and inference configs can be found in [3DUnet_confocal_boundary](resources/3DUnet_confocal_boundary).
 
-Sample z-slice predictions on the test set (raw input on the left, boundary predictions on the right):
+Sample z-slice predictions on the test set (top: raw input , bottom: boundary predictions):
 
 <img src="https://github.com/wolny/pytorch-3dunet/blob/master/resources/3DUnet_confocal_boundary/ovules_raw.png" width="400">
 <img src="https://github.com/wolny/pytorch-3dunet/blob/master/resources/3DUnet_confocal_boundary/ovules_pred.png" width="400">
@@ -175,7 +175,7 @@ The training and validation sets can be downloaded from the following OSF projec
 
 Training and inference configs can be found in [3DUnet_lightsheet_nuclei](resources/3DUnet_lightsheet_nuclei).
 
-Sample z-slice predictions on the test set:
+Sample z-slice predictions on the test set (top: raw input, bottom: nuclei predictions):
 
 <img src="https://github.com/wolny/pytorch-3dunet/blob/master/resources/3DUnet_lightsheet_nuclei/root_nuclei_t30_raw.png" width="400">
 <img src="https://github.com/wolny/pytorch-3dunet/blob/master/resources/3DUnet_lightsheet_nuclei/root_nuclei_t30_pred.png" width="400">
@@ -186,7 +186,7 @@ The data can be downloaded from: https://www.kaggle.com/c/data-science-bowl-2018
 
 Training and inference configs can be found in [2DUnet_dsb2018](resources/2DUnet_dsb2018).
 
-Sample predictions on the test image (raw input on the left, boundary predictions on the right):
+Sample predictions on the test image (top: raw input, bottom: nuclei predictions):
 
 <img src="https://github.com/wolny/pytorch-3dunet/blob/master/resources/2DUnet_dsb2018/5f9d29d6388c700f35a3c29fa1b1ce0c1cba6667d05fdb70bd1e89004dcf71ed.png" width="400">
 <img src="https://github.com/wolny/pytorch-3dunet/blob/master/resources/2DUnet_dsb2018/5f9d29d6388c700f35a3c29fa1b1ce0c1cba6667d05fdb70bd1e89004dcf71ed_predictions.png" width="400">
