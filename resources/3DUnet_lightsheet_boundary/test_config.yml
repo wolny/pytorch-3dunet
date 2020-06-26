@@ -1,0 +1,43 @@
+# Download test data from: https://osf.io/tn4xj/
+
+loaders:
+  batch_size: 1
+  mirror_padding:
+  - 16
+  - 32
+  - 32
+  num_workers: 8
+  # directory where the output from the model will be saved
+  output_dir: "/home/adrian/Datasets/LateralRoot/predictions"
+  raw_internal_path: raw
+  test:
+    file_paths:
+    - "/home/adrian/Datasets/LateralRoot/Test"
+    slice_builder:
+      name: SliceBuilder
+      patch_shape:
+      - 80
+      - 144
+      - 144
+      stride_shape:
+      - 40
+      - 90
+      - 90
+    transformer:
+      raw:
+      - name: Standardize
+      - expand_dims: true
+        name: ToTensor
+manual_seed: 0
+model:
+  f_maps: 32
+  final_sigmoid: true
+  in_channels: 1
+  is_segmentation: true
+  layer_order: gcr
+  name: ResidualUNet3D
+  num_groups: 8
+  out_channels: 1
+model_path: "/home/adrian/Datasets/LateralRoot/best_checkpoint.pytorch"
+predictor:
+  name: StandardPredictor

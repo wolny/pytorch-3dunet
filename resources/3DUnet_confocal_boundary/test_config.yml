@@ -1,0 +1,42 @@
+# Download test data from: https://osf.io/8jz7e/
+
+loaders:
+  batch_size: 4
+  mirror_padding:
+  - 16
+  - 32
+  - 32
+  num_workers: 8
+  output_dir: "/home/adrian/Datasets/Ovules/predictions"
+  raw_internal_path: raw
+  test:
+    file_paths:
+    - "/home/adrian/Datasets/Ovules/Test"
+    slice_builder:
+      name: SliceBuilder
+      patch_shape:
+      - 48
+      - 80
+      - 80
+      stride_shape:
+      - 24
+      - 40
+      - 40
+    transformer:
+      raw:
+      - name: Standardize
+      - expand_dims: true
+        name: ToTensor
+manual_seed: 0
+model:
+  f_maps: 32
+  final_sigmoid: true
+  in_channels: 1
+  is_segmentation: true
+  layer_order: bcr
+  name: UNet3D
+  num_groups: null
+  out_channels: 1
+model_path: "/home/adrian/Datasets/Ovules/best_checkpoint.pytorch"
+predictor:
+  name: StandardPredictor

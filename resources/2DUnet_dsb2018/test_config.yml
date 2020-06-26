@@ -1,0 +1,35 @@
+model_path: "/home/adrian/Datasets/DSB2018/best_checkpoint.pytorch"
+model:
+  name: UNet2D
+  in_channels: 1
+  out_channels: 1
+  # use Groupnorm instead of Batchnorm for DSB; Batchnorm introduces artifacts around nuclei due to the difference
+  # in intensity distribution between images with large and small cells
+  layer_order: gcr
+  num_groups: 8
+  f_maps: [32, 64, 128]
+  final_sigmoid: true
+  is_segmentation: true
+predictor:
+  # standard in memory predictor
+  name: 'DSB2018Predictor'
+loaders:
+  # dataset class
+  dataset: DSB2018Dataset
+  # save predictions to output_dir
+  output_dir: '/home/adrian/Datasets/DSB2018/test/predictions'
+  # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
+  batch_size: 1
+  # mirror pad the raw data in each axis for sharper prediction near the boundaries of the volume
+  mirror_padding: [0, 32, 32]
+  # how many subprocesses to use for data loading
+  num_workers: 8
+  # test loaders configuration
+  test:
+    file_paths:
+      - '/home/adrian/Datasets/DSB2018/test'
+    transformer:
+      raw:
+        - name: Standardize
+        - name: ToTensor
+          expand_dims: true

@@ -1,5 +1,5 @@
 # path to the checkpoint file containing the model
-model_path: 3dunet/best_checkpoint.pytorch
+model_path: "PATH_TO_CHECKPOINT_DIR/best_checkpoint.pytorch"
 # model configuration
 model:
   # model class
@@ -32,11 +32,13 @@ loaders:
   raw_internal_path: raw
   # how many subprocesses to use for data loading
   num_workers: 8
+  # path to the directory where the predictions from the network will be saved (optional: if not provided the TEST_SET directory will be used)
+  output_dir: "PATH_TO_THE_TEST_SET/predictions"
   test:
     # paths to the test datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - '../resources/random3D.h5'
+      - "PATH_TO_THE_TEST_SET"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:

@@ -118,6 +118,7 @@ class _AbstractDiceLoss(nn.Module):
 class DiceLoss(_AbstractDiceLoss):
     """Computes Dice Loss according to https://arxiv.org/abs/1606.04797.
     For multi-class segmentation `weight` parameter can be used to assign different weights per class.
+    The input to the loss function is assumed to be a logit and will be normalized by the Sigmoid function.
     """
 
     def __init__(self, weight=None, sigmoid_normalization=True):

@@ -21,7 +21,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: 3dunet
+  checkpoint_dir: "CHECKPOINT_DIR"
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
   resume: null
   # how many iterations between validations
@@ -79,7 +79,7 @@ loaders:
     # absolute paths to the training datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - '../resources/random3D.h5'
+      - "PATH_TO_THE_TRAIN_SET"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -136,7 +136,7 @@ loaders:
     # paths to the validation datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - '../resources/random3D_copy.h5'
+      - "PATH_TO_THE_VAL_SET"
 
     # SliceBuilder configuration
     slice_builder:

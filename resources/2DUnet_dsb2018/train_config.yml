@@ -1,0 +1,104 @@
+# Trained on data from the 2018 Kaggle Data Science Bowl: https://www.kaggle.com/c/data-science-bowl-2018/data
+manual_seed: 0
+model:
+  name: UNet2D
+  in_channels: 1
+  out_channels: 1
+  # use Groupnorm instead of Batchnorm for DSB; Batchnorm introduces artifacts around nuclei due to the difference
+  # in intensity distribution between images with large and small cells
+  layer_order: gcr
+  num_groups: 8
+  f_maps: [32, 64, 128]
+  #conv_padding: 0
+  final_sigmoid: true
+  is_segmentation: true
+trainer:
+  checkpoint_dir: '/home/adrian/Datasets/DSB2018'
+  resume: null
+  validate_after_iters: 250
+  log_after_iters: 250
+  epochs: 10000
+  iters: 150000
+  eval_score_higher_is_better: True
+optimizer:
+  learning_rate: 0.0002
+  weight_decay: 0.00001
+loss:
+  name: BCEDiceLoss
+  skip_last_target: true
+eval_metric:
+  name: BlobsAveragePrecision
+  use_last_target: true
+  metric: 'ap'
+lr_scheduler:
+  name: ReduceLROnPlateau
+  mode: max
+  factor: 0.2
+  patience: 30
+loaders:
+  dataset: DSB2018Dataset
+  batch_size: 32
+  num_workers: 8
+  train:
+    file_paths:
+      - '/home/adrian/Datasets/DSB2018/train'
+
+    transformer:
+      raw:
+        - name: CropToFixed
+          size: [256, 256]
+        - name: Standardize
+        - name: RandomFlip
+        - name: RandomRotate90
+        - name: RandomRotate
+          axes: [[2, 1]]
+          angle_spectrum: 30
+          mode: reflect
+        - name: ElasticDeformation
+          spline_order: 3
+          execution_probability: 0.2
+        - name: AdditiveGaussianNoise
+          execution_probability: 0.1
+        - name: AdditivePoissonNoise
+          execution_probability: 0.1
+        - name: ToTensor
+          expand_dims: true
+      label:
+        - name: CropToFixed
+          size: [256, 256]
+        - name: RandomFlip
+        - name: RandomRotate90
+        - name: RandomRotate
+          axes: [[2, 1]]
+          angle_spectrum: 30
+          mode: reflect
+        - name: ElasticDeformation
+          spline_order: 0
+          execution_probability: 0.2
+        - name: Relabel
+        - name: BlobsToMask
+          append_label: true
+        - name: ToTensor
+          expand_dims: true
+  val:
+    file_paths:
+      - '/home/adrian/Datasets/DSB2018/train'
+
+    transformer:
+      raw:
+        - name: CropToFixed
+          size: [256, 256]
+          centered: true
+        - name: Standardize
+        - name: ToTensor
+          expand_dims: true
+      label:
+        - name: CropToFixed
+          size: [256, 256]
+          # always get the same crop for validation
+          centered: true
+        - name: Relabel
+        - name: BlobsToMask
+          append_label: true
+        - name: ToTensor
+          expand_dims: true
