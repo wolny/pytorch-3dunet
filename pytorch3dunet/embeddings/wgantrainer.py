@@ -224,13 +224,14 @@ class EmbeddingWGANTrainer:
                         f'Epoch [{self.num_epoch}/{self.max_num_epochs - 1}]')
 
             input, target, _ = self._split_training_batch(t)
-            # forward pass through embedding network (generator)
-            output = self.G(input)
 
             if self.num_iterations % self._D_iters() == 0:
                 # update G network
                 self._freeze_D()
                 self.G_optimizer.zero_grad()
+
+                # forward pass through embedding network (generator)
+                output = self.G(input)
 
                 # compute embedding loss
                 emb_loss = self.G_loss_criterion(output, target)
@@ -263,6 +264,11 @@ class EmbeddingWGANTrainer:
             else:
                 # update D netowrk
                 self.D_optimizer.zero_grad()
+
+                with torch.no_grad():
+                    # forward pass through embedding network (generator)
+                    # make sure the G is frozen
+                    output = self.G(input)
 
                 output = output.detach()  # make sure that G is not updated
 
@@ -351,6 +357,9 @@ class EmbeddingWGANTrainer:
                         'fake_masks': fake_masks
                     }
                     self._log_images(inputs_map)
+
+                # log model params and gradients
+                self._log_params()
 
             if self.should_stop():
                 return True
@@ -481,6 +490,18 @@ class EmbeddingWGANTrainer:
         for name, batch in img_sources.items():
             for tag, image in self.tensorboard_formatter(name, batch):
                 self.writer.add_image(tag, image, self.num_iterations, dataformats='CHW')
+
+    def _log_params(self):
+        models = {
+            'D': self.D,
+            'G': self.G
+        }
+        logger.info('Logging model parameters and gradients')
+        for model_name, model in models.items():
+            for name, value in model.named_parameters():
+                self.writer.add_histogram(model_name + '/' + name, value.data.cpu().numpy(), self.num_iterations)
+                self.writer.add_histogram(model_name + '/' + name + '/grad', value.grad.data.cpu().numpy(),
+                                          self.num_iterations)
 
     @staticmethod
     def _batch_size(input):

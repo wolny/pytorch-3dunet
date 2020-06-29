@@ -190,8 +190,9 @@ class WGANDiscriminator(nn.Module):
         self.encoders = create_encoders(in_channels, f_maps, DoubleConv, conv_kernel_size, conv_padding, layer_order,
                                         num_groups, pool_kernel_size)
 
+        # reduce to a single channel with 1x1 conv
         self.final_conv = nn.Conv3d(f_maps[-1], 1, 1)
-        # compute spatial dim of of the
+        # compute spatial dim of of the last decoder output
         self.in_features = self._in_features_linear(patch_shape, depth=len(f_maps) - 1)
         self.linear = nn.Linear(self.in_features, 1)
 

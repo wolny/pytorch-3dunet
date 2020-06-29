@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
 from scipy.ndimage.filters import convolve
+from skimage import measure
 from skimage.filters import gaussian
 from skimage.segmentation import find_boundaries
 from torchvision.transforms import Compose
@@ -630,10 +631,14 @@ class Relabel:
     at hand and would like to create a one-hot-encoding for it. Without a consecutive labeling the task would be harder.
     """
 
-    def __init__(self, append_original=False, **kwargs):
+    def __init__(self, append_original=False, run_cc=True, **kwargs):
         self.append_original = append_original
+        self.run_cc = run_cc
 
     def __call__(self, m):
+        if self.run_cc:
+            m = measure.label(m)
+
         _, unique_labels = np.unique(m, return_inverse=True)
         result = unique_labels.reshape(m.shape)
         if self.append_original:
