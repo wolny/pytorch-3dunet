@@ -378,9 +378,6 @@ class EmbeddingOrigWGANTrainer:
                     }
                     self._log_images(inputs_map)
 
-                # log model params and gradients
-                self._log_params()
-
             if self.should_stop():
                 return True
 
