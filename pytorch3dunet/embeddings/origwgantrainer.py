@@ -8,7 +8,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.embeddings.utils import extract_instance_masks, MeanEmbeddingAnchor, RandomEmbeddingAnchor
-from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss
+from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss, _AbstractContrastiveLoss
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.utils import get_logger, get_number_of_learnable_parameters, create_optimizer, \
@@ -100,7 +100,7 @@ class EmbeddingOrigWGANTrainerBuilder:
 class EmbeddingOrigWGANTrainer:
     def __init__(self, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
                  device, loaders, checkpoint_dir, gan_loss_weight, critic_iters, combine_masks=False,
-                 anchor_extraction='mean', clamp_lower=-0.01, clamp_upper=0.01,
+                 anchor_extraction='mean', label_smoothing=True, clamp_lower=-0.01, clamp_upper=0.01,
                  max_num_epochs=100, max_num_iterations=int(1e5), validate_after_iters=2000, log_after_iters=500,
                  num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
                  best_eval_score=None, tensorboard_formatter=None, sample_plotter=None,
@@ -111,7 +111,8 @@ class EmbeddingOrigWGANTrainer:
         self.eval_score_higher_is_better = eval_score_higher_is_better
         self.num_epoch = num_epoch
         self.num_iterations = num_iterations
-        self.gen_iterations = 1
+        self.G_iterations = 1
+        self.D_iterations = 1
         self.log_after_iters = log_after_iters
         self.validate_after_iters = validate_after_iters
         self.max_num_iterations = max_num_iterations
@@ -131,6 +132,7 @@ class EmbeddingOrigWGANTrainer:
         self.combine_masks = combine_masks
         assert anchor_extraction in ['mean', 'random']
         if anchor_extraction == 'mean':
+            assert isinstance(self.G_loss_criterion, _AbstractContrastiveLoss)
             # function for computing a mean embeddings of target instances
             c_mean_fn = self.G_loss_criterion._compute_cluster_means
             self.anchor_embeddings_extrator = MeanEmbeddingAnchor(c_mean_fn)
@@ -138,6 +140,7 @@ class EmbeddingOrigWGANTrainer:
             self.anchor_embeddings_extrator = RandomEmbeddingAnchor()
         self.clamp_lower = clamp_lower
         self.clamp_upper = clamp_upper
+        self.label_smoothing = label_smoothing
 
         logger.info('GENERATOR')
         logger.info(self.G)
@@ -190,7 +193,7 @@ class EmbeddingOrigWGANTrainer:
 
     def _D_iters(self):
         # make sure Discriminator is trained more at the beginning
-        if self.gen_iterations < 25:
+        if self.G_iterations < 25:
             return 100
 
         return self.critic_iters + 1
@@ -243,7 +246,8 @@ class EmbeddingOrigWGANTrainer:
                 _, fake_masks = extract_instance_masks(output, target,
                                                        self.anchor_embeddings_extrator,
                                                        self.dist_to_mask,
-                                                       self.combine_masks)
+                                                       self.combine_masks,
+                                                       self.label_smoothing)
                 if fake_masks is None:
                     # skip background patches and backprop only through embedding loss
                     emb_loss.backward()
@@ -262,7 +266,12 @@ class EmbeddingOrigWGANTrainer:
 
                 self._unfreeze_D()
 
-                self.gen_iterations += 1
+                self.G_iterations += 1
+
+                if self.G_iterations % self.log_after_iters == 0:
+                    logger.info('Logging params and gradients of G')
+                    # log params and gradients for G only cause D is frozen
+                    self._log_params(self.G, 'G')
             else:
                 # clamp parameters to a cube
                 for p in self.D.parameters():
@@ -282,7 +291,8 @@ class EmbeddingOrigWGANTrainer:
                 real_masks, fake_masks = extract_instance_masks(output, target,
                                                                 self.anchor_embeddings_extrator,
                                                                 self.dist_to_mask,
-                                                                self.combine_masks)
+                                                                self.combine_masks,
+                                                                self.label_smoothing)
 
                 if real_masks is None or fake_masks is None:
                     # skip background patches
@@ -309,6 +319,13 @@ class EmbeddingOrigWGANTrainer:
                 D_losses.update(D_cost.item(), n_batch)
                 D_loss_real.update(D_real, n_batch)
                 D_loss_fake.update(D_fake, n_batch)
+
+                self.D_iterations += 1
+
+                if self.D_iterations % self.log_after_iters == 0:
+                    # log params and gradients for D only cause G is frozen
+                    logger.info('Logging params and gradients of D')
+                    self._log_params(self.D, 'D')
 
             if self.num_iterations % self.validate_after_iters == 0:
                 # set the model in eval mode
@@ -494,17 +511,11 @@ class EmbeddingOrigWGANTrainer:
             for tag, image in self.tensorboard_formatter(name, batch):
                 self.writer.add_image(tag, image, self.num_iterations, dataformats='CHW')
 
-    def _log_params(self):
-        models = {
-            'D': self.D,
-            'G': self.G
-        }
-        logger.info('Logging model parameters and gradients')
-        for model_name, model in models.items():
-            for name, value in model.named_parameters():
-                self.writer.add_histogram(model_name + '/' + name, value.data.cpu().numpy(), self.num_iterations)
-                self.writer.add_histogram(model_name + '/' + name + '/grad', value.grad.data.cpu().numpy(),
-                                          self.num_iterations)
+    def _log_params(self, model, model_name):
+        for name, value in model.named_parameters():
+            self.writer.add_histogram(model_name + '/' + name, value.data.cpu().numpy(), self.num_iterations)
+            self.writer.add_histogram(model_name + '/' + name + '/grad', value.grad.data.cpu().numpy(),
+                                      self.num_iterations)
 
     @staticmethod
     def _batch_size(input):

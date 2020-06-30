@@ -7,7 +7,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.embeddings.utils import extract_instance_masks, MeanEmbeddingAnchor, RandomEmbeddingAnchor
-from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss
+from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss, _AbstractContrastiveLoss
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.utils import get_logger, get_number_of_learnable_parameters, create_optimizer, \
@@ -115,7 +115,7 @@ class EmbeddingGANTrainerBuilder:
 class EmbeddingGANTrainer:
     def __init__(self, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
                  device, loaders, checkpoint_dir, gan_loss_weight, D_iters=500, combine_masks=False,
-                 anchor_extraction='mean',
+                 anchor_extraction='mean', label_smoothing=True,
                  max_num_epochs=100, max_num_iterations=int(1e5), validate_after_iters=2000, log_after_iters=500,
                  num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
                  best_eval_score=None, tensorboard_formatter=None, sample_plotter=None,
@@ -145,11 +145,13 @@ class EmbeddingGANTrainer:
         self.combine_masks = combine_masks
         assert anchor_extraction in ['mean', 'random']
         if anchor_extraction == 'mean':
+            assert isinstance(self.G_loss_criterion, _AbstractContrastiveLoss)
             # function for computing a mean embeddings of target instances
             c_mean_fn = self.G_loss_criterion._compute_cluster_means
             self.anchor_embeddings_extrator = MeanEmbeddingAnchor(c_mean_fn)
         else:
             self.anchor_embeddings_extrator = RandomEmbeddingAnchor()
+        self.label_smoothing = label_smoothing
 
         logger.info('GENERATOR')
         logger.info(self.G)
@@ -262,7 +264,8 @@ class EmbeddingGANTrainer:
                 real_masks, fake_masks = extract_instance_masks(output_det, target,
                                                                 self.anchor_embeddings_extrator,
                                                                 self.dist_to_mask,
-                                                                self.combine_masks)
+                                                                self.combine_masks,
+                                                                self.label_smoothing)
                 if real_masks is None or fake_masks is None:
                     # skip background patches
                     continue
@@ -295,7 +298,8 @@ class EmbeddingGANTrainer:
                 _, fake_masks = extract_instance_masks(output, target,
                                                        self.anchor_embeddings_extrator,
                                                        self.dist_to_mask,
-                                                       self.combine_masks)
+                                                       self.combine_masks,
+                                                       self.label_smoothing)
                 if fake_masks is None:
                     # train only with embedding loss if only background is present
                     emb_loss = self.G_loss_criterion(output, target)

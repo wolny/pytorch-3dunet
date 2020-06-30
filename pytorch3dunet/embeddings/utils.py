@@ -30,19 +30,28 @@ class RandomEmbeddingAnchor:
     """
 
     def __call__(self, emb, tar):
-        raise NotImplementedError()
+        instances = torch.unique(tar)
+        anchor_embeddings = []
+        for i in instances:
+            z, y, x = torch.nonzero(tar == i, as_tuple=True)
+            ind = torch.randint(len(z), (1,))[0]
+            anchor_emb = emb[:, z[ind], y[ind], x[ind]]
+            anchor_embeddings.append(anchor_emb)
+
+        result = torch.stack(anchor_embeddings, dim=0).to(emb.device)
+        # expand dimensions
+        result = result[..., None, None, None]
+        return result
 
 
-def extract_instance_masks(embeddings, target, anchor_embeddings_extractor, dist_to_mask_fn, combine_masks):
+def extract_instance_masks(embeddings, target, anchor_embeddings_extractor, dist_to_mask_fn, combine_masks,
+                           label_smoothing=True):
     """
     Extract instance masks given the embeddings, target,
     anchor embeddings extraction functor (anchor_embeddings_extractor),
     kernel function computing distance to anchor (dist_to_mask_fn)
     and whether to combine the masks or not (combine_masks)
     """
-
-    # TODO: sample anchors and return anchor coordinates
-    # TODO: add different label smoothing strategies
 
     def _add_noise(mask, sigma=0.05):
         gaussian_noise = torch.randn(mask.size()).to(mask.device) * sigma
@@ -70,11 +79,14 @@ def extract_instance_masks(embeddings, target, anchor_embeddings_extractor, dist
             fms.append(inst_pmap.unsqueeze(0))
 
             assert i in target
+
             inst_mask = (tar == i).float()
-            # add noise to instance mask to prevent discriminator from converging too quickly
-            inst_mask = _add_noise(inst_mask)
-            # clamp values
-            inst_mask.clamp_(0, 1)
+            if label_smoothing:
+                # add noise to instance mask to prevent discriminator from converging too quickly
+                inst_mask = _add_noise(inst_mask)
+                # clamp values
+                inst_mask.clamp_(0, 1)
+
             # add channel dim and save real masks
             rms.append(inst_mask.unsqueeze(0))
 
