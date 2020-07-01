@@ -293,6 +293,10 @@ class EmbeddingWGANTrainer:
                     # skip background patches
                     continue
 
+                if real_masks.size()[0] >= 40:
+                    # skip if there are too many instances in the patch in order to prevent CUDA OOM errors
+                    continue
+
                 # train D with real
                 D_real = self.D(real_masks)
                 # average critic output across batch
