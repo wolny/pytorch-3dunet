@@ -204,10 +204,10 @@ class EmbeddingWGANTrainer:
                         G_loss_criterion, G_eval_criterion, loaders,
                         tensorboard_formatter=None, sample_plotter=None, **kwargs):
         logger.info(f"Loading checkpoint '{checkpoint_path}'...")
-        # 'D_model_state_dict': D_state_dict,
-        # 'D_optimizer_state_dict': self.D_optimizer.state_dict()
+        # load generator, i.e. embedding model
         state = load_checkpoint(checkpoint_path, G, optimizer=G_optimizer,
                                 model_key='model_state_dict', optimizer_key='optimizer_state_dict')
+        # load critic
         state = load_checkpoint(checkpoint_path, D, optimizer=D_optimizer,
                                 model_key='D_model_state_dict', optimizer_key='D_optimizer_state_dict')
         logger.info(
@@ -222,7 +222,7 @@ class EmbeddingWGANTrainer:
                    num_iterations=state['num_iterations'], num_epoch=state['epoch'],
                    eval_score_higher_is_better=state['eval_score_higher_is_better'],
                    best_eval_score=state['best_eval_score'], tensorboard_formatter=tensorboard_formatter,
-                   sample_plotter=sample_plotter, **kwargs)
+                   sample_plotter=sample_plotter)
 
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
