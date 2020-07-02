@@ -287,7 +287,7 @@ class EmbeddingWGANTrainer:
                 emb_losses.update(emb_loss.item(), self._batch_size(input))
 
                 # compute GAN loss
-                _, fake_masks = extract_instance_masks(output, target,
+                real_masks, fake_masks = extract_instance_masks(output, target,
                                                        self.anchor_embeddings_extrator,
                                                        self.dist_to_mask,
                                                        self.combine_masks,
