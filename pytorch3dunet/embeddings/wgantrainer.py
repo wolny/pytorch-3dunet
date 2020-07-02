@@ -64,8 +64,27 @@ class EmbeddingWGANTrainerBuilder:
         pre_trained = trainer_config.get('pre_trained', None)
 
         if pre_trained is not None:
+            assert isinstance(pre_trained, str)
             logger.info(f'Using pretrained embedding model: {pre_trained}')
             return EmbeddingWGANTrainer.from_pretrained_emb(
+                G=G,
+                D=D,
+                G_optimizer=G_optimizer,
+                D_optimizer=D_optimizer,
+                G_lr_scheduler=G_lr_scheduler,
+                G_loss_criterion=G_loss_criterion,
+                G_eval_criterion=G_eval_criterion,
+                device=device,
+                loaders=loaders,
+                tensorboard_formatter=tensorboard_formatter,
+                sample_plotter=sample_plotter,
+                **trainer_config
+            )
+        elif resume is not None:
+            assert isinstance(resume, str)
+            logger.info(f'Resuming training from checkpoing: {resume}')
+            return EmbeddingWGANTrainer.from_checkpoint(
+                checkpoint_path=resume,
                 G=G,
                 D=D,
                 G_optimizer=G_optimizer,
@@ -163,8 +182,9 @@ class EmbeddingWGANTrainer:
         self.dist_to_mask = AuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=0.5)
 
     @classmethod
-    def from_pretrained_emb(cls, pre_trained, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion,
-                            G_eval_criterion,
+    def from_pretrained_emb(cls, pre_trained,
+                            G, D, G_optimizer, D_optimizer, G_lr_scheduler,
+                            G_loss_criterion, G_eval_criterion,
                             loaders, tensorboard_formatter, sample_plotter, **kwargs):
         logger.info(f"Loading checkpoint '{pre_trained}'...")
         state = load_checkpoint(pre_trained, G)
@@ -178,6 +198,31 @@ class EmbeddingWGANTrainer:
                    tensorboard_formatter=tensorboard_formatter,
                    sample_plotter=sample_plotter,
                    **kwargs)
+
+    @classmethod
+    def from_checkpoint(cls, checkpoint_path, G, D, G_optimizer, D_optimizer, G_lr_scheduler,
+                        G_loss_criterion, G_eval_criterion, loaders,
+                        tensorboard_formatter=None, sample_plotter=None, **kwargs):
+        logger.info(f"Loading checkpoint '{checkpoint_path}'...")
+        # 'D_model_state_dict': D_state_dict,
+        # 'D_optimizer_state_dict': self.D_optimizer.state_dict()
+        state = load_checkpoint(checkpoint_path, G, optimizer=G_optimizer,
+                                model_key='model_state_dict', optimizer_key='optimizer_state_dict')
+        state = load_checkpoint(checkpoint_path, D, optimizer=D_optimizer,
+                                model_key='D_model_state_dict', optimizer_key='D_optimizer_state_dict')
+        logger.info(
+            f"Checkpoint loaded. Epoch: {state['epoch']}. Best val score: {state['best_eval_score']}. Num_iterations: {state['num_iterations']}")
+        checkpoint_dir = os.path.split(checkpoint_path)[0]
+        return cls(G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
+                   torch.device(state['device']), loaders, checkpoint_dir,
+                   kwargs['gp_lambda'], kwargs['gan_loss_weight'], kwargs['critic_iters'], kwargs['combine_masks'],
+                   kwargs['anchor_extraction'], kwargs['label_smoothing'],
+                   max_num_epochs=state['max_num_epochs'], max_num_iterations=state['max_num_iterations'],
+                   validate_after_iters=state['validate_after_iters'], log_after_iters=state['log_after_iters'],
+                   num_iterations=state['num_iterations'], num_epoch=state['epoch'],
+                   eval_score_higher_is_better=state['eval_score_higher_is_better'],
+                   best_eval_score=state['best_eval_score'], tensorboard_formatter=tensorboard_formatter,
+                   sample_plotter=sample_plotter, **kwargs)
 
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
