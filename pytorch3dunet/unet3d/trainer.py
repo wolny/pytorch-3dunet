@@ -221,7 +221,10 @@ class UNet3DTrainer:
                         skip_train_validation=False, **kwargs):
         logger.info(f"Logging pre-trained model from '{pre_trained}'...")
         utils.load_checkpoint(pre_trained, model, None)
-        checkpoint_dir = os.path.split(pre_trained)[0]
+        if 'checkpoint_dir' not in kwargs:
+            checkpoint_dir = os.path.split(pre_trained)[0]
+        else:
+            checkpoint_dir = kwargs.pop('checkpoint_dir')
         return cls(model, optimizer, lr_scheduler,
                    loss_criterion, eval_criterion,
                    device, loaders, checkpoint_dir,
