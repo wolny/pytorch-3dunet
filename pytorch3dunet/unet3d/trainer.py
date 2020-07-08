@@ -46,6 +46,8 @@ def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval
                                              lr_scheduler=lr_scheduler,
                                              loss_criterion=loss_criterion,
                                              eval_criterion=eval_criterion,
+                                             tensorboard_formatter=tensorboard_formatter,
+                                             sample_plotter=sample_plotter,
                                              device=config['device'],
                                              loaders=loaders,
                                              **trainer_config)
