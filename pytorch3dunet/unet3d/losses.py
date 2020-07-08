@@ -1,7 +1,9 @@
 import math
+import os
 
 import torch
 import torch.nn.functional as F
+from tensorboardX import SummaryWriter
 from torch import nn as nn
 from torch.autograd import Variable
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss, BCELoss
@@ -767,7 +769,8 @@ class GANShapePriorLoss(nn.Module):
 class AuxContrastiveLoss(_AbstractContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf,
                  norm='fro', alpha=1., beta=1., gamma=0.001, delta=1.,
-                 aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
+                 aux_loss_ignore_zero=True, model_path=None, D_model_config=None,
+                 log_aux_after=250, checkpoint_dir=None):
         super().__init__(delta_var, delta_dist, norm=norm, alpha=alpha, beta=beta, gamma=gamma, delta=delta,
                          ignore_zero_in_variance=False,
                          ignore_zero_in_distance=False,
@@ -787,6 +790,12 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
 
         # init dist_to_mask function which maps per-instance distance map to the instance probability map
         self.dist_to_mask = self._create_dist_to_mask_fun(dist_to_mask_conf, delta_var)
+        self.log_aux_after = log_aux_after
+        self.aux_invocations = 0
+        if checkpoint_dir is not None:
+            self.writer = SummaryWriter(log_dir=os.path.join(checkpoint_dir, 'logs'))
+        else:
+            self.writer = None
 
     def _create_dist_to_mask_fun(self, dist_to_mask_conf, delta_var):
         name = dist_to_mask_conf['name']
@@ -797,6 +806,8 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
             return self.Gaussian(delta_var, dist_to_mask_conf.get('pmaps_threshold', 0.5))
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
+        self.aux_invocations += 1
+
         assert embeddings.size()[1:] == target.size()
 
         per_instance_loss = 0.
@@ -813,6 +824,10 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
             inst_mask = (target == i).float()
             loss = self.aux_loss(inst_pmap, inst_mask)
             per_instance_loss += loss.sum()
+
+        if self.aux_invocations % self.log_aux_after == 0 and self.writer is not None:
+            self.writer.add_scalar('aux_loss', per_instance_loss.data.cpu().numpy(), self.aux_invocations)
+            self.writer.add_scalar('aux_loss_grad', per_instance_loss.grad.data.cpu().numpy(), self.aux_invocations)
 
         return per_instance_loss
 
