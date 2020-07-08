@@ -9,7 +9,9 @@ from torch.autograd import Variable
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss, BCELoss
 
 from pytorch3dunet.unet3d.model import get_model, WGANDiscriminator
-from pytorch3dunet.unet3d.utils import expand_as_one_hot, load_checkpoint
+from pytorch3dunet.unet3d.utils import expand_as_one_hot, load_checkpoint, get_logger
+
+logger = get_logger('Losses')
 
 
 def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
@@ -826,8 +828,11 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
             per_instance_loss += loss.sum()
 
         if self.aux_invocations % self.log_aux_after == 0 and self.writer is not None:
-            self.writer.add_scalar('aux_loss', per_instance_loss.data.cpu().numpy(), self.aux_invocations)
-            self.writer.add_scalar('aux_loss_grad', per_instance_loss.grad.data.cpu().numpy(), self.aux_invocations)
+            aux_loss = per_instance_loss.data.cpu().numpy()
+            aux_loss_grad = per_instance_loss.grad.data.cpu().numpy()
+            logger.info(f'Aux Loss: {aux_loss}, Aux Loss Grad: {aux_loss_grad}')
+            self.writer.add_scalar('aux_loss', aux_loss, self.aux_invocations)
+            self.writer.add_scalar('aux_loss_grad', aux_loss_grad, self.aux_invocations)
 
         return per_instance_loss
 
@@ -926,7 +931,9 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                   loss_config['delta'],
                                   loss_config.get('aux_loss_ignore_zero', True),
                                   loss_config.get('model_path', None),
-                                  loss_config.get('D_model', None))
+                                  loss_config.get('D_model', None),
+                                  loss_config.get('log_aux_after', None),
+                                  loss_config.get('checkpoint_dir', None))
     elif name == 'SegEmbLoss':
         return SegEmbLoss(loss_config['delta_var'],
                           loss_config['delta_dist'],
