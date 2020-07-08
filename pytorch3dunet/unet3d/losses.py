@@ -1,17 +1,13 @@
 import math
-import os
 
 import torch
 import torch.nn.functional as F
-from tensorboardX import SummaryWriter
 from torch import nn as nn
 from torch.autograd import Variable
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss, BCELoss
 
 from pytorch3dunet.unet3d.model import get_model, WGANDiscriminator
-from pytorch3dunet.unet3d.utils import expand_as_one_hot, load_checkpoint, get_logger
-
-logger = get_logger('Losses')
+from pytorch3dunet.unet3d.utils import expand_as_one_hot, load_checkpoint
 
 
 def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
@@ -771,8 +767,7 @@ class GANShapePriorLoss(nn.Module):
 class AuxContrastiveLoss(_AbstractContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf,
                  norm='fro', alpha=1., beta=1., gamma=0.001, delta=1.,
-                 aux_loss_ignore_zero=True, model_path=None, D_model_config=None,
-                 log_aux_after=250, checkpoint_dir=None):
+                 aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
         super().__init__(delta_var, delta_dist, norm=norm, alpha=alpha, beta=beta, gamma=gamma, delta=delta,
                          ignore_zero_in_variance=False,
                          ignore_zero_in_distance=False,
@@ -792,12 +787,6 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
 
         # init dist_to_mask function which maps per-instance distance map to the instance probability map
         self.dist_to_mask = self._create_dist_to_mask_fun(dist_to_mask_conf, delta_var)
-        self.log_aux_after = log_aux_after
-        self.aux_invocations = 0
-        if checkpoint_dir is not None:
-            self.writer = SummaryWriter(log_dir=os.path.join(checkpoint_dir, 'logs'))
-        else:
-            self.writer = None
 
     def _create_dist_to_mask_fun(self, dist_to_mask_conf, delta_var):
         name = dist_to_mask_conf['name']
@@ -808,8 +797,6 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
             return self.Gaussian(delta_var, dist_to_mask_conf.get('pmaps_threshold', 0.5))
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
-        self.aux_invocations += 1
-
         assert embeddings.size()[1:] == target.size()
 
         per_instance_loss = 0.
@@ -826,13 +813,6 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
             inst_mask = (target == i).float()
             loss = self.aux_loss(inst_pmap, inst_mask)
             per_instance_loss += loss.sum()
-
-        if self.aux_invocations % self.log_aux_after == 0 and self.writer is not None:
-            aux_loss = per_instance_loss.data.cpu().numpy()
-            aux_loss_grad = per_instance_loss.grad.data.cpu().numpy()
-            logger.info(f'Aux Loss: {aux_loss}, Aux Loss Grad: {aux_loss_grad}')
-            self.writer.add_scalar('aux_loss', aux_loss, self.aux_invocations)
-            self.writer.add_scalar('aux_loss_grad', aux_loss_grad, self.aux_invocations)
 
         return per_instance_loss
 
@@ -931,9 +911,7 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                   loss_config['delta'],
                                   loss_config.get('aux_loss_ignore_zero', True),
                                   loss_config.get('model_path', None),
-                                  loss_config.get('D_model', None),
-                                  loss_config.get('log_aux_after', None),
-                                  loss_config.get('checkpoint_dir', None))
+                                  loss_config.get('D_model', None))
     elif name == 'SegEmbLoss':
         return SegEmbLoss(loss_config['delta_var'],
                           loss_config['delta_dist'],
