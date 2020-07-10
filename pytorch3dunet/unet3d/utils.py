@@ -264,7 +264,7 @@ class DefaultTensorboardFormatter(_TensorboardFormatter):
         return np.nan_to_num((img - np.min(img)) / np.ptp(img))
 
 
-def _pca_project(embeddings):
+def pca_project(embeddings):
     assert embeddings.ndim == 3
     # reshape (C, H, W) -> (C, H * W) and transpose
     flattened_embeddings = embeddings.reshape(embeddings.shape[0], -1).transpose()
@@ -303,7 +303,7 @@ class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
             tag = tag_template.format(batch_idx, slice_idx)
             img = batch[batch_idx, :, slice_idx, ...]  # CHW
             # get the PCA projection
-            rgb_img = _pca_project(img)
+            rgb_img = pca_project(img)
             tagged_images.append((tag, rgb_img))
             if self.plot_variance:
                 cum_explained_variance_img = self._plot_cum_explained_variance(img)
@@ -470,7 +470,7 @@ def plot_emb(inp, emb, seg, tar, file_path):
 
     mid_z = seg.shape[0] // 2
 
-    rgb_emb = _pca_project(np.squeeze(emb))
+    rgb_emb = pca_project(np.squeeze(emb))
     rgb_emb = np.transpose(rgb_emb, (1, 2, 0))
 
     axarr[0].imshow(inp[mid_z])

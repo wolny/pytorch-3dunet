@@ -156,9 +156,9 @@ class EmbeddingWGANTrainer:
             assert isinstance(self.G_loss_criterion, _AbstractContrastiveLoss)
             # function for computing a mean embeddings of target instances
             c_mean_fn = self.G_loss_criterion._compute_cluster_means
-            self.anchor_embeddings_extrator = MeanEmbeddingAnchor(c_mean_fn)
+            self.anchor_embeddings_extractor = MeanEmbeddingAnchor(c_mean_fn)
         else:
-            self.anchor_embeddings_extrator = RandomEmbeddingAnchor()
+            self.anchor_embeddings_extractor = RandomEmbeddingAnchor()
         self.label_smoothing = label_smoothing
 
         logger.info('GENERATOR')
@@ -288,10 +288,10 @@ class EmbeddingWGANTrainer:
 
                 # compute GAN loss
                 real_masks, fake_masks = extract_instance_masks(output, target,
-                                                       self.anchor_embeddings_extrator,
-                                                       self.dist_to_mask,
-                                                       self.combine_masks,
-                                                       self.label_smoothing)
+                                                                self.anchor_embeddings_extractor,
+                                                                self.dist_to_mask,
+                                                                self.combine_masks,
+                                                                self.label_smoothing)
                 if fake_masks is None:
                     # skip background patches and backprop only through embedding loss
                     emb_loss.backward()
@@ -329,7 +329,7 @@ class EmbeddingWGANTrainer:
 
                 # create real and fake instance masks
                 real_masks, fake_masks = extract_instance_masks(output, target,
-                                                                self.anchor_embeddings_extrator,
+                                                                self.anchor_embeddings_extractor,
                                                                 self.dist_to_mask,
                                                                 self.combine_masks,
                                                                 self.label_smoothing)

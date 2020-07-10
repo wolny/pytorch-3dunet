@@ -386,7 +386,8 @@ class _AbstractContrastiveLoss(nn.Module):
         self.ignore_zero_in_distance = ignore_zero_in_distance
         self.aux_loss_ignore_zero = aux_loss_ignore_zero
 
-    def _compute_cluster_means(self, input_, target, spatial_ndim):
+    @staticmethod
+    def _compute_cluster_means(input_, target, spatial_ndim):
         """
         Computes mean embeddings per instance, embeddings withing a given instance and the number of voxels per instance.
 

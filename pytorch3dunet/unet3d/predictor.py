@@ -5,10 +5,13 @@ import h5py
 import hdbscan
 import numpy as np
 import torch
+from PIL import Image
 from sklearn.cluster import MeanShift
 
 from pytorch3dunet.datasets.utils import SliceBuilder
-from pytorch3dunet.unet3d.utils import get_logger
+from pytorch3dunet.embeddings.utils import MeanEmbeddingAnchor, RandomEmbeddingAnchor
+from pytorch3dunet.unet3d.losses import _AbstractContrastiveLoss
+from pytorch3dunet.unet3d.utils import get_logger, pca_project
 from pytorch3dunet.unet3d.utils import remove_halo
 
 logger = get_logger('UNet3DPredictor')
@@ -296,6 +299,64 @@ class DSB2018Predictor(_AbstractPredictor):
                 with h5py.File(out_file, 'w') as f:
                     logger.info(f'Saving output to {out_file}')
                     f.create_dataset('predictions', data=pred, compression='gzip')
+
+
+class AnchorEmbeddingsPredictor(_AbstractPredictor):
+    def __init__(self, model, loader, config, epsilon, anchor_extraction='mean', norm='fro' ** kwargs):
+        super().__init__(model, loader, config, **kwargs)
+
+        self.epsilon = epsilon
+        self.anchor_extraction = anchor_extraction
+
+        if anchor_extraction == 'mean':
+            # function for computing a mean embeddings of target instances
+            c_mean_fn = _AbstractContrastiveLoss._compute_cluster_means
+            self.anchor_embeddings_extractor = MeanEmbeddingAnchor(c_mean_fn)
+        else:
+            self.anchor_embeddings_extractor = RandomEmbeddingAnchor()
+
+        self.norm = norm
+
+    def predict(self):
+        device = self.config['device']
+        # Sets the module in evaluation mode explicitly
+        self.model.eval()
+        self.model.testing = True
+        # Run predictions on the entire input dataset
+        with torch.no_grad():
+            for img, tar, path in self.loader:
+                logger.info(f'Processing {path}')
+                # add batch dim
+                img = torch.unsqueeze(img, dim=0)
+                # send batch to device
+                img = img.to(device)
+                # forward pass
+                emb = self.model(img)
+
+                seg = self._emb_to_seg(emb, tar)
+
+                # save to h5 file
+                out_file = os.path.splitext(path)[0] + '_predictions.h5'
+                out_file = os.path.join(self.output_file, os.path.split(out_file)[1])
+
+                # save PNG with PCA projected embeddings
+                rgb_img = pca_project(emb.cpu().numpy())
+                Image.fromarray(rgb_img).save(os.path.splitext(out_file)[0] + '.png')
+
+                with h5py.File(out_file, 'w') as f:
+                    logger.info(f'Saving output to {out_file}')
+                    f.create_dataset('segmentation', data=seg, compression='gzip')
+
+    def _emb_to_seg(self, emb, tar):
+        result = torch.zeros_like(tar)
+        anchor_embeddings = self.anchor_embeddings_extractor(emb, tar)
+        for i, cm in enumerate(anchor_embeddings):
+            # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
+            inst_mask = torch.norm(emb - cm, self.norm, dim=0) < self.epsilon
+            # save instance
+            result[inst_mask] = i + 1
+
+        return result.cpu().numpy()
 
 
 class EmbeddingsPredictor(_AbstractPredictor):
