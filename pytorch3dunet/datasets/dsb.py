@@ -1,7 +1,9 @@
+import collections
 import os
 
 import imageio
 import numpy as np
+import torch
 
 from pytorch3dunet.augment import transforms
 from pytorch3dunet.datasets.utils import ConfigDataset, calculate_stats
@@ -75,6 +77,20 @@ class DSB2018Dataset(ConfigDataset):
 
     def __len__(self):
         return len(self.images)
+
+    @classmethod
+    def prediction_collate(cls, batch):
+        error_msg = "batch must contain tensors or str; found {}"
+        if isinstance(batch[0], torch.Tensor):
+            return torch.stack(batch, 0)
+        elif isinstance(batch[0], str):
+            return batch[0]
+        elif isinstance(batch[0], collections.Sequence):
+            # transpose tuples, i.e. [[1, 2], ['a', 'b']] to be [[1, 'a'], [2, 'b']]
+            transposed = zip(*batch)
+            return [cls.prediction_collate(samples) for samples in transposed]
+
+        raise TypeError((error_msg.format(type(batch[0]))))
 
     @classmethod
     def create_datasets(cls, dataset_config, phase):

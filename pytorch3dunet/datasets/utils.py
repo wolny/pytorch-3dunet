@@ -31,6 +31,11 @@ class ConfigDataset(Dataset):
         """
         raise NotImplementedError
 
+    @classmethod
+    def prediction_collate(cls, batch):
+        """Default collate_fn. Override in child class for non-standard datasets."""
+        return default_prediction_collate(batch)
+
 
 class SliceBuilder:
     """
@@ -238,7 +243,12 @@ def get_class(class_name, modules):
 
 
 def _loader_classes(class_name):
-    modules = ['pytorch3dunet.datasets.hdf5', 'pytorch3dunet.datasets.dsb', 'pytorch3dunet.datasets.utils']
+    modules = [
+        'pytorch3dunet.datasets.hdf5',
+        'pytorch3dunet.datasets.dsb',
+        'pytorch3dunet.datasets.utils',
+        'pytorch3dunet.datasets.sliced'
+    ]
     return get_class(class_name, modules)
 
 
@@ -331,20 +341,24 @@ def get_test_loaders(config):
     # use generator in order to create data loaders lazily one by one
     for test_dataset in test_datasets:
         logger.info(f'Loading test set from: {test_dataset.file_path}...')
-        yield DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=prediction_collate)
+        if hasattr(test_dataset, 'prediction_collate'):
+            collate_fn = test_dataset.prediction_collate
+        else:
+            collate_fn = default_prediction_collate
+
+        yield DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers,
+                         collate_fn=collate_fn)
 
 
-def prediction_collate(batch):
+def default_prediction_collate(batch):
     error_msg = "batch must contain tensors or slice; found {}"
     if isinstance(batch[0], torch.Tensor):
         return torch.stack(batch, 0)
     elif isinstance(batch[0], tuple) and isinstance(batch[0][0], slice):
         return batch
-    elif isinstance(batch[0], tuple) and isinstance(batch[0][1], str):
-        return batch[0]
     elif isinstance(batch[0], collections.Sequence):
         transposed = zip(*batch)
-        return [prediction_collate(samples) for samples in transposed]
+        return [default_prediction_collate(samples) for samples in transposed]
 
     raise TypeError((error_msg.format(type(batch[0]))))
 
