@@ -350,34 +350,46 @@ class AnchorEmbeddingsPredictor(_AbstractPredictor):
                 logger.info(f'Processing {path}')
                 # send batch to device
                 img = img.to(device)
+                tar = tar.to(device)
                 # forward pass
                 emb = self.model(img)
 
                 seg = self._emb_to_seg(emb, tar)
 
-                # save to h5 file
-                out_file = os.path.splitext(path)[0] + '_predictions.h5'
-                if self.output_dir is not None:
-                    out_file = os.path.join(self.output_dir, os.path.split(out_file)[1])
+                for single_emb, single_seg, single_path in zip(emb, seg, path):
+                    # save to h5 file
+                    out_file = os.path.splitext(single_path)[0] + '_predictions.h5'
+                    if self.output_dir is not None:
+                        out_file = os.path.join(self.output_dir, os.path.split(out_file)[1])
 
-                # save PNG with PCA projected embeddings
-                rgb_img = pca_project(emb.cpu().numpy())
-                Image.fromarray(rgb_img).save(os.path.splitext(out_file)[0] + '.png')
+                    # save PNG with PCA projected embeddings
+                    embeddings_numpy = np.squeeze(single_emb.cpu().numpy())
+                    rgb_img = pca_project(embeddings_numpy)
+                    Image.fromarray(np.rollaxis(rgb_img, 0, 3)).save(os.path.splitext(out_file)[0] + '.png')
 
-                with h5py.File(out_file, 'w') as f:
-                    logger.info(f'Saving output to {out_file}')
-                    f.create_dataset('segmentation', data=seg, compression='gzip')
+                    with h5py.File(out_file, 'w') as f:
+                        logger.info(f'Saving output to {out_file}')
+                        f.create_dataset('segmentation', data=np.uint16(single_seg.cpu().numpy()), compression='gzip')
 
-    def _emb_to_seg(self, emb, tar):
-        result = torch.zeros_like(tar)
-        anchor_embeddings = self.anchor_embeddings_extractor(emb, tar)
-        for i, cm in enumerate(anchor_embeddings):
-            # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
-            inst_mask = torch.norm(emb - cm, self.norm, dim=0) < self.epsilon
-            # save instance
-            result[inst_mask] = i + 1
+    def _emb_to_seg(self, embeddings, target):
+        # iterate over batch dimension
+        results = []
+        for emb, tar in zip(embeddings, target):
+            anchor_embeddings = self.anchor_embeddings_extractor(emb, tar)
+            result = torch.zeros_like(tar)
+            for i, cm in enumerate(anchor_embeddings):
+                if i == 0:
+                    # ignore 0-label
+                    continue
 
-        return result.cpu().numpy()
+                # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
+                inst_mask = torch.norm(emb - cm, self.norm, dim=0) < self.epsilon
+                # save instance
+                result[inst_mask] = i + 1
+
+            results.append(result)
+
+        return torch.stack(results, dim=0)
 
 
 class EmbeddingsPredictor(_AbstractPredictor):
