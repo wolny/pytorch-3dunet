@@ -332,7 +332,7 @@ class DSB2018Predictor(_AbstractPredictor):
 
     def _pmaps_to_seg(self, pred):
         mask = (pred > self.pmaps_thershold).astype('uint8')
-        return measure.label(mask)
+        return measure.label(mask).astype('uint16')
 
 
 class AnchorEmbeddingsPredictor(_AbstractPredictor):
