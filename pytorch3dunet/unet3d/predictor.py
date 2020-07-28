@@ -305,19 +305,19 @@ class DSB2018Predictor(_AbstractPredictor):
         # Run predictions on the entire input dataset
         with torch.no_grad():
             for img, path in test_loader:
-                for single_img, single_path in zip(img, path):
+                # send batch to device
+                img = img.to(device)
+                # forward pass
+                pred = self.model(img)
+                # convert to numpy array
+                for single_pred, single_path in zip(pred, path):
                     logger.info(f'Processing {single_path}')
-                    # send batch to device
-                    single_img = single_img.to(device)
-                    # forward pass
-                    pred = self.model(single_img)
-                    # convert to numpy array
-                    pred = pred.cpu().numpy().squeeze()
+                    single_pred = single_pred.cpu().numpy().squeeze()
 
                     if hasattr(test_loader.dataset, 'mirror_padding') \
                             and test_loader.dataset.mirror_padding is not None:
                         z_s, y_s, x_s = [self._slice_from_pad(p) for p in test_loader.dataset.mirror_padding]
-                        pred = pred[y_s, x_s]
+                        single_pred = single_pred[y_s, x_s]
 
                     # save to h5 file
                     out_file = os.path.splitext(single_path)[0] + '_predictions.h5'
@@ -326,7 +326,7 @@ class DSB2018Predictor(_AbstractPredictor):
 
                     with h5py.File(out_file, 'w') as f:
                         logger.info(f'Saving output to {out_file}')
-                        f.create_dataset('predictions', data=pred, compression='gzip')
+                        f.create_dataset('predictions', data=single_pred, compression='gzip')
                         if self.save_segmentation:
                             f.create_dataset('segmentation', data=self._pmaps_to_seg(pred), compression='gzip')
 
