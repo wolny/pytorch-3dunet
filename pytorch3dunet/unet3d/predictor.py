@@ -328,7 +328,7 @@ class DSB2018Predictor(_AbstractPredictor):
                         logger.info(f'Saving output to {out_file}')
                         f.create_dataset('predictions', data=single_pred, compression='gzip')
                         if self.save_segmentation:
-                            f.create_dataset('segmentation', data=self._pmaps_to_seg(pred), compression='gzip')
+                            f.create_dataset('segmentation', data=self._pmaps_to_seg(single_pred), compression='gzip')
 
     def _pmaps_to_seg(self, pred):
         mask = (pred > self.pmaps_thershold).astype('uint8')
