@@ -305,28 +305,30 @@ class DSB2018Predictor(_AbstractPredictor):
         # Run predictions on the entire input dataset
         with torch.no_grad():
             for img, path in test_loader:
-                logger.info(f'Processing {path}')
-                # send batch to device
-                img = img.to(device)
-                # forward pass
-                pred = self.model(img)
-                # convert to numpy array
-                pred = pred.cpu().numpy().squeeze()
+                for single_img, single_path in zip(img, path):
+                    logger.info(f'Processing {single_path}')
+                    # send batch to device
+                    single_img = single_img.to(device)
+                    # forward pass
+                    pred = self.model(single_img)
+                    # convert to numpy array
+                    pred = pred.cpu().numpy().squeeze()
 
-                if hasattr(test_loader.dataset, 'mirror_padding') and test_loader.dataset.mirror_padding is not None:
-                    z_s, y_s, x_s = [self._slice_from_pad(p) for p in test_loader.dataset.mirror_padding]
-                    pred = pred[y_s, x_s]
+                    if hasattr(test_loader.dataset, 'mirror_padding') \
+                            and test_loader.dataset.mirror_padding is not None:
+                        z_s, y_s, x_s = [self._slice_from_pad(p) for p in test_loader.dataset.mirror_padding]
+                        pred = pred[y_s, x_s]
 
-                # save to h5 file
-                out_file = os.path.splitext(path)[0] + '_predictions.h5'
-                if self.output_dir is not None:
-                    out_file = os.path.join(self.output_dir, os.path.split(out_file)[1])
+                    # save to h5 file
+                    out_file = os.path.splitext(single_path)[0] + '_predictions.h5'
+                    if self.output_dir is not None:
+                        out_file = os.path.join(self.output_dir, os.path.split(out_file)[1])
 
-                with h5py.File(out_file, 'w') as f:
-                    logger.info(f'Saving output to {out_file}')
-                    f.create_dataset('predictions', data=pred, compression='gzip')
-                    if self.save_segmentation:
-                        f.create_dataset('segmentation', data=self._pmaps_to_seg(pred), compression='gzip')
+                    with h5py.File(out_file, 'w') as f:
+                        logger.info(f'Saving output to {out_file}')
+                        f.create_dataset('predictions', data=pred, compression='gzip')
+                        if self.save_segmentation:
+                            f.create_dataset('segmentation', data=self._pmaps_to_seg(pred), compression='gzip')
 
     def _pmaps_to_seg(self, pred):
         mask = (pred > self.pmaps_thershold).astype('uint8')

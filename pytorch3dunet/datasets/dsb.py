@@ -84,7 +84,7 @@ class DSB2018Dataset(ConfigDataset):
         if isinstance(batch[0], torch.Tensor):
             return torch.stack(batch, 0)
         elif isinstance(batch[0], str):
-            return batch[0]
+            return list(batch)
         elif isinstance(batch[0], collections.Sequence):
             # transpose tuples, i.e. [[1, 2], ['a', 'b']] to be [[1, 'a'], [2, 'b']]
             transposed = zip(*batch)
