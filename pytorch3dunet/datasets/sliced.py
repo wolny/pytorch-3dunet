@@ -48,7 +48,10 @@ class SlicedDataset(ConfigDataset):
 
         # load raw images transformer
         self.raw_transform = transformer.raw_transform()
-        self.label_transform = transformer.label_transform()
+        if 'label' in transformer_config:
+            self.label_transform = transformer.label_transform()
+        else:
+            self.label_transform = None
 
     def __getitem__(self, index):
         if index >= len(self):
@@ -57,7 +60,10 @@ class SlicedDataset(ConfigDataset):
         if self.phase == 'test':
             img = self.raw_images[index]
             label = self.label_images[index]
-            return self.raw_transform(img), self.label_transform(label), self.paths[index]
+            if self.label_transform is None:
+                return self.raw_transform(img), self.paths[index]
+            else:
+                return self.raw_transform(img), self.label_transform(label), self.paths[index]
         else:
             raise NotImplementedError()
 
