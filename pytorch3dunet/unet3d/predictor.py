@@ -313,7 +313,7 @@ class DSB2018Predictor(_AbstractPredictor):
                 # convert to numpy array
                 pred = pred.cpu().numpy().squeeze()
 
-                if test_loader.dataset.mirror_padding is not None:
+                if hasattr(test_loader.dataset, 'mirror_padding') and test_loader.dataset.mirror_padding is not None:
                     z_s, y_s, x_s = [self._slice_from_pad(p) for p in test_loader.dataset.mirror_padding]
                     pred = pred[y_s, x_s]
 
