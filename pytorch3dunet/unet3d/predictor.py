@@ -6,6 +6,7 @@ import hdbscan
 import numpy as np
 import torch
 from PIL import Image
+from skimage import measure
 from sklearn.cluster import MeanShift
 
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
@@ -285,8 +286,10 @@ class LazyPredictor(StandardPredictor):
 
 
 class DSB2018Predictor(_AbstractPredictor):
-    def __init__(self, model, output_dir, config, **kwargs):
+    def __init__(self, model, output_dir, config, save_segmentation=False, pmaps_thershold=0.5, **kwargs):
         super().__init__(model, output_dir, config, **kwargs)
+        self.pmaps_thershold = pmaps_thershold
+        self.save_segmentation = save_segmentation
 
     def _slice_from_pad(self, pad):
         if pad == 0:
@@ -316,10 +319,18 @@ class DSB2018Predictor(_AbstractPredictor):
 
                 # save to h5 file
                 out_file = os.path.splitext(path)[0] + '_predictions.h5'
-                out_file = os.path.join(self.output_dir, os.path.split(out_file)[1])
+                if self.output_dir is not None:
+                    out_file = os.path.join(self.output_dir, os.path.split(out_file)[1])
+
                 with h5py.File(out_file, 'w') as f:
                     logger.info(f'Saving output to {out_file}')
                     f.create_dataset('predictions', data=pred, compression='gzip')
+                    if self.save_segmentation:
+                        f.create_dataset('segmentation', data=self._pmaps_to_seg(pred), compression='gzip')
+
+    def _pmaps_to_seg(self, pred):
+        mask = (pred > self.pmaps_thershold).astype('uint8')
+        return measure.label(mask)
 
 
 class AnchorEmbeddingsPredictor(_AbstractPredictor):
