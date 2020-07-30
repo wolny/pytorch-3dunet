@@ -5,111 +5,19 @@ import torch.nn as nn
 from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from pytorch3dunet.datasets.utils import get_train_loaders
-from pytorch3dunet.embeddings.utils import extract_instance_masks, MeanEmbeddingAnchor, RandomEmbeddingAnchor
-from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss, _AbstractContrastiveLoss
-from pytorch3dunet.unet3d.metrics import get_evaluation_metric
-from pytorch3dunet.unet3d.model import get_model
-from pytorch3dunet.unet3d.utils import get_logger, get_number_of_learnable_parameters, create_optimizer, \
-    create_lr_scheduler, get_tensorboard_formatter, create_sample_plotter, RunningAverage, save_checkpoint, \
+from pytorch3dunet.embeddings.utils import extract_instance_masks, MeanEmbeddingAnchor, RandomEmbeddingAnchor, \
+    AbstractEmbeddingGANTrainerBuilder
+from pytorch3dunet.unet3d.losses import AuxContrastiveLoss, _AbstractContrastiveLoss
+from pytorch3dunet.unet3d.utils import get_logger, RunningAverage, save_checkpoint, \
     load_checkpoint
 
 logger = get_logger('GANTrainer')
 
 
-class EmbeddingGANTrainerBuilder:
+class EmbeddingGANTrainerBuilder(AbstractEmbeddingGANTrainerBuilder):
     @staticmethod
-    def build(config):
-        G = get_model(config['G_model'])
-        D = get_model(config['D_model'])
-        # use DataParallel if more than 1 GPU available
-        device = config['device']
-        if torch.cuda.device_count() > 1 and not device.type == 'cpu':
-            G = nn.DataParallel(G)
-            D = nn.DataParallel(D)
-            logger.info(f'Using {torch.cuda.device_count()} GPUs for training')
-
-        # put the model on GPUs
-        logger.info(f"Sending the G and D to '{config['device']}'")
-        G = G.to(device)
-        D = D.to(device)
-
-        # Log the number of learnable parameters
-        logger.info(f'Number of learnable params G: {get_number_of_learnable_parameters(G)}')
-        logger.info(f'Number of learnable params D: {get_number_of_learnable_parameters(D)}')
-
-        # Create loss criterion
-        G_loss_criterion = get_loss_criterion(config)
-        # Create evaluation metric
-        G_eval_criterion = get_evaluation_metric(config)
-
-        # Create data loaders
-        loaders = get_train_loaders(config)
-
-        # Create the optimizer
-        G_optimizer = create_optimizer(config['G_optimizer'], G)
-        D_optimizer = create_optimizer(config['D_optimizer'], D)
-
-        # Create learning rate adjustment strategy
-        G_lr_scheduler = create_lr_scheduler(config.get('G_lr_scheduler', None), G_optimizer)
-
-        trainer_config = config['trainer']
-        # get tensorboard formatter
-        tensorboard_formatter = get_tensorboard_formatter(trainer_config.pop('tensorboard_formatter', None))
-        # get sample plotter
-        sample_plotter = create_sample_plotter(trainer_config.pop('sample_plotter', None))
-
-        resume = trainer_config.get('resume', None)
-        pre_trained = trainer_config.get('pre_trained', None)
-
-        if resume is not None:
-            logger.info(f'Resuming training from: {resume}')
-            return EmbeddingGANTrainer.from_checkpoint(
-                G=G,
-                D=D,
-                G_optimizer=G_optimizer,
-                D_optimizer=D_optimizer,
-                G_lr_scheduler=G_lr_scheduler,
-                G_loss_criterion=G_loss_criterion,
-                G_eval_criterion=G_eval_criterion,
-                device=device,
-                loaders=loaders,
-                tensorboard_formatter=tensorboard_formatter,
-                sample_plotter=sample_plotter,
-                **trainer_config
-            )
-        elif pre_trained is not None:
-            logger.info(f'Using pretrained embedding model: {pre_trained}')
-            return EmbeddingGANTrainer.from_pretrained_emb(
-                G=G,
-                D=D,
-                G_optimizer=G_optimizer,
-                D_optimizer=D_optimizer,
-                G_lr_scheduler=G_lr_scheduler,
-                G_loss_criterion=G_loss_criterion,
-                G_eval_criterion=G_eval_criterion,
-                device=device,
-                loaders=loaders,
-                tensorboard_formatter=tensorboard_formatter,
-                sample_plotter=sample_plotter,
-                **trainer_config
-            )
-        else:
-            # Create model trainer
-            return EmbeddingGANTrainer(
-                G=G,
-                D=D,
-                G_optimizer=G_optimizer,
-                D_optimizer=D_optimizer,
-                G_lr_scheduler=G_lr_scheduler,
-                G_loss_criterion=G_loss_criterion,
-                G_eval_criterion=G_eval_criterion,
-                device=device,
-                loaders=loaders,
-                tensorboard_formatter=tensorboard_formatter,
-                sample_plotter=sample_plotter,
-                **trainer_config
-            )
+    def trainer_class():
+        return EmbeddingGANTrainer
 
 
 class EmbeddingGANTrainer:
