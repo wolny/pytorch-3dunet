@@ -103,6 +103,8 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
                         continue
                 else:
                     emb_loss = 0
+                    if fake_masks is None:
+                        continue
 
                 G_loss = self.D(fake_masks)
                 G_loss = G_loss.mean(dim=0)
@@ -233,8 +235,8 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
                 self.writer.add_scalar('train_D_loss', D_losses.avg, self.num_iterations)
                 self.writer.add_scalar('Wasserstein_distance', Wasserstein_dist.avg, self.num_iterations)
                 self.writer.add_scalar('D_real_cost', D_real_cost.avg, self.num_iterations)
-                self.writer.add_scalar('D_fake_source', D_fake_cost_source.avg, self.num_iterations)
-                self.writer.add_scalar('D_fake_target', D_fake_cost_target.avg, self.num_iterations)
+                self.writer.add_scalar('D_fake_cost_source', D_fake_cost_source.avg, self.num_iterations)
+                self.writer.add_scalar('D_fake_cost_target', D_fake_cost_target.avg, self.num_iterations)
 
                 inputs_map = {
                     'inputs': input,
