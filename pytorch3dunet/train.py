@@ -27,7 +27,8 @@ def main():
                                     'pytorch3dunet.unet3d.trainer',
                                     'pytorch3dunet.embeddings.wgantrainer',
                                     'pytorch3dunet.embeddings.gantrainer',
-                                    'pytorch3dunet.embeddings.origwgantrainer'
+                                    'pytorch3dunet.embeddings.origwgantrainer',
+                                    'pytorch3dunet.embeddings.wgantrainerda'
                                 ])
     trainer = trainer_builder.build(config)
     # Start training
