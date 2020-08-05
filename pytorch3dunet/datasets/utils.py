@@ -351,6 +351,9 @@ def get_test_loaders(config):
 
 
 def default_prediction_collate(batch):
+    """
+    Default collate_fn to form a mini-batch of Tensor(s) for HDF5 based datasets
+    """
     error_msg = "batch must contain tensors or slice; found {}"
     if isinstance(batch[0], torch.Tensor):
         return torch.stack(batch, 0)

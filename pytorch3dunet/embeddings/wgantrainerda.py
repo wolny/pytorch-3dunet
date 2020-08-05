@@ -26,9 +26,15 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
                 else:
                     return input
 
-        assert len(t) == 3, f"Expected tuple of size 3 (input, target, domain), but {len(t)} was given"
-        input, target, domain = _move_to_device(t)
-        return input, target, domain
+        if len(t) == 3:
+            # training phase
+            input, target, domain = _move_to_device(t)
+            return input, target, domain
+        elif len(t) == 2:
+            input, target = _move_to_device(t)
+            return input, target
+        else:
+            raise RuntimeError(f'Incorrect tuple size: {len(t)}')
 
     def train(self):
         """Trains the model for 1 epoch.
@@ -65,9 +71,11 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
 
             input, target, domain = self.split_training_batch(t)
             # 0 - source domain, 1 - target domain
+            # FIXME: in order to allow batches of size > 1 make sure that the batch comes from a single domain
+            assert self.batch_size(input) == 1, 'Only batch size of 1 supported for now'
 
             if self.num_iterations % self._D_iters() == 0:
-                logger.info(f'G; domain: {domain}')
+                logger.info(f'G; domain: {domain.item()}')
                 # update G network
                 self.freeze_D()
                 self.G_optimizer.zero_grad()
@@ -115,7 +123,7 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
                     # log params and gradients for G only cause D is frozen
                     self.log_params(self.G, 'G')
             else:
-                logger.info(f'D; domain: {domain}')
+                logger.info(f'D; domain: {domain.item()}')
                 # update D netowrk
                 self.D_optimizer.zero_grad()
 
@@ -134,13 +142,15 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
                                                                 self.label_smoothing)
 
                 if domain == 0:
-                    if real_masks is None or fake_masks is None:
+                    if real_masks is None:
                         # skip background patches
                         continue
-
-                if real_masks.size()[0] >= 40:
-                    # skip if there are too many instances in the patch in order to prevent CUDA OOM errors
-                    continue
+                    if real_masks.size()[0] >= 40:
+                        # skip if there are too many instances in the patch in order to prevent CUDA OOM errors
+                        continue
+                else:
+                    if fake_masks is None:
+                        continue
 
                 if domain == 0:
                     # train D with real masks only if we're in the source domain

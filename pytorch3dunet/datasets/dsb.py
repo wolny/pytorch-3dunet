@@ -12,6 +12,23 @@ from pytorch3dunet.unet3d.utils import get_logger
 logger = get_logger('DSB2018Dataset')
 
 
+def dsb_prediction_collate(batch):
+    """
+    Forms a mini-batch of (images, paths) during test time for the DSB-like datasets.
+    """
+    error_msg = "batch must contain tensors or str; found {}"
+    if isinstance(batch[0], torch.Tensor):
+        return torch.stack(batch, 0)
+    elif isinstance(batch[0], str):
+        return list(batch)
+    elif isinstance(batch[0], collections.Sequence):
+        # transpose tuples, i.e. [[1, 2], ['a', 'b']] to be [[1, 'a'], [2, 'b']]
+        transposed = zip(*batch)
+        return [dsb_prediction_collate(samples) for samples in transposed]
+
+    raise TypeError((error_msg.format(type(batch[0]))))
+
+
 class DSB2018Dataset(ConfigDataset):
     def __init__(self, root_dir, phase, transformer_config, mirror_padding=(0, 32, 32), expand_dims=True):
         assert os.path.isdir(root_dir), f'{root_dir} is not a directory'
@@ -80,17 +97,7 @@ class DSB2018Dataset(ConfigDataset):
 
     @classmethod
     def prediction_collate(cls, batch):
-        error_msg = "batch must contain tensors or str; found {}"
-        if isinstance(batch[0], torch.Tensor):
-            return torch.stack(batch, 0)
-        elif isinstance(batch[0], str):
-            return list(batch)
-        elif isinstance(batch[0], collections.Sequence):
-            # transpose tuples, i.e. [[1, 2], ['a', 'b']] to be [[1, 'a'], [2, 'b']]
-            transposed = zip(*batch)
-            return [cls.prediction_collate(samples) for samples in transposed]
-
-        raise TypeError((error_msg.format(type(batch[0]))))
+        return dsb_prediction_collate(batch)
 
     @classmethod
     def create_datasets(cls, dataset_config, phase):
