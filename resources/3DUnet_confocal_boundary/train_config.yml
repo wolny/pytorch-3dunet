@@ -10,6 +10,7 @@ eval_metric:
   use_first_input: true
   use_last_target: true
 loaders:
+  dataset: StandardHDF5Dataset
   batch_size: 4
   label_internal_path: /label
   num_workers: 8
