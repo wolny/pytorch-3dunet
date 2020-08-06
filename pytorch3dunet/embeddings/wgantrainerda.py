@@ -143,27 +143,20 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
                                                                 self.combine_masks,
                                                                 self.label_smoothing)
 
-                if domain == 0:
-                    if real_masks is None:
-                        # skip background patches
-                        continue
-                    if real_masks.size()[0] >= 40:
-                        # skip if there are too many instances in the patch in order to prevent CUDA OOM errors
-                        continue
-                else:
-                    if fake_masks is None:
-                        continue
+                if real_masks is None or fake_masks is None:
+                    # skip background patches
+                    continue
+                if real_masks.size()[0] >= 40:
+                    # skip if there are too many instances in the patch in order to prevent CUDA OOM errors
+                    continue
 
-                if domain == 0:
-                    # train D with real masks only if we're in the source domain
-                    D_real = self.D(real_masks)
-                    # average critic output across batch
-                    D_real = D_real.mean(dim=0)
-                    D_real.backward(mone)
-                    # update real costs
-                    D_real_cost.update(D_real.item(), self.batch_size(real_masks))
-                else:
-                    D_real = 0
+                # real masks should come from the source domain, loader will take care of that
+                D_real = self.D(real_masks)
+                # average critic output across batch
+                D_real = D_real.mean(dim=0)
+                D_real.backward(mone)
+                # update real costs
+                D_real_cost.update(D_real.item(), self.batch_size(real_masks))
 
                 # train D with fake masks no matter if we're in real or fake
                 D_fake = self.D(fake_masks)
@@ -176,18 +169,17 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
                 else:
                     D_fake_cost_target.update(D_fake.item(), self.batch_size(fake_masks))
 
-                if domain == 0:
-                    # train with gradient penalty
-                    gp = self._calc_gp(real_masks, fake_masks)
-                    gp.backward()
+                # train with gradient penalty
+                gp = self._calc_gp(real_masks, fake_masks)
+                gp.backward()
 
-                    D_cost = D_fake - D_real + gp
-                    Wasserstein_D = D_real - D_fake
+                D_cost = D_fake - D_real + gp
+                Wasserstein_D = D_real - D_fake
 
-                    # log D_cost and Wasserstein_dist only for samples from the source domain
-                    n_batch = 2 * self.batch_size(fake_masks)
-                    D_losses.update(D_cost.item(), n_batch)
-                    Wasserstein_dist.update(Wasserstein_D.item(), n_batch)
+                # log D_cost and Wasserstein_dist only for samples from the source domain
+                n_batch = 2 * self.batch_size(fake_masks)
+                D_losses.update(D_cost.item(), n_batch)
+                Wasserstein_dist.update(Wasserstein_D.item(), n_batch)
 
                 # update D's weights
                 self.D_optimizer.step()
