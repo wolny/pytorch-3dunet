@@ -101,9 +101,11 @@ class DSBRootDataset(ConfigDataset):
 
         if self.dsb_dataset.phase != 'test':
             if index < len(self.dsb_dataset):
+                # source domain
                 img, label = self.dsb_dataset[index]
                 domain = 0
             else:
+                # target domain
                 img, label = self.sliced_dataset[index - len(self.dsb_dataset)]
                 domain = 1
 
@@ -146,3 +148,25 @@ class DSBRootDataset(ConfigDataset):
         else:
             raise NotImplementedError()
 
+
+class DSBRootDatasetDA(DSBRootDataset):
+    def __getitem__(self, index):
+        if index >= len(self):
+            raise StopIteration
+
+        if self.dsb_dataset.phase != 'test':
+            if index < len(self.dsb_dataset):
+                # source domain
+                img, label_source = self.dsb_dataset[index]
+                label_target = 0
+                domain = 0
+            else:
+                # target domain
+                img, label_target = self.sliced_dataset[index - len(self.dsb_dataset)]
+                # randomly select the source label image
+                _, label_source = self.dsb_dataset[torch.randint(len(self.dsb_dataset), (1,))[0]]
+                domain = 1
+
+            return img, label_source, label_target, domain
+        else:
+            raise NotImplementedError()
