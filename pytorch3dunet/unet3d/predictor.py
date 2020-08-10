@@ -382,7 +382,7 @@ class AnchorEmbeddingsPredictor(_AbstractPredictor):
 
                     with h5py.File(out_file, 'w') as f:
                         logger.info(f'Saving output to {out_file}')
-                        f.create_dataset('raw', data=np.uint8(single_img.cpu().numpy()), compression='gzip')
+                        f.create_dataset('raw', data=np.uint8(single_img[0].cpu().numpy()), compression='gzip')
                         f.create_dataset('label', data=np.uint16(single_tar.cpu().numpy()), compression='gzip')
                         f.create_dataset('segmentation', data=np.uint16(single_seg.cpu().numpy()), compression='gzip')
 
