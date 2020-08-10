@@ -369,7 +369,7 @@ class AnchorEmbeddingsPredictor(_AbstractPredictor):
 
                 seg = self._emb_to_seg(emb, tar)
 
-                for single_emb, single_seg, single_path in zip(emb, seg, path):
+                for single_img, single_emb, single_seg, single_tar, single_path in zip(img, emb, seg, tar, path):
                     # save to h5 file
                     out_file = os.path.splitext(single_path)[0] + '_predictions.h5'
                     if self.output_dir is not None:
@@ -382,6 +382,8 @@ class AnchorEmbeddingsPredictor(_AbstractPredictor):
 
                     with h5py.File(out_file, 'w') as f:
                         logger.info(f'Saving output to {out_file}')
+                        f.create_dataset('raw', data=np.uint8(single_img.cpu().numpy()), compression='gzip')
+                        f.create_dataset('label', data=np.uint16(single_tar.cpu().numpy()), compression='gzip')
                         f.create_dataset('segmentation', data=np.uint16(single_seg.cpu().numpy()), compression='gzip')
 
     def _emb_to_seg(self, embeddings, target):
