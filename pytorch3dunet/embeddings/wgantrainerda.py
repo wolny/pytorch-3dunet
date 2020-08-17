@@ -38,13 +38,14 @@ def extract_real_masks(target, label_smoothing):
     return real_masks
 
 
-def extract_fake_masks(embeddings, dist_to_mask_fn, volume_threshold=0.01, min_size=50):
+def extract_fake_masks(embeddings, dist_to_mask_fn, volume_threshold=0.01, max_instances=40):
     fake_masks = []
 
     for emb in embeddings:
         visited = torch.ones(emb.shape[1:])
 
         fms = []
+        fms_sizes = []
         while visited.sum() > visited.numel() * volume_threshold:
             z, y, x = torch.nonzero(visited, as_tuple=True)
             ind = torch.randint(len(z), (1,))[0]
@@ -59,12 +60,15 @@ def extract_fake_masks(embeddings, dist_to_mask_fn, volume_threshold=0.01, min_s
             # convert distance map to instance pmaps
             inst_pmap = dist_to_mask_fn(dist_to_anchor)
 
-            if inst_mask.sum() > min_size:
-                # add channel dim and save fake masks only if bigger than the min_size
-                fms.append(inst_pmap.unsqueeze(0))
+            fms_sizes.append(inst_mask.sum())
+            fms.append(inst_pmap.unsqueeze(0))
 
             # update visited array
             visited[inst_mask] = 0
+
+        # get the biggest instances and limit the instances due to OOM errors
+        fms = [x for _, x in sorted(zip(fms_sizes, fms), key=lambda pair: pair[0])]
+        fms = fms[:max_instances]
 
         fake_masks.extend(fms)
 
