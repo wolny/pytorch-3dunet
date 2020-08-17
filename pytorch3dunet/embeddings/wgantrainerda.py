@@ -2,7 +2,8 @@ import torch
 from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from pytorch3dunet.embeddings.utils import extract_instance_masks, AbstractEmbeddingGANTrainerBuilder
+from pytorch3dunet.embeddings.utils import extract_instance_masks, AbstractEmbeddingGANTrainerBuilder, \
+    add_gaussian_noise
 from pytorch3dunet.embeddings.wgantrainer import EmbeddingWGANTrainer
 from pytorch3dunet.unet3d.utils import get_logger, RunningAverage
 
@@ -13,6 +14,62 @@ class DAEmbeddingWGANTrainerBuilder(AbstractEmbeddingGANTrainerBuilder):
     @staticmethod
     def trainer_class():
         return DAEmbeddingWGANTrainer
+
+
+def extract_real_masks(target, label_smoothing):
+    real_masks = []
+
+    for tar in target:
+        rms = []
+        for i in torch.unique(tar):
+            inst_mask = (tar == i).float()
+            if label_smoothing:
+                # add noise to instance mask to prevent discriminator from converging too quickly
+                inst_mask = add_gaussian_noise(inst_mask)
+                # clamp values
+                inst_mask.clamp_(0, 1)
+
+            # add channel dim and save real masks
+            rms.append(inst_mask.unsqueeze(0))
+
+        real_masks.extend(rms)
+
+    real_masks = torch.stack(real_masks).to(target.device)
+    return real_masks
+
+
+def extract_fake_masks(embeddings, dist_to_mask_fn, volume_threshold=0.01, min_size=50):
+    fake_masks = []
+
+    for emb in embeddings:
+        visited = torch.ones(emb.shape[1:])
+
+        fms = []
+        while visited.sum() > visited.numel() * volume_threshold:
+            z, y, x = torch.nonzero(visited, as_tuple=True)
+            ind = torch.randint(len(z), (1,))[0]
+            anchor_emb = emb[:, z[ind], y[ind], x[ind]]
+            # (E,) -> (E, 1, 1, 1)
+            anchor_emb = anchor_emb[..., None, None, None]
+
+            # compute distance map; embeddings is ExSPATIAL, anchor_embeddings is ExSINGLETON_SPATIAL, so we can just broadcast
+            dist_to_anchor = torch.norm(emb - anchor_emb, 'fro', dim=0)
+            # TODO: get the threshold as a dist_var from the Contrastive Loss
+            inst_mask = dist_to_anchor < 0.5
+            # convert distance map to instance pmaps
+            inst_pmap = dist_to_mask_fn(dist_to_anchor)
+
+            if inst_mask.sum() > min_size:
+                # add channel dim and save fake masks only if bigger than the min_size
+                fms.append(inst_pmap.unsqueeze(0))
+
+            # update visited array
+            visited[inst_mask] = 0
+
+        fake_masks.extend(fms)
+
+    fake_masks = torch.stack(fake_masks).to(embeddings.device)
+    return fake_masks
 
 
 class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
@@ -88,13 +145,9 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
                 output = self.G(input)
 
                 # compute real and fake masks
-                # TODO: solve anchor extraction when the target is None
                 # real_masks are not used in the G update phase, but are needed for tensorboard logging later
-                real_masks, fake_masks = extract_instance_masks(output, target,
-                                                                self.anchor_embeddings_extractor,
-                                                                self.dist_to_mask,
-                                                                self.combine_masks,
-                                                                self.label_smoothing)
+                real_masks = extract_real_masks(target, self.label_smoothing)
+                fake_masks = extract_fake_masks(output, self.dist_to_mask)
 
                 if domain == 0:
                     # compute embedding loss
@@ -140,12 +193,8 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
 
                 output = output.detach()  # make sure that G is not updated
 
-                # create real and fake instance masks
-                real_masks, fake_masks = extract_instance_masks(output, target,
-                                                                self.anchor_embeddings_extractor,
-                                                                self.dist_to_mask,
-                                                                self.combine_masks,
-                                                                self.label_smoothing)
+                real_masks = extract_real_masks(target, self.label_smoothing)
+                fake_masks = extract_fake_masks(output, self.dist_to_mask)
 
                 if real_masks is None or fake_masks is None:
                     # skip background patches
@@ -254,6 +303,30 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
             self.num_iterations += 1
 
         return False
+
+    def _calc_gp(self, real_masks, fake_masks):
+        # align real and fake masks
+        n_batch = min(real_masks.size(0), fake_masks.size(0))
+
+        real_masks = real_masks[:n_batch]
+        fake_masks = fake_masks[:n_batch]
+
+        alpha = torch.rand(n_batch, 1, 1, 1, 1)
+        alpha = alpha.expand_as(real_masks)
+        alpha = alpha.to(real_masks.device)
+
+        interpolates = alpha * real_masks + ((1 - alpha) * fake_masks)
+        interpolates.requires_grad = True
+
+        disc_interpolates = self.D(interpolates)
+
+        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+                                  grad_outputs=torch.ones(disc_interpolates.size()).to(real_masks.device),
+                                  create_graph=True, retain_graph=True, only_inputs=True)[0]
+        gradients = gradients.view(gradients.size(0), -1)
+
+        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * self.gp_lambda
+        return gradient_penalty
 
 
 class DAEmbeddingWGANTrainerTargetBuilder(AbstractEmbeddingGANTrainerBuilder):
@@ -556,27 +629,3 @@ class DAEmbeddingWGANTargetTrainer(DAEmbeddingWGANTrainer):
 
         real_masks = torch.stack(real_masks).to(target.device)
         return real_masks
-
-    def _calc_gp(self, real_masks, fake_masks):
-        # align real and fake masks
-        n_batch = min(real_masks.size(0), fake_masks.size(0))
-
-        real_masks = real_masks[:n_batch]
-        fake_masks = fake_masks[:n_batch]
-
-        alpha = torch.rand(n_batch, 1, 1, 1, 1)
-        alpha = alpha.expand_as(real_masks)
-        alpha = alpha.to(real_masks.device)
-
-        interpolates = alpha * real_masks + ((1 - alpha) * fake_masks)
-        interpolates.requires_grad = True
-
-        disc_interpolates = self.D(interpolates)
-
-        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
-                                  grad_outputs=torch.ones(disc_interpolates.size()).to(real_masks.device),
-                                  create_graph=True, retain_graph=True, only_inputs=True)[0]
-        gradients = gradients.view(gradients.size(0), -1)
-
-        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * self.gp_lambda
-        return gradient_penalty

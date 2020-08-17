@@ -63,11 +63,6 @@ def extract_instance_masks(embeddings, target, anchor_embeddings_extractor, dist
     and whether to combine the masks or not (combine_masks)
     """
 
-    def _add_noise(mask, sigma=0.05):
-        gaussian_noise = torch.randn(mask.size()).to(mask.device) * sigma
-        mask += gaussian_noise
-        return mask
-
     # iterate over batch
     real_masks = []
     fake_masks = []
@@ -93,7 +88,7 @@ def extract_instance_masks(embeddings, target, anchor_embeddings_extractor, dist
             inst_mask = (tar == i).float()
             if label_smoothing:
                 # add noise to instance mask to prevent discriminator from converging too quickly
-                inst_mask = _add_noise(inst_mask)
+                inst_mask = add_gaussian_noise(inst_mask)
                 # clamp values
                 inst_mask.clamp_(0, 1)
 
@@ -107,7 +102,7 @@ def extract_instance_masks(embeddings, target, anchor_embeddings_extractor, dist
 
             real_mask = (tar > 0).float()
             real_mask = real_mask.unsqueeze(0)
-            real_mask = _add_noise(real_mask)
+            real_mask = add_gaussian_noise(real_mask)
             real_mask.clamp_(0, 1)
 
             real_masks.append(real_mask)
@@ -122,6 +117,13 @@ def extract_instance_masks(embeddings, target, anchor_embeddings_extractor, dist
     real_masks = torch.stack(real_masks).to(embeddings.device)
     fake_masks = torch.stack(fake_masks).to(embeddings.device)
     return real_masks, fake_masks
+
+
+def add_gaussian_noise(mask, sigma=0.05):
+    """Used for label smoothing"""
+    gaussian_noise = torch.randn(mask.size()).to(mask.device) * sigma
+    mask += gaussian_noise
+    return mask
 
 
 logger = get_logger('AbstractGANTrainer')

@@ -9,6 +9,7 @@ from PIL import Image
 from skimage import measure
 from sklearn.cluster import MeanShift
 
+from pytorch3dunet.datasets.dsb import DSB2018Dataset
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
 from pytorch3dunet.datasets.sliced import SlicedDataset
 from pytorch3dunet.datasets.utils import SliceBuilder
@@ -335,6 +336,42 @@ class DSB2018Predictor(_AbstractPredictor):
         return measure.label(mask).astype('uint16')
 
 
+class DSBEmbeddingsPredictor(_AbstractPredictor):
+    def __init__(self, model, output_dir, config, **kwargs):
+        super().__init__(model, output_dir, config, **kwargs)
+
+    def __call__(self, test_loader):
+        assert isinstance(test_loader.dataset, DSB2018Dataset)
+        device = self.config['device']
+        # Sets the module in evaluation mode explicitly
+        self.model.eval()
+        self.model.testing = True
+        # Run predictions on the entire input dataset
+        with torch.no_grad():
+            for img, path in test_loader:
+                logger.info(f'Processing {path}')
+                # send batch to device
+                img = img.to(device)
+                # forward pass
+                emb = self.model(img)
+
+                for single_img, single_emb, single_path in zip(img, emb, path):
+                    # save to h5 file
+                    out_file = os.path.splitext(single_path)[0] + '_predictions.h5'
+                    if self.output_dir is not None:
+                        out_file = os.path.join(self.output_dir, os.path.split(out_file)[1])
+
+                    # save PNG with PCA projected embeddings
+                    embeddings_numpy = np.squeeze(single_emb.cpu().numpy())
+                    rgb_img = pca_project(embeddings_numpy)
+                    Image.fromarray(np.rollaxis(rgb_img, 0, 3)).save(os.path.splitext(out_file)[0] + '.png')
+
+                    with h5py.File(out_file, 'w') as f:
+                        logger.info(f'Saving output to {out_file}')
+                        f.create_dataset('raw', data=np.uint8(single_img[0].cpu().numpy()), compression='gzip')
+                        f.create_dataset('embeddings', data=single_emb.cpu().numpy(), compression='gzip')
+
+
 class AnchorEmbeddingsPredictor(_AbstractPredictor):
     def __init__(self, model, output_dir, config, epsilon, anchor_extraction='mean', norm='fro', **kwargs):
         super().__init__(model, output_dir, config, **kwargs)
@@ -385,6 +422,7 @@ class AnchorEmbeddingsPredictor(_AbstractPredictor):
                         f.create_dataset('raw', data=np.uint8(single_img[0].cpu().numpy()), compression='gzip')
                         f.create_dataset('label', data=np.uint16(single_tar.cpu().numpy()), compression='gzip')
                         f.create_dataset('segmentation', data=np.uint16(single_seg.cpu().numpy()), compression='gzip')
+                        f.create_dataset('embeddings', data=single_emb.cpu().numpy(), compression='gzip')
 
     def _emb_to_seg(self, embeddings, target):
         # iterate over batch dimension
