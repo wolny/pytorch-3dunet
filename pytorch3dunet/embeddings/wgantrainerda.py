@@ -46,7 +46,7 @@ def extract_fake_masks(embeddings, dist_to_mask_fn, volume_threshold=0.01, max_i
 
         fms = []
         num_instances = 0
-        while visited.sum() > visited.numel() * volume_threshold or num_instances < max_instances:
+        while visited.sum() > visited.numel() * volume_threshold and num_instances < max_instances:
             z, y, x = torch.nonzero(visited, as_tuple=True)
             ind = torch.randint(len(z), (1,))[0]
             anchor_emb = emb[:, z[ind], y[ind], x[ind]]
