@@ -38,7 +38,7 @@ def extract_real_masks(target, label_smoothing):
     return real_masks
 
 
-def extract_fake_masks(embeddings, dist_to_mask_fn, volume_threshold=0.01, max_instances=40, min_size=100):
+def extract_fake_masks(embeddings, dist_to_mask_fn, volume_threshold=0.01, max_instances=40):
     fake_masks = []
 
     for emb in embeddings:
@@ -59,14 +59,12 @@ def extract_fake_masks(embeddings, dist_to_mask_fn, volume_threshold=0.01, max_i
             inst_mask = dist_to_anchor < 0.5
             # convert distance map to instance pmaps
             inst_pmap = dist_to_mask_fn(dist_to_anchor)
-
-            if inst_mask.sum() >= min_size:
-                # save the mask only if bigger than the min_size
-                fms.append(inst_pmap.unsqueeze(0))
-                # update visited array
-                visited[inst_mask] = 0
-                # update instance count
-                num_instances += 1
+            # add channel dim and save the mask
+            fms.append(inst_pmap.unsqueeze(0))
+            # update visited array
+            visited[inst_mask] = 0
+            # update instance count
+            num_instances += 1
 
         fake_masks.extend(fms)
 
