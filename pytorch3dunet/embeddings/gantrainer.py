@@ -37,15 +37,15 @@ class EmbeddingGANTrainer(AbstractEmbeddingGANTrainer):
         self.bce_loss = nn.BCELoss()
 
     @classmethod
-    def from_checkpoint(cls, checkpoint_path, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion,
+    def from_checkpoint(cls, resume, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion,
                         G_eval_criterion, loaders, tensorboard_formatter=None, sample_plotter=None, **kwargs):
-        logger.info(f"Loading checkpoint '{checkpoint_path}'...")
-        state = load_checkpoint(checkpoint_path, G, G_optimizer)
-        _ = load_checkpoint(checkpoint_path, D, D_optimizer, model_key='D_model_state_dict',
+        logger.info(f"Loading checkpoint '{resume}'...")
+        state = load_checkpoint(resume, G, G_optimizer)
+        _ = load_checkpoint(resume, D, D_optimizer, model_key='D_model_state_dict',
                             optimizer_key='D_optimizer_state_dict')
         logger.info(
             f"Checkpoint loaded. Epoch: {state['epoch']}. Best val score: {state['best_eval_score']}. Num_iterations: {state['num_iterations']}")
-        checkpoint_dir = os.path.split(checkpoint_path)[0]
+        checkpoint_dir = os.path.split(resume)[0]
         return cls(G, D, G_optimizer, D_optimizer, G_lr_scheduler,
                    G_loss_criterion, G_eval_criterion,
                    torch.device(state['device']),

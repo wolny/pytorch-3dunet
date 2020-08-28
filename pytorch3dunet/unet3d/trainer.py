@@ -185,13 +185,13 @@ class UNet3DTrainer:
         self.skip_train_validation = skip_train_validation
 
     @classmethod
-    def from_checkpoint(cls, checkpoint_path, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders,
+    def from_checkpoint(cls, resume, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders,
                         tensorboard_formatter=None, sample_plotter=None, **kwargs):
-        logger.info(f"Loading checkpoint '{checkpoint_path}'...")
-        state = utils.load_checkpoint(checkpoint_path, model, optimizer)
+        logger.info(f"Loading checkpoint '{resume}'...")
+        state = utils.load_checkpoint(resume, model, optimizer)
         logger.info(
             f"Checkpoint loaded. Epoch: {state['epoch']}. Best val score: {state['best_eval_score']}. Num_iterations: {state['num_iterations']}")
-        checkpoint_dir = os.path.split(checkpoint_path)[0]
+        checkpoint_dir = os.path.split(resume)[0]
         return cls(model, optimizer, lr_scheduler,
                    loss_criterion, eval_criterion,
                    torch.device(state['device']),

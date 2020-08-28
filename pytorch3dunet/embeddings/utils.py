@@ -316,7 +316,7 @@ class AbstractEmbeddingGANTrainer:
                    **kwargs)
 
     @classmethod
-    def from_checkpoint(cls, checkpoint_path,
+    def from_checkpoint(cls, resume,
                         G, D,
                         G_optimizer, D_optimizer, G_lr_scheduler,
                         G_loss_criterion, G_eval_criterion,

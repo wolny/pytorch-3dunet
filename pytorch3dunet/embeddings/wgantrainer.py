@@ -34,19 +34,19 @@ class EmbeddingWGANTrainer(AbstractEmbeddingGANTrainer):
         self.critic_iters = critic_iters
 
     @classmethod
-    def from_checkpoint(cls, checkpoint_path, G, D, G_optimizer, D_optimizer, G_lr_scheduler,
+    def from_checkpoint(cls, resume, G, D, G_optimizer, D_optimizer, G_lr_scheduler,
                         G_loss_criterion, G_eval_criterion, loaders,
                         tensorboard_formatter=None, sample_plotter=None, **kwargs):
-        logger.info(f"Loading checkpoint '{checkpoint_path}'...")
+        logger.info(f"Loading checkpoint '{resume}'...")
         # load generator, i.e. embedding model
-        state = load_checkpoint(checkpoint_path, G, optimizer=G_optimizer,
+        state = load_checkpoint(resume, G, optimizer=G_optimizer,
                                 model_key='model_state_dict', optimizer_key='optimizer_state_dict')
         # load critic
-        state = load_checkpoint(checkpoint_path, D, optimizer=D_optimizer,
+        state = load_checkpoint(resume, D, optimizer=D_optimizer,
                                 model_key='D_model_state_dict', optimizer_key='D_optimizer_state_dict')
         logger.info(
             f"Checkpoint loaded. Epoch: {state['epoch']}. Best val score: {state['best_eval_score']}. Num_iterations: {state['num_iterations']}")
-        checkpoint_dir = os.path.split(checkpoint_path)[0]
+        checkpoint_dir = os.path.split(resume)[0]
         return cls(G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
                    torch.device(state['device']), loaders, checkpoint_dir,
                    kwargs['gp_lambda'], kwargs['gan_loss_weight'], kwargs['critic_iters'], kwargs['combine_masks'],
