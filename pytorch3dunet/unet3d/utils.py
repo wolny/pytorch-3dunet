@@ -470,6 +470,9 @@ def plot_emb(inp, emb, seg, tar, file_path):
 
     mid_z = seg.shape[0] // 2
 
+    if emb.ndim == 4:
+        emb = emb[:, mid_z, ...]
+
     rgb_emb = pca_project(np.squeeze(emb))
     rgb_emb = np.transpose(rgb_emb, (1, 2, 0))
 
