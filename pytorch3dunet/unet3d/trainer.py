@@ -207,8 +207,7 @@ class UNet3DTrainer:
                    validate_iters=state['validate_iters'],
                    skip_train_validation=state.get('skip_train_validation', False),
                    tensorboard_formatter=tensorboard_formatter,
-                   sample_plotter=sample_plotter,
-                   **kwargs)
+                   sample_plotter=sample_plotter)
 
     @classmethod
     def from_pretrained(cls, pre_trained, model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
@@ -239,8 +238,7 @@ class UNet3DTrainer:
                    validate_iters=validate_iters,
                    tensorboard_formatter=tensorboard_formatter,
                    sample_plotter=sample_plotter,
-                   skip_train_validation=skip_train_validation,
-                   **kwargs)
+                   skip_train_validation=skip_train_validation)
 
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
