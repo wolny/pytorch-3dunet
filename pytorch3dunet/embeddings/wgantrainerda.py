@@ -1,5 +1,4 @@
 import torch
-from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch3dunet.embeddings.utils import AbstractEmbeddingGANTrainerBuilder, \
@@ -247,30 +246,6 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
             self.num_iterations += 1
 
         return False
-
-    def _calc_gp(self, real_masks, fake_masks):
-        # align real and fake masks
-        n_batch = min(real_masks.size(0), fake_masks.size(0))
-
-        real_masks = real_masks[:n_batch]
-        fake_masks = fake_masks[:n_batch]
-
-        alpha = torch.rand(n_batch, 1, 1, 1, 1)
-        alpha = alpha.expand_as(real_masks)
-        alpha = alpha.to(real_masks.device)
-
-        interpolates = alpha * real_masks + ((1 - alpha) * fake_masks)
-        interpolates.requires_grad = True
-
-        disc_interpolates = self.D(interpolates)
-
-        gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
-                                  grad_outputs=torch.ones(disc_interpolates.size()).to(real_masks.device),
-                                  create_graph=True, retain_graph=True, only_inputs=True)[0]
-        gradients = gradients.view(gradients.size(0), -1)
-
-        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * self.gp_lambda
-        return gradient_penalty
 
 
 class DAEmbeddingWGANTrainerTargetBuilder(AbstractEmbeddingGANTrainerBuilder):

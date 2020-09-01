@@ -250,7 +250,11 @@ class EmbeddingWGANTrainer(AbstractEmbeddingGANTrainer):
         return self.critic_iters + 1
 
     def _calc_gp(self, real_masks, fake_masks):
-        n_batch = real_masks.size(0)
+        # align real and fake masks
+        n_batch = min(real_masks.size(0), fake_masks.size(0))
+
+        real_masks = real_masks[:n_batch]
+        fake_masks = fake_masks[:n_batch]
 
         alpha = torch.rand(n_batch, 1, 1, 1, 1)
         alpha = alpha.expand_as(real_masks)

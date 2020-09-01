@@ -51,6 +51,7 @@ class AbstractMaskExtractor:
         return fake_masks
 
     def extract_masks(self, embeddings, labels=None):
+        """Extract mask from a single batch instance"""
         raise NotImplementedError
 
 
@@ -93,3 +94,48 @@ class TargetMeanMaskExtractor(TargetBasedMaskExtractor):
 class TargetRandomMaskExtractor(TargetBasedMaskExtractor):
     def __init__(self, dist_to_mask, combine_masks):
         super().__init__(dist_to_mask, combine_masks, RandomEmbeddingAnchor())
+
+
+def extract_fake_masks(emb, dist_to_mask, volume_threshold=0.1, max_instances=40, max_iterations=100):
+    # initialize the volume in order to track visited voxels
+    visited = torch.ones(emb.shape[1:])
+
+    results = []
+    mask_sizes = []
+    while visited.sum() > visited.numel() * volume_threshold and len(results) < max_iterations:
+        z, y, x = torch.nonzero(visited, as_tuple=True)
+        ind = torch.randint(len(z), (1,))[0]
+        anchor_emb = emb[:, z[ind], y[ind], x[ind]]
+        # (E,) -> (E, 1, 1, 1)
+        anchor_emb = anchor_emb[..., None, None, None]
+
+        # compute distance map; embeddings is ExSPATIAL, anchor_embeddings is ExSINGLETON_SPATIAL, so we can just broadcast
+        dist_to_anchor = torch.norm(emb - anchor_emb, 'fro', dim=0)
+        # TODO: get the threshold as a dist_var from the Contrastive Loss
+        inst_mask = dist_to_anchor < 0.5
+        # convert distance map to instance pmaps
+        inst_pmap = dist_to_mask(dist_to_anchor)
+
+        mask_sizes.append(inst_mask.sum())
+        results.append(inst_pmap.unsqueeze(0))
+
+        # update visited array
+        visited[inst_mask] = 0
+
+    # get the biggest instances and limit the instances due to OOM errors
+    results = [x for _, x in sorted(zip(mask_sizes, results), key=lambda pair: pair[0])]
+    results = results[:max_instances]
+
+    return results
+
+
+class RandomMaskExtractor(AbstractMaskExtractor):
+    """Ignores the target and extracts the instance masks based on the embeddings only.
+    Repeatedly takes a random anchor and extracts an instance until the whole volume is filled.
+    """
+
+    def __init__(self, dist_to_mask, combine_masks):
+        super().__init__(dist_to_mask, combine_masks)
+
+    def extract_masks(self, embeddings, labels=None):
+        return extract_fake_masks(embeddings, self.dist_to_mask)
