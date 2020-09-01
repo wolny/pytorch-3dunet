@@ -362,6 +362,46 @@ def check_consecutive(labels):
     return (labels[0] == 0) and (diff == 1).all()
 
 
+def compute_cluster_means(input_, target, spatial_ndim):
+    """
+    Computes mean embeddings per instance, embeddings withing a given instance and the number of voxels per instance.
+
+    C - number of instances
+    E - embedding dimension
+    SPATIAL - volume shape, i.e. DxHxW for 3D/ HxW for 2D
+
+    Args:
+        input_: tensor of pixel embeddings, shape: ExSPATIAL
+        target: one-hot encoded target instances, shape: CxSPATIAL
+        spatial_ndim: rank of the spacial tensor
+    """
+    dim_arg = (2, 3) if spatial_ndim == 2 else (2, 3, 4)
+
+    embedding_dim = input_.size()[0]
+
+    # get number of voxels in each cluster output: Cx1x1(SPATIAL)
+    num_voxels_per_instance = torch.sum(target, dim=dim_arg, keepdim=True)
+
+    # expand target: Cx1xSPATIAL -> CxExSPATIAL
+    shape = list(target.size())
+    shape[1] = embedding_dim
+    target = target.expand(shape)
+
+    # expand input_: ExSPATIAL -> 1xExSPATIAL
+    input_ = input_.unsqueeze(0)
+
+    # sum embeddings in each instance (multiply first via broadcasting); embeddings_per_instance shape CxExSPATIAL
+    embeddings_per_instance = input_ * target
+    # num's shape: CxEx1(SPATIAL)
+    num = torch.sum(embeddings_per_instance, dim=dim_arg, keepdim=True)
+
+    # compute mean embeddings per instance CxEx1(SPATIAL)
+    mean_embeddings = num / num_voxels_per_instance
+
+    # return mean embeddings and additional tensors needed for further computations
+    return mean_embeddings, embeddings_per_instance, num_voxels_per_instance
+
+
 class _AbstractContrastiveLoss(nn.Module):
     """
     Implementation of contrastive loss defined in https://arxiv.org/pdf/1708.02551.pdf
@@ -385,46 +425,6 @@ class _AbstractContrastiveLoss(nn.Module):
         self.ignore_zero_in_variance = ignore_zero_in_variance
         self.ignore_zero_in_distance = ignore_zero_in_distance
         self.aux_loss_ignore_zero = aux_loss_ignore_zero
-
-    @staticmethod
-    def _compute_cluster_means(input_, target, spatial_ndim):
-        """
-        Computes mean embeddings per instance, embeddings withing a given instance and the number of voxels per instance.
-
-        C - number of instances
-        E - embedding dimension
-        SPATIAL - volume shape, i.e. DxHxW for 3D/ HxW for 2D
-
-        Args:
-            input_: tensor of pixel embeddings, shape: ExSPATIAL
-            target: one-hot encoded target instances, shape: CxSPATIAL
-            spatial_ndim: rank of the spacial tensor
-        """
-        dim_arg = (2, 3) if spatial_ndim == 2 else (2, 3, 4)
-
-        embedding_dim = input_.size()[0]
-
-        # get number of voxels in each cluster output: Cx1x1(SPATIAL)
-        num_voxels_per_instance = torch.sum(target, dim=dim_arg, keepdim=True)
-
-        # expand target: Cx1xSPATIAL -> CxExSPATIAL
-        shape = list(target.size())
-        shape[1] = embedding_dim
-        target = target.expand(shape)
-
-        # expand input_: ExSPATIAL -> 1xExSPATIAL
-        input_ = input_.unsqueeze(0)
-
-        # sum embeddings in each instance (multiply first via broadcasting); embeddings_per_instance shape CxExSPATIAL
-        embeddings_per_instance = input_ * target
-        # num's shape: CxEx1(SPATIAL)
-        num = torch.sum(embeddings_per_instance, dim=dim_arg, keepdim=True)
-
-        # compute mean embeddings per instance CxEx1(SPATIAL)
-        mean_embeddings = num / num_voxels_per_instance
-
-        # return mean embeddings and additional tensors needed for further computations
-        return mean_embeddings, embeddings_per_instance, num_voxels_per_instance
 
     def _compute_variance_term(self, cluster_means, embeddings_per_instance, target, num_voxels_per_instance, C,
                                spatial_ndim, ignore_zero_label):
@@ -597,9 +597,9 @@ class _AbstractContrastiveLoss(nn.Module):
             # expand target: CxSPATIAL -> Cx1xSPATIAL for further computation
             single_target = single_target.unsqueeze(1)
             # compute mean embeddings, assign embeddings to instances and get the number of voxels per instance
-            cluster_means, embeddings_per_instance, num_voxels_per_instance = self._compute_cluster_means(single_input,
-                                                                                                          single_target,
-                                                                                                          spatial_dims)
+            cluster_means, embeddings_per_instance, num_voxels_per_instance = compute_cluster_means(single_input,
+                                                                                                    single_target,
+                                                                                                    spatial_dims)
 
             # compute variance term, i.e. pull force
             variance_term = self._compute_variance_term(cluster_means, embeddings_per_instance,

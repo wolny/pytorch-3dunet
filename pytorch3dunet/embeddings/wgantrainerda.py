@@ -2,8 +2,8 @@ import torch
 from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from pytorch3dunet.embeddings.utils import extract_instance_masks, AbstractEmbeddingGANTrainerBuilder, \
-    add_gaussian_noise
+from pytorch3dunet.embeddings.utils import AbstractEmbeddingGANTrainerBuilder, \
+    create_real_masks
 from pytorch3dunet.embeddings.wgantrainer import EmbeddingWGANTrainer
 from pytorch3dunet.unet3d.utils import get_logger, RunningAverage
 
@@ -14,62 +14,6 @@ class DAEmbeddingWGANTrainerBuilder(AbstractEmbeddingGANTrainerBuilder):
     @staticmethod
     def trainer_class():
         return DAEmbeddingWGANTrainer
-
-
-def extract_real_masks(target, label_smoothing):
-    real_masks = []
-
-    for tar in target:
-        rms = []
-        for i in torch.unique(tar):
-            inst_mask = (tar == i).float()
-            if label_smoothing:
-                # add noise to instance mask to prevent discriminator from converging too quickly
-                inst_mask = add_gaussian_noise(inst_mask)
-                # clamp values
-                inst_mask.clamp_(0, 1)
-
-            # add channel dim and save real masks
-            rms.append(inst_mask.unsqueeze(0))
-
-        real_masks.extend(rms)
-
-    real_masks = torch.stack(real_masks).to(target.device)
-    return real_masks
-
-
-def extract_fake_masks(embeddings, dist_to_mask_fn, volume_threshold=0.01, max_instances=40):
-    fake_masks = []
-
-    for emb in embeddings:
-        visited = torch.ones(emb.shape[1:])
-
-        fms = []
-        num_instances = 0
-        while visited.sum() > visited.numel() * volume_threshold and num_instances < max_instances:
-            z, y, x = torch.nonzero(visited, as_tuple=True)
-            ind = torch.randint(len(z), (1,))[0]
-            anchor_emb = emb[:, z[ind], y[ind], x[ind]]
-            # (E,) -> (E, 1, 1, 1)
-            anchor_emb = anchor_emb[..., None, None, None]
-
-            # compute distance map; embeddings is ExSPATIAL, anchor_embeddings is ExSINGLETON_SPATIAL, so we can just broadcast
-            dist_to_anchor = torch.norm(emb - anchor_emb, 'fro', dim=0)
-            # TODO: get the threshold as a dist_var from the Contrastive Loss
-            inst_mask = dist_to_anchor < 0.5
-            # convert distance map to instance pmaps
-            inst_pmap = dist_to_mask_fn(dist_to_anchor)
-            # add channel dim and save the mask
-            fms.append(inst_pmap.unsqueeze(0))
-            # update visited array
-            visited[inst_mask] = 0
-            # update instance count
-            num_instances += 1
-
-        fake_masks.extend(fms)
-
-    fake_masks = torch.stack(fake_masks).to(embeddings.device)
-    return fake_masks
 
 
 class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
@@ -146,8 +90,8 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
 
                 # compute real and fake masks
                 # real_masks are not used in the G update phase, but are needed for tensorboard logging later
-                real_masks = extract_real_masks(target, self.label_smoothing)
-                fake_masks = extract_fake_masks(output, self.dist_to_mask)
+                real_masks = create_real_masks(target, self.label_smoothing, self.combine_masks)
+                fake_masks = self.fake_mask_extractor(output, target)
 
                 if domain == 0:
                     # compute embedding loss
@@ -193,8 +137,8 @@ class DAEmbeddingWGANTrainer(EmbeddingWGANTrainer):
 
                 output = output.detach()  # make sure that G is not updated
 
-                real_masks = extract_real_masks(target, self.label_smoothing)
-                fake_masks = extract_fake_masks(output, self.dist_to_mask)
+                real_masks = create_real_masks(target, self.label_smoothing, self.combine_masks)
+                fake_masks = self.fake_mask_extractor(output, target)
 
                 if real_masks is None or fake_masks is None:
                     # skip background patches
@@ -415,13 +359,9 @@ class DAEmbeddingWGANTargetTrainer(DAEmbeddingWGANTrainer):
                     target_instances = target_1
 
                 # compute real and fake masks
-                # TODO: solve anchor extraction when the target is None
                 # real_masks are not used in the G update phase, but are needed for tensorboard logging later
-                real_masks, fake_masks = extract_instance_masks(output, target_instances,
-                                                                self.anchor_embeddings_extractor,
-                                                                self.dist_to_mask,
-                                                                self.combine_masks,
-                                                                self.label_smoothing)
+                real_masks = create_real_masks(target, self.label_smoothing, self.combine_masks)
+                fake_masks = self.fake_mask_extractor(output, target_instances)
 
                 if domain == 0:
                     # compute embedding loss
@@ -477,15 +417,11 @@ class DAEmbeddingWGANTargetTrainer(DAEmbeddingWGANTrainer):
 
                 output = output.detach()  # make sure that G is not updated
 
-                # create fake instance masks coming from the target domain
-                _, fake_masks = extract_instance_masks(output, target_1,
-                                                       self.anchor_embeddings_extractor,
-                                                       self.dist_to_mask,
-                                                       self.combine_masks,
-                                                       self.label_smoothing)
+                # create fake instance masks coming from the *target* domain
+                fake_masks = self.fake_mask_extractor(output, target_1)
 
                 # create real instance masks coming from the *source* domain
-                real_masks = self._extract_real_masks(target, self.combine_masks, self.label_smoothing)
+                real_masks = create_real_masks(target, self.label_smoothing, self.combine_masks)
 
                 if real_masks is None or fake_masks is None:
                     # skip background patches
@@ -589,43 +525,3 @@ class DAEmbeddingWGANTargetTrainer(DAEmbeddingWGANTrainer):
             self.num_iterations += 1
 
         return False
-
-    @staticmethod
-    def _extract_real_masks(target, combine_masks, label_smoothing):
-        def _add_noise(mask, sigma=0.05):
-            gaussian_noise = torch.randn(mask.size()).to(mask.device) * sigma
-            mask += gaussian_noise
-            return mask
-
-        real_masks = []
-        for tar in target:
-            rms = []
-            for i in torch.unique(tar):
-                if i == 0:
-                    # ignore 0-label
-                    continue
-
-                inst_mask = (tar == i).float()
-                if label_smoothing:
-                    # add noise to instance mask to prevent discriminator from converging too quickly
-                    inst_mask = _add_noise(inst_mask)
-                    # clamp values
-                    inst_mask.clamp_(0, 1)
-
-                # add channel dim and save real masks
-                rms.append(inst_mask.unsqueeze(0))
-
-            if combine_masks and len(rms) > 0:
-                real_mask = (tar > 0).float()
-                real_mask = real_mask.unsqueeze(0)
-                real_mask.clamp_(0, 1)
-
-                real_masks.append(real_mask)
-            else:
-                real_masks.extend(rms)
-
-        if len(real_masks) == 0:
-            return None
-
-        real_masks = torch.stack(real_masks).to(target.device)
-        return real_masks

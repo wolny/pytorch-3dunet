@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 from tensorboardX import SummaryWriter
 
-from pytorch3dunet.datasets.utils import get_train_loaders
-from pytorch3dunet.unet3d.losses import get_loss_criterion, _AbstractContrastiveLoss, AuxContrastiveLoss
+from pytorch3dunet.datasets.utils import get_train_loaders, get_class
+from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss, compute_cluster_means
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.utils import expand_as_one_hot, get_number_of_learnable_parameters, get_logger, \
@@ -14,14 +14,6 @@ from pytorch3dunet.unet3d.utils import expand_as_one_hot, get_number_of_learnabl
 
 
 class MeanEmbeddingAnchor:
-    def __init__(self, c_mean_fn):
-        """
-        Extracts mean instance embedding as an anchor embedding.
-
-        :param c_mean_fn: function to extract mean embeddings given the embeddings and target masks
-        """
-        self.c_mean_fn = c_mean_fn
-
     def __call__(self, emb, tar):
         instances = torch.unique(tar)
         C = instances.size(0)
@@ -30,7 +22,7 @@ class MeanEmbeddingAnchor:
         single_target = single_target.unsqueeze(1)
         spatial_dims = emb.dim() - 1
 
-        cluster_means, _, _ = self.c_mean_fn(emb, single_target, spatial_dims)
+        cluster_means, _, _ = compute_cluster_means(emb, single_target, spatial_dims)
         return cluster_means
 
 
@@ -54,36 +46,14 @@ class RandomEmbeddingAnchor:
         return result
 
 
-def extract_instance_masks(embeddings, target, anchor_embeddings_extractor, dist_to_mask_fn, combine_masks,
-                           label_smoothing=True):
-    """
-    Extract instance masks given the embeddings, target,
-    anchor embeddings extraction functor (anchor_embeddings_extractor),
-    kernel function computing distance to anchor (dist_to_mask_fn)
-    and whether to combine the masks or not (combine_masks)
-    """
-
-    # iterate over batch
+def create_real_masks(target, label_smoothing, combine_masks):
     real_masks = []
-    fake_masks = []
-
-    for emb, tar in zip(embeddings, target):
-        anchor_embeddings = anchor_embeddings_extractor(emb, tar)
+    for tar in target:
         rms = []
-        fms = []
-        for i, anchor_emb in enumerate(anchor_embeddings):
+        for i in torch.unique(tar):
             if i == 0:
                 # ignore 0-label
                 continue
-
-            # compute distance map; embeddings is ExSPATIAL, anchor_embeddings is ExSINGLETON_SPATIAL, so we can just broadcast
-            dist_to_mean = torch.norm(emb - anchor_emb, 'fro', dim=0)
-            # convert distance map to instance pmaps
-            inst_pmap = dist_to_mask_fn(dist_to_mean)
-            # add channel dim and save fake masks
-            fms.append(inst_pmap.unsqueeze(0))
-
-            assert i in target
 
             inst_mask = (tar == i).float()
             if label_smoothing:
@@ -95,28 +65,20 @@ def extract_instance_masks(embeddings, target, anchor_embeddings_extractor, dist
             # add channel dim and save real masks
             rms.append(inst_mask.unsqueeze(0))
 
-        if combine_masks and len(fms) > 0:
-            fake_mask = torch.zeros_like(fms[0])
-            for fm in fms:
-                fake_mask += fm
-
+        if combine_masks and len(rms) > 0:
             real_mask = (tar > 0).float()
             real_mask = real_mask.unsqueeze(0)
-            real_mask = add_gaussian_noise(real_mask)
             real_mask.clamp_(0, 1)
 
             real_masks.append(real_mask)
-            fake_masks.append(fake_mask)
         else:
             real_masks.extend(rms)
-            fake_masks.extend(fms)
 
     if len(real_masks) == 0:
-        return None, None
+        return None
 
-    real_masks = torch.stack(real_masks).to(embeddings.device)
-    fake_masks = torch.stack(fake_masks).to(embeddings.device)
-    return real_masks, fake_masks
+    real_masks = torch.stack(real_masks).to(target.device)
+    return real_masks
 
 
 def add_gaussian_noise(mask, sigma=0.05):
@@ -124,6 +86,10 @@ def add_gaussian_noise(mask, sigma=0.05):
     gaussian_noise = torch.randn(mask.size()).to(mask.device) * sigma
     mask += gaussian_noise
     return mask
+
+
+def get_mask_extractor_class(class_name):
+    return get_class(class_name, ['pytorch3dunet.embeddings.maskextractor'])
 
 
 logger = get_logger('AbstractGANTrainer')
@@ -230,17 +196,11 @@ class AbstractEmbeddingGANTrainerBuilder:
 
 
 class AbstractEmbeddingGANTrainer:
-    def __init__(self, G, D,
-                 G_optimizer, D_optimizer,
-                 G_lr_scheduler,
-                 G_loss_criterion, G_eval_criterion,
-                 gan_loss_weight,
-                 device, loaders, checkpoint_dir,
-                 combine_masks=False, anchor_extraction='mean', label_smoothing=True,
-                 max_num_epochs=100, max_num_iterations=int(1e5), validate_after_iters=2000, log_after_iters=500,
-                 num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
-                 best_eval_score=None, tensorboard_formatter=None, sample_plotter=None,
-                 **kwargs):
+    def __init__(self, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
+                 gan_loss_weight, device, loaders, checkpoint_dir, mask_extractor_class, combine_masks=False,
+                 label_smoothing=True, max_num_epochs=100, max_num_iterations=int(1e5), validate_after_iters=2000,
+                 log_after_iters=500, num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
+                 best_eval_score=None, tensorboard_formatter=None, sample_plotter=None, **kwargs):
         self.sample_plotter = sample_plotter
         self.tensorboard_formatter = tensorboard_formatter
         self.best_eval_score = best_eval_score
@@ -265,15 +225,13 @@ class AbstractEmbeddingGANTrainer:
         self.D = D
         self.G = G
         self.combine_masks = combine_masks
-        assert anchor_extraction in ['mean', 'random']
-        if anchor_extraction == 'mean':
-            assert isinstance(self.G_loss_criterion, _AbstractContrastiveLoss)
-            # function for computing a mean embeddings of target instances
-            c_mean_fn = self.G_loss_criterion._compute_cluster_means
-            self.anchor_embeddings_extractor = MeanEmbeddingAnchor(c_mean_fn)
-        else:
-            self.anchor_embeddings_extractor = RandomEmbeddingAnchor()
         self.label_smoothing = label_smoothing
+
+        # create mask extractor
+        # hardcode pmaps_threshold for now
+        dist_to_mask = AuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=0.5)
+        mask_extractor_class = get_mask_extractor_class(mask_extractor_class)
+        self.fake_mask_extractor = mask_extractor_class(dist_to_mask, self.combine_masks)
 
         logger.info('GENERATOR')
         logger.info(self.G)
@@ -293,9 +251,6 @@ class AbstractEmbeddingGANTrainer:
                 self.best_eval_score = float('+inf')
 
         self.writer = SummaryWriter(log_dir=os.path.join(checkpoint_dir, 'logs'))
-
-        # hardcode pmaps_threshold for now
-        self.dist_to_mask = AuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=0.5)
 
     @classmethod
     def from_pretrained_emb(cls, pre_trained,
@@ -366,7 +321,7 @@ class AbstractEmbeddingGANTrainer:
                     self.sample_plotter(i, input, output, target, 'val')
 
             self.writer.add_scalar('val_embedding_loss', val_losses.avg, self.num_iterations)
-            self.writer.add_scalar('val_eval', val_scores.avg, self.num_iterations)
+            self.writer.add_scalar('val_eval_score_avg', val_scores.avg, self.num_iterations)
             logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
             return val_scores.avg
 

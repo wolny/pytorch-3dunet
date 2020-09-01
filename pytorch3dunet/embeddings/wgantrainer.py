@@ -4,8 +4,8 @@ import torch
 from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from pytorch3dunet.embeddings.utils import extract_instance_masks, AbstractEmbeddingGANTrainerBuilder, \
-    AbstractEmbeddingGANTrainer
+from pytorch3dunet.embeddings.utils import AbstractEmbeddingGANTrainerBuilder, \
+    AbstractEmbeddingGANTrainer, create_real_masks
 from pytorch3dunet.unet3d.utils import get_logger, RunningAverage, load_checkpoint
 
 logger = get_logger('WGANTrainer')
@@ -19,14 +19,14 @@ class EmbeddingWGANTrainerBuilder(AbstractEmbeddingGANTrainerBuilder):
 
 class EmbeddingWGANTrainer(AbstractEmbeddingGANTrainer):
     def __init__(self, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion, device,
-                 loaders, checkpoint_dir, gp_lambda, gan_loss_weight, critic_iters, combine_masks=False,
-                 anchor_extraction='mean', label_smoothing=True, max_num_epochs=100, max_num_iterations=int(1e5),
-                 validate_after_iters=2000, log_after_iters=500, num_iterations=1, num_epoch=0,
-                 eval_score_higher_is_better=True, best_eval_score=None, tensorboard_formatter=None,
-                 sample_plotter=None, **kwargs):
+                 loaders, checkpoint_dir, gp_lambda, gan_loss_weight, critic_iters, mask_extractor_class,
+                 combine_masks=False,
+                 label_smoothing=True, max_num_epochs=100, max_num_iterations=int(1e5), validate_after_iters=2000,
+                 log_after_iters=500, num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
+                 best_eval_score=None, tensorboard_formatter=None, sample_plotter=None, **kwargs):
 
         super().__init__(G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
-                         gan_loss_weight, device, loaders, checkpoint_dir, combine_masks, anchor_extraction,
+                         gan_loss_weight, device, loaders, checkpoint_dir, mask_extractor_class, combine_masks,
                          label_smoothing, max_num_epochs, max_num_iterations, validate_after_iters, log_after_iters,
                          num_iterations, num_epoch, eval_score_higher_is_better, best_eval_score, tensorboard_formatter,
                          sample_plotter, **kwargs)
@@ -103,11 +103,9 @@ class EmbeddingWGANTrainer(AbstractEmbeddingGANTrainer):
 
                 # compute GAN loss
                 # real_masks are not used in the G update phase, but are needed for tensorboard logging later
-                real_masks, fake_masks = extract_instance_masks(output, target,
-                                                                self.anchor_embeddings_extractor,
-                                                                self.dist_to_mask,
-                                                                self.combine_masks,
-                                                                self.label_smoothing)
+                real_masks = create_real_masks(target, self.label_smoothing, self.combine_masks)
+                fake_masks = self.fake_mask_extractor(output, target)
+
                 if fake_masks is None:
                     # skip background patches and backprop only through embedding loss
                     emb_loss.backward()
@@ -144,11 +142,8 @@ class EmbeddingWGANTrainer(AbstractEmbeddingGANTrainer):
                 output = output.detach()  # make sure that G is not updated
 
                 # create real and fake instance masks
-                real_masks, fake_masks = extract_instance_masks(output, target,
-                                                                self.anchor_embeddings_extractor,
-                                                                self.dist_to_mask,
-                                                                self.combine_masks,
-                                                                self.label_smoothing)
+                real_masks = create_real_masks(target, self.label_smoothing, self.combine_masks)
+                fake_masks = self.fake_mask_extractor(output, target)
 
                 if real_masks is None or fake_masks is None:
                     # skip background patches

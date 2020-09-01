@@ -14,7 +14,6 @@ from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
 from pytorch3dunet.datasets.sliced import SlicedDataset
 from pytorch3dunet.datasets.utils import SliceBuilder
 from pytorch3dunet.embeddings.utils import MeanEmbeddingAnchor, RandomEmbeddingAnchor
-from pytorch3dunet.unet3d.losses import _AbstractContrastiveLoss
 from pytorch3dunet.unet3d.utils import get_logger, pca_project
 from pytorch3dunet.unet3d.utils import remove_halo
 
@@ -379,10 +378,9 @@ class AnchorEmbeddingsPredictor(_AbstractPredictor):
         self.epsilon = epsilon
         self.anchor_extraction = anchor_extraction
 
+        # function for computing a mean embeddings of target instances
         if anchor_extraction == 'mean':
-            # function for computing a mean embeddings of target instances
-            c_mean_fn = _AbstractContrastiveLoss._compute_cluster_means
-            self.anchor_embeddings_extractor = MeanEmbeddingAnchor(c_mean_fn)
+            self.anchor_embeddings_extractor = MeanEmbeddingAnchor()
         else:
             self.anchor_embeddings_extractor = RandomEmbeddingAnchor()
 

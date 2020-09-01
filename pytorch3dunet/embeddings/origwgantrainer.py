@@ -7,8 +7,8 @@ from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch3dunet.datasets.utils import get_train_loaders
-from pytorch3dunet.embeddings.utils import extract_instance_masks, MeanEmbeddingAnchor, RandomEmbeddingAnchor
-from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss, _AbstractContrastiveLoss
+from pytorch3dunet.embeddings.utils import create_real_masks, get_mask_extractor_class
+from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.utils import get_logger, get_number_of_learnable_parameters, create_optimizer, \
@@ -99,8 +99,8 @@ class EmbeddingOrigWGANTrainerBuilder:
 
 class EmbeddingOrigWGANTrainer:
     def __init__(self, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
-                 device, loaders, checkpoint_dir, gan_loss_weight, critic_iters, combine_masks=False,
-                 anchor_extraction='mean', label_smoothing=True, clamp_lower=-0.01, clamp_upper=0.01,
+                 device, loaders, checkpoint_dir, gan_loss_weight, critic_iters, mask_extractor_class,
+                 combine_masks=False, label_smoothing=True, clamp_lower=-0.01, clamp_upper=0.01,
                  max_num_epochs=100, max_num_iterations=int(1e5), validate_after_iters=2000, log_after_iters=500,
                  num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
                  best_eval_score=None, tensorboard_formatter=None, sample_plotter=None,
@@ -130,17 +130,16 @@ class EmbeddingOrigWGANTrainer:
         self.gan_loss_weight = gan_loss_weight
         self.critic_iters = critic_iters
         self.combine_masks = combine_masks
-        assert anchor_extraction in ['mean', 'random']
-        if anchor_extraction == 'mean':
-            assert isinstance(self.G_loss_criterion, _AbstractContrastiveLoss)
-            # function for computing a mean embeddings of target instances
-            c_mean_fn = self.G_loss_criterion._compute_cluster_means
-            self.anchor_embeddings_extrator = MeanEmbeddingAnchor(c_mean_fn)
-        else:
-            self.anchor_embeddings_extrator = RandomEmbeddingAnchor()
+        self.label_smoothing = label_smoothing
+
+        # create mask extractor
+        # hardcode pmaps_threshold for now
+        dist_to_mask = AuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=0.5)
+        mask_extractor_class = get_mask_extractor_class(mask_extractor_class)
+        self.fake_mask_extractor = mask_extractor_class(dist_to_mask, self.combine_masks)
+
         self.clamp_lower = clamp_lower
         self.clamp_upper = clamp_upper
-        self.label_smoothing = label_smoothing
 
         logger.info('GENERATOR')
         logger.info(self.G)
@@ -243,11 +242,8 @@ class EmbeddingOrigWGANTrainer:
                 emb_losses.update(emb_loss.item(), self._batch_size(input))
 
                 # compute GAN loss
-                _, fake_masks = extract_instance_masks(output, target,
-                                                       self.anchor_embeddings_extrator,
-                                                       self.dist_to_mask,
-                                                       self.combine_masks,
-                                                       self.label_smoothing)
+                fake_masks = self.fake_mask_extractor(output, target)
+
                 if fake_masks is None:
                     # skip background patches and backprop only through embedding loss
                     emb_loss.backward()
@@ -288,11 +284,8 @@ class EmbeddingOrigWGANTrainer:
                 output = output.detach()  # make sure that G is not updated
 
                 # create real and fake instance masks
-                real_masks, fake_masks = extract_instance_masks(output, target,
-                                                                self.anchor_embeddings_extrator,
-                                                                self.dist_to_mask,
-                                                                self.combine_masks,
-                                                                self.label_smoothing)
+                real_masks = create_real_masks(target, self.label_smoothing, self.combine_masks)
+                fake_masks = self.fake_mask_extractor(output, target)
 
                 if real_masks is None or fake_masks is None:
                     # skip background patches
