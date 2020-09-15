@@ -831,6 +831,7 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
     class Gaussian(nn.Module):
         def __init__(self, delta_var, pmaps_threshold):
             super().__init__()
+            self.delta_var = delta_var
             # dist_var^2 = -2*sigma*ln(pmaps_threshold)
             self.two_sigma = delta_var * delta_var / (-math.log(pmaps_threshold))
 

@@ -97,12 +97,29 @@ class TargetRandomMaskExtractor(TargetBasedMaskExtractor):
 
 
 def extract_fake_masks(emb, dist_to_mask, volume_threshold=0.1, max_instances=40, max_iterations=100):
+    """
+    Extracts instance pmaps given the embeddings. The algorithm works by using a heuristic to find so called
+    'anchor embeddings' (think of it as a cluster centers), then for each of the anchors it computes the distance map
+    and uses the 'dist_to_mask' kernel in order to convert a given distance map to a given instance pmap.
+
+    Args:
+        emb: pixel embeddings (ExSPATIAL), where E is the embedding dim
+        dist_to_mask: kernel converting a distance map to instance pmaps
+        volume_threshold: percentage of the overall volume that can be left unsegmented
+        max_instances: maximum number of instance pmaps to be returned
+        max_iterations: maximum number of iterations
+
+    Returns:
+        a list of instance pmaps
+    """
     # initialize the volume in order to track visited voxels
     visited = torch.ones(emb.shape[1:])
 
     results = []
     mask_sizes = []
+    # check stop criteria
     while visited.sum() > visited.numel() * volume_threshold and len(results) < max_iterations:
+        # get voxel coordinates
         z, y, x = torch.nonzero(visited, as_tuple=True)
         ind = torch.randint(len(z), (1,))[0]
         anchor_emb = emb[:, z[ind], y[ind], x[ind]]
@@ -111,8 +128,7 @@ def extract_fake_masks(emb, dist_to_mask, volume_threshold=0.1, max_instances=40
 
         # compute distance map; embeddings is ExSPATIAL, anchor_embeddings is ExSINGLETON_SPATIAL, so we can just broadcast
         dist_to_anchor = torch.norm(emb - anchor_emb, 'fro', dim=0)
-        # TODO: get the threshold as a dist_var from the Contrastive Loss
-        inst_mask = dist_to_anchor < 0.5
+        inst_mask = dist_to_anchor < dist_to_mask.delta_var
         # convert distance map to instance pmaps
         inst_pmap = dist_to_mask(dist_to_anchor)
 
@@ -129,6 +145,7 @@ def extract_fake_masks(emb, dist_to_mask, volume_threshold=0.1, max_instances=40
     return results
 
 
+# TODO: replace with new clustering scheme
 class RandomMaskExtractor(AbstractMaskExtractor):
     """Ignores the target and extracts the instance masks based on the embeddings only.
     Repeatedly takes a random anchor and extracts an instance until the whole volume is filled.

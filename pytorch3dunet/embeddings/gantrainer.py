@@ -19,16 +19,17 @@ class EmbeddingGANTrainerBuilder(AbstractEmbeddingGANTrainerBuilder):
 
 class EmbeddingGANTrainer(AbstractEmbeddingGANTrainer):
     def __init__(self, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion, device,
-                 loaders, checkpoint_dir, gan_loss_weight, D_iters, mask_extractor_class, combine_masks=False,
+                 loaders, checkpoint_dir, gan_loss_weight, D_iters, mask_extractor_class,
+                 kernel_pmaps_threshold, combine_masks=False,
                  label_smoothing=True, max_num_epochs=100, max_num_iterations=int(1e5), validate_after_iters=2000,
                  log_after_iters=500, num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
                  best_eval_score=None, tensorboard_formatter=None, sample_plotter=None, **kwargs):
 
         super().__init__(G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
-                         gan_loss_weight, device, loaders, checkpoint_dir, mask_extractor_class, combine_masks,
-                         label_smoothing, max_num_epochs, max_num_iterations, validate_after_iters, log_after_iters,
-                         num_iterations, num_epoch, eval_score_higher_is_better, best_eval_score, tensorboard_formatter,
-                         sample_plotter, **kwargs)
+                         gan_loss_weight, device, loaders, checkpoint_dir, mask_extractor_class, kernel_pmaps_threshold,
+                         combine_masks, label_smoothing, max_num_epochs, max_num_iterations, validate_after_iters,
+                         log_after_iters, num_iterations, num_epoch, eval_score_higher_is_better, best_eval_score,
+                         tensorboard_formatter, sample_plotter, **kwargs)
 
         self.D_iters = D_iters
         logger.info(f'D_iters: {D_iters}')

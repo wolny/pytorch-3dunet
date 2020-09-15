@@ -197,10 +197,11 @@ class AbstractEmbeddingGANTrainerBuilder:
 
 class AbstractEmbeddingGANTrainer:
     def __init__(self, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
-                 gan_loss_weight, device, loaders, checkpoint_dir, mask_extractor_class, combine_masks=False,
-                 label_smoothing=True, max_num_epochs=100, max_num_iterations=int(1e5), validate_after_iters=2000,
-                 log_after_iters=500, num_iterations=1, num_epoch=0, eval_score_higher_is_better=True,
-                 best_eval_score=None, tensorboard_formatter=None, sample_plotter=None, **kwargs):
+                 gan_loss_weight, device, loaders, checkpoint_dir, mask_extractor_class, kernel_pmaps_threshold,
+                 combine_masks=False, label_smoothing=True, max_num_epochs=100, max_num_iterations=int(1e5),
+                 validate_after_iters=2000, log_after_iters=500, num_iterations=1, num_epoch=0,
+                 eval_score_higher_is_better=True, best_eval_score=None, tensorboard_formatter=None,
+                 sample_plotter=None, **kwargs):
         self.sample_plotter = sample_plotter
         self.tensorboard_formatter = tensorboard_formatter
         self.best_eval_score = best_eval_score
@@ -229,7 +230,7 @@ class AbstractEmbeddingGANTrainer:
 
         # create mask extractor
         # hardcode pmaps_threshold for now
-        dist_to_mask = AuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=0.5)
+        dist_to_mask = AuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=kernel_pmaps_threshold)
         mask_extractor_class = get_mask_extractor_class(mask_extractor_class)
         self.fake_mask_extractor = mask_extractor_class(dist_to_mask, self.combine_masks)
 

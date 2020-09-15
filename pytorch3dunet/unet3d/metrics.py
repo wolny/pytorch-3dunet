@@ -196,6 +196,7 @@ class BoundaryAdaptedRandError(AdaptedRandError):
     Compute ARand between the input boundary map and target segmentation.
     Boundary map is thresholded, and connected components is run to get the predicted segmentation
     """
+
     def __init__(self, thresholds=None, use_last_target=True, input_channel=None, invert_pmaps=True,
                  save_plots=False, plots_dir='.', **kwargs):
         super().__init__(use_last_target=use_last_target, save_plots=save_plots, plots_dir=plots_dir, **kwargs)
@@ -441,7 +442,7 @@ class Embeddings2HGenericAveragePrecision(GenericAveragePrecision):
         return np.expand_dims(result, 0)
 
 
-class EmbeddingsGenericAveragePrecision(GenericAveragePrecision):
+class MeanEmbeddingAveragePrecision(GenericAveragePrecision):
     """
     Computes the AP based on pixel embeddings the ground truth instance segmentation.
     The following algorithm is used to get the instance segmentation
@@ -478,6 +479,35 @@ class EmbeddingsGenericAveragePrecision(GenericAveragePrecision):
             mean_embedding = np.sum(embeddings_per_instance, axis=spatial_dims, keepdims=True) / size
             # compute the instance mask, i.e. get the epsilon-ball
             inst_mask = LA.norm(embeddings - mean_embedding, axis=0) < self.epsilon
+            # save instance
+            result[inst_mask] = label
+
+        return np.expand_dims(result, 0)
+
+
+class RandomEmbeddingAveragePrecision(GenericAveragePrecision):
+    def __init__(self, epsilon, min_instance_size=None, metric='ap', **kwargs):
+        super().__init__(min_instance_size, use_last_target=False, metric=metric, **kwargs)
+        self.epsilon = epsilon
+
+    def input_to_seg(self, embeddings, target=None):
+        assert target is not None
+
+        result = np.zeros(shape=embeddings.shape[1:], dtype=np.uint32)
+
+        labels = np.unique(target)
+
+        for label in labels:
+            # skip 0-label
+            if label == 0:
+                continue
+
+            z, y, x = np.nonzero(target == label)
+            ind = np.random.randint(len(z))
+            anchor_emb = embeddings[:, z[ind], y[ind], x[ind]]
+            # compute the instance mask, i.e. get the epsilon-ball
+            inst_mask = LA.norm(embeddings - anchor_emb, axis=0) < self.epsilon
+
             # save instance
             result[inst_mask] = label
 
