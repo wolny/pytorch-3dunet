@@ -505,6 +505,7 @@ class RandomEmbeddingAveragePrecision(GenericAveragePrecision):
             z, y, x = np.nonzero(target == label)
             ind = np.random.randint(len(z))
             anchor_emb = embeddings[:, z[ind], y[ind], x[ind]]
+            anchor_emb = anchor_emb[:, None, None, None]
             # compute the instance mask, i.e. get the epsilon-ball
             inst_mask = LA.norm(embeddings - anchor_emb, axis=0) < self.epsilon
 
