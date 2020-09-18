@@ -6,11 +6,12 @@ from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch3dunet.datasets.utils import get_train_loaders
+from pytorch3dunet.embeddings.utils import dist_to_centroids
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, create_sample_plotter, create_optimizer, \
-    create_lr_scheduler, get_number_of_learnable_parameters
+    create_lr_scheduler, get_number_of_learnable_parameters, EmbeddingsTensorboardFormatter
 from . import utils
 
 logger = get_logger('UNet3DTrainer')
@@ -258,6 +259,7 @@ class UNet3DTrainer:
         Returns:
             True if the training should be terminated immediately, False otherwise
         """
+
         def _log_loss_grad(grad):
             if self.num_iterations % self.log_after_iters == 0:
                 logger.info(f'Train loss gradient: {grad}')
@@ -489,6 +491,14 @@ class UNet3DTrainer:
         for name, batch in img_sources.items():
             for tag, image in self.tensorboard_formatter(name, batch):
                 self.writer.add_image(prefix + tag, image, self.num_iterations, dataformats='CHW')
+
+        # hack to display the quality of the embeddings
+        if isinstance(self.tensorboard_formatter, EmbeddingsTensorboardFormatter):
+            dist_to_centroid = dist_to_centroids(prediction, target)
+            self.writer.add_histogram('distance_to_centroid', dist_to_centroid.data.cpu().numpy(), self.num_iterations)
+            dist_std, dist_mean = torch.std_mean(dist_to_centroid)
+            self.writer.add_scalar('mean_dist_to_centroid', dist_mean.item(), self.num_iterations)
+            self.writer.add_scalar('std_dev_dist_to_centroid', dist_std.item(), self.num_iterations)
 
     @staticmethod
     def _batch_size(input):

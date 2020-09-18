@@ -92,6 +92,21 @@ def get_mask_extractor_class(class_name):
     return get_class(class_name, ['pytorch3dunet.embeddings.maskextractor'])
 
 
+def dist_to_centroids(embeddings, target):
+    result = []
+    # iterate over the batch
+    for emb, tar in zip(embeddings, target):
+        instances = torch.unique(target)
+        for i in instances:
+            mask = tar == i
+            emb_per_inst = emb * mask
+            mean_emb = torch.sum(emb_per_inst, dim=(1, 2, 3), keepdim=True) / mask.sum()
+
+            dist_to_mean = torch.norm(emb - mean_emb, 'fro', dim=0)
+            result.append(dist_to_mean[mask])
+    return torch.cat(result)
+
+
 logger = get_logger('AbstractGANTrainer')
 
 
@@ -230,7 +245,8 @@ class AbstractEmbeddingGANTrainer:
 
         # create mask extractor
         # hardcode pmaps_threshold for now
-        dist_to_mask = AbstractAuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=kernel_pmaps_threshold)
+        dist_to_mask = AbstractAuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var,
+                                                           pmaps_threshold=kernel_pmaps_threshold)
         mask_extractor_class = get_mask_extractor_class(mask_extractor_class)
         self.fake_mask_extractor = mask_extractor_class(dist_to_mask, self.combine_masks)
 
