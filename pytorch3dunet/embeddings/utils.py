@@ -10,7 +10,7 @@ from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.utils import expand_as_one_hot, get_number_of_learnable_parameters, get_logger, \
     create_optimizer, create_lr_scheduler, get_tensorboard_formatter, create_sample_plotter, load_checkpoint, \
-    save_checkpoint, RunningAverage
+    save_checkpoint, RunningAverage, EmbeddingsTensorboardFormatter
 
 
 class MeanEmbeddingAnchor:
@@ -414,6 +414,15 @@ class AbstractEmbeddingGANTrainer:
         for name, batch in img_sources.items():
             for tag, image in self.tensorboard_formatter(name, batch):
                 self.writer.add_image(tag, image, self.num_iterations, dataformats='CHW')
+
+        # hack to display the quality of the embeddings
+        if isinstance(self.tensorboard_formatter, EmbeddingsTensorboardFormatter):
+            dist_to_centroid = dist_to_centroids(inputs_map['predictions'], inputs_map['targets'])
+            self.writer.add_histogram('distance_to_centroid', dist_to_centroid.data.cpu().numpy(),
+                                      self.num_iterations)
+            dist_std, dist_mean = torch.std_mean(dist_to_centroid)
+            self.writer.add_scalar('mean_dist_to_centroid', dist_mean.item(), self.num_iterations)
+            self.writer.add_scalar('std_dev_dist_to_centroid', dist_std.item(), self.num_iterations)
 
     def log_params(self, model, model_name):
         for name, value in model.named_parameters():
