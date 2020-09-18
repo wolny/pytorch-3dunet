@@ -8,7 +8,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.embeddings.utils import create_real_masks, get_mask_extractor_class
-from pytorch3dunet.unet3d.losses import get_loss_criterion, AuxContrastiveLoss
+from pytorch3dunet.unet3d.losses import get_loss_criterion, AbstractAuxContrastiveLoss
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.utils import get_logger, get_number_of_learnable_parameters, create_optimizer, \
@@ -134,7 +134,7 @@ class EmbeddingOrigWGANTrainer:
 
         # create mask extractor
         # hardcode pmaps_threshold for now
-        dist_to_mask = AuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=0.5)
+        dist_to_mask = AbstractAuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=0.5)
         mask_extractor_class = get_mask_extractor_class(mask_extractor_class)
         self.fake_mask_extractor = mask_extractor_class(dist_to_mask, self.combine_masks)
 
@@ -159,7 +159,7 @@ class EmbeddingOrigWGANTrainer:
         self.writer = SummaryWriter(log_dir=os.path.join(checkpoint_dir, 'logs'))
 
         # hardcode pmaps_threshold for now
-        self.dist_to_mask = AuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=0.5)
+        self.dist_to_mask = AbstractAuxContrastiveLoss.Gaussian(G_loss_criterion.delta_var, pmaps_threshold=0.5)
 
     @classmethod
     def from_pretrained_emb(cls, pre_trained, G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion,

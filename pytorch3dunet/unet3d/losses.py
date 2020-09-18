@@ -402,7 +402,7 @@ def compute_cluster_means(input_, target, spatial_ndim):
     return mean_embeddings, embeddings_per_instance, num_voxels_per_instance
 
 
-class _AbstractContrastiveLoss(nn.Module):
+class AbstractContrastiveLoss(nn.Module):
     """
     Implementation of contrastive loss defined in https://arxiv.org/pdf/1708.02551.pdf
     'Semantic Instance Segmentation with a Discriminative Loss Function'
@@ -649,7 +649,7 @@ class _AbstractContrastiveLoss(nn.Module):
         return ignore_zero_in_variance, ignore_zero_in_distance, single_target
 
 
-class ContrastiveLoss(_AbstractContrastiveLoss):
+class ContrastiveLoss(AbstractContrastiveLoss):
     def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001,
                  ignore_zero_in_variance=False, ignore_zero_in_distance=False):
         super(ContrastiveLoss, self).__init__(delta_var, delta_dist, norm=norm,
@@ -765,7 +765,7 @@ class GANShapePriorLoss(nn.Module):
             return self.bce_loss(outputs, real_labels)
 
 
-class AuxContrastiveLoss(_AbstractContrastiveLoss):
+class AbstractAuxContrastiveLoss(AbstractContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf,
                  norm='fro', alpha=1., beta=1., gamma=0.001, delta=1.,
                  aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
@@ -797,26 +797,6 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
         else:
             return self.Gaussian(delta_var, dist_to_mask_conf.get('pmaps_threshold', 0.5))
 
-    def auxiliary_loss(self, embeddings, cluster_means, target):
-        assert embeddings.size()[1:] == target.size()
-
-        per_instance_loss = 0.
-        for i, cm in enumerate(cluster_means):
-            if i == 0 and self.aux_loss_ignore_zero:
-                # ignore 0-label
-                continue
-            # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
-            dist_to_mean = torch.norm(embeddings - cm, self.norm, dim=0)
-            # convert distance map to instance pmaps
-            inst_pmap = self.dist_to_mask(dist_to_mean)
-            # compute the auxiliary loss between the instance_pmap and the ground truth instance mask
-            assert i in target
-            inst_mask = (target == i).float()
-            loss = self.aux_loss(inst_pmap, inst_mask)
-            per_instance_loss += loss.sum()
-
-        return per_instance_loss
-
     # below are the kernel function used to convert the distance map (i.e. `||embeddings - anchor_embedding||`)
     # into an instance mask
     class Logistic(nn.Module):
@@ -837,6 +817,73 @@ class AuxContrastiveLoss(_AbstractContrastiveLoss):
 
         def forward(self, dist_map):
             return torch.exp(- dist_map * dist_map / self.two_sigma)
+
+
+class MeanEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
+    def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
+                 delta=1., aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
+        super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta,
+                         aux_loss_ignore_zero, model_path, D_model_config)
+
+    def auxiliary_loss(self, embeddings, cluster_means, target):
+        assert embeddings.size()[1:] == target.size()
+
+        per_instance_loss = 0.
+        for i, cm in enumerate(cluster_means):
+            if i == 0 and self.aux_loss_ignore_zero:
+                # ignore 0-label
+                continue
+            # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
+            dist_to_mean = torch.norm(embeddings - cm, self.norm, dim=0)
+            # convert distance map to instance pmaps
+            inst_pmap = self.dist_to_mask(dist_to_mean)
+            # compute the auxiliary loss between the instance_pmap and the ground truth instance mask
+            assert i in target
+            inst_mask = (target == i).float()
+            loss = self.aux_loss(inst_pmap, inst_mask)
+            per_instance_loss += loss.sum()
+
+        return per_instance_loss
+
+
+class RandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
+    def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
+                 delta=1., aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
+        super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta,
+                         aux_loss_ignore_zero, model_path, D_model_config)
+
+    def auxiliary_loss(self, embeddings, cluster_means, target):
+        assert embeddings.size()[1:] == target.size()
+
+        # compute random anchors per instance
+        instances = torch.unique(target)
+        anchor_embeddings = []
+        for i in instances:
+            z, y, x = torch.nonzero(target == i, as_tuple=True)
+            ind = torch.randint(len(z), (1,))[0]
+            anchor_emb = embeddings[:, z[ind], y[ind], x[ind]]
+            anchor_embeddings.append(anchor_emb)
+
+        anchor_embeddings = torch.stack(anchor_embeddings, dim=0).to(embeddings.device)
+        # expand dimensions NxC -> NxCxSPATIAL
+        anchor_embeddings = anchor_embeddings[..., None, None, None]
+
+        per_instance_loss = 0.
+        for i, anchor_emb in enumerate(anchor_embeddings):
+            if i == 0 and self.aux_loss_ignore_zero:
+                # ignore 0-label
+                continue
+            # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
+            distance_map = torch.norm(embeddings - anchor_emb, self.norm, dim=0)
+            # convert distance map to instance pmaps
+            inst_pmap = self.dist_to_mask(distance_map)
+            # compute the auxiliary loss between the instance_pmap and the ground truth instance mask
+            assert i in target
+            inst_mask = (target == i).float()
+            loss = self.aux_loss(inst_pmap, inst_mask)
+            per_instance_loss += loss.sum()
+
+        return per_instance_loss
 
 
 class SegEmbLoss(nn.Module):
@@ -901,19 +948,32 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                loss_config['gamma'],
                                loss_config.get('ignore_zero_in_variance', False),
                                loss_config.get('ignore_zero_in_distance', False))
-    elif name == 'AuxContrastiveLoss':
-        return AuxContrastiveLoss(loss_config['delta_var'],
-                                  loss_config['delta_dist'],
-                                  loss_config['aux_loss'],
-                                  loss_config['dist_to_mask'],
-                                  loss_config['norm'],
-                                  loss_config['alpha'],
-                                  loss_config['beta'],
-                                  loss_config['gamma'],
-                                  loss_config['delta'],
-                                  loss_config.get('aux_loss_ignore_zero', True),
-                                  loss_config.get('model_path', None),
-                                  loss_config.get('D_model', None))
+    elif name == 'MeanEmbAuxContrastiveLoss':
+        return MeanEmbAuxContrastiveLoss(loss_config['delta_var'],
+                                         loss_config['delta_dist'],
+                                         loss_config['aux_loss'],
+                                         loss_config['dist_to_mask'],
+                                         loss_config['norm'],
+                                         loss_config['alpha'],
+                                         loss_config['beta'],
+                                         loss_config['gamma'],
+                                         loss_config['delta'],
+                                         loss_config.get('aux_loss_ignore_zero', True),
+                                         loss_config.get('model_path', None),
+                                         loss_config.get('D_model', None))
+    elif name == 'RandomEmbAuxContrastiveLoss':
+        return RandomEmbAuxContrastiveLoss(loss_config['delta_var'],
+                                           loss_config['delta_dist'],
+                                           loss_config['aux_loss'],
+                                           loss_config['dist_to_mask'],
+                                           loss_config['norm'],
+                                           loss_config['alpha'],
+                                           loss_config['beta'],
+                                           loss_config['gamma'],
+                                           loss_config['delta'],
+                                           loss_config.get('aux_loss_ignore_zero', True),
+                                           loss_config.get('model_path', None),
+                                           loss_config.get('D_model', None))
     elif name == 'SegEmbLoss':
         return SegEmbLoss(loss_config['delta_var'],
                           loss_config['delta_dist'],
