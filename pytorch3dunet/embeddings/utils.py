@@ -2,6 +2,7 @@ import os
 
 import torch
 import torch.nn as nn
+from sklearn.metrics import silhouette_score
 from tensorboardX import SummaryWriter
 
 from pytorch3dunet.datasets.utils import get_train_loaders, get_class
@@ -105,6 +106,21 @@ def dist_to_centroids(embeddings, target):
             dist_to_mean = torch.norm(emb - mean_emb, 'fro', dim=0)
             result.append(dist_to_mean[mask])
     return torch.cat(result)
+
+def silhouette(embeddings, target):
+    embeddings = embeddings.data.cpu().numpy()
+    target = target.data.cpu().numpy()
+    s_score = []
+    # iterate over the batch
+    for emb, tar, in zip(embeddings, target):
+        X = emb.reshape(-1, emb.shape[0])
+        Y = tar.reshape(-1)
+        N = tar.size // 10
+
+        s_score.append(silhouette_score(X, Y, metric='euclidean', sample_size=N))
+    return s_score.mean()
+
+
 
 
 logger = get_logger('AbstractGANTrainer')
@@ -418,13 +434,17 @@ class AbstractEmbeddingGANTrainer:
         # hack to display the quality of the embeddings
         if isinstance(self.tensorboard_formatter, EmbeddingsTensorboardFormatter):
             if 'predictions' in inputs_map:
-                dist_to_centroid = dist_to_centroids(inputs_map['predictions'], inputs_map['targets'])
+                predictions = inputs_map['predictions']
+                targets = inputs_map['targets']
+                dist_to_centroid = dist_to_centroids(predictions, targets)
+                s_score = silhouette(predictions, targets)
                 self.writer.add_histogram('distance_to_centroid', dist_to_centroid.data.cpu().numpy(),
                                           self.num_iterations)
                 dist_std, dist_mean = torch.std_mean(dist_to_centroid)
                 logger.info(f'Distance to centroid. Mean: {dist_mean.item()}, std_dev: {dist_std.item()}')
                 self.writer.add_scalar('mean_dist_to_centroid', dist_mean.item(), self.num_iterations)
                 self.writer.add_scalar('std_dev_dist_to_centroid', dist_std.item(), self.num_iterations)
+                self.writer.add_scalar('silhouette_score', s_score, self.num_iterations)
 
     def log_params(self, model, model_name):
         for name, value in model.named_parameters():
