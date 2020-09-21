@@ -497,6 +497,7 @@ class UNet3DTrainer:
             dist_to_centroid = dist_to_centroids(prediction, target)
             self.writer.add_histogram('distance_to_centroid', dist_to_centroid.data.cpu().numpy(), self.num_iterations)
             dist_std, dist_mean = torch.std_mean(dist_to_centroid)
+            logger.info(f'Distance to centroid. Mean: {dist_mean.item()}, std_dev: {dist_std.item()}')
             self.writer.add_scalar('mean_dist_to_centroid', dist_mean.item(), self.num_iterations)
             self.writer.add_scalar('std_dev_dist_to_centroid', dist_std.item(), self.num_iterations)
 
