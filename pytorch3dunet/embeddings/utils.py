@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 import torch
 import torch.nn as nn
 from sklearn.metrics import silhouette_score
@@ -107,6 +108,7 @@ def dist_to_centroids(embeddings, target):
             result.append(dist_to_mean[mask])
     return torch.cat(result)
 
+
 def silhouette(embeddings, target):
     embeddings = embeddings.data.cpu().numpy()
     target = target.data.cpu().numpy()
@@ -118,9 +120,7 @@ def silhouette(embeddings, target):
         N = tar.size // 10
 
         s_score.append(silhouette_score(X, Y, metric='euclidean', sample_size=N))
-    return s_score.mean()
-
-
+    return np.mean(s_score)
 
 
 logger = get_logger('AbstractGANTrainer')
