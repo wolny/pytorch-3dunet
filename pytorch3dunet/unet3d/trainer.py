@@ -259,12 +259,6 @@ class UNet3DTrainer:
         Returns:
             True if the training should be terminated immediately, False otherwise
         """
-
-        def _log_loss_grad(grad):
-            if self.num_iterations % self.log_after_iters == 0:
-                logger.info(f'Train loss gradient: {grad}')
-                self.writer.add_scalar('train_loss_grad', grad, self.num_iterations)
-
         train_losses = utils.RunningAverage()
         train_eval_scores = utils.RunningAverage()
 
@@ -283,8 +277,6 @@ class UNet3DTrainer:
 
             # compute gradients and update parameters
             self.optimizer.zero_grad()
-            # just to log the loss gradient
-            loss.register_hook(_log_loss_grad)
             loss.backward()
             self.optimizer.step()
 
