@@ -607,7 +607,7 @@ class AbstractContrastiveLoss(nn.Module):
                                                         C, spatial_dims, ignore_zero_in_variance)
 
             # compute the auxiliary loss
-            aux_loss = self.auxiliary_loss(single_input, cluster_means, orig_target).mean()
+            aux_loss = self.auxiliary_loss(single_input, cluster_means, orig_target)
 
             # squeeze spatial dims
             for _ in range(spatial_dims):
@@ -800,7 +800,7 @@ class AbstractAuxContrastiveLoss(AbstractContrastiveLoss):
         inst_masks = []
 
         for i, anchor_emb in enumerate(anchors):
-            if i == 0:
+            if i == 0 and self.aux_loss_ignore_zero:
                 # ignore 0-label
                 continue
             # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
@@ -810,6 +810,9 @@ class AbstractAuxContrastiveLoss(AbstractContrastiveLoss):
             # create real mask and save
             assert i in target
             inst_masks.append((target == i).float().unsqueeze(0))
+
+        if not inst_masks:
+            return None, None
 
         # stack along batch dimension
         inst_pmaps = torch.stack(inst_pmaps)
@@ -849,7 +852,11 @@ class MeanEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
         assert embeddings.size()[1:] == target.size()
 
         instance_pmaps, instance_masks = self.create_instance_pmaps_and_masks(embeddings, cluster_means, target)
-        return self.aux_loss(instance_pmaps, instance_masks)
+
+        if instance_masks is None:
+            return 0.
+
+        return self.aux_loss(instance_pmaps, instance_masks).mean()
 
 
 class RandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
@@ -875,7 +882,12 @@ class RandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
         anchor_embeddings = anchor_embeddings[..., None, None, None]
 
         instance_pmaps, instance_masks = self.create_instance_pmaps_and_masks(embeddings, anchor_embeddings, target)
-        return self.aux_loss(instance_pmaps, instance_masks)
+
+        if instance_masks is None:
+            return 0.
+
+        return self.aux_loss(instance_pmaps, instance_masks).mean()
+
 
 class SegEmbLoss(nn.Module):
     def __init__(self, delta_var, delta_dist, w1=1., w2=1.):
