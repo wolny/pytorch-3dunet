@@ -607,7 +607,7 @@ class AbstractContrastiveLoss(nn.Module):
                                                         C, spatial_dims, ignore_zero_in_variance)
 
             # compute the auxiliary loss
-            aux_loss = self.auxiliary_loss(single_input, cluster_means, orig_target)
+            aux_loss = self.auxiliary_loss(single_input, cluster_means, orig_target).mean()
 
             # squeeze spatial dims
             for _ in range(spatial_dims):
@@ -742,10 +742,8 @@ class GANShapePriorLoss(nn.Module):
         else:
             self.loss = self.GANLoss(D)
 
-    def forward(self, inst_pmap, inst_mask):
-        # add batch and channel dimensions
-        inst_pmap = inst_pmap.view((1, 1) + inst_pmap.size())
-        return self.loss(inst_pmap)
+    def forward(self, inst_pmaps, inst_masks):
+        return self.loss(inst_pmaps)
 
     class WGANLoss:
         def __init__(self, D):
@@ -797,6 +795,28 @@ class AbstractAuxContrastiveLoss(AbstractContrastiveLoss):
         else:
             return self.Gaussian(delta_var, dist_to_mask_conf.get('pmaps_threshold', 0.5))
 
+    def create_instance_pmaps_and_masks(self, embeddings, anchors, target):
+        inst_pmaps = []
+        inst_masks = []
+
+        for i, anchor_emb in enumerate(anchors):
+            if i == 0:
+                # ignore 0-label
+                continue
+            # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
+            distance_map = torch.norm(embeddings - anchor_emb, self.norm, dim=0)
+            # convert distance map to instance pmaps and save
+            inst_pmaps.append(self.dist_to_mask(distance_map).unsqueeze(0))
+            # create real mask and save
+            assert i in target
+            inst_masks.append((target == i).float().unsqueeze(0))
+
+        # stack along batch dimension
+        inst_pmaps = torch.stack(inst_pmaps)
+        inst_masks = torch.stack(inst_masks)
+
+        return inst_pmaps, inst_masks
+
     # below are the kernel function used to convert the distance map (i.e. `||embeddings - anchor_embedding||`)
     # into an instance mask
     class Logistic(nn.Module):
@@ -828,22 +848,8 @@ class MeanEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
     def auxiliary_loss(self, embeddings, cluster_means, target):
         assert embeddings.size()[1:] == target.size()
 
-        per_instance_loss = 0.
-        for i, cm in enumerate(cluster_means):
-            if i == 0 and self.aux_loss_ignore_zero:
-                # ignore 0-label
-                continue
-            # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
-            dist_to_mean = torch.norm(embeddings - cm, self.norm, dim=0)
-            # convert distance map to instance pmaps
-            inst_pmap = self.dist_to_mask(dist_to_mean)
-            # compute the auxiliary loss between the instance_pmap and the ground truth instance mask
-            assert i in target
-            inst_mask = (target == i).float()
-            loss = self.aux_loss(inst_pmap, inst_mask)
-            per_instance_loss += loss.sum()
-
-        return per_instance_loss
+        instance_pmaps, instance_masks = self.create_instance_pmaps_and_masks(embeddings, cluster_means, target)
+        return self.aux_loss(instance_pmaps, instance_masks)
 
 
 class RandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
@@ -868,23 +874,8 @@ class RandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
         # expand dimensions NxC -> NxCxSPATIAL
         anchor_embeddings = anchor_embeddings[..., None, None, None]
 
-        per_instance_loss = 0.
-        for i, anchor_emb in enumerate(anchor_embeddings):
-            if i == 0 and self.aux_loss_ignore_zero:
-                # ignore 0-label
-                continue
-            # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
-            distance_map = torch.norm(embeddings - anchor_emb, self.norm, dim=0)
-            # convert distance map to instance pmaps
-            inst_pmap = self.dist_to_mask(distance_map)
-            # compute the auxiliary loss between the instance_pmap and the ground truth instance mask
-            assert i in target
-            inst_mask = (target == i).float()
-            loss = self.aux_loss(inst_pmap, inst_mask)
-            per_instance_loss += loss.sum()
-
-        return per_instance_loss
-
+        instance_pmaps, instance_masks = self.create_instance_pmaps_and_masks(embeddings, anchor_embeddings, target)
+        return self.aux_loss(instance_pmaps, instance_masks)
 
 class SegEmbLoss(nn.Module):
     def __init__(self, delta_var, delta_dist, w1=1., w2=1.):
