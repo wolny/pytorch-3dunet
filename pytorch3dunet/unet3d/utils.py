@@ -282,6 +282,11 @@ def pca_project(embeddings):
 
 
 def _find_masks(batch, min_size=10):
+    """Center the z-slice in the 'middle' of a given instance, given a batch of instances
+
+    Args:
+        batch (ndarray): 5d numpy tensor (NCDHW)
+    """
     result = []
     for b in batch:
         assert b.shape[0] == 1
@@ -292,7 +297,8 @@ def _find_masks(batch, min_size=10):
             ind = coords[len(coords) // 2]
             result.append(b[:, ind:ind + 1, ...])
         else:
-            result.append(b)
+            ind = b.shape[1] // 2
+            result.append(b[:, ind:ind + 1, ...])
 
     return np.stack(result, axis=0)
 
@@ -310,7 +316,7 @@ class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
                 # find proper z-slice
                 batch = _find_masks(batch)
 
-            super().process_batch(name, batch)
+            return super().process_batch(name, batch)
         else:
             return super().process_batch(name, batch)
 
