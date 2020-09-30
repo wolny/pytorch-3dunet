@@ -281,14 +281,36 @@ def pca_project(embeddings):
     return img.astype('uint8')
 
 
+def _find_masks(batch, min_size=10):
+    result = []
+    for b in batch:
+        assert b.shape[0] == 1
+        patch = b[0]
+        z_sum = patch.sum(axis=(1, 2))
+        coords = np.where(z_sum > min_size)[0]
+        if len(coords) > 0:
+            ind = coords[len(coords) // 2]
+            result.append(b[:, ind:ind + 1, ...])
+        else:
+            result.append(b)
+
+    return np.stack(result, axis=0)
+
+
 class EmbeddingsTensorboardFormatter(DefaultTensorboardFormatter):
     def __init__(self, plot_variance=False, **kwargs):
         super().__init__(**kwargs)
         self.plot_variance = plot_variance
 
     def process_batch(self, name, batch):
-        if name == 'predictions' or name == 'predictions1':
+        if name == 'predictions':
             return self._embeddings_to_rgb(batch)
+        elif name == 'real_masks' or name == 'fake_masks':
+            if batch.ndim == 5:
+                # find proper z-slice
+                batch = _find_masks(batch)
+
+            super().process_batch(name, batch)
         else:
             return super().process_batch(name, batch)
 
