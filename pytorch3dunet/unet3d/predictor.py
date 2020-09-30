@@ -367,7 +367,7 @@ class DSBEmbeddingsPredictor(_AbstractPredictor):
 
                     with h5py.File(out_file, 'w') as f:
                         logger.info(f'Saving output to {out_file}')
-                        f.create_dataset('raw', data=np.uint8(single_img[0].cpu().numpy()), compression='gzip')
+                        f.create_dataset('raw', data=single_img[0].cpu().numpy(), compression='gzip')
                         f.create_dataset('embeddings', data=single_emb.cpu().numpy(), compression='gzip')
 
 
