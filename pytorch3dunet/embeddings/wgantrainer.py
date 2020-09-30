@@ -79,10 +79,6 @@ class EmbeddingWGANTrainer(AbstractEmbeddingGANTrainer):
         self.G.train()
         self.D.train()
 
-        one = torch.FloatTensor([1])
-        one = one.to(self.device)
-        mone = one * -1
-
         for t in self.loaders['train']:
             logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
                         f'Epoch [{self.num_epoch}/{self.max_num_epochs - 1}]')
@@ -153,25 +149,28 @@ class EmbeddingWGANTrainer(AbstractEmbeddingGANTrainer):
                     # skip if there are too many instances in the patch in order to prevent CUDA OOM errors
                     continue
 
-                # compute gradients given the real masks
+                # get the critic value for real masks
                 D_real = self.D(real_masks).mean(dim=0)
-                D_real.backward(mone)
 
-                # compute gradients given the fake masks
+                # get the critic value for fake masks
                 D_fake = self.D(fake_masks).mean(dim=0)
-                D_fake.backward(one)
 
-                # compute grad for gradient penalty
+                # train with gradient penalty
                 gradient_penalty = self._calc_gp(real_masks, fake_masks)
-                gradient_penalty.backward()
+
+                # we want to maximize the WGAN value function D(real) - D(fake), i.e.
+                # we want to minimize D(fake) - D(real)
+                D_loss = D_fake - D_real + self.gp_lambda * gradient_penalty
+                # backprop
+                D_loss.backward()
 
                 # update D's weights
                 self.D_optimizer.step()
 
-                D_loss = D_fake - D_real + gradient_penalty
-                Wasserstein_D = D_real - D_fake
                 n_batch = 2 * self.batch_size(fake_masks)
                 D_losses.update(D_loss.item(), n_batch)
+
+                Wasserstein_D = D_real - D_fake
                 Wasserstein_dist.update(Wasserstein_D.item(), n_batch)
 
                 self.D_iterations += 1
@@ -265,5 +264,5 @@ class EmbeddingWGANTrainer(AbstractEmbeddingGANTrainer):
                                   create_graph=True, retain_graph=True, only_inputs=True)[0]
         gradients = gradients.view(gradients.size(0), -1)
 
-        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * self.gp_lambda
+        gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
         return gradient_penalty
