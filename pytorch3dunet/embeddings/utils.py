@@ -1,6 +1,5 @@
-import os
-
 import numpy as np
+import os
 import torch
 import torch.nn as nn
 from sklearn.metrics import silhouette_score
@@ -119,7 +118,12 @@ def silhouette(embeddings, target):
         Y = tar.reshape(-1)
         N = tar.size // 10
 
-        s_score.append(silhouette_score(X, Y, metric='euclidean', sample_size=N))
+        try:
+            s = silhouette_score(X, Y, metric='euclidean', sample_size=N)
+        except:
+            s = 0.
+
+        s_score.append(s)
     return np.mean(s_score)
 
 
