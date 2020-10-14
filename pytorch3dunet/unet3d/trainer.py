@@ -486,6 +486,9 @@ class UNet3DTrainer:
 
         # hack to display the quality of the embeddings
         if isinstance(self.tensorboard_formatter, EmbeddingsTensorboardFormatter):
+            if target.dim() == 5:
+                # get only the 1st channel of the target
+                target = target[:,0, ...]
             dist_to_centroid = dist_to_centroids(prediction, target)
             silhouette_score = silhouette(prediction, target)
             self.writer.add_histogram('distance_to_centroid', dist_to_centroid.data.cpu().numpy(), self.num_iterations)

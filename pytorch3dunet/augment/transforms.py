@@ -631,18 +631,24 @@ class Relabel:
     at hand and would like to create a one-hot-encoding for it. Without a consecutive labeling the task would be harder.
     """
 
-    def __init__(self, append_original=False, run_cc=True, **kwargs):
+    def __init__(self, append_original=False, run_cc=True, ignore_label=None, **kwargs):
         self.append_original = append_original
+        self.ignore_label = ignore_label
         self.run_cc = run_cc
 
+        if ignore_label is not None:
+            assert append_original, "ignore_label present, so append_original must be true, so that one can localize the ignore region"
+
     def __call__(self, m):
+        orig = m
         if self.run_cc:
-            m = measure.label(m)
+            # assign 0 to the ignore region
+            m = measure.label(m, background=self.ignore_label)
 
         _, unique_labels = np.unique(m, return_inverse=True)
         result = unique_labels.reshape(m.shape)
         if self.append_original:
-            result = np.stack([result, m])
+            result = np.stack([result, orig])
         return result
 
 
