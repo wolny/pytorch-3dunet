@@ -147,10 +147,12 @@ class FilterSliceBuilder(SliceBuilder):
 
         def ignore_predicate(raw_label_idx):
             label_idx = raw_label_idx[1]
-            patch = label_datasets[0][label_idx]
-            non_ignore_counts = np.array([np.count_nonzero(patch != ii) for ii in ignore_index])
+            patch = np.copy(label_datasets[0][label_idx])
+            for ii in ignore_index:
+                patch[patch == ii] = 0
+            non_ignore_counts = np.count_nonzero(patch != 0)
             non_ignore_counts = non_ignore_counts / patch.size
-            return np.any(non_ignore_counts > threshold) or rand_state.rand() < slack_acceptance
+            return non_ignore_counts > threshold or rand_state.rand() < slack_acceptance
 
         zipped_slices = zip(self.raw_slices, self.label_slices)
         # ignore slices containing too much ignore_index
