@@ -377,3 +377,27 @@ def calculate_stats(images):
         [img.ravel() for img in images]
     )
     return np.min(flat), np.max(flat), np.mean(flat), np.std(flat)
+
+
+def sample_instances(label_img, instance_ratio, random_state, ignore_labels=(0,)):
+    unique = np.unique(label_img)
+    for il in ignore_labels:
+        unique = np.delete(unique, il)
+
+    # shuffle labels
+    random_state.shuffle(unique)
+    # pick instance_ratio objects
+    num_objects = round(instance_ratio * len(unique))
+    if num_objects == 0:
+        # if there are no objects left, just return the initial labels
+        return label_img
+
+    # sample the labels
+    sampled_instances = unique[:num_objects]
+
+    result = np.zeros_like(label_img)
+    # keep only the sampled_instances
+    for si in sampled_instances:
+        result[label_img == si] = si
+
+    return result

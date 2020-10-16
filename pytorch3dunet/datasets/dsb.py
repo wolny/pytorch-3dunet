@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from pytorch3dunet.augment import transforms
-from pytorch3dunet.datasets.utils import ConfigDataset, calculate_stats
+from pytorch3dunet.datasets.utils import ConfigDataset, calculate_stats, sample_instances
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('DSB2018Dataset')
@@ -30,7 +30,8 @@ def dsb_prediction_collate(batch):
 
 
 class DSB2018Dataset(ConfigDataset):
-    def __init__(self, root_dir, phase, transformer_config, mirror_padding=(0, 32, 32), expand_dims=True):
+    def __init__(self, root_dir, phase, transformer_config, mirror_padding=(0, 32, 32), expand_dims=True,
+                 instance_ratio=None):
         assert os.path.isdir(root_dir), f'{root_dir} is not a directory'
         assert phase in ['train', 'val', 'test']
 
@@ -48,6 +49,7 @@ class DSB2018Dataset(ConfigDataset):
         assert os.path.isdir(images_dir)
         self.images, self.paths = self._load_files(images_dir, expand_dims)
         self.file_path = images_dir
+        self.instance_ratio = instance_ratio
 
         min_value, max_value, mean, std = calculate_stats(self.images)
         logger.info(f'Input stats: min={min_value}, max={max_value}, mean={mean}, std={std}')
@@ -63,6 +65,11 @@ class DSB2018Dataset(ConfigDataset):
             masks_dir = os.path.join(root_dir, 'masks')
             assert os.path.isdir(masks_dir)
             self.masks, _ = self._load_files(masks_dir, expand_dims)
+            # prepare for training with single object supervision
+            if self.instance_ratio is not None and phase == 'train':
+                assert 0 < self.instance_ratio <= 1
+                rs = np.random.RandomState(47)
+                self.masks = [sample_instances(m, self.instance_ratio, rs) for m in self.masks]
             assert len(self.images) == len(self.masks)
             # load label images transformer
             self.masks_transform = transformer.label_transform()
