@@ -509,11 +509,17 @@ class AbstractContrastiveLoss(nn.Module):
             if C == 2:
                 # just two cluster instances, including one which is ignored, i.e. distance term does not contribute to the loss
                 return 0.
-            # set the distance to 0-label to be 2*delta_dist + epsilon so that it does not contribute to the loss because of the hinge at 2*delta_dist
+            # set the distance to 0-label to be greater than 2*delta_dist, so that it does not contribute to the loss because of the hinge at 2*delta_dist
+
+            # find minimum dist
+            d_min = torch.min(dist_matrix[dist_matrix > 0]).item()
+            # dist_multiplier = 2 * delta_dist / d_min + epsilon
+            dist_multiplier = 2 * self.delta_dist / d_min + 1e-3
+            # create distance mask
             dist_mask = torch.ones_like(dist_matrix)
-            ignore_dist = 2 * self.delta_dist + 1e-4
-            dist_mask[0, 1:] = ignore_dist
-            dist_mask[1:, 0] = ignore_dist
+            dist_mask[0, 1:] = dist_multiplier
+            dist_mask[1:, 0] = dist_multiplier
+
             # mask the dist_matrix
             dist_matrix = dist_matrix * dist_mask
             # decrease number of instances
