@@ -389,8 +389,8 @@ def sample_instances(label_img, instance_ratio, random_state, ignore_labels=(0,)
     # pick instance_ratio objects
     num_objects = round(instance_ratio * len(unique))
     if num_objects == 0:
-        # if there are no objects left, just return the initial labels
-        return label_img
+        # if there are no objects left, just return an empty patch
+        return np.zeros_like(label_img)
 
     # sample the labels
     sampled_instances = unique[:num_objects]
