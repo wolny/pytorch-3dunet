@@ -412,7 +412,8 @@ class AbstractContrastiveLoss(nn.Module):
     Also, the implementation does not support masking any instance labels in the loss.
     """
 
-    def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001, delta=1., ignore_label=None):
+    def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001, delta=1., epsilon=1.,
+                 ignore_label=None, bg_push=False):
         super().__init__()
         self.delta_var = delta_var
         self.delta_dist = delta_dist
@@ -421,7 +422,9 @@ class AbstractContrastiveLoss(nn.Module):
         self.beta = beta
         self.gamma = gamma
         self.delta = delta
+        self.epsilon = epsilon
         self.ignore_label = ignore_label
+        self.bg_push = bg_push
 
     def _compute_variance_term(self, cluster_means, embeddings_per_instance, target, num_voxels_per_instance, C,
                                spatial_ndim, ignore_zero_label):
@@ -545,6 +548,38 @@ class AbstractContrastiveLoss(nn.Module):
         regularizer_term = torch.sum(norms) / C
         return regularizer_term
 
+    def _compute_background_push(self, cluster_means, embeddings_per_instance, target, num_voxels_per_instance,
+                                 C, spatial_ndim):
+        dim_arg = (2, 3) if spatial_ndim == 2 else (2, 3, 4)
+
+        # decrease number of instances `C` since we're ignoring 0-label
+        C -= 1
+        # if there is only 0-label in the target return 0
+        if C == 0:
+            return 0.
+
+        # skip embedding corresponding to the background pixels
+        cluster_means = cluster_means[1:]
+        # expand background embeddings to match number of clusters
+        # notice that we're ignoring `cluster_0` which corresponds to the background
+        background_embeddings = embeddings_per_instance[:1].expand_as(embeddings_per_instance[1:])
+        # expand background mask as well
+        background_mask = target[:1].expand_as(target[1:])
+        # expand num of background pixels
+        num_background_voxels = num_voxels_per_instance[:1].expand_as(num_voxels_per_instance[1:])
+
+        # compute distances between cluster means and background embeddings; result:(Cx1xSPATIAL)
+        dist_to_mean = torch.norm(background_embeddings - cluster_means, self.norm, dim=1, keepdim=True)
+        # apply background mask and compute hinge
+        bg_dist_hinged = torch.clamp((self.delta_dist - dist_to_mean) * background_mask, min=0) ** 2
+        # sum up hinged distances
+        dist_sum = torch.sum(bg_dist_hinged, dim=dim_arg, keepdim=True)
+        # normalize by the number of background voxels and the number of distances
+        background_push = torch.sum(dist_sum / num_background_voxels) / C
+        return background_push
+
+
+
     def auxiliary_loss(self, embeddings, cluster_means, target):
         """
         Computes auxiliary loss based on embeddings and a given list of target instances together with their mean embeddings
@@ -578,6 +613,10 @@ class AbstractContrastiveLoss(nn.Module):
             # check if the target contain ignore_label; ignore_label is going to be mapped to the 0-label
             # so we just need to ignore 0-label in the pull and push forces
             ignore_zero_label, single_target = self._should_ignore(single_target)
+            contains_bg = 0 in single_target
+            if self.bg_push and contains_bg:
+                ignore_zero_label = True
+
             # save original target tensor
             orig_target = single_target
 
@@ -611,6 +650,14 @@ class AbstractContrastiveLoss(nn.Module):
                                                         single_target, num_voxels_per_instance,
                                                         C, spatial_dims, ignore_zero_label)
 
+            # compute background push force, i.e. push force between cluster means embeddings of background pixels
+            # compute only ignore_zero_label is True, i.e. a given patch contains background label
+            background_push = 0.
+            if self.bg_push and contains_bg:
+                background_push = self._compute_background_push(cluster_means, embeddings_per_instance,
+                                                                single_target, num_voxels_per_instance,
+                                                                C, spatial_dims)
+
             # compute the auxiliary loss
             aux_loss = self.auxiliary_loss(single_input, cluster_means, orig_target)
 
@@ -629,7 +676,8 @@ class AbstractContrastiveLoss(nn.Module):
             loss = self.alpha * variance_term + \
                    self.beta * distance_term + \
                    self.gamma * regularization_term + \
-                   self.delta * aux_loss
+                   self.delta * aux_loss + \
+                   self.epsilon * background_push
 
             per_instance_loss += loss
 
@@ -653,10 +701,11 @@ class AbstractContrastiveLoss(nn.Module):
 
 
 class ContrastiveLoss(AbstractContrastiveLoss):
-    def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001, ignore_label=None):
+    def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001, epsilon=1., ignore_label=None,
+                 bg_push=False):
         super(ContrastiveLoss, self).__init__(delta_var, delta_dist, norm=norm,
-                                              alpha=alpha, beta=beta, gamma=gamma, delta=0.,
-                                              ignore_label=ignore_label)
+                                              alpha=alpha, beta=beta, gamma=gamma, delta=0., epsilon=epsilon,
+                                              ignore_label=ignore_label, bg_push=bg_push)
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
         # no auxiliary loss in the standard ContrastiveLoss
@@ -766,11 +815,12 @@ class GANShapePriorLoss(nn.Module):
 
 class AbstractAuxContrastiveLoss(AbstractContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf,
-                 norm='fro', alpha=1., beta=1., gamma=0.001, delta=1.,
-                 ignore_label=None, aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
+                 norm='fro', alpha=1., beta=1., gamma=0.001, delta=1., epsilon=1.,
+                 ignore_label=None, bg_push=False, aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
 
-        super().__init__(delta_var, delta_dist, norm=norm, alpha=alpha, beta=beta, gamma=gamma, delta=delta,
-                         ignore_label=ignore_label)
+        super().__init__(delta_var, delta_dist, norm=norm,
+                         alpha=alpha, beta=beta, gamma=gamma, delta=delta, epsilon=epsilon,
+                         ignore_label=ignore_label, bg_push=bg_push)
 
         self.aux_loss_ignore_zero = aux_loss_ignore_zero
         # ignore instance corresponding to 0-label
@@ -846,9 +896,10 @@ class AbstractAuxContrastiveLoss(AbstractContrastiveLoss):
 
 class MeanEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
-                 delta=1., ignore_label=None, aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
-        super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta,
-                         ignore_label, aux_loss_ignore_zero, model_path, D_model_config)
+                 delta=1., epsilon=1., ignore_label=None, bg_push=False, aux_loss_ignore_zero=True, model_path=None,
+                 D_model_config=None):
+        super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta, epsilon,
+                         ignore_label, bg_push, aux_loss_ignore_zero, model_path, D_model_config)
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
         assert embeddings.size()[1:] == target.size()
@@ -863,9 +914,10 @@ class MeanEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
 
 class RandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
-                 delta=1., ignore_label=None, aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
-        super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta,
-                         ignore_label, aux_loss_ignore_zero, model_path, D_model_config)
+                 delta=1., epsilon=1., ignore_label=None, bg_push=False, aux_loss_ignore_zero=True, model_path=None,
+                 D_model_config=None):
+        super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta, epsilon,
+                         ignore_label, bg_push, aux_loss_ignore_zero, model_path, D_model_config)
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
         assert embeddings.size()[1:] == target.size()
@@ -951,7 +1003,9 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                loss_config['alpha'],
                                loss_config['beta'],
                                loss_config['gamma'],
-                               loss_config.get('ignore_label', None))
+                               loss_config.get('epsilon', 1.),
+                               loss_config.get('ignore_label', None),
+                               loss_config.get('bg_push', False))
     elif name == 'MeanEmbAuxContrastiveLoss':
         return MeanEmbAuxContrastiveLoss(loss_config['delta_var'],
                                          loss_config['delta_dist'],
@@ -962,7 +1016,9 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                          loss_config['beta'],
                                          loss_config['gamma'],
                                          loss_config['delta'],
+                                         loss_config.get('epsilon', 1.),
                                          loss_config.get('ignore_label', None),
+                                         loss_config.get('bg_push', False),
                                          loss_config.get('aux_loss_ignore_zero', True),
                                          loss_config.get('model_path', None),
                                          loss_config.get('D_model', None))
@@ -976,7 +1032,9 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                            loss_config['beta'],
                                            loss_config['gamma'],
                                            loss_config['delta'],
+                                           loss_config.get('epsilon', 1.),
                                            loss_config.get('ignore_label', None),
+                                           loss_config.get('bg_push', False),
                                            loss_config.get('aux_loss_ignore_zero', True),
                                            loss_config.get('model_path', None),
                                            loss_config.get('D_model', None))

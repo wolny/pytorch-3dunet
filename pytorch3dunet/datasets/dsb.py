@@ -115,7 +115,9 @@ class DSB2018Dataset(ConfigDataset):
         file_paths = phase_config['file_paths']
         # mirror padding conf
         mirror_padding = dataset_config.get('mirror_padding', None)
-        return [cls(file_paths[0], phase, transformer_config, mirror_padding)]
+        expand_dims = dataset_config.get('expand_dims', True)
+        instance_ratio = phase_config.get('instance_ratio', None)
+        return [cls(file_paths[0], phase, transformer_config, mirror_padding, expand_dims, instance_ratio)]
 
     @staticmethod
     def _load_files(dir, expand_dims):
