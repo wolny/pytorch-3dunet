@@ -7,7 +7,7 @@ import h5py
 import numpy as np
 
 import pytorch3dunet.augment.transforms as transforms
-from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calculate_stats
+from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calculate_stats, sample_instances
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('HDF5Dataset')
@@ -27,7 +27,8 @@ class AbstractHDF5Dataset(ConfigDataset):
                  mirror_padding=(16, 32, 32),
                  raw_internal_path='raw',
                  label_internal_path='label',
-                 weight_internal_path=None):
+                 weight_internal_path=None,
+                 instance_ratio=None):
         """
         :param file_path: path to H5 file containing raw data as well as labels and per pixel weights (optional)
         :param phase: 'train' for training, 'val' for validation, 'test' for testing; data augmentation is performed
@@ -38,6 +39,7 @@ class AbstractHDF5Dataset(ConfigDataset):
         :param raw_internal_path (str or list): H5 internal path to the raw dataset
         :param label_internal_path (str or list): H5 internal path to the label dataset
         :param weight_internal_path (str or list): H5 internal path to the per pixel weights
+        :param a number between (0, 1]: specifies a fraction of ground truth instances to be sampled from the dense ground truth labels
         """
         assert phase in ['train', 'val', 'test']
         if phase in ['train', 'val']:
@@ -52,6 +54,8 @@ class AbstractHDF5Dataset(ConfigDataset):
         self.mirror_padding = mirror_padding
         self.phase = phase
         self.file_path = file_path
+
+        self.instance_ratio = instance_ratio
 
         # convert raw_internal_path, label_internal_path and weight_internal_path to list for ease of computation
         if isinstance(raw_internal_path, str):
@@ -81,6 +85,11 @@ class AbstractHDF5Dataset(ConfigDataset):
             # create label/weight transform only in train/val phase
             self.label_transform = self.transformer.label_transform()
             self.labels = self.fetch_and_check(input_file, label_internal_path)
+
+            if self.instance_ratio is not None:
+                assert 0 < self.instance_ratio <= 1
+                rs = np.random.RandomState(47)
+                self.labels = [sample_instances(m, self.instance_ratio, rs) for m in self.labels]
 
             if weight_internal_path is not None:
                 # look for the weight map in the raw file
@@ -211,6 +220,9 @@ class AbstractHDF5Dataset(ConfigDataset):
         # are going to be included in the final file_paths
         file_paths = cls.traverse_h5_paths(file_paths)
 
+        # load instance sampling configuration
+        instance_ratio = phase_config.get('instance_ratio', None)
+
         datasets = []
         for file_path in file_paths:
             try:
@@ -222,7 +234,8 @@ class AbstractHDF5Dataset(ConfigDataset):
                               mirror_padding=dataset_config.get('mirror_padding', None),
                               raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
                               label_internal_path=dataset_config.get('label_internal_path', 'label'),
-                              weight_internal_path=dataset_config.get('weight_internal_path', None))
+                              weight_internal_path=dataset_config.get('weight_internal_path', None),
+                              instance_ratio=instance_ratio)
                 datasets.append(dataset)
             except Exception:
                 logger.error(f'Skipping {phase} set: {file_path}', exc_info=True)
@@ -250,7 +263,7 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
     """
 
     def __init__(self, file_path, phase, slice_builder_config, transformer_config, mirror_padding=(16, 32, 32),
-                 raw_internal_path='raw', label_internal_path='label', weight_internal_path=None):
+                 raw_internal_path='raw', label_internal_path='label', weight_internal_path=None, instance_ratio=None):
         super().__init__(file_path=file_path,
                          phase=phase,
                          slice_builder_config=slice_builder_config,
@@ -258,7 +271,8 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
                          mirror_padding=mirror_padding,
                          raw_internal_path=raw_internal_path,
                          label_internal_path=label_internal_path,
-                         weight_internal_path=weight_internal_path)
+                         weight_internal_path=weight_internal_path,
+                         instance_ratio=instance_ratio)
 
     @staticmethod
     def create_h5_file(file_path, internal_paths):
@@ -290,7 +304,7 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
     """
 
     def __init__(self, file_path, phase, slice_builder_config, transformer_config, mirror_padding=(16, 32, 32),
-                 raw_internal_path='raw', label_internal_path='label', weight_internal_path=None):
+                 raw_internal_path='raw', label_internal_path='label', weight_internal_path=None, instance_ratio=None):
         super().__init__(file_path=file_path,
                          phase=phase,
                          slice_builder_config=slice_builder_config,
@@ -298,7 +312,8 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
                          mirror_padding=mirror_padding,
                          raw_internal_path=raw_internal_path,
                          label_internal_path=label_internal_path,
-                         weight_internal_path=weight_internal_path)
+                         weight_internal_path=weight_internal_path,
+                         instance_ratio=instance_ratio)
 
     @staticmethod
     def create_h5_file(file_path, internal_paths):
