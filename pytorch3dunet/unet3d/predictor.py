@@ -13,7 +13,7 @@ from pytorch3dunet.datasets.dsb import DSB2018Dataset
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
 from pytorch3dunet.datasets.sliced import SlicedDataset
 from pytorch3dunet.datasets.utils import SliceBuilder
-from pytorch3dunet.embeddings.utils import MeanEmbeddingAnchor, RandomEmbeddingAnchor
+from pytorch3dunet.embeddings.utils import MeanEmbeddingAnchor, RandomEmbeddingAnchor, KMeanShift
 from pytorch3dunet.unet3d.utils import get_logger, pca_project
 from pytorch3dunet.unet3d.utils import remove_halo
 
@@ -443,12 +443,57 @@ class AnchorEmbeddingsPredictor(_AbstractPredictor):
         return torch.stack(results, dim=0)
 
 
+class SequentialEmbeddingsPredictor(_AbstractPredictor):
+    def __init__(self, model, output_dir, config, **kwargs):
+        super().__init__(model, output_dir, config, **kwargs)
+
+    def __call__(self, test_loader):
+        device = self.config['device']
+        logger.info(f'Running prediction on {len(test_loader)} patches...')
+
+        raws = []
+        embeddings = []
+        labels = []
+
+        with h5py.File(test_loader.dataset.file_path, 'r') as f:
+            gt = f['label'][:]
+
+        # Sets the module in evaluation mode explicitly
+        self.model.eval()
+        self.model.testing = True
+        # Run predictions on the entire input dataset
+        with torch.no_grad():
+            for batch, indices in test_loader:
+                # send batch to device
+                batch = batch.to(device)
+                # forward pass
+                emb = self.model(batch)
+
+                for r, i, e in zip(batch, indices, emb):
+                    raws.append(r[0].cpu().numpy())
+                    embeddings.append(e.cpu().numpy())
+                    labels.append(gt[i])
+
+        # save results
+        raws = np.stack(raws, axis=0)
+        embeddings = np.stack(embeddings, axis=0)
+        labels = np.stack(labels, axis=0)
+
+        output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
+        with h5py.File(output_file, 'w') as f:
+            f.create_dataset('raw_sequence', data=raws, compression='gzip')
+            f.create_dataset('embedding_sequence', data=embeddings, compression='gzip')
+            f.create_dataset('label_sequence', data=labels, compression='gzip')
+
+
 class EmbeddingsPredictor(_AbstractPredictor):
     """
     Applies the embedding model on the given dataset and saves the result in the `output_file` in the H5 format.
 
     The resulting volume is the segmentation itself (not the embedding vectors) obtained by clustering embeddings
-    with HDBSCAN or MeanShift algorithm patch by patch and then stitching the patches together.
+    patch by patch and then stitching the patches together.
+
+    Available clustering schemes are: 'hdbscan', 'meanshift', 'kmeanshift'
     """
 
     def __init__(self, model, output_dir, config, clustering, iou_threshold=0.7, noise_label=-1, **kwargs):
@@ -458,7 +503,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
         self.noise_label = noise_label
         self.clustering = clustering
 
-        assert clustering in ['hdbscan', 'meanshift'], 'Only HDBSCAN and MeanShift are supported'
+        assert clustering in ['hdbscan', 'meanshift', 'kmeanshift']
         logger.info(f'IoU threshold: {iou_threshold}')
 
         self.clustering_name = clustering
@@ -506,7 +551,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
 
                     # iterate sequentially because of the current simple stitching that we're using
                     for pred, index in zip(prediction, indices):
-                        # convert embeddings to segmentation with hdbscan clustering
+                        # convert embeddings to segmentation
                         segmentation = self._embeddings_to_segmentation(pred)
                         # stitch patches
                         self._merge_segmentation(segmentation, index, output_segmentation, visited_voxels_array)
@@ -517,6 +562,10 @@ class EmbeddingsPredictor(_AbstractPredictor):
             prediction_datasets = self.get_output_dataset_names(output_heads,
                                                                 prefix=f'segmentation/{self.clustering_name}')
             for output_segmentation, prediction_dataset in zip(output_segmentations, prediction_datasets):
+                if self.noise_label is not None:
+                    # zero out the noise label
+                    output_segmentation[output_segmentation == self.noise_label] = 0
+
                 logger.info(f'Saving predictions to: {output_file}/{prediction_dataset}...')
                 f.create_dataset(prediction_dataset, data=output_segmentation, compression="gzip")
 
@@ -584,7 +633,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
         result = []
         # iterate over new_labels and merge regions if the IoU exceeds a given threshold
         for new_label in new_labels:
-            # skip 'noise' label assigned by hdbscan
+            # skip 'noise' label assigned by the clustering
             if new_label == self.noise_label:
                 continue
             new_label_mask = new_segmentation == new_label
@@ -604,19 +653,23 @@ class EmbeddingsPredictor(_AbstractPredictor):
         return result
 
     def _get_clustering(self, clustering_alg, kwargs):
-        logger.info(f'Using {clustering_alg} for clustering')
+        logger.info(f'Using {clustering_alg} for clustering.\n Params: {kwargs}')
 
         if clustering_alg == 'hdbscan':
-            min_cluster_size = kwargs.get('min_cluster_size', 50)
+            min_cluster_size = kwargs['min_cluster_size']
             min_samples = kwargs.get('min_samples', None),
             metric = kwargs.get('metric', 'euclidean')
             cluster_selection_method = kwargs.get('cluster_selection_method', 'eom')
+            cluster_selection_epsilon = kwargs.get('cluster_selection_epsilon', 0.0)
 
-            logger.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
             return hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
-                                   cluster_selection_method=cluster_selection_method)
-        else:
+                                   cluster_selection_method=cluster_selection_method,
+                                   cluster_selection_epsilon=cluster_selection_epsilon)
+        elif clustering_alg == 'meanshift':
             bandwidth = kwargs['bandwidth']
-            logger.info(f'MeanShift params: bandwidth: {bandwidth}, bin_seeding: True')
             # use fast MeanShift with bin seeding
             return MeanShift(bandwidth=bandwidth, bin_seeding=True)
+        else:
+            bandwidth = kwargs['bandwidth']
+            max_clusters = kwargs.get('max_clusters', 100)
+            return KMeanShift(max_clusters=max_clusters, bandwidth=bandwidth)

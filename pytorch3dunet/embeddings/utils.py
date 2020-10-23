@@ -1,7 +1,10 @@
-import numpy as np
 import os
+
+import numpy as np
 import torch
 import torch.nn as nn
+from numpy import linalg as LA
+from sklearn.cluster import KMeans, MeanShift
 from sklearn.metrics import silhouette_score
 from tensorboardX import SummaryWriter
 
@@ -45,6 +48,42 @@ class RandomEmbeddingAnchor:
         # expand dimensions
         result = result[..., None, None, None]
         return result
+
+
+class KMeanShift:
+    """
+    A hybrid of k-means and mean shift for clustering the embeddings.
+    Applies fast k-means using large number of clusters and then filters out redundant clusters by applying
+    the mean shift on the k-means cluster centroids. Then for each remaining centroid it gets the `delta_var`
+    neighborhood in order to recover the instances.
+    """
+
+    def __init__(self, max_clusters, bandwidth):
+        self.max_clusters = max_clusters
+        self.bandwidth = bandwidth
+
+    def fit_predict(self, flattened_embeddings):
+        k_means = KMeans(n_clusters=self.max_clusters, n_init=1, max_iter=300)
+
+        # perform clustering
+        k_means.fit(flattened_embeddings)
+
+        # get centroids
+        kmeans_cluster_centers = k_means.cluster_centers_
+
+        # remove redundant centroids by mean shift with a given bandwidth
+        mean_shift = MeanShift(bandwidth=self.bandwidth, seeds=kmeans_cluster_centers)
+        mean_shift.fit(kmeans_cluster_centers)
+
+        # use the remaining centroids as he mean shift anchors
+        emb_anchors = mean_shift.cluster_centers_
+
+        seg = np.zeros(flattened_embeddings.shape[0])
+        for i, anchor_emb in enumerate(emb_anchors):
+            inst_mask = LA.norm(flattened_embeddings - anchor_emb, axis=1) < 0.5
+            seg[inst_mask] = i + 1
+
+        return seg
 
 
 def create_real_masks(target, label_smoothing, combine_masks):
@@ -99,6 +138,9 @@ def dist_to_centroids(embeddings, target):
     for emb, tar in zip(embeddings, target):
         instances = torch.unique(target)
         for i in instances:
+            if i == 0:
+                continue
+
             mask = tar == i
             emb_per_inst = emb * mask
             mean_emb = torch.sum(emb_per_inst, dim=(1, 2, 3), keepdim=True) / mask.sum()
