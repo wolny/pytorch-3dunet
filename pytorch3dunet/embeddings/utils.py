@@ -147,7 +147,10 @@ def dist_to_centroids(embeddings, target):
 
             dist_to_mean = torch.norm(emb - mean_emb, 'fro', dim=0)
             result.append(dist_to_mean[mask])
-    return torch.cat(result)
+    if result:
+        return torch.cat(result)
+    else:
+        return None
 
 
 def silhouette(embeddings, target):
@@ -483,14 +486,15 @@ class AbstractEmbeddingGANTrainer:
                 predictions = inputs_map['predictions']
                 targets = inputs_map['targets']
                 dist_to_centroid = dist_to_centroids(predictions, targets)
-                s_score = silhouette(predictions, targets)
-                self.writer.add_histogram('distance_to_centroid', dist_to_centroid.data.cpu().numpy(),
-                                          self.num_iterations)
-                dist_std, dist_mean = torch.std_mean(dist_to_centroid)
-                logger.info(f'Distance to centroid. Mean: {dist_mean.item()}, std_dev: {dist_std.item()}')
-                self.writer.add_scalar('mean_dist_to_centroid', dist_mean.item(), self.num_iterations)
-                self.writer.add_scalar('std_dev_dist_to_centroid', dist_std.item(), self.num_iterations)
-                self.writer.add_scalar('silhouette_score', s_score, self.num_iterations)
+                if dist_to_centroid is not None:
+                    # s_score = silhouette(predictions, targets)
+                    self.writer.add_histogram('distance_to_centroid', dist_to_centroid.data.cpu().numpy(),
+                                              self.num_iterations)
+                    dist_std, dist_mean = torch.std_mean(dist_to_centroid)
+                    logger.info(f'Distance to centroid. Mean: {dist_mean.item()}, std_dev: {dist_std.item()}')
+                    self.writer.add_scalar('mean_dist_to_centroid', dist_mean.item(), self.num_iterations)
+                    self.writer.add_scalar('std_dev_dist_to_centroid', dist_std.item(), self.num_iterations)
+                    # self.writer.add_scalar('silhouette_score', s_score, self.num_iterations)
 
     def log_params(self, model, model_name):
         for name, value in model.named_parameters():
