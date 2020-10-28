@@ -949,6 +949,58 @@ class RandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
         return self.aux_loss(instance_pmaps, instance_masks).mean()
 
 
+class RandomEmbAuxSparseObjContrastiveLoss(RandomEmbAuxContrastiveLoss):
+    def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
+                 delta=1., epsilon=1., zeta=0.1, ignore_label=None, aux_loss_ignore_zero=True,
+                 model_path=None, D_model_config=None):
+        super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta, epsilon,
+                         ignore_label, True, False, aux_loss_ignore_zero, model_path, D_model_config)
+        self.zeta = zeta
+
+    def _compute_variance_term(self, cluster_means, embeddings_per_instance, target, num_voxels_per_instance, C,
+                               spatial_ndim, ignore_zero_label):
+        """
+        Computes the variance term, i.e. intra-cluster pull force that draws embeddings towards the mean embedding
+
+        C - number of clusters (instances)
+        E - embedding dimension
+        SPATIAL - volume shape, i.e. DxHxW for 3D/ HxW for 2D
+        SPATIAL_SINGLETON - singleton dim with the rank of the volume, i.e. (1,1,1) for 3D, (1,1) for 2D
+
+        Args:
+            cluster_means: mean embedding of each instance, tensor (CxExSPATIAL_SINGLETON)
+            embeddings_per_instance: embeddings vectors per instance, tensor (CxExSPATIAL); for a given instance `k`
+                embeddings_per_instance[k, ...] contains 0 outside of the instance mask target[k, ...]
+            target: instance mask, tensor (CxSPATIAL); each label is represented as one-hot vector
+            num_voxels_per_instance: number of voxels per instance Cx1x1(SPATIAL)
+            C: number of instances (clusters)
+            spatial_ndim: rank of the spacial tensor
+            ignore_zero_label: if True ignores the cluster corresponding to the 0-label
+        """
+
+        dim_arg = (2, 3) if spatial_ndim == 2 else (2, 3, 4)
+
+        # compute the distance to cluster means, (norm across embedding dimension); result:(Cx1xSPATIAL)
+        dist_to_mean = torch.norm(embeddings_per_instance - cluster_means, self.norm, dim=1, keepdim=True)
+
+        # get distances to mean embedding per instance (apply instance mask)
+        dist_to_mean = dist_to_mean * target
+
+        # zero out distances less than delta_var (hinge)
+        hinge_dist = torch.clamp(dist_to_mean - self.delta_var, min=0) ** 2
+        # sum up hinged distances
+        dist_sum = torch.sum(hinge_dist, dim=dim_arg, keepdim=True)
+
+        # weight 0-label cluster with zeta
+        cluster_weights = torch.ones_like(dist_sum)
+        cluster_weights[0] = self.zeta
+        dist_sum = dist_sum * cluster_weights
+
+        # normalize the variance term
+        variance_term = torch.sum(dist_sum / num_voxels_per_instance) / C
+        return variance_term
+
+
 class SegEmbLoss(nn.Module):
     def __init__(self, delta_var, delta_dist, w1=1., w2=1.):
         super(SegEmbLoss, self).__init__()
@@ -1047,6 +1099,22 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                            loss_config.get('aux_loss_ignore_zero', True),
                                            loss_config.get('model_path', None),
                                            loss_config.get('D_model', None))
+    elif name == 'RandomEmbAuxSparseObjContrastiveLoss':
+        return RandomEmbAuxSparseObjContrastiveLoss(loss_config['delta_var'],
+                                                    loss_config['delta_dist'],
+                                                    loss_config['aux_loss'],
+                                                    loss_config['dist_to_mask'],
+                                                    loss_config['norm'],
+                                                    loss_config['alpha'],
+                                                    loss_config['beta'],
+                                                    loss_config['gamma'],
+                                                    loss_config['delta'],
+                                                    loss_config.get('epsilon', 1.),
+                                                    loss_config.get('zeta', 0.1),
+                                                    loss_config.get('ignore_label', None),
+                                                    loss_config.get('aux_loss_ignore_zero', True),
+                                                    loss_config.get('model_path', None),
+                                                    loss_config.get('D_model', None))
     elif name == 'SegEmbLoss':
         return SegEmbLoss(loss_config['delta_var'],
                           loss_config['delta_dist'],
