@@ -536,11 +536,15 @@ class AbstractContrastiveLoss(nn.Module):
         distance_term = dist_sum / (C * (C - 1))
         return distance_term
 
-    def _compute_regularizer_term(self, cluster_means, C):
+    def _compute_regularizer_term(self, cluster_means, C, ignore_zero_label):
         """
         Computes the regularizer term, i.e. a small pull-force that draws all clusters towards origin to keep
         the network activations bounded
         """
+        if ignore_zero_label:
+            mask = torch.ones_like(cluster_means)
+            mask[0] = 0
+            cluster_means = cluster_means * mask
         # compute the norm of the mean embeddings
         norms = torch.norm(cluster_means, p=self.norm, dim=1)
         assert norms.size()[0] == C
@@ -577,8 +581,6 @@ class AbstractContrastiveLoss(nn.Module):
         # normalize by the number of background voxels and the number of distances
         background_push = torch.sum(dist_sum / num_background_voxels) / C
         return background_push
-
-
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
         """
@@ -669,8 +671,9 @@ class AbstractContrastiveLoss(nn.Module):
             distance_term = self._compute_distance_term(cluster_means, C, ignore_zero_label)
 
             # compute regularization term
-            # do not ignore 0-label in the regularizer, we still want the activations of 0-label to be bounded
-            regularization_term = self._compute_regularizer_term(cluster_means, C)
+            # consider ignoring 0-label only for sparse object supervision, in all other cases
+            # we do not want to ignore 0-label in the regularizer, since we want the activations of 0-label to be bounded
+            regularization_term = self._compute_regularizer_term(cluster_means, C, ignore_zero_label)
 
             # compute total loss and sum it up
             loss = self.alpha * variance_term + \
