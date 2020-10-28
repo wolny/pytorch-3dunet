@@ -6,7 +6,7 @@ from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch3dunet.datasets.utils import get_train_loaders
-from pytorch3dunet.embeddings.utils import dist_to_centroids, silhouette
+from pytorch3dunet.embeddings.utils import dist_to_centroids
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
@@ -488,15 +488,17 @@ class UNet3DTrainer:
         if isinstance(self.tensorboard_formatter, EmbeddingsTensorboardFormatter):
             if target.dim() == 5:
                 # get only the 1st channel of the target
-                target = target[:,0, ...]
+                target = target[:, 0, ...]
             dist_to_centroid = dist_to_centroids(prediction, target)
-            silhouette_score = silhouette(prediction, target)
-            self.writer.add_histogram('distance_to_centroid', dist_to_centroid.data.cpu().numpy(), self.num_iterations)
-            dist_std, dist_mean = torch.std_mean(dist_to_centroid)
-            logger.info(f'Distance to centroid. Mean: {dist_mean.item()}, std_dev: {dist_std.item()}')
-            self.writer.add_scalar('mean_dist_to_centroid', dist_mean.item(), self.num_iterations)
-            self.writer.add_scalar('std_dev_dist_to_centroid', dist_std.item(), self.num_iterations)
-            self.writer.add_scalar('silhouette_score', silhouette_score, self.num_iterations)
+            if dist_to_centroid is not None:
+                # silhouette_score = silhouette(prediction, target)
+                self.writer.add_histogram('distance_to_centroid', dist_to_centroid.data.cpu().numpy(),
+                                          self.num_iterations)
+                dist_std, dist_mean = torch.std_mean(dist_to_centroid)
+                logger.info(f'Distance to centroid. Mean: {dist_mean.item()}, std_dev: {dist_std.item()}')
+                self.writer.add_scalar('mean_dist_to_centroid', dist_mean.item(), self.num_iterations)
+                self.writer.add_scalar('std_dev_dist_to_centroid', dist_std.item(), self.num_iterations)
+                # self.writer.add_scalar('silhouette_score', silhouette_score, self.num_iterations)
 
     @staticmethod
     def _batch_size(input):
