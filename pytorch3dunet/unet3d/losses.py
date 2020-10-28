@@ -413,7 +413,7 @@ class AbstractContrastiveLoss(nn.Module):
     """
 
     def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001, delta=1., epsilon=1.,
-                 ignore_label=None, bg_push=False):
+                 ignore_label=None, bg_push=False, reg_ignore_zero=False):
         super().__init__()
         self.delta_var = delta_var
         self.delta_dist = delta_dist
@@ -425,6 +425,7 @@ class AbstractContrastiveLoss(nn.Module):
         self.epsilon = epsilon
         self.ignore_label = ignore_label
         self.bg_push = bg_push
+        self.reg_ignore_zero = reg_ignore_zero
 
     def _compute_variance_term(self, cluster_means, embeddings_per_instance, target, num_voxels_per_instance, C,
                                spatial_ndim, ignore_zero_label):
@@ -673,7 +674,7 @@ class AbstractContrastiveLoss(nn.Module):
             # compute regularization term
             # consider ignoring 0-label only for sparse object supervision, in all other cases
             # we do not want to ignore 0-label in the regularizer, since we want the activations of 0-label to be bounded
-            regularization_term = self._compute_regularizer_term(cluster_means, C, ignore_zero_label)
+            regularization_term = self._compute_regularizer_term(cluster_means, C, self.reg_ignore_zero)
 
             # compute total loss and sum it up
             loss = self.alpha * variance_term + \
@@ -705,10 +706,11 @@ class AbstractContrastiveLoss(nn.Module):
 
 class ContrastiveLoss(AbstractContrastiveLoss):
     def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001, epsilon=1., ignore_label=None,
-                 bg_push=False):
+                 bg_push=False, reg_ignore_zero=False):
         super(ContrastiveLoss, self).__init__(delta_var, delta_dist, norm=norm,
                                               alpha=alpha, beta=beta, gamma=gamma, delta=0., epsilon=epsilon,
-                                              ignore_label=ignore_label, bg_push=bg_push)
+                                              ignore_label=ignore_label, bg_push=bg_push,
+                                              reg_ignore_zero=reg_ignore_zero)
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
         # no auxiliary loss in the standard ContrastiveLoss
@@ -819,11 +821,12 @@ class GANShapePriorLoss(nn.Module):
 class AbstractAuxContrastiveLoss(AbstractContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf,
                  norm='fro', alpha=1., beta=1., gamma=0.001, delta=1., epsilon=1.,
-                 ignore_label=None, bg_push=False, aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
+                 ignore_label=None, bg_push=False, reg_ignore_zero=False, aux_loss_ignore_zero=True, model_path=None,
+                 D_model_config=None):
 
         super().__init__(delta_var, delta_dist, norm=norm,
                          alpha=alpha, beta=beta, gamma=gamma, delta=delta, epsilon=epsilon,
-                         ignore_label=ignore_label, bg_push=bg_push)
+                         ignore_label=ignore_label, bg_push=bg_push, reg_ignore_zero=reg_ignore_zero)
 
         self.aux_loss_ignore_zero = aux_loss_ignore_zero
         # ignore instance corresponding to 0-label
@@ -899,10 +902,10 @@ class AbstractAuxContrastiveLoss(AbstractContrastiveLoss):
 
 class MeanEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
-                 delta=1., epsilon=1., ignore_label=None, bg_push=False, aux_loss_ignore_zero=True, model_path=None,
-                 D_model_config=None):
+                 delta=1., epsilon=1., ignore_label=None, bg_push=False, reg_ignore_zero=False,
+                 aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
         super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta, epsilon,
-                         ignore_label, bg_push, aux_loss_ignore_zero, model_path, D_model_config)
+                         ignore_label, bg_push, reg_ignore_zero, aux_loss_ignore_zero, model_path, D_model_config)
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
         assert embeddings.size()[1:] == target.size()
@@ -917,10 +920,10 @@ class MeanEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
 
 class RandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
-                 delta=1., epsilon=1., ignore_label=None, bg_push=False, aux_loss_ignore_zero=True, model_path=None,
-                 D_model_config=None):
+                 delta=1., epsilon=1., ignore_label=None, bg_push=False, reg_ignore_zero=False,
+                 aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
         super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta, epsilon,
-                         ignore_label, bg_push, aux_loss_ignore_zero, model_path, D_model_config)
+                         ignore_label, bg_push, reg_ignore_zero, aux_loss_ignore_zero, model_path, D_model_config)
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
         assert embeddings.size()[1:] == target.size()
@@ -1008,7 +1011,8 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                loss_config['gamma'],
                                loss_config.get('epsilon', 1.),
                                loss_config.get('ignore_label', None),
-                               loss_config.get('bg_push', False))
+                               loss_config.get('bg_push', False),
+                               loss_config.get('reg_ignore_zero', False))
     elif name == 'MeanEmbAuxContrastiveLoss':
         return MeanEmbAuxContrastiveLoss(loss_config['delta_var'],
                                          loss_config['delta_dist'],
@@ -1022,6 +1026,7 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                          loss_config.get('epsilon', 1.),
                                          loss_config.get('ignore_label', None),
                                          loss_config.get('bg_push', False),
+                                         loss_config.get('reg_ignore_zero', False),
                                          loss_config.get('aux_loss_ignore_zero', True),
                                          loss_config.get('model_path', None),
                                          loss_config.get('D_model', None))
@@ -1038,6 +1043,7 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                            loss_config.get('epsilon', 1.),
                                            loss_config.get('ignore_label', None),
                                            loss_config.get('bg_push', False),
+                                           loss_config.get('reg_ignore_zero', False),
                                            loss_config.get('aux_loss_ignore_zero', True),
                                            loss_config.get('model_path', None),
                                            loss_config.get('D_model', None))
