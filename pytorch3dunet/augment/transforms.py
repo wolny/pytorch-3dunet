@@ -217,7 +217,11 @@ class CropToFixed:
             else:
                 return 0, _padding(crop_size - max_size)
 
-        _, y, x = m.shape
+        assert m.ndim in (3, 4)
+        if m.ndim == 3:
+            _, y, x = m.shape
+        else:
+            _, _, y, x = m.shape
 
         if not self.centered:
             y_range, y_pad = _rand_range_and_pad(self.crop_y, y)
@@ -230,8 +234,15 @@ class CropToFixed:
             y_start, y_pad = _start_and_pad(self.crop_y, y)
             x_start, x_pad = _start_and_pad(self.crop_x, x)
 
-        result = m[:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
-        return np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode='reflect')
+        if m.ndim == 3:
+            result = m[:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
+            return np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode='reflect')
+        else:
+            channels = []
+            for c in range(m.shape[0]):
+                result = m[c][:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
+                channels.append(np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode='reflect'))
+            return np.stack(channels, axis=0)
 
 
 class AbstractLabelToBoundary:

@@ -127,7 +127,10 @@ class DSB2018Dataset(ConfigDataset):
             path = os.path.join(dir, file)
             img = np.asarray(imageio.imread(path))
             if expand_dims:
+                dims = img.ndim
                 img = np.expand_dims(img, axis=0)
+                if dims == 3:
+                    img = np.transpose(img, (3, 0, 1, 2))
 
             files_data.append(img)
             paths.append(path)
