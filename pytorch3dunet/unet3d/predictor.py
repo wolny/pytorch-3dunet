@@ -3,12 +3,14 @@ import time
 
 import h5py
 import hdbscan
+import imageio
 import numpy as np
 import torch
 from PIL import Image
 from skimage import measure
 from sklearn.cluster import MeanShift
 
+from pytorch3dunet.augment.transforms import CropToFixed
 from pytorch3dunet.datasets.dsb import DSB2018Dataset
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
 from pytorch3dunet.datasets.sliced import SlicedDataset
@@ -338,6 +340,8 @@ class DSB2018Predictor(_AbstractPredictor):
 class DSBEmbeddingsPredictor(_AbstractPredictor):
     def __init__(self, model, output_dir, config, **kwargs):
         super().__init__(model, output_dir, config, **kwargs)
+        self.save_gt_label = kwargs.get('save_gt_label', True)
+        self.crop = CropToFixed(np.random.RandomState(47), size=(256, 256), centered=True)
 
     def __call__(self, test_loader):
         assert isinstance(test_loader.dataset, DSB2018Dataset)
@@ -369,6 +373,19 @@ class DSBEmbeddingsPredictor(_AbstractPredictor):
                         logger.info(f'Saving output to {out_file}')
                         f.create_dataset('raw', data=single_img[0].cpu().numpy(), compression='gzip')
                         f.create_dataset('embeddings', data=single_emb.cpu().numpy(), compression='gzip')
+                        if self.save_gt_label:
+                            gt_label = self._load_gt(single_path)
+                            f.create_dataset('label', data=gt_label, compression='gzip')
+
+    def _load_gt(self, img_path):
+        base, filename = os.path.split(img_path)
+        mask_dir = os.path.join(os.path.split(base)[0], 'masks')
+        mask_file = os.path.join(mask_dir, filename)
+        gt_label = np.asarray(imageio.imread(mask_file))
+        if gt_label.ndim == 2:
+            gt_label = np.expand_dims(gt_label, axis=0)
+        gt_label = self.crop(gt_label)
+        return gt_label
 
 
 class AnchorEmbeddingsPredictor(_AbstractPredictor):
