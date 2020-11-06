@@ -65,7 +65,7 @@ class DSB2018Dataset(ConfigDataset):
             masks_dir = os.path.join(root_dir, 'masks')
             assert os.path.isdir(masks_dir)
             self.masks, _ = self._load_files(masks_dir, expand_dims)
-            # prepare for training with single object supervision
+            # prepare for training with sparse object supervision (allow sparse objects only in training phase)
             if self.instance_ratio is not None and phase == 'train':
                 assert 0 < self.instance_ratio <= 1
                 rs = np.random.RandomState(47)

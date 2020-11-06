@@ -9,6 +9,9 @@ from pytorch3dunet.augment.transforms import Relabel
 from pytorch3dunet.datasets.dsb import dsb_prediction_collate
 from pytorch3dunet.datasets.utils import ConfigDataset, cvppp_sample_instances, RgbToLabel, \
     LabelToTensor
+from pytorch3dunet.unet3d.utils import get_logger
+
+logger = get_logger('CVPPP2017Dataset')
 
 
 class CVPPP2017Dataset(ConfigDataset):
@@ -61,8 +64,8 @@ class CVPPP2017Dataset(ConfigDataset):
         if phase != 'test':
             # load labeled images
             self.masks, _ = self._load_files(root_dir, 'label')
-            # prepare for training with single object supervision
-            if self.instance_ratio is not None:
+            # training with sparse object supervision
+            if self.instance_ratio is not None and phase == 'train':
                 assert 0 < self.instance_ratio <= 1
                 rs = np.random.RandomState(47)
                 self.masks = [cvppp_sample_instances(m, self.instance_ratio, rs) for m in self.masks]
