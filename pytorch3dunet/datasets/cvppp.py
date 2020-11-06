@@ -27,7 +27,7 @@ class LabelToTensor:
 class CVPPP2017Dataset(ConfigDataset):
     def __init__(self, root_dir, phase, instance_ratio=None):
         assert os.path.isdir(root_dir), f'{root_dir} is not a directory'
-        assert phase in ['train', 'val' 'test']
+        assert phase in ['train', 'val', 'test']
 
         self.phase = phase
 
@@ -71,7 +71,7 @@ class CVPPP2017Dataset(ConfigDataset):
             ]
         )
 
-        if phase == 'train':
+        if phase != 'test':
             # load labeled images
             self.masks, _ = self._load_files(root_dir, 'label')
             # prepare for training with single object supervision
@@ -88,7 +88,7 @@ class CVPPP2017Dataset(ConfigDataset):
             raise StopIteration
 
         img = self.images[idx]
-        if self.phase == 'train':
+        if self.phase != 'test':
             mask = self.masks[idx]
             seed = np.random.randint(np.iinfo('int32').max)
             random.seed(seed)
