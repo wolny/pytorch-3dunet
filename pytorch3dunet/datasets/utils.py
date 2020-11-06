@@ -3,8 +3,10 @@ import importlib
 
 import numpy as np
 import torch
+from PIL import Image
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
 
+from pytorch3dunet.augment.transforms import Relabel
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('Dataset')
@@ -402,3 +404,52 @@ def sample_instances(label_img, instance_ratio, random_state, ignore_labels=(0,)
         result[label_img == si] = si
 
     return result
+
+
+def cvppp_sample_instances(pil_img, instance_ratio, random_state, ignore_labels=(0,)):
+    # convert PIL image to np.array
+    label_img = np.array(pil_img)
+
+    # convert RGB to int
+    label = RgbToLabel()(label_img)
+    # relabel
+    label = Relabel(run_cc=False)(label)
+
+    unique = np.unique(label)
+    for il in ignore_labels:
+        unique = np.delete(unique, il)
+
+    # shuffle labels
+    random_state.shuffle(unique)
+    # pick instance_ratio objects
+    num_objects = round(instance_ratio * len(unique))
+    if num_objects == 0:
+        # if there are no objects left, just return an empty patch
+        return np.zeros_like(label_img)
+
+    # sample the labels
+    sampled_instances = unique[:num_objects]
+
+    mask = np.zeros_like(label)
+    # keep only the sampled_instances
+    for si in sampled_instances:
+        mask[label == si] = 1
+    # mask each channel
+    mask = mask.astype('uint8')
+    mask = np.stack([mask] * 3, axis=2)
+    label_img = label_img * mask
+
+    return Image.fromarray(label_img)
+
+
+class RgbToLabel:
+    def __call__(self, img):
+        img = np.array(img)
+        assert img.ndim == 3 and img.shape[2] == 3
+        result = img[..., 0] * 65536 + img[..., 1] * 256 + img[..., 2]
+        return result
+
+
+class LabelToTensor:
+    def __call__(self, m):
+        return torch.from_numpy(m.astype(dtype='int64'))

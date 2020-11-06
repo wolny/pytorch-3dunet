@@ -2,26 +2,13 @@ import os
 import random
 
 import numpy as np
-import torch
 from PIL import Image
 from torchvision import transforms as ts
 
 from pytorch3dunet.augment.transforms import Relabel
 from pytorch3dunet.datasets.dsb import dsb_prediction_collate
-from pytorch3dunet.datasets.utils import ConfigDataset, sample_instances
-
-
-class RgbToLabel:
-    def __call__(self, img):
-        img = np.array(img)
-        assert img.ndim == 3 and img.shape[2] == 3
-        result = img[..., 0] * 65536 + img[..., 1] * 256 + img[..., 2]
-        return result
-
-
-class LabelToTensor:
-    def __call__(self, m):
-        return torch.from_numpy(m.astype(dtype='int64'))
+from pytorch3dunet.datasets.utils import ConfigDataset, cvppp_sample_instances, RgbToLabel, \
+    LabelToTensor
 
 
 class CVPPP2017Dataset(ConfigDataset):
@@ -75,11 +62,10 @@ class CVPPP2017Dataset(ConfigDataset):
             # load labeled images
             self.masks, _ = self._load_files(root_dir, 'label')
             # prepare for training with single object supervision
-            # TODO: fix instance sampling
             if self.instance_ratio is not None:
                 assert 0 < self.instance_ratio <= 1
                 rs = np.random.RandomState(47)
-                self.masks = [sample_instances(m, self.instance_ratio, rs) for m in self.masks]
+                self.masks = [cvppp_sample_instances(m, self.instance_ratio, rs) for m in self.masks]
 
             assert len(self.images) == len(self.masks)
 
