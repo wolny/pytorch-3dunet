@@ -6,16 +6,16 @@ import hdbscan
 import imageio
 import numpy as np
 import torch
+import torchvision
 from PIL import Image
 from skimage import measure
 from sklearn.cluster import MeanShift
 
-from pytorch3dunet.augment.transforms import CropToFixed
+from pytorch3dunet.augment.transforms import CropToFixed, Relabel
 from pytorch3dunet.datasets.dsb import DSB2018Dataset
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
-from pytorch3dunet.datasets.sliced import SlicedDataset
-from pytorch3dunet.datasets.utils import SliceBuilder
-from pytorch3dunet.embeddings.utils import MeanEmbeddingAnchor, RandomEmbeddingAnchor, KMeanShift
+from pytorch3dunet.datasets.utils import SliceBuilder, RgbToLabel
+from pytorch3dunet.embeddings.utils import KMeanShift
 from pytorch3dunet.unet3d.utils import get_logger, pca_project
 from pytorch3dunet.unet3d.utils import remove_halo
 
@@ -337,11 +337,10 @@ class DSB2018Predictor(_AbstractPredictor):
         return measure.label(mask).astype('uint16')
 
 
-class DSBEmbeddingsPredictor(_AbstractPredictor):
-    def __init__(self, model, output_dir, config, **kwargs):
+class _Abstract2DEmbeddingPredictor(_AbstractPredictor):
+    def __init__(self, model, output_dir, config, save_gt_label, **kwargs):
         super().__init__(model, output_dir, config, **kwargs)
-        self.save_gt_label = kwargs.get('save_gt_label', True)
-        self.crop = CropToFixed(np.random.RandomState(47), size=(256, 256), centered=True)
+        self.save_gt_label = save_gt_label
 
     def __call__(self, test_loader):
         assert isinstance(test_loader.dataset, DSB2018Dataset)
@@ -374,90 +373,50 @@ class DSBEmbeddingsPredictor(_AbstractPredictor):
                         f.create_dataset('raw', data=single_img[0].cpu().numpy(), compression='gzip')
                         f.create_dataset('embeddings', data=single_emb.cpu().numpy(), compression='gzip')
                         if self.save_gt_label:
-                            gt_label = self._load_gt(single_path)
+                            gt_label = self.load_gt_label(single_path)
                             f.create_dataset('label', data=gt_label, compression='gzip')
 
-    def _load_gt(self, img_path):
+    def load_gt_label(self, img_path):
+        raise NotImplementedError
+
+
+class DSBEmbeddingsPredictor(_Abstract2DEmbeddingPredictor):
+    def __init__(self, model, output_dir, config, **kwargs):
+        save_gt_label = kwargs.get('save_gt_label', False)
+        super().__init__(model, output_dir, config, save_gt_label, **kwargs)
+
+    def load_gt_label(self, img_path):
         base, filename = os.path.split(img_path)
         mask_dir = os.path.join(os.path.split(base)[0], 'masks')
         mask_file = os.path.join(mask_dir, filename)
         gt_label = np.asarray(imageio.imread(mask_file))
         if gt_label.ndim == 2:
             gt_label = np.expand_dims(gt_label, axis=0)
-        gt_label = self.crop(gt_label)
+        crop = CropToFixed(np.random.RandomState(47), size=(256, 256), centered=True)
+        gt_label = crop(gt_label)
         return gt_label
 
 
-class AnchorEmbeddingsPredictor(_AbstractPredictor):
-    def __init__(self, model, output_dir, config, epsilon, anchor_extraction='mean', norm='fro', **kwargs):
-        super().__init__(model, output_dir, config, **kwargs)
+class CVPPPEmbeddingsPredictor(_Abstract2DEmbeddingPredictor):
+    def __init__(self, model, output_dir, config, **kwargs):
+        save_gt_label = kwargs.get('save_gt_label', False)
+        super().__init__(model, output_dir, config, save_gt_label, **kwargs)
 
-        self.epsilon = epsilon
-        self.anchor_extraction = anchor_extraction
+    def load_gt_label(self, img_path):
+        base, filename = os.path.split(img_path)
+        prefix = filename.split('_')[0]
+        label_file = os.path.join(base, prefix + '_label.png')
+        img = Image.open(label_file).convert('RGB')
 
-        # function for computing a mean embeddings of target instances
-        if anchor_extraction == 'mean':
-            self.anchor_embeddings_extractor = MeanEmbeddingAnchor()
-        else:
-            self.anchor_embeddings_extractor = RandomEmbeddingAnchor()
-
-        self.norm = norm
-
-    def __call__(self, test_loader):
-        assert isinstance(test_loader.dataset, SlicedDataset)
-        device = self.config['device']
-        # Sets the module in evaluation mode explicitly
-        self.model.eval()
-        self.model.testing = True
-        # Run predictions on the entire input dataset
-        with torch.no_grad():
-            for img, tar, path in test_loader:
-                logger.info(f'Processing {path}')
-                # send batch to device
-                img = img.to(device)
-                tar = tar.to(device)
-                # forward pass
-                emb = self.model(img)
-
-                seg = self._emb_to_seg(emb, tar)
-
-                for single_img, single_emb, single_seg, single_tar, single_path in zip(img, emb, seg, tar, path):
-                    # save to h5 file
-                    out_file = os.path.splitext(single_path)[0] + '_predictions.h5'
-                    if self.output_dir is not None:
-                        out_file = os.path.join(self.output_dir, os.path.split(out_file)[1])
-
-                    # save PNG with PCA projected embeddings
-                    embeddings_numpy = np.squeeze(single_emb.cpu().numpy())
-                    rgb_img = pca_project(embeddings_numpy)
-                    Image.fromarray(np.rollaxis(rgb_img, 0, 3)).save(os.path.splitext(out_file)[0] + '.png')
-
-                    with h5py.File(out_file, 'w') as f:
-                        logger.info(f'Saving output to {out_file}')
-                        f.create_dataset('raw', data=np.uint8(single_img[0].cpu().numpy()), compression='gzip')
-                        f.create_dataset('label', data=np.uint16(single_tar.cpu().numpy()), compression='gzip')
-                        f.create_dataset('segmentation', data=np.uint16(single_seg.cpu().numpy()), compression='gzip')
-                        f.create_dataset('embeddings', data=single_emb.cpu().numpy(), compression='gzip')
-
-    def _emb_to_seg(self, embeddings, target):
-        # iterate over batch dimension
-        results = []
-        for emb, tar in zip(embeddings, target):
-            anchor_embeddings = self.anchor_embeddings_extractor(emb, tar)
-            result = torch.zeros_like(tar)
-            for i, cm in enumerate(anchor_embeddings):
-                if i == 0:
-                    # ignore 0-label
-                    continue
-
-                # compute distance map; embeddings is ExSPATIAL, cluster_mean is ExSINGLETON_SPATIAL, so we can just broadcast
-                inst_mask = torch.norm(emb - cm, self.norm, dim=0) < self.epsilon
-                # save instance
-                result[inst_mask] = i + 1
-
-            results.append(result)
-
-        return torch.stack(results, dim=0)
+        label_transform = torchvision.transforms.Compose([
+            torchvision.transforms.Resize(size=(448, 448), interpolation=Image.NEAREST),
+            RgbToLabel(),
+            Relabel(run_cc=False)
+        ])
+        img = label_transform(img)
+        if img.ndim == 2:
+            img = np.expand_dims(img, axis=0)
+        return img
 
 
 class SequentialEmbeddingsPredictor(_AbstractPredictor):
