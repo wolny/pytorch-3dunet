@@ -22,7 +22,7 @@ class CVPPP2017Dataset(ConfigDataset):
         self.phase = phase
 
         self.images, self.paths = self._load_files(root_dir, suffix='rgb')
-        self.root_dir = root_dir
+        self.file_path = root_dir
         self.instance_ratio = instance_ratio
 
         self.raw_transform = ts.Compose(
