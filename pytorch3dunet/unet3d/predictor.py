@@ -338,9 +338,9 @@ class DSB2018Predictor(_AbstractPredictor):
 
 
 class _Abstract2DEmbeddingPredictor(_AbstractPredictor):
-    def __init__(self, model, output_dir, config, save_gt_label, **kwargs):
+    def __init__(self, model, output_dir, config, **kwargs):
         super().__init__(model, output_dir, config, **kwargs)
-        self.save_gt_label = save_gt_label
+        self.save_gt_label = kwargs.get('save_gt_label', False)
 
     def __call__(self, test_loader):
         assert isinstance(test_loader.dataset, DSB2018Dataset)
@@ -382,8 +382,7 @@ class _Abstract2DEmbeddingPredictor(_AbstractPredictor):
 
 class DSBEmbeddingsPredictor(_Abstract2DEmbeddingPredictor):
     def __init__(self, model, output_dir, config, **kwargs):
-        save_gt_label = kwargs.get('save_gt_label', False)
-        super().__init__(model, output_dir, config, save_gt_label, **kwargs)
+        super().__init__(model, output_dir, config, **kwargs)
 
     def load_gt_label(self, img_path):
         base, filename = os.path.split(img_path)
@@ -399,8 +398,7 @@ class DSBEmbeddingsPredictor(_Abstract2DEmbeddingPredictor):
 
 class CVPPPEmbeddingsPredictor(_Abstract2DEmbeddingPredictor):
     def __init__(self, model, output_dir, config, **kwargs):
-        save_gt_label = kwargs.get('save_gt_label', False)
-        super().__init__(model, output_dir, config, save_gt_label, **kwargs)
+        super().__init__(model, output_dir, config, **kwargs)
 
     def load_gt_label(self, img_path):
         base, filename = os.path.split(img_path)
