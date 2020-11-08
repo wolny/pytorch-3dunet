@@ -13,7 +13,7 @@ from sklearn.cluster import MeanShift
 
 from pytorch3dunet.augment.transforms import CropToFixed, Relabel
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
-from pytorch3dunet.datasets.utils import SliceBuilder, RgbToLabel
+from pytorch3dunet.datasets.utils import SliceBuilder, RgbToLabel, ConfigDataset
 from pytorch3dunet.embeddings.utils import KMeanShift
 from pytorch3dunet.unet3d.utils import get_logger, pca_project
 from pytorch3dunet.unet3d.utils import remove_halo
@@ -342,7 +342,7 @@ class _Abstract2DEmbeddingPredictor(_AbstractPredictor):
         self.save_gt_label = kwargs.get('save_gt_label', False)
 
     def __call__(self, test_loader):
-        assert isinstance(test_loader.dataset, _Abstract2DEmbeddingPredictor)
+        assert isinstance(test_loader.dataset, ConfigDataset)
         device = self.config['device']
         # Sets the module in evaluation mode explicitly
         self.model.eval()
