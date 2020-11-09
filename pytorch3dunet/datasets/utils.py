@@ -131,7 +131,7 @@ class SliceBuilder:
     def _check_patch_shape(patch_shape):
         assert len(patch_shape) == 3, 'patch_shape must be a 3D tuple'
         assert patch_shape[1] >= 64 and patch_shape[2] >= 64, 'Height and Width must be greater or equal 64'
-        #assert patch_shape[0] >= 16, 'Depth must be greater or equal 16'
+        # assert patch_shape[0] >= 16, 'Depth must be greater or equal 16'
 
 
 class FilterSliceBuilder(SliceBuilder):
@@ -385,7 +385,7 @@ def calculate_stats(images):
 def sample_instances(label_img, instance_ratio, random_state, ignore_labels=(0,)):
     unique = np.unique(label_img)
     for il in ignore_labels:
-        unique = np.delete(unique, il)
+        unique = np.setdiff1d(unique, il)
 
     # shuffle labels
     random_state.shuffle(unique)
@@ -417,7 +417,7 @@ def cvppp_sample_instances(pil_img, instance_ratio, random_state, ignore_labels=
 
     unique = np.unique(label)
     for il in ignore_labels:
-        unique = np.delete(unique, il)
+        unique = np.setdiff1d(unique, il)
 
     # shuffle labels
     random_state.shuffle(unique)
