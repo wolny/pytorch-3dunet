@@ -29,7 +29,7 @@ class CVPPP2017Dataset(ConfigDataset):
             [
                 ts.RandomHorizontalFlip(),
                 ts.RandomVerticalFlip(),
-                ts.RandomResizedCrop(448, scale=(0.7, 1.)),
+                ts.RandomResizedCrop(448, scale=(0.8, 1.)),
                 ts.ToTensor(),
                 ImgNormalize(),
                 # add singleton z-dim
@@ -41,7 +41,7 @@ class CVPPP2017Dataset(ConfigDataset):
             [
                 ts.RandomHorizontalFlip(),
                 ts.RandomVerticalFlip(),
-                ts.RandomResizedCrop(448, scale=(0.7, 1.), interpolation=0),
+                ts.RandomResizedCrop(448, scale=(0.8, 1.), interpolation=0),
                 RgbToLabel(),
                 Relabel(run_cc=False),
                 LabelToTensor(),
