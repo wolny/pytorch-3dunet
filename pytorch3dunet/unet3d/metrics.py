@@ -515,6 +515,72 @@ class RandomEmbeddingAveragePrecision(GenericAveragePrecision):
         return np.expand_dims(result, 0)
 
 
+class CVPPPEmbeddingDiceScore:
+    def __init__(self, epsilon, max_anchors, refine_iters=5, **kwargs):
+        self.max_anchors = max_anchors
+        self.epsilon = epsilon
+        self.refine_iters = refine_iters
+
+    def __call__(self, input, target):
+        def _dice_score(gt, seg):
+            nom = 2 * np.sum(gt * seg)
+            denom = np.sum(gt) + np.sum(seg)
+            dice = float(nom) / float(denom)
+            return dice
+
+        # input NxExDxHxW, target NxDxHxW
+        input = input.detach().cpu().numpy()
+        target = target.detach().cpu().numpy()
+
+        batch_dice = []
+        # iterate over the batch
+        for inp, tar in zip(input, target):
+            seg = self.emb_to_seg(inp, tar)
+            # convert target to binary mask
+            mask_tar = (tar > 0).astype('uint8')
+            mask_seg = (seg > 0).astype('uint8')
+            # compute dice score
+            ds = _dice_score(mask_tar, mask_seg)
+            batch_dice.append(ds)
+
+        return torch.tensor(batch_dice).mean()
+
+    @staticmethod
+    def refine_instance(emb, mask, eps, iters):
+        for _ in range(iters):
+            num_pixels = np.sum(mask)
+            mask_emb = emb * mask
+            num = np.sum(mask_emb, axis=(1, 2, 3), keepdims=True)
+
+            mean_emb = num / num_pixels
+            mask = LA.norm(emb - mean_emb, axis=0) < eps
+        return mask
+
+    def emb_to_seg(self, embeddings, target):
+        assert embeddings.ndim == 4
+        assert target.ndim == 3
+
+        result = np.zeros(shape=embeddings.shape[1:], dtype=np.uint32)
+        mask = np.copy(target)
+
+        for i in range(self.max_anchors):
+            # get random anchor
+            z, y, x = np.nonzero(mask)
+            ind = np.random.randint(len(z))
+            anchor_emb = embeddings[:, z[ind], y[ind], x[ind]]
+            anchor_emb = anchor_emb[:, None, None, None]
+            # compute the instance mask, i.e. get the epsilon-ball
+            inst_mask = LA.norm(embeddings - anchor_emb, axis=0) < self.epsilon
+            # refine instance mask
+            inst_mask = self.refine_instance(embeddings, inst_mask, self.epsilon, iters=self.refine_iters)
+            # zero out the instance in the mask
+            mask[inst_mask] = 0
+            # save instance
+            result[inst_mask] = i + 1
+
+        return result
+
+
 class BlobsAveragePrecision(GenericAveragePrecision):
     """
     Computes Average Precision given foreground prediction and ground truth instance segmentation.
