@@ -8,7 +8,7 @@ from torchvision import transforms as ts
 from pytorch3dunet.augment.transforms import Relabel
 from pytorch3dunet.datasets.dsb import dsb_prediction_collate
 from pytorch3dunet.datasets.utils import ConfigDataset, cvppp_sample_instances, RgbToLabel, \
-    LabelToTensor
+    LabelToTensor, ImgNormalize
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('CVPPP2017Dataset')
@@ -31,8 +31,7 @@ class CVPPP2017Dataset(ConfigDataset):
                 ts.RandomVerticalFlip(),
                 ts.RandomResizedCrop(448, scale=(0.7, 1.)),
                 ts.ToTensor(),
-                ts.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
+                ImgNormalize(),
                 # add singleton z-dim
                 lambda m: m.unsqueeze(1)
             ]
@@ -62,8 +61,7 @@ class CVPPP2017Dataset(ConfigDataset):
             [
                 ts.Resize(size=(448, 448)),
                 ts.ToTensor(),
-                ts.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
+                ImgNormalize(),
                 # add singleton z-dim
                 lambda m: m.unsqueeze(1)
             ]

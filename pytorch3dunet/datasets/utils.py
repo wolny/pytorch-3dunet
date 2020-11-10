@@ -3,6 +3,7 @@ import importlib
 
 import numpy as np
 import torch
+import torchvision.transforms.functional as F
 from PIL import Image
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
 
@@ -454,3 +455,10 @@ class LabelToTensor:
     def __call__(self, m):
         m = np.array(m)
         return torch.from_numpy(m.astype(dtype='int64'))
+
+
+class ImgNormalize:
+    def __call__(self, tensor):
+        mean = torch.mean(tensor, dim=(1, 2))
+        std = torch.std(tensor, dim=(1, 2))
+        return F.normalize(tensor, mean, std)
