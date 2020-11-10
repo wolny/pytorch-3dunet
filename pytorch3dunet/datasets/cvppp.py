@@ -38,18 +38,7 @@ class CVPPP2017Dataset(ConfigDataset):
             ]
         )
 
-        self.test_transform = ts.Compose(
-            [
-                ts.Resize(size=(448, 448)),
-                ts.ToTensor(),
-                ts.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
-                # add singleton z-dim
-                lambda m: m.unsqueeze(1)
-            ]
-        )
-
-        self.label_transform = ts.Compose(
+        self.train_label_transform = ts.Compose(
             [
                 ts.RandomHorizontalFlip(),
                 ts.RandomVerticalFlip(),
@@ -61,7 +50,26 @@ class CVPPP2017Dataset(ConfigDataset):
             ]
         )
 
-        if phase != 'test':
+        self.val_label_transform = ts.Compose(
+            [
+                ts.Resize(size=(448, 448)),
+                LabelToTensor(),
+                lambda m: m.unsqueeze(0)
+            ]
+        )
+
+        self.test_transform = ts.Compose(
+            [
+                ts.Resize(size=(448, 448)),
+                ts.ToTensor(),
+                ts.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225]),
+                # add singleton z-dim
+                lambda m: m.unsqueeze(1)
+            ]
+        )
+
+        if phase == 'train':
             # load labeled images
             self.masks, _ = self._load_files(root_dir, 'label')
             # training with sparse object supervision
@@ -71,19 +79,31 @@ class CVPPP2017Dataset(ConfigDataset):
                 self.masks = [cvppp_sample_instances(m, self.instance_ratio, rs) for m in self.masks]
 
             assert len(self.images) == len(self.masks)
+        elif phase == 'val':
+            # load labeled images
+            self.masks, _ = self._load_files(root_dir, 'fg')
+            assert len(self.images) == len(self.masks)
 
     def __getitem__(self, idx):
         if idx >= len(self):
             raise StopIteration
 
         img = self.images[idx]
-        if self.phase != 'test':
+        if self.phase == 'train':
             mask = self.masks[idx]
             seed = np.random.randint(np.iinfo('int32').max)
             random.seed(seed)
             img = self.raw_transform(img)
             random.seed(seed)
-            mask = self.label_transform(mask)
+            mask = self.train_label_transform(mask)
+            return img, mask
+        elif self.phase == 'val':
+            mask = self.masks[idx]
+            seed = np.random.randint(np.iinfo('int32').max)
+            random.seed(seed)
+            img = self.test_transform(img)
+            random.seed(seed)
+            mask = self.val_label_transform(mask)
             return img, mask
         else:
             return self.test_transform(img), self.paths[idx]
@@ -106,7 +126,7 @@ class CVPPP2017Dataset(ConfigDataset):
     @staticmethod
     def _load_files(dir, suffix):
         # we only load raw or label images
-        assert suffix in ['rgb', 'label']
+        assert suffix in ['rgb', 'label', 'fg']
         files_data = []
         paths = []
         for file in sorted(os.listdir(dir)):
@@ -114,7 +134,9 @@ class CVPPP2017Dataset(ConfigDataset):
             if base.endswith(suffix):
                 path = os.path.join(dir, file)
                 # load image
-                img = Image.open(path).convert('RGB')
+                img = Image.open(path)
+                if suffix in ['rgb', 'label']:
+                    img = img.convert('RGB')
                 # save image and path
                 files_data.append(img)
                 paths.append(path)

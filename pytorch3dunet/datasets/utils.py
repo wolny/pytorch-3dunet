@@ -452,4 +452,5 @@ class RgbToLabel:
 
 class LabelToTensor:
     def __call__(self, m):
+        m = np.array(m)
         return torch.from_numpy(m.astype(dtype='int64'))
