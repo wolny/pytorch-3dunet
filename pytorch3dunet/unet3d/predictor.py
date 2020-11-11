@@ -402,7 +402,7 @@ class CVPPPEmbeddingsPredictor(_Abstract2DEmbeddingPredictor):
     def load_gt_label(self, img_path):
         base, filename = os.path.split(img_path)
         prefix = filename.split('_')[0]
-        label_file = os.path.join(base, prefix + '_label.png')
+        label_file = os.path.join(base, prefix + '_fg.png')
         img = Image.open(label_file).convert('RGB')
 
         label_transform = torchvision.transforms.Compose([
