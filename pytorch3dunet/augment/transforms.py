@@ -573,6 +573,50 @@ class Standardize:
         return (m - self.mean) / np.clip(self.std, a_min=self.eps, a_max=None)
 
 
+class ImgStandardize:
+    """
+    Apply Z-score normalization to a given input tensor, i.e. re-scaling the values to be 0-mean and 1-std.
+    """
+
+    def __init__(self, channelwise=True, eps=1e-10, **kwargs):
+        self.eps = eps
+        self.channelwise = channelwise
+
+    def __call__(self, m):
+        if self.channelwise:
+            axes = list(range(m.ndim))
+            # average across channels
+            axes = tuple(axes[1:])
+            mean = np.mean(m, axis=axes, keepdims=True)
+            std = np.std(m, axis=axes, keepdims=True)
+        else:
+            mean = np.mean(m)
+            std = np.std(m)
+
+        return (m - mean) / np.clip(std, a_min=self.eps, a_max=None)
+
+
+class PercentileNormalizer:
+    def __init__(self, pmin, pmax, channelwise=True, eps=1e-10, **kwargs):
+        self.eps = eps
+        self.pmin = pmin
+        self.pmax = pmax
+        self.channelwise = channelwise
+
+    def __call__(self, m):
+        if self.channelwise:
+            axes = list(range(m.ndim))
+            # average across channels
+            axes = tuple(axes[1:])
+            pmin = np.percentile(m, self.pmin, axis=axes, keepdims=True)
+            pmax = np.percentile(m, self.pmax, axis=axes, keepdims=True)
+        else:
+            pmin = np.percentile(m, self.pmin)
+            pmax = np.percentile(m, self.pmax)
+
+        return (m - pmin) / (pmax - pmin + self.eps)
+
+
 class Normalize:
     """
     Apply simple min-max scaling to a given input tensor, i.e. shrinks the range of the data in a fixed range of [-1, 1].
