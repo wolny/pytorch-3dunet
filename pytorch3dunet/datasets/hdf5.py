@@ -28,7 +28,8 @@ class AbstractHDF5Dataset(ConfigDataset):
                  raw_internal_path='raw',
                  label_internal_path='label',
                  weight_internal_path=None,
-                 instance_ratio=None):
+                 instance_ratio=None,
+                 random_seed=0):
         """
         :param file_path: path to H5 file containing raw data as well as labels and per pixel weights (optional)
         :param phase: 'train' for training, 'val' for validation, 'test' for testing; data augmentation is performed
@@ -88,7 +89,7 @@ class AbstractHDF5Dataset(ConfigDataset):
 
             if self.instance_ratio is not None:
                 assert 0 < self.instance_ratio <= 1
-                rs = np.random.RandomState(47)
+                rs = np.random.RandomState(random_seed)
                 self.labels = [sample_instances(m, self.instance_ratio, rs) for m in self.labels]
 
             if weight_internal_path is not None:
@@ -222,6 +223,7 @@ class AbstractHDF5Dataset(ConfigDataset):
 
         # load instance sampling configuration
         instance_ratio = phase_config.get('instance_ratio', None)
+        random_seed = phase_config.get('random_seed', 0)
 
         datasets = []
         for file_path in file_paths:
@@ -235,7 +237,7 @@ class AbstractHDF5Dataset(ConfigDataset):
                               raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
                               label_internal_path=dataset_config.get('label_internal_path', 'label'),
                               weight_internal_path=dataset_config.get('weight_internal_path', None),
-                              instance_ratio=instance_ratio)
+                              instance_ratio=instance_ratio, random_seed=random_seed)
                 datasets.append(dataset)
             except Exception:
                 logger.error(f'Skipping {phase} set: {file_path}', exc_info=True)
@@ -263,7 +265,8 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
     """
 
     def __init__(self, file_path, phase, slice_builder_config, transformer_config, mirror_padding=(16, 32, 32),
-                 raw_internal_path='raw', label_internal_path='label', weight_internal_path=None, instance_ratio=None):
+                 raw_internal_path='raw', label_internal_path='label', weight_internal_path=None,
+                 instance_ratio=None, random_seed=0):
         super().__init__(file_path=file_path,
                          phase=phase,
                          slice_builder_config=slice_builder_config,
@@ -272,7 +275,8 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
                          raw_internal_path=raw_internal_path,
                          label_internal_path=label_internal_path,
                          weight_internal_path=weight_internal_path,
-                         instance_ratio=instance_ratio)
+                         instance_ratio=instance_ratio,
+                         random_seed=random_seed)
 
     @staticmethod
     def create_h5_file(file_path, internal_paths):
@@ -304,7 +308,8 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
     """
 
     def __init__(self, file_path, phase, slice_builder_config, transformer_config, mirror_padding=(16, 32, 32),
-                 raw_internal_path='raw', label_internal_path='label', weight_internal_path=None, instance_ratio=None):
+                 raw_internal_path='raw', label_internal_path='label', weight_internal_path=None,
+                 instance_ratio=None, random_seed=0):
         super().__init__(file_path=file_path,
                          phase=phase,
                          slice_builder_config=slice_builder_config,
@@ -313,7 +318,8 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
                          raw_internal_path=raw_internal_path,
                          label_internal_path=label_internal_path,
                          weight_internal_path=weight_internal_path,
-                         instance_ratio=instance_ratio)
+                         instance_ratio=instance_ratio,
+                         random_seed=random_seed)
 
     @staticmethod
     def create_h5_file(file_path, internal_paths):

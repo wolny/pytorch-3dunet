@@ -15,7 +15,7 @@ logger = get_logger('CVPPP2017Dataset')
 
 
 class CVPPP2017Dataset(ConfigDataset):
-    def __init__(self, root_dir, phase, instance_ratio=None):
+    def __init__(self, root_dir, phase, instance_ratio=None, random_seed=0):
         assert os.path.isdir(root_dir), f'{root_dir} is not a directory'
         assert phase in ['train', 'val', 'test']
 
@@ -73,7 +73,7 @@ class CVPPP2017Dataset(ConfigDataset):
             # training with sparse object supervision
             if self.instance_ratio is not None and phase == 'train':
                 assert 0 < self.instance_ratio <= 1
-                rs = np.random.RandomState(47)
+                rs = np.random.RandomState(random_seed)
                 self.masks = [cvppp_sample_instances(m, self.instance_ratio, rs) for m in self.masks]
 
             assert len(self.images) == len(self.masks)
@@ -119,7 +119,8 @@ class CVPPP2017Dataset(ConfigDataset):
         # load files to process
         file_paths = phase_config['file_paths']
         instance_ratio = phase_config.get('instance_ratio', None)
-        return [cls(file_paths[0], phase, instance_ratio)]
+        random_seed = phase_config.get('random_seed', 0)
+        return [cls(file_paths[0], phase, instance_ratio, random_seed)]
 
     @staticmethod
     def _load_files(dir, suffix):

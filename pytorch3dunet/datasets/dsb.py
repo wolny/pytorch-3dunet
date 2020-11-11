@@ -31,7 +31,7 @@ def dsb_prediction_collate(batch):
 
 class DSB2018Dataset(ConfigDataset):
     def __init__(self, root_dir, phase, transformer_config, mirror_padding=(0, 32, 32), expand_dims=True,
-                 instance_ratio=None):
+                 instance_ratio=None, random_seed=0):
         assert os.path.isdir(root_dir), f'{root_dir} is not a directory'
         assert phase in ['train', 'val', 'test']
 
@@ -68,7 +68,7 @@ class DSB2018Dataset(ConfigDataset):
             # prepare for training with sparse object supervision (allow sparse objects only in training phase)
             if self.instance_ratio is not None and phase == 'train':
                 assert 0 < self.instance_ratio <= 1
-                rs = np.random.RandomState(47)
+                rs = np.random.RandomState(random_seed)
                 self.masks = [sample_instances(m, self.instance_ratio, rs) for m in self.masks]
             assert len(self.images) == len(self.masks)
             # load label images transformer
@@ -117,7 +117,8 @@ class DSB2018Dataset(ConfigDataset):
         mirror_padding = dataset_config.get('mirror_padding', None)
         expand_dims = dataset_config.get('expand_dims', True)
         instance_ratio = phase_config.get('instance_ratio', None)
-        return [cls(file_paths[0], phase, transformer_config, mirror_padding, expand_dims, instance_ratio)]
+        random_seed = phase_config.get('random_seed', 0)
+        return [cls(file_paths[0], phase, transformer_config, mirror_padding, expand_dims, instance_ratio, random_seed)]
 
     @staticmethod
     def _load_files(dir, expand_dims):
