@@ -563,6 +563,10 @@ class CVPPPEmbeddingDiceScore:
         result = np.zeros(shape=embeddings.shape[1:], dtype=np.uint32)
         mask = target > 0
 
+        # for sparse objects we might have empty patches, just return the target mask
+        if len(np.unique(mask)) == 1:
+            return np.ones_like(target)
+
         for i in range(self.max_anchors):
             # get random anchor
             z, y, x = np.nonzero(mask)
