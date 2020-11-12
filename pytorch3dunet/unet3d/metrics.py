@@ -561,7 +561,7 @@ class CVPPPEmbeddingDiceScore:
         assert target.ndim == 3
 
         result = np.zeros(shape=embeddings.shape[1:], dtype=np.uint32)
-        mask = np.copy(target)
+        mask = target > 0
 
         for i in range(self.max_anchors):
             # get random anchor
