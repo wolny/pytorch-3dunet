@@ -51,7 +51,7 @@ class CVPPP2017Dataset(ConfigDataset):
 
         self.val_label_transform = ts.Compose(
             [
-                ts.Resize(size=(448, 448)),
+                ts.Resize(size=(448, 448), interpolation=Image.NEAREST),
                 LabelToTensor(),
                 lambda m: m.unsqueeze(0)
             ]
