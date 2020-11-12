@@ -568,6 +568,8 @@ class CVPPPEmbeddingDiceScore:
             return np.ones_like(mask)
 
         for i in range(self.max_anchors):
+            if np.sum(mask) == 0:
+                return result
             # get random anchor
             z, y, x = np.nonzero(mask)
             ind = np.random.randint(len(z))
