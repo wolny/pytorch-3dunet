@@ -1,11 +1,11 @@
 import math
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn as nn
 from torch.autograd import Variable
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss, BCELoss
-import numpy as np
 
 from pytorch3dunet.unet3d.model import get_model, WGANDiscriminator
 from pytorch3dunet.unet3d.utils import expand_as_one_hot, load_checkpoint
@@ -38,6 +38,25 @@ def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
     # here we can use standard dice (input + target).sum(-1) or extension (see V-Net) (input^2 + target^2).sum(-1)
     denominator = (input * input).sum(-1) + (target * target).sum(-1)
     return 2 * (intersect / denominator.clamp(min=epsilon))
+
+
+def select_stable_anchor(embeddings, mean_anchor, target_mask, delta_var, norm='fro'):
+    z, y, x = torch.nonzero(target_mask, as_tuple=True)
+    # convert to numpy
+    z, y, x = [t.cpu().numpy() for t in [z, y, x]]
+    # randomize coordinates
+    for t in [z, y, x]:
+        rs = np.random.RandomState(47)
+        rs.shuffle(t)
+
+    for ind in range(len(z)):
+        anchor_emb = embeddings[:, z[ind], y[ind], x[ind]]
+        anchor_emb = anchor_emb[..., None, None, None]
+        dist_to_mean = torch.norm(mean_anchor - anchor_emb, norm)
+        if dist_to_mean < delta_var:
+            return anchor_emb
+    # if stable anchor has not been found, return mean_anchor
+    return mean_anchor
 
 
 class _MaskingLossWrapper(nn.Module):
@@ -414,7 +433,7 @@ class AbstractContrastiveLoss(nn.Module):
     """
 
     def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001, delta=1., epsilon=1.,
-                 ignore_label=None, bg_push=False, reg_ignore_zero=False):
+                 ignore_label=None, bg_push=False, reg_ignore_zero=False, random_anchors=False):
         super().__init__()
         self.delta_var = delta_var
         self.delta_dist = delta_dist
@@ -427,6 +446,7 @@ class AbstractContrastiveLoss(nn.Module):
         self.ignore_label = ignore_label
         self.bg_push = bg_push
         self.reg_ignore_zero = reg_ignore_zero
+        self.random_anchors = random_anchors
 
     def _compute_variance_term(self, cluster_means, embeddings_per_instance, target, num_voxels_per_instance, C,
                                spatial_ndim, ignore_zero_label):
@@ -649,8 +669,23 @@ class AbstractContrastiveLoss(nn.Module):
                                                                                                     single_target,
                                                                                                     spatial_dims)
 
+            if self.random_anchors:
+                # choose random attractors for the pull force instead of mean embeddings
+                cluster_attractors = []
+                for i in instances:
+                    if i == 0 and self.bg_push:
+                        # just take the mean anchor
+                        cluster_attractors.append(cluster_means[0])
+                    else:
+                        anchor_emb = select_stable_anchor(single_input, cluster_means[i], orig_target == i,
+                                                          self.delta_var)
+                        cluster_attractors.append(anchor_emb)
+                cluster_attractors = torch.stack(cluster_attractors, dim=0).to(single_input.device)
+            else:
+                cluster_attractors = cluster_means
+
             # compute variance term, i.e. pull force
-            variance_term = self._compute_variance_term(cluster_means, embeddings_per_instance,
+            variance_term = self._compute_variance_term(cluster_attractors, embeddings_per_instance,
                                                         single_target, num_voxels_per_instance,
                                                         C, spatial_dims, ignore_zero_label)
 
@@ -707,11 +742,12 @@ class AbstractContrastiveLoss(nn.Module):
 
 class ContrastiveLoss(AbstractContrastiveLoss):
     def __init__(self, delta_var, delta_dist, norm='fro', alpha=1., beta=1., gamma=0.001, epsilon=1., ignore_label=None,
-                 bg_push=False, reg_ignore_zero=False):
+                 bg_push=False, reg_ignore_zero=False, random_anchors=False):
         super(ContrastiveLoss, self).__init__(delta_var, delta_dist, norm=norm,
                                               alpha=alpha, beta=beta, gamma=gamma, delta=0., epsilon=epsilon,
                                               ignore_label=ignore_label, bg_push=bg_push,
-                                              reg_ignore_zero=reg_ignore_zero)
+                                              reg_ignore_zero=reg_ignore_zero,
+                                              random_anchors=random_anchors)
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
         # no auxiliary loss in the standard ContrastiveLoss
@@ -822,12 +858,13 @@ class GANShapePriorLoss(nn.Module):
 class AbstractAuxContrastiveLoss(AbstractContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf,
                  norm='fro', alpha=1., beta=1., gamma=0.001, delta=1., epsilon=1.,
-                 ignore_label=None, bg_push=False, reg_ignore_zero=False, aux_loss_ignore_zero=True, model_path=None,
-                 D_model_config=None):
+                 ignore_label=None, bg_push=False, reg_ignore_zero=False, random_anchors=False,
+                 aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
 
         super().__init__(delta_var, delta_dist, norm=norm,
                          alpha=alpha, beta=beta, gamma=gamma, delta=delta, epsilon=epsilon,
-                         ignore_label=ignore_label, bg_push=bg_push, reg_ignore_zero=reg_ignore_zero)
+                         ignore_label=ignore_label, bg_push=bg_push, reg_ignore_zero=reg_ignore_zero,
+                         random_anchors=random_anchors)
 
         self.aux_loss_ignore_zero = aux_loss_ignore_zero
         # ignore instance corresponding to 0-label
@@ -904,9 +941,10 @@ class AbstractAuxContrastiveLoss(AbstractContrastiveLoss):
 class MeanEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
                  delta=1., epsilon=1., ignore_label=None, bg_push=False, reg_ignore_zero=False,
-                 aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
+                 random_anchors=False, aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
         super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta, epsilon,
-                         ignore_label, bg_push, reg_ignore_zero, aux_loss_ignore_zero, model_path, D_model_config)
+                         ignore_label, bg_push, reg_ignore_zero, random_anchors, aux_loss_ignore_zero,
+                         model_path, D_model_config)
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
         assert embeddings.size()[1:] == target.size()
@@ -922,9 +960,10 @@ class MeanEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
 class RandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
                  delta=1., epsilon=1., ignore_label=None, bg_push=False, reg_ignore_zero=False,
-                 aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
+                 random_anchors=False, aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
         super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta, epsilon,
-                         ignore_label, bg_push, reg_ignore_zero, aux_loss_ignore_zero, model_path, D_model_config)
+                         ignore_label, bg_push, reg_ignore_zero, random_anchors, aux_loss_ignore_zero,
+                         model_path, D_model_config)
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
         assert embeddings.size()[1:] == target.size()
@@ -952,28 +991,10 @@ class RandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
 
 class StableRandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
-                 delta=1., epsilon=1., ignore_label=None, bg_push=False, reg_ignore_zero=False,
+                 delta=1., epsilon=1., ignore_label=None, bg_push=False, reg_ignore_zero=False, random_anchors=False,
                  aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
         super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta, epsilon,
-                         ignore_label, bg_push, reg_ignore_zero, aux_loss_ignore_zero, model_path, D_model_config)
-
-    def _select_stable_anchor(self, embeddings, mean_anchor, target_mask):
-        z, y, x = torch.nonzero(target_mask, as_tuple=True)
-        # convert to numpy
-        z, y, x = [t.cpu().numpy() for t in [z, y, x]]
-        # randomize coordinates
-        for t in [z, y, x]:
-            rs = np.random.RandomState(47)
-            rs.shuffle(t)
-
-        for ind in range(len(z)):
-            anchor_emb = embeddings[:, z[ind], y[ind], x[ind]]
-            anchor_emb = anchor_emb[..., None, None, None]
-            dist_to_mean = torch.norm(mean_anchor - anchor_emb, self.norm)
-            if dist_to_mean < self.delta_var:
-                return anchor_emb
-        # if stable anchor has not been found, return mean_anchor
-        return mean_anchor
+                         ignore_label, bg_push, reg_ignore_zero, random_anchors, aux_loss_ignore_zero, model_path, D_model_config)
 
     def auxiliary_loss(self, embeddings, cluster_means, target):
         assert embeddings.size()[1:] == target.size()
@@ -983,14 +1004,10 @@ class StableRandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
         anchor_embeddings = []
         for i in instances:
             if i == 0 and self.aux_loss_ignore_zero:
-                # just take random anchor
-                z, y, x = torch.nonzero(target == 0, as_tuple=True)
-                ind = torch.randint(len(z), (1,))[0]
-                anchor_emb = embeddings[:, z[ind], y[ind], x[ind]]
-                anchor_emb = anchor_emb[..., None, None, None]
-                anchor_embeddings.append(anchor_emb)
+                # just take the mean anchor
+                anchor_embeddings.append(cluster_means[0])
             else:
-                anchor_emb = self._select_stable_anchor(embeddings, cluster_means[i], target == i)
+                anchor_emb = select_stable_anchor(embeddings, cluster_means[i], target == i, self.delta_var)
                 anchor_embeddings.append(anchor_emb)
 
         anchor_embeddings = torch.stack(anchor_embeddings, dim=0).to(embeddings.device)
@@ -1001,58 +1018,6 @@ class StableRandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
             return 0.
 
         return self.aux_loss(instance_pmaps, instance_masks).mean()
-
-
-class RandomEmbAuxSparseObjContrastiveLoss(RandomEmbAuxContrastiveLoss):
-    def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
-                 delta=1., epsilon=1., zeta=0.1, ignore_label=None, aux_loss_ignore_zero=True,
-                 model_path=None, D_model_config=None):
-        super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta, epsilon,
-                         ignore_label, True, False, aux_loss_ignore_zero, model_path, D_model_config)
-        self.zeta = zeta
-
-    def _compute_variance_term(self, cluster_means, embeddings_per_instance, target, num_voxels_per_instance, C,
-                               spatial_ndim, ignore_zero_label):
-        """
-        Computes the variance term, i.e. intra-cluster pull force that draws embeddings towards the mean embedding
-
-        C - number of clusters (instances)
-        E - embedding dimension
-        SPATIAL - volume shape, i.e. DxHxW for 3D/ HxW for 2D
-        SPATIAL_SINGLETON - singleton dim with the rank of the volume, i.e. (1,1,1) for 3D, (1,1) for 2D
-
-        Args:
-            cluster_means: mean embedding of each instance, tensor (CxExSPATIAL_SINGLETON)
-            embeddings_per_instance: embeddings vectors per instance, tensor (CxExSPATIAL); for a given instance `k`
-                embeddings_per_instance[k, ...] contains 0 outside of the instance mask target[k, ...]
-            target: instance mask, tensor (CxSPATIAL); each label is represented as one-hot vector
-            num_voxels_per_instance: number of voxels per instance Cx1x1(SPATIAL)
-            C: number of instances (clusters)
-            spatial_ndim: rank of the spacial tensor
-            ignore_zero_label: if True ignores the cluster corresponding to the 0-label
-        """
-
-        dim_arg = (2, 3) if spatial_ndim == 2 else (2, 3, 4)
-
-        # compute the distance to cluster means, (norm across embedding dimension); result:(Cx1xSPATIAL)
-        dist_to_mean = torch.norm(embeddings_per_instance - cluster_means, self.norm, dim=1, keepdim=True)
-
-        # get distances to mean embedding per instance (apply instance mask)
-        dist_to_mean = dist_to_mean * target
-
-        # zero out distances less than delta_var (hinge)
-        hinge_dist = torch.clamp(dist_to_mean - self.delta_var, min=0) ** 2
-        # sum up hinged distances
-        dist_sum = torch.sum(hinge_dist, dim=dim_arg, keepdim=True)
-
-        # weight 0-label cluster with zeta
-        cluster_weights = torch.ones_like(dist_sum)
-        cluster_weights[0] = self.zeta
-        dist_sum = dist_sum * cluster_weights
-
-        # normalize the variance term
-        variance_term = torch.sum(dist_sum / num_voxels_per_instance) / C
-        return variance_term
 
 
 class SegEmbLoss(nn.Module):
@@ -1118,7 +1083,8 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                loss_config.get('epsilon', 1.),
                                loss_config.get('ignore_label', None),
                                loss_config.get('bg_push', False),
-                               loss_config.get('reg_ignore_zero', False))
+                               loss_config.get('reg_ignore_zero', False),
+                               loss_config.get('random_anchors', False))
     elif name == 'MeanEmbAuxContrastiveLoss':
         return MeanEmbAuxContrastiveLoss(loss_config['delta_var'],
                                          loss_config['delta_dist'],
@@ -1133,6 +1099,7 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                          loss_config.get('ignore_label', None),
                                          loss_config.get('bg_push', False),
                                          loss_config.get('reg_ignore_zero', False),
+                                         loss_config.get('random_anchors', False),
                                          loss_config.get('aux_loss_ignore_zero', True),
                                          loss_config.get('model_path', None),
                                          loss_config.get('D_model', None))
@@ -1150,6 +1117,7 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                            loss_config.get('ignore_label', None),
                                            loss_config.get('bg_push', False),
                                            loss_config.get('reg_ignore_zero', False),
+                                           loss_config.get('random_anchors', False),
                                            loss_config.get('aux_loss_ignore_zero', True),
                                            loss_config.get('model_path', None),
                                            loss_config.get('D_model', None))
@@ -1167,25 +1135,10 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                                  loss_config.get('ignore_label', None),
                                                  loss_config.get('bg_push', False),
                                                  loss_config.get('reg_ignore_zero', False),
+                                                 loss_config.get('random_anchors', False),
                                                  loss_config.get('aux_loss_ignore_zero', True),
                                                  loss_config.get('model_path', None),
                                                  loss_config.get('D_model', None))
-    elif name == 'RandomEmbAuxSparseObjContrastiveLoss':
-        return RandomEmbAuxSparseObjContrastiveLoss(loss_config['delta_var'],
-                                                    loss_config['delta_dist'],
-                                                    loss_config['aux_loss'],
-                                                    loss_config['dist_to_mask'],
-                                                    loss_config['norm'],
-                                                    loss_config['alpha'],
-                                                    loss_config['beta'],
-                                                    loss_config['gamma'],
-                                                    loss_config['delta'],
-                                                    loss_config.get('epsilon', 1.),
-                                                    loss_config.get('zeta', 0.1),
-                                                    loss_config.get('ignore_label', None),
-                                                    loss_config.get('aux_loss_ignore_zero', True),
-                                                    loss_config.get('model_path', None),
-                                                    loss_config.get('D_model', None))
     elif name == 'SegEmbLoss':
         return SegEmbLoss(loss_config['delta_var'],
                           loss_config['delta_dist'],
