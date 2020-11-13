@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch import nn as nn
 from torch.autograd import Variable
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss, BCELoss
+import numpy as np
 
 from pytorch3dunet.unet3d.model import get_model, WGANDiscriminator
 from pytorch3dunet.unet3d.utils import expand_as_one_hot, load_checkpoint
@@ -949,6 +950,59 @@ class RandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
         return self.aux_loss(instance_pmaps, instance_masks).mean()
 
 
+class StableRandomEmbAuxContrastiveLoss(AbstractAuxContrastiveLoss):
+    def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
+                 delta=1., epsilon=1., ignore_label=None, bg_push=False, reg_ignore_zero=False,
+                 aux_loss_ignore_zero=True, model_path=None, D_model_config=None):
+        super().__init__(delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm, alpha, beta, gamma, delta, epsilon,
+                         ignore_label, bg_push, reg_ignore_zero, aux_loss_ignore_zero, model_path, D_model_config)
+
+    def _select_stable_anchor(self, embeddings, mean_anchor, target_mask):
+        z, y, x = torch.nonzero(target_mask, as_tuple=True)
+        # convert to numpy
+        z, y, x = [t.cpu().numpy() for t in [z, y, x]]
+        # randomize coordinates
+        for t in [z, y, x]:
+            rs = np.random.RandomState(47)
+            rs.shuffle(t)
+
+        for ind in range(len(z)):
+            anchor_emb = embeddings[:, z[ind], y[ind], x[ind]]
+            anchor_emb = anchor_emb[..., None, None, None]
+            dist_to_mean = torch.norm(mean_anchor - anchor_emb, self.norm)
+            if dist_to_mean < self.delta_var:
+                return anchor_emb
+        # if stable anchor has not been found, return mean_anchor
+        return mean_anchor
+
+    def auxiliary_loss(self, embeddings, cluster_means, target):
+        assert embeddings.size()[1:] == target.size()
+
+        # compute random anchors per instance
+        instances = torch.unique(target)
+        anchor_embeddings = []
+        for i in instances:
+            if i == 0 and self.aux_loss_ignore_zero:
+                # just take random anchor
+                z, y, x = torch.nonzero(target == 0, as_tuple=True)
+                ind = torch.randint(len(z), (1,))[0]
+                anchor_emb = embeddings[:, z[ind], y[ind], x[ind]]
+                anchor_emb = anchor_emb[..., None, None, None]
+                anchor_embeddings.append(anchor_emb)
+            else:
+                anchor_emb = self._select_stable_anchor(embeddings, cluster_means[i], target == i)
+                anchor_embeddings.append(anchor_emb)
+
+        anchor_embeddings = torch.stack(anchor_embeddings, dim=0).to(embeddings.device)
+
+        instance_pmaps, instance_masks = self.create_instance_pmaps_and_masks(embeddings, anchor_embeddings, target)
+
+        if instance_masks is None:
+            return 0.
+
+        return self.aux_loss(instance_pmaps, instance_masks).mean()
+
+
 class RandomEmbAuxSparseObjContrastiveLoss(RandomEmbAuxContrastiveLoss):
     def __init__(self, delta_var, delta_dist, aux_loss, dist_to_mask_conf, norm='fro', alpha=1., beta=1., gamma=0.001,
                  delta=1., epsilon=1., zeta=0.1, ignore_label=None, aux_loss_ignore_zero=True,
@@ -1099,6 +1153,23 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
                                            loss_config.get('aux_loss_ignore_zero', True),
                                            loss_config.get('model_path', None),
                                            loss_config.get('D_model', None))
+    elif name == 'StableRandomEmbAuxContrastiveLoss':
+        return StableRandomEmbAuxContrastiveLoss(loss_config['delta_var'],
+                                                 loss_config['delta_dist'],
+                                                 loss_config['aux_loss'],
+                                                 loss_config['dist_to_mask'],
+                                                 loss_config['norm'],
+                                                 loss_config['alpha'],
+                                                 loss_config['beta'],
+                                                 loss_config['gamma'],
+                                                 loss_config['delta'],
+                                                 loss_config.get('epsilon', 1.),
+                                                 loss_config.get('ignore_label', None),
+                                                 loss_config.get('bg_push', False),
+                                                 loss_config.get('reg_ignore_zero', False),
+                                                 loss_config.get('aux_loss_ignore_zero', True),
+                                                 loss_config.get('model_path', None),
+                                                 loss_config.get('D_model', None))
     elif name == 'RandomEmbAuxSparseObjContrastiveLoss':
         return RandomEmbAuxSparseObjContrastiveLoss(loss_config['delta_var'],
                                                     loss_config['delta_dist'],
