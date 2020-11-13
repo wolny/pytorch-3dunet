@@ -45,8 +45,9 @@ def select_stable_anchor(embeddings, mean_anchor, target_mask, delta_var, norm='
     # convert to numpy
     z, y, x = [t.cpu().numpy() for t in [z, y, x]]
     # randomize coordinates
+    seed = np.random.randint(np.iinfo('int32').max)
     for t in [z, y, x]:
-        rs = np.random.RandomState(47)
+        rs = np.random.RandomState(seed)
         rs.shuffle(t)
 
     for ind in range(len(z)):
