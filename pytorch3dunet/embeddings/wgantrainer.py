@@ -49,8 +49,9 @@ class EmbeddingWGANTrainer(AbstractEmbeddingGANTrainer):
         checkpoint_dir = os.path.split(resume)[0]
         return cls(G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
                    torch.device(state['device']), loaders, checkpoint_dir,
-                   kwargs['gp_lambda'], kwargs['gan_loss_weight'], kwargs['critic_iters'], kwargs['combine_masks'],
-                   kwargs['anchor_extraction'], kwargs['label_smoothing'],
+                   kwargs['gp_lambda'], kwargs['gan_loss_weight'], kwargs['critic_iters'],
+                   kwargs['mask_extractor_class'], kwargs['kernel_pmaps_threshold'],
+                   kwargs['combine_masks'], kwargs['label_smoothing'],
                    max_num_epochs=state['max_num_epochs'], max_num_iterations=state['max_num_iterations'],
                    validate_after_iters=state['validate_after_iters'], log_after_iters=state['log_after_iters'],
                    num_iterations=state['num_iterations'], num_epoch=state['epoch'],
