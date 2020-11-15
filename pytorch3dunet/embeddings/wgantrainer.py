@@ -67,17 +67,17 @@ class EmbeddingWGANTrainer(AbstractEmbeddingGANTrainer):
         state = load_checkpoint(pre_trained, G)
         logger.info(
             f"Checkpoint loaded. Epoch: {state['epoch']}. Best val score: {state['best_eval_score']}. Num_iterations: {state['num_iterations']}")
-        checkpoint_dir = os.path.split(pre_trained)[0]
+        checkpoint_dir = kwargs['checkpoint_dir']
         return cls(G, D, G_optimizer, D_optimizer, G_lr_scheduler, G_loss_criterion, G_eval_criterion,
                    torch.device(state['device']), loaders, checkpoint_dir,
                    kwargs['gp_lambda'], kwargs['gan_loss_weight'], kwargs['critic_iters'],
                    kwargs['mask_extractor_class'], kwargs['kernel_pmaps_threshold'],
                    kwargs['combine_masks'], kwargs['label_smoothing'],
-                   max_num_epochs=state['max_num_epochs'], max_num_iterations=state['max_num_iterations'],
-                   validate_after_iters=state['validate_after_iters'], log_after_iters=state['log_after_iters'],
-                   num_iterations=state['num_iterations'], num_epoch=state['epoch'],
-                   eval_score_higher_is_better=state['eval_score_higher_is_better'],
-                   best_eval_score=state['best_eval_score'], tensorboard_formatter=tensorboard_formatter,
+                   max_num_epochs=kwargs['max_num_epochs'], max_num_iterations=kwargs['max_num_iterations'],
+                   validate_after_iters=kwargs['validate_after_iters'], log_after_iters=kwargs['log_after_iters'],
+                   num_iterations=1, num_epoch=0,
+                   eval_score_higher_is_better=kwargs['eval_score_higher_is_better'],
+                   best_eval_score=None, tensorboard_formatter=tensorboard_formatter,
                    sample_plotter=sample_plotter)
 
     def train(self):
