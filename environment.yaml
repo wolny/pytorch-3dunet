@@ -5,7 +5,7 @@ channels:
   - pytorch
 
 dependencies:
-  - python 3.7
+  - python 3.8
   - pytorch
   - torchvision
   - tensorboardx
@@ -16,5 +16,3 @@ dependencies:
   - pyyaml
   - hdbscan
   - pytest
-  - pip:
-    - git+https://github.com/bioimage-io/python-bioimage-io#egg=pybio

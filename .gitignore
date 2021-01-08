@@ -2,8 +2,6 @@
 .pytest_cache
 .ipynb_checkpoints
 
-/bioimage-io/**/pytorch3dunet
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
