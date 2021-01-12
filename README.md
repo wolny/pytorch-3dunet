@@ -73,12 +73,10 @@ If not specified `MeanIoU` will be used by default.
 - _PSNR_ - peak signal to noise ratio
 
 
-## Getting Started
-
 ## Installation
 - The easiest way to install `pytorch-3dunet` package is via conda:
 ```
-conda create -n 3dunet -c conda-forge -c awolny python=3.7 pytorch-3dunet
+conda create -n 3dunet -c conda-forge -c awolny pytorch-3dunet
 conda activate 3dunet
 ```
 After installation the following commands are accessible within the conda environment:
@@ -126,7 +124,7 @@ Given that `pytorch-3dunet` package was installed via conda as described above, 
 predict3dunet --config <CONFIG>
 ```
 
-In order to predict on your own data, just provide the path to your model as well as paths to HDF5 test files (see[test_config_dice.yaml](resources/test_config_dice.yaml)).
+In order to predict on your own data, just provide the path to your model as well as paths to HDF5 test files (see [test_config_dice.yaml](resources/test_config_dice.yaml)).
 
 ### Prediction tips
 In order to avoid checkerboard artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: [64 128 128] stride: [32 96 96]` will give you a 'halo' of 32 voxels in each direction.
@@ -197,19 +195,24 @@ If you want to contribute back, please make a pull request.
 ## Cite
 If you use this code for your research, please cite as:
 ```
-@article {Wolny2020.01.17.910562,
-	author = {Wolny, Adrian and Cerrone, Lorenzo and Vijayan, Athul and Tofanelli, Rachele and Barro,
-              Amaya Vilches and Louveaux, Marion and Wenzl, Christian and Steigleder, Susanne and Pape, 
-              Constantin and Bailoni, Alberto and Duran-Nebreda, Salva and Bassel, George and Lohmann,
-              Jan U. and Hamprecht, Fred A. and Schneitz, Kay and Maizel, Alexis and Kreshuk, Anna},
-	title = {Accurate And Versatile 3D Segmentation Of Plant Tissues At Cellular Resolution},
-	elocation-id = {2020.01.17.910562},
-	year = {2020},
-	doi = {10.1101/2020.01.17.910562},
-	publisher = {Cold Spring Harbor Laboratory},
-	URL = {https://www.biorxiv.org/content/early/2020/01/18/2020.01.17.910562}, 
-	eprint = {https://www.biorxiv.org/content/early/2020/01/18/2020.01.17.910562.full.pdf},
-	journal = {bioRxiv}
+@article {10.7554/eLife.57613,
+article_type = {journal},
+title = {Accurate and versatile 3D segmentation of plant tissues at cellular resolution},
+author = {Wolny, Adrian and Cerrone, Lorenzo and Vijayan, Athul and Tofanelli, Rachele and Barro, Amaya Vilches and Louveaux, Marion and Wenzl, Christian and Strauss, Sören and Wilson-Sánchez, David and Lymbouridou, Rena and Steigleder, Susanne S and Pape, Constantin and Bailoni, Alberto and Duran-Nebreda, Salva and Bassel, George W and Lohmann, Jan U and Tsiantis, Miltos and Hamprecht, Fred A and Schneitz, Kay and Maizel, Alexis and Kreshuk, Anna},
+editor = {Hardtke, Christian S and Bergmann, Dominique C and Bergmann, Dominique C and Graeff, Moritz},
+volume = 9,
+year = 2020,
+month = {jul},
+pub_date = {2020-07-29},
+pages = {e57613},
+citation = {eLife 2020;9:e57613},
+doi = {10.7554/eLife.57613},
+url = {https://doi.org/10.7554/eLife.57613},
+abstract = {Quantitative analysis of plant and animal morphogenesis requires accurate segmentation of individual cells in volumetric images of growing organs. In the last years, deep learning has provided robust automated algorithms that approach human performance, with applications to bio-image analysis now starting to emerge. Here, we present PlantSeg, a pipeline for volumetric segmentation of plant tissues into cells. PlantSeg employs a convolutional neural network to predict cell boundaries and graph partitioning to segment cells based on the neural network predictions. PlantSeg was trained on fixed and live plant organs imaged with confocal and light sheet microscopes. PlantSeg delivers accurate results and generalizes well across different tissues, scales, acquisition settings even on non plant samples. We present results of PlantSeg applications in diverse developmental contexts. PlantSeg is free and open-source, with both a command line and a user-friendly graphical interface.},
+keywords = {instance segmentation, cell segmentation, deep learning, image analysis},
+journal = {eLife},
+issn = {2050-084X},
+publisher = {eLife Sciences Publications, Ltd},
 }
 ```
 
