@@ -3,27 +3,55 @@ import time
 
 import h5py
 import hdbscan
+import imageio
 import numpy as np
 import torch
+import torchvision
+from PIL import Image
+from skimage import measure
 from sklearn.cluster import MeanShift
 
-from pytorch3dunet.datasets.utils import SliceBuilder
-from pytorch3dunet.unet3d.utils import get_logger
+from pytorch3dunet.augment.transforms import CropToFixed, Relabel
+from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
+from pytorch3dunet.datasets.utils import SliceBuilder, RgbToLabel, ConfigDataset
+from pytorch3dunet.embeddings.utils import KMeanShift
+from pytorch3dunet.unet3d.utils import get_logger, pca_project
 from pytorch3dunet.unet3d.utils import remove_halo
 
-logger = get_logger('UNet3DPredictor')
+logger = get_logger('UNetPredictor')
+
+
+def _get_output_file(dataset, suffix='_predictions', output_dir=None):
+    input_dir, file_name = os.path.split(dataset.file_path)
+    if output_dir is None:
+        output_dir = input_dir
+    output_file = os.path.join(output_dir, os.path.splitext(file_name)[0] + suffix + '.h5')
+    return output_file
+
+
+def _get_dataset_names(config, number_of_datasets, prefix='predictions'):
+    dataset_names = config.get('dest_dataset_name')
+    if dataset_names is not None:
+        if isinstance(dataset_names, str):
+            return [dataset_names]
+        else:
+            return dataset_names
+    else:
+        if number_of_datasets == 1:
+            return [prefix]
+        else:
+            return [f'{prefix}{i}' for i in range(number_of_datasets)]
 
 
 class _AbstractPredictor:
-    def __init__(self, model, loader, output_file, config, **kwargs):
+    def __init__(self, model, output_dir, config, **kwargs):
         self.model = model
-        self.loader = loader
-        self.output_file = output_file
+        self.output_dir = output_dir
         self.config = config
         self.predictor_config = kwargs
 
     @staticmethod
-    def _volume_shape(dataset):
+    def volume_shape(dataset):
         # TODO: support multiple internal datasets
         raw = dataset.raws[0]
         if raw.ndim == 3:
@@ -32,52 +60,54 @@ class _AbstractPredictor:
             return raw.shape[1:]
 
     @staticmethod
-    def _get_output_dataset_names(number_of_datasets, prefix='predictions'):
+    def get_output_dataset_names(number_of_datasets, prefix='predictions'):
         if number_of_datasets == 1:
             return [prefix]
         else:
             return [f'{prefix}{i}' for i in range(number_of_datasets)]
 
-    def predict(self):
+    def __call__(self, test_loader):
         raise NotImplementedError
 
 
 class StandardPredictor(_AbstractPredictor):
     """
-    Applies the model on the given dataset and saves the result in the `output_file` in the H5 format.
+    Applies the model on the given dataset and saves the result as H5 file.
     Predictions from the network are kept in memory. If the results from the network don't fit in into RAM
     use `LazyPredictor` instead.
 
-    The output dataset names inside the H5 is given by `des_dataset_name` config argument. If the argument is
+    The output dataset names inside the H5 is given by `dest_dataset_name` config argument. If the argument is
     not present in the config 'predictions{n}' is used as a default dataset name, where `n` denotes the number
     of the output head from the network.
 
     Args:
         model (Unet3D): trained 3D UNet model used for prediction
-        data_loader (torch.utils.data.DataLoader): input data loader
-        output_file (str): path to the output H5 file
+        output_dir (str): path to the output directory (optional)
         config (dict): global config dict
     """
 
-    def __init__(self, model, loader, output_file, config, **kwargs):
-        super().__init__(model, loader, output_file, config, **kwargs)
+    def __init__(self, model, output_dir, config, **kwargs):
+        super().__init__(model, output_dir, config, **kwargs)
 
-    def predict(self):
+    def __call__(self, test_loader):
+        assert isinstance(test_loader.dataset, AbstractHDF5Dataset)
+
+        logger.info(f"Processing '{test_loader.dataset.file_path}'...")
+        output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
+
         out_channels = self.config['model'].get('out_channels')
-        if out_channels is None:
-            out_channels = self.config['model']['dt_out_channels']
 
         prediction_channel = self.config.get('prediction_channel', None)
         if prediction_channel is not None:
-            logger.info(f"Using only channel '{prediction_channel}' from the network output")
+            logger.info(f"Saving only channel '{prediction_channel}' from the network output")
 
         device = self.config['device']
         output_heads = self.config['model'].get('output_heads', 1)
 
-        logger.info(f'Running prediction on {len(self.loader)} batches...')
+        logger.info(f'Running prediction on {len(test_loader)} batches...')
 
         # dimensionality of the the output predictions
-        volume_shape = self._volume_shape(self.loader.dataset)
+        volume_shape = self.volume_shape(test_loader.dataset)
         if prediction_channel is None:
             prediction_maps_shape = (out_channels,) + volume_shape
         else:
@@ -91,7 +121,7 @@ class StandardPredictor(_AbstractPredictor):
         logger.info(f'Using patch_halo: {patch_halo}')
 
         # create destination H5 file
-        h5_output_file = h5py.File(self.output_file, 'w')
+        h5_output_file = h5py.File(output_file, 'w')
         # allocate prediction and normalization arrays
         logger.info('Allocating prediction and normalization arrays...')
         prediction_maps, normalization_masks = self._allocate_prediction_maps(prediction_maps_shape,
@@ -103,7 +133,7 @@ class StandardPredictor(_AbstractPredictor):
         self.model.testing = True
         # Run predictions on the entire input dataset
         with torch.no_grad():
-            for batch, indices in self.loader:
+            for batch, indices in test_loader:
                 # send batch to device
                 batch = batch.to(device)
 
@@ -144,8 +174,9 @@ class StandardPredictor(_AbstractPredictor):
                         # count voxel visits for normalization
                         normalization_mask[u_index] += 1
 
-        # save results to
-        self._save_results(prediction_maps, normalization_masks, output_heads, h5_output_file, self.loader.dataset)
+        # save results
+        logger.info(f'Saving predictions to: {output_file}')
+        self._save_results(prediction_maps, normalization_masks, output_heads, h5_output_file, test_loader.dataset)
         # close the output H5 file
         h5_output_file.close()
 
@@ -164,7 +195,7 @@ class StandardPredictor(_AbstractPredictor):
                 return slice(pad, -pad)
 
         # save probability maps
-        prediction_datasets = self._get_output_dataset_names(output_heads, prefix='predictions')
+        prediction_datasets = self.get_output_dataset_names(output_heads, prefix='predictions')
         for prediction_map, normalization_mask, prediction_dataset in zip(prediction_maps, normalization_masks,
                                                                           prediction_datasets):
             prediction_map = prediction_map / normalization_mask
@@ -176,7 +207,6 @@ class StandardPredictor(_AbstractPredictor):
 
                 prediction_map = prediction_map[:, z_s, y_s, x_s]
 
-            logger.info(f'Saving predictions to: {self.output_file}/{prediction_dataset}...')
             output_file.create_dataset(prediction_dataset, data=prediction_map, compression="gzip")
 
     @staticmethod
@@ -202,24 +232,23 @@ class LazyPredictor(StandardPredictor):
 
         Args:
             model (Unet3D): trained 3D UNet model used for prediction
-            data_loader (torch.utils.data.DataLoader): input data loader
-            output_file (str): path to the output H5 file
+            output_dir (str): path to the output directory (optional)
             config (dict): global config dict
         """
 
-    def __init__(self, model, loader, output_file, config, **kwargs):
-        super().__init__(model, loader, output_file, config, **kwargs)
+    def __init__(self, model, output_dir, config, **kwargs):
+        super().__init__(model, output_dir, config, **kwargs)
 
     def _allocate_prediction_maps(self, output_shape, output_heads, output_file):
         # allocate datasets for probability maps
-        prediction_datasets = self._get_output_dataset_names(output_heads, prefix='predictions')
+        prediction_datasets = self.get_output_dataset_names(output_heads, prefix='predictions')
         prediction_maps = [
             output_file.create_dataset(dataset_name, shape=output_shape, dtype='float32', chunks=True,
                                        compression='gzip')
             for dataset_name in prediction_datasets]
 
         # allocate datasets for normalization masks
-        normalization_datasets = self._get_output_dataset_names(output_heads, prefix='normalization')
+        normalization_datasets = self.get_output_dataset_names(output_heads, prefix='normalization')
         normalization_masks = [
             output_file.create_dataset(dataset_name, shape=output_shape, dtype='uint8', chunks=True,
                                        compression='gzip')
@@ -232,8 +261,8 @@ class LazyPredictor(StandardPredictor):
             logger.warn(
                 f'Mirror padding unsupported in LazyPredictor. Output predictions will be padded with pad_width: {dataset.pad_width}')
 
-        prediction_datasets = self._get_output_dataset_names(output_heads, prefix='predictions')
-        normalization_datasets = self._get_output_dataset_names(output_heads, prefix='normalization')
+        prediction_datasets = self.get_output_dataset_names(output_heads, prefix='predictions')
+        normalization_datasets = self.get_output_dataset_names(output_heads, prefix='normalization')
 
         # normalize the prediction_maps inside the H5
         for prediction_map, normalization_mask, prediction_dataset, normalization_dataset in zip(prediction_maps,
@@ -258,9 +287,10 @@ class LazyPredictor(StandardPredictor):
 
 
 class DSB2018Predictor(_AbstractPredictor):
-    def __init__(self, model, loader, output_file, config, **kwargs):
-        output_file = os.path.split(output_file)[0]
-        super().__init__(model, loader, output_file, config, **kwargs)
+    def __init__(self, model, output_dir, config, save_segmentation=False, pmaps_thershold=0.5, **kwargs):
+        super().__init__(model, output_dir, config, **kwargs)
+        self.pmaps_thershold = pmaps_thershold
+        self.save_segmentation = save_segmentation
 
     def _slice_from_pad(self, pad):
         if pad == 0:
@@ -268,34 +298,165 @@ class DSB2018Predictor(_AbstractPredictor):
         else:
             return slice(pad, -pad)
 
-    def predict(self):
+    def __call__(self, test_loader):
         device = self.config['device']
         # Sets the module in evaluation mode explicitly
         self.model.eval()
         self.model.testing = True
         # Run predictions on the entire input dataset
         with torch.no_grad():
-            for img, path in self.loader:
-                logger.info(f'Processing {path}')
-                # add batch dim
-                img = torch.unsqueeze(img, dim=0)
+            for img, path in test_loader:
                 # send batch to device
                 img = img.to(device)
                 # forward pass
                 pred = self.model(img)
                 # convert to numpy array
-                pred = pred.cpu().numpy().squeeze()
+                for single_pred, single_path in zip(pred, path):
+                    logger.info(f'Processing {single_path}')
+                    single_pred = single_pred.cpu().numpy().squeeze()
 
-                if self.loader.dataset.mirror_padding is not None:
-                    z_s, y_s, x_s = [self._slice_from_pad(p) for p in self.loader.dataset.mirror_padding]
-                    pred = pred[y_s, x_s]
+                    if hasattr(test_loader.dataset, 'mirror_padding') \
+                            and test_loader.dataset.mirror_padding is not None:
+                        z_s, y_s, x_s = [self._slice_from_pad(p) for p in test_loader.dataset.mirror_padding]
+                        single_pred = single_pred[y_s, x_s]
 
-                # save to h5 file
-                out_file = os.path.splitext(path)[0] + '_predictions.h5'
-                out_file = os.path.join(self.output_file, os.path.split(out_file)[1])
-                with h5py.File(out_file, 'w') as f:
-                    logger.info(f'Saving output to {out_file}')
-                    f.create_dataset('predictions', data=pred, compression='gzip')
+                    # save to h5 file
+                    out_file = os.path.splitext(single_path)[0] + '_predictions.h5'
+                    if self.output_dir is not None:
+                        out_file = os.path.join(self.output_dir, os.path.split(out_file)[1])
+
+                    with h5py.File(out_file, 'w') as f:
+                        logger.info(f'Saving output to {out_file}')
+                        f.create_dataset('predictions', data=single_pred, compression='gzip')
+                        if self.save_segmentation:
+                            f.create_dataset('segmentation', data=self._pmaps_to_seg(single_pred), compression='gzip')
+
+    def _pmaps_to_seg(self, pred):
+        mask = (pred > self.pmaps_thershold).astype('uint8')
+        return measure.label(mask).astype('uint16')
+
+
+class _Abstract2DEmbeddingPredictor(_AbstractPredictor):
+    def __init__(self, model, output_dir, config, **kwargs):
+        super().__init__(model, output_dir, config, **kwargs)
+        self.save_gt_label = kwargs.get('save_gt_label', False)
+
+    def __call__(self, test_loader):
+        assert isinstance(test_loader.dataset, ConfigDataset)
+        device = self.config['device']
+        # Sets the module in evaluation mode explicitly
+        self.model.eval()
+        self.model.testing = True
+        # Run predictions on the entire input dataset
+        with torch.no_grad():
+            for img, path in test_loader:
+                logger.info(f'Processing {path}')
+                # send batch to device
+                img = img.to(device)
+                # forward pass
+                emb = self.model(img)
+
+                for single_img, single_emb, single_path in zip(img, emb, path):
+                    # save to h5 file
+                    out_file = os.path.splitext(single_path)[0] + '_predictions.h5'
+                    if self.output_dir is not None:
+                        out_file = os.path.join(self.output_dir, os.path.split(out_file)[1])
+
+                    # save PNG with PCA projected embeddings
+                    embeddings_numpy = np.squeeze(single_emb.cpu().numpy())
+                    rgb_img = pca_project(embeddings_numpy)
+                    Image.fromarray(np.rollaxis(rgb_img, 0, 3)).save(os.path.splitext(out_file)[0] + '.png')
+
+                    with h5py.File(out_file, 'w') as f:
+                        logger.info(f'Saving output to {out_file}')
+                        f.create_dataset('raw', data=single_img[0].cpu().numpy(), compression='gzip')
+                        f.create_dataset('embeddings', data=single_emb.cpu().numpy(), compression='gzip')
+                        if self.save_gt_label:
+                            gt_label = self.load_gt_label(single_path)
+                            f.create_dataset('label', data=gt_label, compression='gzip')
+
+    def load_gt_label(self, img_path):
+        raise NotImplementedError
+
+
+class DSBEmbeddingsPredictor(_Abstract2DEmbeddingPredictor):
+    def __init__(self, model, output_dir, config, **kwargs):
+        super().__init__(model, output_dir, config, **kwargs)
+
+    def load_gt_label(self, img_path):
+        base, filename = os.path.split(img_path)
+        mask_dir = os.path.join(os.path.split(base)[0], 'masks')
+        mask_file = os.path.join(mask_dir, filename)
+        gt_label = np.asarray(imageio.imread(mask_file))
+        if gt_label.ndim == 2:
+            gt_label = np.expand_dims(gt_label, axis=0)
+        crop = CropToFixed(np.random.RandomState(47), size=(256, 256), centered=True)
+        gt_label = crop(gt_label)
+        return gt_label
+
+
+class CVPPPEmbeddingsPredictor(_Abstract2DEmbeddingPredictor):
+    def __init__(self, model, output_dir, config, **kwargs):
+        super().__init__(model, output_dir, config, **kwargs)
+
+    def load_gt_label(self, img_path):
+        base, filename = os.path.split(img_path)
+        prefix = filename.split('_')[0]
+        label_file = os.path.join(base, prefix + '_fg.png')
+        img = Image.open(label_file).convert('RGB')
+
+        label_transform = torchvision.transforms.Compose([
+            torchvision.transforms.Resize(size=(448, 448), interpolation=Image.NEAREST),
+            RgbToLabel(),
+            Relabel(run_cc=False)
+        ])
+        img = label_transform(img)
+        if img.ndim == 2:
+            img = np.expand_dims(img, axis=0)
+        return img
+
+
+class SequentialEmbeddingsPredictor(_AbstractPredictor):
+    def __init__(self, model, output_dir, config, **kwargs):
+        super().__init__(model, output_dir, config, **kwargs)
+
+    def __call__(self, test_loader):
+        device = self.config['device']
+        logger.info(f'Running prediction on {len(test_loader)} patches...')
+
+        raws = []
+        embeddings = []
+        labels = []
+
+        with h5py.File(test_loader.dataset.file_path, 'r') as f:
+            gt = f['label'][:]
+
+        # Sets the module in evaluation mode explicitly
+        self.model.eval()
+        self.model.testing = True
+        # Run predictions on the entire input dataset
+        with torch.no_grad():
+            for batch, indices in test_loader:
+                # send batch to device
+                batch = batch.to(device)
+                # forward pass
+                emb = self.model(batch)
+
+                for r, i, e in zip(batch, indices, emb):
+                    raws.append(r[0].cpu().numpy())
+                    embeddings.append(e.cpu().numpy())
+                    labels.append(gt[i])
+
+        # save results
+        raws = np.stack(raws, axis=0)
+        embeddings = np.stack(embeddings, axis=0)
+        labels = np.stack(labels, axis=0)
+
+        output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
+        with h5py.File(output_file, 'w') as f:
+            f.create_dataset('raw_sequence', data=raws, compression='gzip')
+            f.create_dataset('embedding_sequence', data=embeddings, compression='gzip')
+            f.create_dataset('label_sequence', data=labels, compression='gzip')
 
 
 class EmbeddingsPredictor(_AbstractPredictor):
@@ -303,30 +464,32 @@ class EmbeddingsPredictor(_AbstractPredictor):
     Applies the embedding model on the given dataset and saves the result in the `output_file` in the H5 format.
 
     The resulting volume is the segmentation itself (not the embedding vectors) obtained by clustering embeddings
-    with HDBSCAN or MeanShift algorithm patch by patch and then stitching the patches together.
+    patch by patch and then stitching the patches together.
+
+    Available clustering schemes are: 'hdbscan', 'meanshift', 'kmeanshift'
     """
 
-    def __init__(self, model, loader, output_file, config, clustering, iou_threshold=0.7, noise_label=-1, **kwargs):
-        super().__init__(model, loader, output_file, config, **kwargs)
+    def __init__(self, model, output_dir, config, clustering, iou_threshold=0.7, noise_label=-1, **kwargs):
+        super().__init__(model, output_dir, config, **kwargs)
 
         self.iou_threshold = iou_threshold
         self.noise_label = noise_label
         self.clustering = clustering
 
-        assert clustering in ['hdbscan', 'meanshift'], 'Only HDBSCAN and MeanShift are supported'
+        assert clustering in ['hdbscan', 'meanshift', 'kmeanshift']
         logger.info(f'IoU threshold: {iou_threshold}')
 
         self.clustering_name = clustering
         self.clustering = self._get_clustering(clustering, kwargs)
 
-    def predict(self):
+    def __call__(self, test_loader):
         device = self.config['device']
         output_heads = self.config['model'].get('output_heads', 1)
 
-        logger.info(f'Running prediction on {len(self.loader)} patches...')
+        logger.info(f'Running prediction on {len(test_loader)} patches...')
 
         # dimensionality of the the output segmentation
-        volume_shape = self._volume_shape(self.loader.dataset)
+        volume_shape = self.volume_shape(test_loader.dataset)
 
         logger.info(f'The shape of the output segmentation (DHW): {volume_shape}')
 
@@ -341,7 +504,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
         self.model.testing = True
         # Run predictions on the entire input dataset
         with torch.no_grad():
-            for batch, indices in self.loader:
+            for batch, indices in test_loader:
                 # logger.info(f'Predicting embeddings for slice:{index}')
 
                 # send batch to device
@@ -361,18 +524,23 @@ class EmbeddingsPredictor(_AbstractPredictor):
 
                     # iterate sequentially because of the current simple stitching that we're using
                     for pred, index in zip(prediction, indices):
-                        # convert embeddings to segmentation with hdbscan clustering
+                        # convert embeddings to segmentation
                         segmentation = self._embeddings_to_segmentation(pred)
                         # stitch patches
                         self._merge_segmentation(segmentation, index, output_segmentation, visited_voxels_array)
 
         # save results
-        with h5py.File(self.output_file, 'w') as output_file:
-            prediction_datasets = self._get_output_dataset_names(output_heads,
-                                                                 prefix=f'segmentation/{self.clustering_name}')
+        output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
+        with h5py.File(output_file, 'w') as f:
+            prediction_datasets = self.get_output_dataset_names(output_heads,
+                                                                prefix=f'segmentation/{self.clustering_name}')
             for output_segmentation, prediction_dataset in zip(output_segmentations, prediction_datasets):
+                if self.noise_label is not None:
+                    # zero out the noise label
+                    output_segmentation[output_segmentation == self.noise_label] = 0
+
                 logger.info(f'Saving predictions to: {output_file}/{prediction_dataset}...')
-                output_file.create_dataset(prediction_dataset, data=output_segmentation, compression="gzip")
+                f.create_dataset(prediction_dataset, data=output_segmentation, compression="gzip")
 
     def _embeddings_to_segmentation(self, embeddings):
         """
@@ -438,7 +606,7 @@ class EmbeddingsPredictor(_AbstractPredictor):
         result = []
         # iterate over new_labels and merge regions if the IoU exceeds a given threshold
         for new_label in new_labels:
-            # skip 'noise' label assigned by hdbscan
+            # skip 'noise' label assigned by the clustering
             if new_label == self.noise_label:
                 continue
             new_label_mask = new_segmentation == new_label
@@ -458,19 +626,23 @@ class EmbeddingsPredictor(_AbstractPredictor):
         return result
 
     def _get_clustering(self, clustering_alg, kwargs):
-        logger.info(f'Using {clustering_alg} for clustering')
+        logger.info(f'Using {clustering_alg} for clustering.\n Params: {kwargs}')
 
         if clustering_alg == 'hdbscan':
-            min_cluster_size = kwargs.get('min_cluster_size', 50)
+            min_cluster_size = kwargs['min_cluster_size']
             min_samples = kwargs.get('min_samples', None),
             metric = kwargs.get('metric', 'euclidean')
             cluster_selection_method = kwargs.get('cluster_selection_method', 'eom')
+            cluster_selection_epsilon = kwargs.get('cluster_selection_epsilon', 0.0)
 
-            logger.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
             return hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
-                                   cluster_selection_method=cluster_selection_method)
-        else:
+                                   cluster_selection_method=cluster_selection_method,
+                                   cluster_selection_epsilon=cluster_selection_epsilon)
+        elif clustering_alg == 'meanshift':
             bandwidth = kwargs['bandwidth']
-            logger.info(f'MeanShift params: bandwidth: {bandwidth}, bin_seeding: True')
             # use fast MeanShift with bin seeding
             return MeanShift(bandwidth=bandwidth, bin_seeding=True)
+        else:
+            bandwidth = kwargs['bandwidth']
+            max_clusters = kwargs.get('max_clusters', 100)
+            return KMeanShift(max_clusters=max_clusters, bandwidth=bandwidth)

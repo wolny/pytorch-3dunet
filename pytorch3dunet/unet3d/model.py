@@ -1,8 +1,10 @@
 import importlib
 
+import numpy as np
 import torch.nn as nn
 
-from pytorch3dunet.unet3d.buildingblocks import Encoder, Decoder, DoubleConv, ExtResNetBlock
+from pytorch3dunet.unet3d.buildingblocks import DoubleConv, ExtResNetBlock, create_encoders, \
+    create_decoders
 from pytorch3dunet.unet3d.utils import number_of_features_per_level
 
 
@@ -27,8 +29,6 @@ class Abstract3DUNet(nn.Module):
         layer_order (string): determines the order of layers
             in `SingleConv` module. e.g. 'crg' stands for Conv3d+ReLU+GroupNorm3d.
             See `SingleConv` for more info
-        f_maps (int, tuple): if int: number of feature maps in the first conv layer of the encoder (default: 64);
-            if tuple: number of feature maps at each level
         num_groups (int): number of groups for the GroupNorm
         num_levels (int): number of levels in the encoder/decoder path (applied only if f_maps is an int)
         is_segmentation (bool): if True (semantic segmentation problem) Sigmoid/Softmax normalization is applied
@@ -51,52 +51,16 @@ class Abstract3DUNet(nn.Module):
         if isinstance(f_maps, int):
             f_maps = number_of_features_per_level(f_maps, num_levels=num_levels)
 
-        # create encoder path consisting of Encoder modules. Depth of the encoder is equal to `len(f_maps)`
-        encoders = []
-        for i, out_feature_num in enumerate(f_maps):
-            if i == 0:
-                encoder = Encoder(in_channels, out_feature_num,
-                                  apply_pooling=False,  # skip pooling in the firs encoder
-                                  basic_module=basic_module,
-                                  conv_layer_order=layer_order,
-                                  conv_kernel_size=conv_kernel_size,
-                                  num_groups=num_groups,
-                                  padding=conv_padding)
-            else:
-                # TODO: adapt for anisotropy in the data, i.e. use proper pooling kernel to make the data isotropic after 1-2 pooling operations
-                encoder = Encoder(f_maps[i - 1], out_feature_num,
-                                  basic_module=basic_module,
-                                  conv_layer_order=layer_order,
-                                  conv_kernel_size=conv_kernel_size,
-                                  num_groups=num_groups,
-                                  pool_kernel_size=pool_kernel_size,
-                                  padding=conv_padding)
+        assert isinstance(f_maps, list) or isinstance(f_maps, tuple)
+        assert len(f_maps) > 1, "Required at least 2 levels in the U-Net"
 
-            encoders.append(encoder)
+        # create encoder path
+        self.encoders = create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_padding, layer_order,
+                                        num_groups, pool_kernel_size)
 
-        self.encoders = nn.ModuleList(encoders)
-
-        # create decoder path consisting of the Decoder modules. The length of the decoder is equal to `len(f_maps) - 1`
-        decoders = []
-        reversed_f_maps = list(reversed(f_maps))
-        for i in range(len(reversed_f_maps) - 1):
-            if basic_module == DoubleConv:
-                in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
-            else:
-                in_feature_num = reversed_f_maps[i]
-
-            out_feature_num = reversed_f_maps[i + 1]
-            # TODO: if non-standard pooling was used, make sure to use correct striding for transpose conv
-            # currently strides with a constant stride: (2, 2, 2)
-            decoder = Decoder(in_feature_num, out_feature_num,
-                              basic_module=basic_module,
-                              conv_layer_order=layer_order,
-                              conv_kernel_size=conv_kernel_size,
-                              num_groups=num_groups,
-                              padding=conv_padding)
-            decoders.append(decoder)
-
-        self.decoders = nn.ModuleList(decoders)
+        # create decoder path
+        self.decoders = create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups,
+                                        upsample=True)
 
         # in the last layer a 1×1 convolution reduces the number of output
         # channels to the number of labels
@@ -211,13 +175,90 @@ class UNet2D(Abstract3DUNet):
                                      **kwargs)
 
 
-def get_model(config):
-    def _model_class(class_name):
-        m = importlib.import_module('pytorch3dunet.unet3d.model')
-        clazz = getattr(m, class_name)
-        return clazz
+class WGANDiscriminator(nn.Module):
+    def __init__(self, in_channels, layer_order, num_groups, f_maps, patch_shape,
+                 conv_kernel_size=3, pool_kernel_size=2, conv_padding=1, **kwargs):
+        super(WGANDiscriminator, self).__init__()
 
-    assert 'model' in config, 'Could not find model configuration'
-    model_config = config['model']
+        if isinstance(f_maps, int):
+            f_maps = number_of_features_per_level(f_maps, num_levels=5)
+
+        assert isinstance(f_maps, list) or isinstance(f_maps, tuple)
+        assert len(f_maps) > 1, "Required at least 2 levels in the U-Net"
+
+        # create encoder path
+        self.encoders = create_encoders(in_channels, f_maps, DoubleConv, conv_kernel_size, conv_padding, layer_order,
+                                        num_groups, pool_kernel_size)
+
+        # reduce to a single channel with 1x1 conv
+        self.final_conv = nn.Conv3d(f_maps[-1], 1, 1)
+        # compute spatial dim of of the last decoder output
+        self.in_features = self._in_features_linear(patch_shape, depth=len(f_maps) - 1)
+        self.linear = nn.Linear(self.in_features, 1)
+
+    def forward(self, x):
+        for encoder in self.encoders:
+            x = encoder(x)
+        x = self.final_conv(x)
+        x = x.view(-1, self.in_features)
+        return self.linear(x)
+
+    @staticmethod
+    def _in_features_linear(patch_shape, depth):
+        # get the spatial dim of the last encoder output
+        # assume max_pool with kernel 2
+        ds_factor = 2 ** depth
+        last_encoder_dim = [max(d // ds_factor, 1) for d in patch_shape]
+        return np.prod(last_encoder_dim)
+
+
+class GANDiscriminator(nn.Module):
+    def __init__(self, in_channels, layer_order, num_groups, f_maps, patch_shape,
+                 conv_kernel_size=3, pool_kernel_size=2, conv_padding=1, **kwargs):
+        super(GANDiscriminator, self).__init__()
+
+        if isinstance(f_maps, int):
+            f_maps = number_of_features_per_level(f_maps, num_levels=5)
+
+        assert isinstance(f_maps, list) or isinstance(f_maps, tuple)
+        assert len(f_maps) > 1, "Required at least 2 levels in the U-Net"
+
+        # create encoder path
+        self.encoders = create_encoders(in_channels, f_maps, DoubleConv, conv_kernel_size, conv_padding, layer_order,
+                                        num_groups, pool_kernel_size)
+
+        self.final_conv = nn.Conv3d(f_maps[-1], 1, 1)
+        # compute spatial dim of of the
+        self.in_features = self._in_features_linear(patch_shape, depth=len(f_maps) - 1)
+        self.output = nn.Sequential(
+            nn.Linear(self.in_features, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        for encoder in self.encoders:
+            x = encoder(x)
+        x = self.final_conv(x)
+        x = x.view(-1, self.in_features)
+        return self.output(x)
+
+    @staticmethod
+    def _in_features_linear(patch_shape, depth):
+        # get the spatial dim of the last encoder output
+        # assume max_pool with kernel 2
+        ds_factor = 2 ** depth
+        last_encoder_dim = [max(d // ds_factor, 1) for d in patch_shape]
+        return np.prod(last_encoder_dim)
+
+
+def get_model(model_config):
+    def _model_class(class_name):
+        modules = ['pytorch3dunet.unet3d.model', 'pytorch3dunet.embeddings.embeddingmodel']
+        for module in modules:
+            m = importlib.import_module(module)
+            clazz = getattr(m, class_name, None)
+            if clazz is not None:
+                return clazz
+
     model_class = _model_class(model_config['name'])
     return model_class(**model_config)

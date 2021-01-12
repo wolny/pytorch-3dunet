@@ -1,17 +1,17 @@
 import importlib
-import os
 import time
 
 import hdbscan
 import numpy as np
 import torch
+from numpy import linalg as LA
 from skimage import measure
 from skimage.metrics import adapted_rand_error, peak_signal_noise_ratio
 from sklearn.cluster import MeanShift
 
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
 from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy
-from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, plot_segm, convert_to_numpy
+from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, convert_to_numpy
 
 logger = get_logger('EvalMetric')
 
@@ -119,16 +119,10 @@ class AdaptedRandError:
 
     Args:
         use_last_target (bool): use only the last channel from the target to compute the ARand
-        save_plots (bool): save predicted segmentation (result from `input_to_segm`) together with GT segmentation as a PNG
-        plots_dir (string): directory where the plots are to be saved
     """
 
-    def __init__(self, use_last_target=False, save_plots=False, plots_dir='.', **kwargs):
+    def __init__(self, use_last_target=False, **kwargs):
         self.use_last_target = use_last_target
-        self.save_plots = save_plots
-        self.plots_dir = plots_dir
-        if not os.path.exists(plots_dir) and save_plots:
-            os.makedirs(plots_dir)
 
     def __call__(self, input, target):
         """
@@ -141,6 +135,7 @@ class AdaptedRandError:
         Returns:
             average ARand Error across the batch
         """
+
         def _arand_err(gt, seg):
             n_seg = len(np.unique(seg))
             if n_seg == 1:
@@ -173,10 +168,6 @@ class AdaptedRandError:
             # convert _input to segmentation CDHW
             segm = self.input_to_segm(_input)
             assert segm.ndim == 4
-
-            if self.save_plots:
-                # save predicted and ground truth segmentation
-                plot_segm(segm, _target, self.plots_dir)
 
             # compute per channel arand and return the minimum value
             per_channel_arand = [_arand_err(_target, channel_segm) for channel_segm in segm]
@@ -240,10 +231,9 @@ class BoundaryAdaptedRandError(AdaptedRandError):
 
 
 class GenericAdaptedRandError(AdaptedRandError):
-    def __init__(self, input_channels, thresholds=None, use_last_target=True, invert_channels=None,
-                 save_plots=False, plots_dir='.', **kwargs):
+    def __init__(self, input_channels, thresholds=None, use_last_target=True, invert_channels=None, **kwargs):
 
-        super().__init__(use_last_target=use_last_target, save_plots=save_plots, plots_dir=plots_dir, **kwargs)
+        super().__init__(use_last_target=use_last_target, **kwargs)
         assert isinstance(input_channels, list) or isinstance(input_channels, tuple)
         self.input_channels = input_channels
         if thresholds is None:
@@ -278,8 +268,8 @@ class GenericAdaptedRandError(AdaptedRandError):
 
 class EmbeddingsAdaptedRandError(AdaptedRandError):
     def __init__(self, min_cluster_size=100, min_samples=None, metric='euclidean', cluster_selection_method='eom',
-                 save_plots=False, plots_dir='.', **kwargs):
-        super().__init__(save_plots=save_plots, plots_dir=plots_dir, **kwargs)
+                 **kwargs):
+        super().__init__(**kwargs)
 
         logger.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
         self.clustering = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
@@ -307,8 +297,8 @@ class EmbeddingsAdaptedRandError(AdaptedRandError):
 
 # Just for completeness, however sklean MeanShift implementation is just too slow for clustering embeddings
 class EmbeddingsMeanShiftAdaptedRandError(AdaptedRandError):
-    def __init__(self, bandwidth, save_plots=False, plots_dir='.', **kwargs):
-        super().__init__(save_plots=save_plots, plots_dir=plots_dir, **kwargs)
+    def __init__(self, bandwidth, **kwargs):
+        super().__init__(**kwargs)
         logger.info(f'MeanShift params: bandwidth: {bandwidth}')
         # use bin_seeding to speedup the mean-shift significantly
         self.clustering = MeanShift(bandwidth=bandwidth, bin_seeding=True)
@@ -341,32 +331,44 @@ class GenericAveragePrecision:
             self.metric = Accuracy(iou_threshold=0.5)
 
     def __call__(self, input, target):
-        assert isinstance(input, torch.Tensor) and isinstance(target, torch.Tensor)
-        assert input.dim() == 5
-        assert target.dim() == 5
+        if target.dim() == 5:
+            if self.use_last_target:
+                target = target[:, -1, ...]  # 4D
+            else:
+                # use 1st target channel
+                target = target[:, 0, ...]  # 4D
 
-        input, target = convert_to_numpy(input, target)
-        if self.use_last_target:
-            target = target[:, -1, ...]  # 4D
-        else:
-            # use 1st target channel
-            target = target[:, 0, ...]  # 4D
+        input1 = input2 = input
+        multi_head = isinstance(input, tuple)
+        if multi_head:
+            input1, input2 = input
+
+        input1, input2, target = convert_to_numpy(input1, input2, target)
 
         batch_aps = []
+        i_batch = 0
         # iterate over the batch
-        for inp, tar in zip(input, target):
-            segs = self.input_to_seg(inp)  # 4D
+        for inp1, inp2, tar in zip(input1, input2, target):
+            if multi_head:
+                inp = (inp1, inp2)
+            else:
+                inp = inp1
+
+            segs = self.input_to_seg(inp, tar)  # expects 4D
+            assert segs.ndim == 4
             # convert target to seg
             tar = self.target_to_seg(tar)
+
             # filter small instances if necessary
             tar = self._filter_instances(tar)
 
             # compute average precision per channel
             segs_aps = [self.metric(self._filter_instances(seg), tar) for seg in segs]
 
-            logger.info(f'Max Average Precision for channel: {np.argmax(segs_aps)}')
+            logger.info(f'Batch: {i_batch}. Max Average Precision for channel: {np.argmax(segs_aps)}')
             # save max AP
             batch_aps.append(np.max(segs_aps))
+            i_batch += 1
 
         return torch.tensor(batch_aps).mean()
 
@@ -382,11 +384,207 @@ class GenericAveragePrecision:
                     input[input == label] = 0
         return input
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         raise NotImplementedError
 
     def target_to_seg(self, target):
         return target
+
+
+class Embeddings2HGenericAveragePrecision(GenericAveragePrecision):
+    """
+    Get the instance segmentation given the foreground mask and pixel embeddings and computes the AP based on the ground truth.
+    Works with the EmbeddingUNet which has two heads: segmentation and embedding.
+    The following algorithm is used to get the instance segmentation
+        while fg_mask not empty:
+            1. get the pixel with highest object score
+            2. get the object mask by growing the epsilon ball around the pixel's embedding
+            3. add the object to the list of instances
+            4. remove the object from the foreground mask
+    """
+
+    def __init__(self, pmaps_threshold, epsilon, max_instance_num=1000, min_instance_size=None, metric='ap', **kwargs):
+        super().__init__(min_instance_size, use_last_target=True, metric=metric, **kwargs)
+        self.pmaps_threshold = pmaps_threshold
+        self.epsilon = epsilon
+        self.max_instance_num = max_instance_num
+
+    def input_to_seg(self, input, target=None):
+        seg_pmaps, embeddings = input
+
+        # create instance mask
+        seg_mask = (seg_pmaps > self.pmaps_threshold).astype(np.uint8)
+        seg_mask = seg_mask[0]
+        assert seg_mask.ndim == 3
+
+        emb_dim = embeddings.shape[0]
+        num_instances = 0
+        result = np.zeros(shape=embeddings.shape[1:], dtype=np.uint32)
+        # repeat until there are no forground pixels left in the mask
+        while seg_mask.sum() > 0 and num_instances < self.max_instance_num:
+            num_instances += 1
+
+            # get pixel location with the maximum score
+            p_max_ind = np.argmax(seg_pmaps)
+            # flatten embeddings and get the embedding vector for max score pixel
+            p_max_emb = embeddings.reshape(emb_dim, -1)[:, p_max_ind]
+            # reshape to match the embeddings
+            p_max_emb_shape = [1] * embeddings.ndim
+            p_max_emb_shape[0] = emb_dim
+            p_max_emb = p_max_emb.reshape(tuple(p_max_emb_shape))
+            # compute the instance mask, i.e. get the epsilon-ball
+            inst_mask = LA.norm(embeddings - p_max_emb, axis=0) < self.epsilon
+            # save instance
+            result[inst_mask] = num_instances
+            # zero out seg_mask
+            seg_mask[inst_mask] = 0
+
+        return np.expand_dims(result, 0)
+
+
+class MeanEmbeddingAveragePrecision(GenericAveragePrecision):
+    """
+    Computes the AP based on pixel embeddings the ground truth instance segmentation.
+    The following algorithm is used to get the instance segmentation
+        for i in ground_truth_instances:
+            1. get average embedding in instance i
+            2. get the object mask by growing the epsilon ball around the pixel's embedding
+            3. add the object to the list of instances
+    """
+
+    def __init__(self, epsilon, min_instance_size=None, metric='ap', **kwargs):
+        super().__init__(min_instance_size, use_last_target=False, metric=metric, **kwargs)
+        self.epsilon = epsilon
+
+    def input_to_seg(self, embeddings, target=None):
+        assert target is not None
+
+        result = np.zeros(shape=embeddings.shape[1:], dtype=np.uint32)
+
+        spatial_dims = (1, 2) if result.ndim == 2 else (1, 2, 3)
+
+        labels, counts = np.unique(target, return_counts=True)
+        for label, size in zip(labels, counts):
+            # skip 0-label
+            if label == 0:
+                continue
+
+            # get the mask for this instance
+            instance_mask = (target == label)
+
+            # mask out all embeddings not in this instance
+            embeddings_per_instance = embeddings * instance_mask
+
+            # compute the cluster mean
+            mean_embedding = np.sum(embeddings_per_instance, axis=spatial_dims, keepdims=True) / size
+            # compute the instance mask, i.e. get the epsilon-ball
+            inst_mask = LA.norm(embeddings - mean_embedding, axis=0) < self.epsilon
+            # save instance
+            result[inst_mask] = label
+
+        return np.expand_dims(result, 0)
+
+
+class RandomEmbeddingAveragePrecision(GenericAveragePrecision):
+    def __init__(self, epsilon, min_instance_size=None, metric='ap', **kwargs):
+        super().__init__(min_instance_size, use_last_target=False, metric=metric, **kwargs)
+        self.epsilon = epsilon
+
+    def input_to_seg(self, embeddings, target=None):
+        assert target is not None
+
+        result = np.zeros(shape=embeddings.shape[1:], dtype=np.uint32)
+
+        labels = np.unique(target)
+
+        for label in labels:
+            # skip 0-label
+            if label == 0:
+                continue
+
+            z, y, x = np.nonzero(target == label)
+            ind = np.random.randint(len(z))
+            anchor_emb = embeddings[:, z[ind], y[ind], x[ind]]
+            anchor_emb = anchor_emb[:, None, None, None]
+            # compute the instance mask, i.e. get the epsilon-ball
+            inst_mask = LA.norm(embeddings - anchor_emb, axis=0) < self.epsilon
+
+            # save instance
+            result[inst_mask] = label
+
+        return np.expand_dims(result, 0)
+
+
+class CVPPPEmbeddingDiceScore:
+    def __init__(self, epsilon, max_anchors, refine_iters=5, **kwargs):
+        self.max_anchors = max_anchors
+        self.epsilon = epsilon
+        self.refine_iters = refine_iters
+
+    def __call__(self, input, target):
+        def _dice_score(gt, seg):
+            nom = 2 * np.sum(gt * seg)
+            denom = np.sum(gt) + np.sum(seg)
+            dice = float(nom) / float(denom)
+            return dice
+
+        # input NxExDxHxW, target NxDxHxW
+        input = input.detach().cpu().numpy()
+        target = target.detach().cpu().numpy()
+
+        batch_dice = []
+        # iterate over the batch
+        for inp, tar in zip(input, target):
+            seg = self.emb_to_seg(inp, tar)
+            # convert target to binary mask
+            mask_tar = (tar > 0).astype('uint8')
+            mask_seg = (seg > 0).astype('uint8')
+            # compute dice score
+            ds = _dice_score(mask_tar, mask_seg)
+            batch_dice.append(ds)
+
+        return torch.tensor(batch_dice).mean()
+
+    @staticmethod
+    def refine_instance(emb, mask, eps, iters):
+        for _ in range(iters):
+            num_pixels = np.sum(mask)
+            mask_emb = emb * mask
+            num = np.sum(mask_emb, axis=(1, 2, 3), keepdims=True)
+
+            mean_emb = num / num_pixels
+            mask = LA.norm(emb - mean_emb, axis=0) < eps
+        return mask
+
+    def emb_to_seg(self, embeddings, target):
+        assert embeddings.ndim == 4
+        assert target.ndim == 3
+
+        result = np.zeros(shape=embeddings.shape[1:], dtype=np.uint32)
+        mask = target > 0
+
+        # for sparse objects we might have empty patches, just return the target mask
+        if np.sum(mask) == 0:
+            return np.ones_like(mask)
+
+        for i in range(self.max_anchors):
+            if np.sum(mask) == 0:
+                return result
+            # get random anchor
+            z, y, x = np.nonzero(mask)
+            ind = np.random.randint(len(z))
+            anchor_emb = embeddings[:, z[ind], y[ind], x[ind]]
+            anchor_emb = anchor_emb[:, None, None, None]
+            # compute the instance mask, i.e. get the epsilon-ball
+            inst_mask = LA.norm(embeddings - anchor_emb, axis=0) < self.epsilon
+            # refine instance mask
+            inst_mask = self.refine_instance(embeddings, inst_mask, self.epsilon, iters=self.refine_iters)
+            # zero out the instance in the mask
+            mask[inst_mask] = 0
+            # save instance
+            result[inst_mask] = i + 1
+
+        return result
 
 
 class BlobsAveragePrecision(GenericAveragePrecision):
@@ -402,7 +600,7 @@ class BlobsAveragePrecision(GenericAveragePrecision):
         self.thresholds = thresholds
         self.input_channel = input_channel
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         input = input[self.input_channel]
         segs = []
         for th in self.thresholds:
@@ -418,6 +616,7 @@ class BlobsBoundaryAveragePrecision(GenericAveragePrecision):
     Computes Average Precision given foreground prediction, boundary prediction and ground truth instance segmentation.
     Segmentation mask is computed as (P_mask - P_boundary) > th followed by a connected component
     """
+
     def __init__(self, thresholds=None, metric='ap', min_instance_size=None, **kwargs):
         super().__init__(min_instance_size=min_instance_size, use_last_target=True, metric=metric)
         if thresholds is None:
@@ -425,7 +624,7 @@ class BlobsBoundaryAveragePrecision(GenericAveragePrecision):
         assert isinstance(thresholds, list)
         self.thresholds = thresholds
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         # input = P_mask - P_boundary
         input = input[0] - input[1]
         segs = []
@@ -450,7 +649,7 @@ class BoundaryAveragePrecision(GenericAveragePrecision):
         self.thresholds = thresholds
         self.input_channel = input_channel
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         input = input[self.input_channel]
         segs = []
         for th in self.thresholds:
