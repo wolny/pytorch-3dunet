@@ -6,12 +6,11 @@ import numpy as np
 import torch
 
 from pytorch3dunet.datasets.utils import get_train_loaders
-from pytorch3dunet.train import _create_optimizer, _create_lr_scheduler
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.trainer import UNet3DTrainer
-from pytorch3dunet.unet3d.utils import DefaultTensorboardFormatter
+from pytorch3dunet.unet3d.utils import DefaultTensorboardFormatter, create_optimizer, create_lr_scheduler
 
 
 class TestUNet3DTrainer:
@@ -80,7 +79,7 @@ def _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, 
 
     loss_criterion = get_loss_criterion(train_config)
     eval_criterion = get_evaluation_metric(train_config)
-    model = get_model(train_config)
+    model = get_model(train_config['model'])
     model = model.to(device)
 
     if loss in ['BCEWithLogitsLoss']:
@@ -95,8 +94,8 @@ def _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, 
 
     loaders = get_train_loaders(train_config)
 
-    optimizer = _create_optimizer(train_config, model)
-    lr_scheduler = _create_lr_scheduler(train_config, optimizer)
+    optimizer = create_optimizer(train_config['optimizer'], model)
+    lr_scheduler = create_lr_scheduler(train_config.get('lr_scheduler', None), optimizer)
 
     formatter = DefaultTensorboardFormatter()
     trainer = UNet3DTrainer(model, optimizer, lr_scheduler,

@@ -5,10 +5,103 @@ import torch.nn as nn
 from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from pytorch3dunet.unet3d.utils import get_logger
+from pytorch3dunet.datasets.utils import get_train_loaders
+from pytorch3dunet.unet3d.losses import get_loss_criterion
+from pytorch3dunet.unet3d.metrics import get_evaluation_metric
+from pytorch3dunet.unet3d.model import get_model
+from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, create_sample_plotter, create_optimizer, \
+    create_lr_scheduler, get_number_of_learnable_parameters
 from . import utils
 
 logger = get_logger('UNet3DTrainer')
+
+
+def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders):
+    assert 'trainer' in config, 'Could not find trainer configuration'
+    trainer_config = config['trainer']
+
+    resume = trainer_config.get('resume', None)
+    pre_trained = trainer_config.get('pre_trained', None)
+
+    # get tensorboard formatter
+    tensorboard_formatter = get_tensorboard_formatter(trainer_config.pop('tensorboard_formatter', None))
+    # get sample plotter
+    sample_plotter = create_sample_plotter(trainer_config.pop('sample_plotter', None))
+
+    if resume is not None:
+        # continue training from a given checkpoint
+        return UNet3DTrainer.from_checkpoint(model=model,
+                                             optimizer=optimizer,
+                                             lr_scheduler=lr_scheduler,
+                                             loss_criterion=loss_criterion,
+                                             eval_criterion=eval_criterion,
+                                             loaders=loaders,
+                                             tensorboard_formatter=tensorboard_formatter,
+                                             sample_plotter=sample_plotter,
+                                             **trainer_config)
+    elif pre_trained is not None:
+        # fine-tune a given pre-trained model
+        return UNet3DTrainer.from_pretrained(model=model,
+                                             optimizer=optimizer,
+                                             lr_scheduler=lr_scheduler,
+                                             loss_criterion=loss_criterion,
+                                             eval_criterion=eval_criterion,
+                                             tensorboard_formatter=tensorboard_formatter,
+                                             sample_plotter=sample_plotter,
+                                             device=config['device'],
+                                             loaders=loaders,
+                                             **trainer_config)
+    else:
+        # start training from scratch
+        return UNet3DTrainer(model=model,
+                             optimizer=optimizer,
+                             lr_scheduler=lr_scheduler,
+                             loss_criterion=loss_criterion,
+                             eval_criterion=eval_criterion,
+                             device=config['device'],
+                             loaders=loaders,
+                             tensorboard_formatter=tensorboard_formatter,
+                             sample_plotter=sample_plotter,
+                             **trainer_config)
+
+
+class UNet3DTrainerBuilder:
+    @staticmethod
+    def build(config):
+        # Create the model
+        model = get_model(config['model'])
+        # use DataParallel if more than 1 GPU available
+        device = config['device']
+        if torch.cuda.device_count() > 1 and not device.type == 'cpu':
+            model = nn.DataParallel(model)
+            logger.info(f'Using {torch.cuda.device_count()} GPUs for training')
+
+        # put the model on GPUs
+        logger.info(f"Sending the model to '{config['device']}'")
+        model = model.to(device)
+
+        # Log the number of learnable parameters
+        logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
+
+        # Create loss criterion
+        loss_criterion = get_loss_criterion(config)
+        # Create evaluation metric
+        eval_criterion = get_evaluation_metric(config)
+
+        # Create data loaders
+        loaders = get_train_loaders(config)
+
+        # Create the optimizer
+        optimizer = create_optimizer(config['optimizer'], model)
+
+        # Create learning rate adjustment strategy
+        lr_scheduler = create_lr_scheduler(config.get('lr_scheduler', None), optimizer)
+
+        # Create model trainer
+        trainer = _create_trainer(config, model=model, optimizer=optimizer, lr_scheduler=lr_scheduler,
+                                  loss_criterion=loss_criterion, eval_criterion=eval_criterion, loaders=loaders)
+
+        return trainer
 
 
 class UNet3DTrainer:
@@ -39,17 +132,20 @@ class UNet3DTrainer:
         num_epoch (int): useful when loading the model from the checkpoint
         tensorboard_formatter (callable): converts a given batch of input/output/target image to a series of images
             that can be displayed in tensorboard
+        sample_plotter (callable): saves sample inputs, network outputs and targets to a given directory
+            during validation phase
         skip_train_validation (bool): if True eval_criterion is not evaluated on the training set (used mostly when
             evaluation is expensive)
     """
 
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion,
                  eval_criterion, device, loaders, checkpoint_dir,
-                 max_num_epochs=100, max_num_iterations=1e5,
+                 max_num_epochs=100, max_num_iterations=int(1e5),
                  validate_after_iters=100, log_after_iters=100,
                  validate_iters=None, num_iterations=1, num_epoch=0,
                  eval_score_higher_is_better=True, best_eval_score=None,
-                 tensorboard_formatter=None, skip_train_validation=False):
+                 tensorboard_formatter=None, sample_plotter=None,
+                 skip_train_validation=False, **kwargs):
 
         self.model = model
         self.optimizer = optimizer
@@ -82,19 +178,20 @@ class UNet3DTrainer:
 
         assert tensorboard_formatter is not None, 'TensorboardFormatter must be provided'
         self.tensorboard_formatter = tensorboard_formatter
+        self.sample_plotter = sample_plotter
 
         self.num_iterations = num_iterations
         self.num_epoch = num_epoch
         self.skip_train_validation = skip_train_validation
 
     @classmethod
-    def from_checkpoint(cls, checkpoint_path, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders,
-                        tensorboard_formatter=None, skip_train_validation=False):
-        logger.info(f"Loading checkpoint '{checkpoint_path}'...")
-        state = utils.load_checkpoint(checkpoint_path, model, optimizer)
+    def from_checkpoint(cls, resume, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders,
+                        tensorboard_formatter=None, sample_plotter=None, **kwargs):
+        logger.info(f"Loading checkpoint '{resume}'...")
+        state = utils.load_checkpoint(resume, model, optimizer)
         logger.info(
             f"Checkpoint loaded. Epoch: {state['epoch']}. Best val score: {state['best_eval_score']}. Num_iterations: {state['num_iterations']}")
-        checkpoint_dir = os.path.split(checkpoint_path)[0]
+        checkpoint_dir = os.path.split(resume)[0]
         return cls(model, optimizer, lr_scheduler,
                    loss_criterion, eval_criterion,
                    torch.device(state['device']),
@@ -108,20 +205,25 @@ class UNet3DTrainer:
                    validate_after_iters=state['validate_after_iters'],
                    log_after_iters=state['log_after_iters'],
                    validate_iters=state['validate_iters'],
+                   skip_train_validation=state.get('skip_train_validation', False),
                    tensorboard_formatter=tensorboard_formatter,
-                   skip_train_validation=skip_train_validation)
+                   sample_plotter=sample_plotter)
 
     @classmethod
     def from_pretrained(cls, pre_trained, model, optimizer, lr_scheduler, loss_criterion, eval_criterion,
                         device, loaders,
-                        max_num_epochs=100, max_num_iterations=1e5,
+                        max_num_epochs=100, max_num_iterations=int(1e5),
                         validate_after_iters=100, log_after_iters=100,
                         validate_iters=None, num_iterations=1, num_epoch=0,
                         eval_score_higher_is_better=True, best_eval_score=None,
-                        tensorboard_formatter=None, skip_train_validation=False):
+                        tensorboard_formatter=None, sample_plotter=None,
+                        skip_train_validation=False, **kwargs):
         logger.info(f"Logging pre-trained model from '{pre_trained}'...")
         utils.load_checkpoint(pre_trained, model, None)
-        checkpoint_dir = os.path.split(pre_trained)[0]
+        if 'checkpoint_dir' not in kwargs:
+            checkpoint_dir = os.path.split(pre_trained)[0]
+        else:
+            checkpoint_dir = kwargs.pop('checkpoint_dir')
         return cls(model, optimizer, lr_scheduler,
                    loss_criterion, eval_criterion,
                    device, loaders, checkpoint_dir,
@@ -135,12 +237,13 @@ class UNet3DTrainer:
                    log_after_iters=log_after_iters,
                    validate_iters=validate_iters,
                    tensorboard_formatter=tensorboard_formatter,
+                   sample_plotter=sample_plotter,
                    skip_train_validation=skip_train_validation)
 
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
             # train for one epoch
-            should_terminate = self.train(self.loaders['train'])
+            should_terminate = self.train()
 
             if should_terminate:
                 logger.info('Stopping criterion is satisfied. Finishing training')
@@ -149,11 +252,8 @@ class UNet3DTrainer:
             self.num_epoch += 1
         logger.info(f"Reached maximum number of epochs: {self.max_num_epochs}. Finishing training...")
 
-    def train(self, train_loader):
+    def train(self):
         """Trains the model for 1 epoch.
-
-        Args:
-            train_loader (torch.utils.data.DataLoader): training data loader
 
         Returns:
             True if the training should be terminated immediately, False otherwise
@@ -164,9 +264,9 @@ class UNet3DTrainer:
         # sets the model in training mode
         self.model.train()
 
-        for i, t in enumerate(train_loader):
-            logger.info(
-                f'Training iteration {self.num_iterations}. Batch {i}. Epoch [{self.num_epoch}/{self.max_num_epochs - 1}]')
+        for t in self.loaders['train']:
+            logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
+                        f'Epoch [{self.num_epoch}/{self.max_num_epochs - 1}]')
 
             input, target, weight = self._split_training_batch(t)
 
@@ -183,7 +283,7 @@ class UNet3DTrainer:
                 # set the model in eval mode
                 self.model.eval()
                 # evaluate on validation set
-                eval_score = self.validate(self.loaders['val'])
+                eval_score = self.validate()
                 # set the model back to training mode
                 self.model.train()
 
@@ -242,14 +342,17 @@ class UNet3DTrainer:
 
         return False
 
-    def validate(self, val_loader):
+    def validate(self):
         logger.info('Validating...')
 
         val_losses = utils.RunningAverage()
         val_scores = utils.RunningAverage()
 
+        if self.sample_plotter is not None:
+            self.sample_plotter.update_current_dir()
+
         with torch.no_grad():
-            for i, t in enumerate(val_loader):
+            for i, t in enumerate(self.loaders['val']):
                 logger.info(f'Validation iteration {i}')
 
                 input, target, weight = self._split_training_batch(t)
@@ -267,6 +370,9 @@ class UNet3DTrainer:
 
                 eval_score = self.eval_criterion(output, target)
                 val_scores.update(eval_score.item(), self._batch_size(input))
+
+                if self.sample_plotter is not None:
+                    self.sample_plotter(i, input, output, target, 'val')
 
                 if self.validate_iters is not None and self.validate_iters <= i:
                     # stop validation
@@ -335,7 +441,8 @@ class UNet3DTrainer:
             'max_num_iterations': self.max_num_iterations,
             'validate_after_iters': self.validate_after_iters,
             'log_after_iters': self.log_after_iters,
-            'validate_iters': self.validate_iters
+            'validate_iters': self.validate_iters,
+            'skip_train_validation': self.skip_train_validation
         }, is_best, checkpoint_dir=self.checkpoint_dir,
             logger=logger)
 

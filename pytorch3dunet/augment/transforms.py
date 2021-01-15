@@ -703,6 +703,27 @@ class Identity:
         return m
 
 
+class RgbToLabel:
+    def __call__(self, img):
+        img = np.array(img)
+        assert img.ndim == 3 and img.shape[2] == 3
+        result = img[..., 0] * 65536 + img[..., 1] * 256 + img[..., 2]
+        return result
+
+
+class LabelToTensor:
+    def __call__(self, m):
+        m = np.array(m)
+        return torch.from_numpy(m.astype(dtype='int64'))
+
+
+class ImgNormalize:
+    def __call__(self, tensor):
+        mean = torch.mean(tensor, dim=(1, 2))
+        std = torch.std(tensor, dim=(1, 2))
+        return F.normalize(tensor, mean, std)
+
+
 def get_transformer(config, min_value, max_value, mean, std):
     base_config = {'min_value': min_value, 'max_value': max_value, 'mean': mean, 'std': std}
     return Transformer(config, base_config)
