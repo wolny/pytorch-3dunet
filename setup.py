@@ -8,5 +8,5 @@ setup(
     author="Adrian Wolny, Lorenzo Cerrone",
     url="https://github.com/wolny/pytorch-3dunet",
     license="MIT",
-    python_requires='>=3.8'
+    python_requires='>=3.7'
 )
