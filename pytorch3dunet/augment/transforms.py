@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
 from scipy.ndimage.filters import convolve
+from skimage import measure
 from skimage.filters import gaussian
 from skimage.segmentation import find_boundaries
 from torchvision.transforms import Compose
@@ -216,7 +217,11 @@ class CropToFixed:
             else:
                 return 0, _padding(crop_size - max_size)
 
-        _, y, x = m.shape
+        assert m.ndim in (3, 4)
+        if m.ndim == 3:
+            _, y, x = m.shape
+        else:
+            _, _, y, x = m.shape
 
         if not self.centered:
             y_range, y_pad = _rand_range_and_pad(self.crop_y, y)
@@ -229,8 +234,15 @@ class CropToFixed:
             y_start, y_pad = _start_and_pad(self.crop_y, y)
             x_start, x_pad = _start_and_pad(self.crop_x, x)
 
-        result = m[:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
-        return np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode='reflect')
+        if m.ndim == 3:
+            result = m[:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
+            return np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode='reflect')
+        else:
+            channels = []
+            for c in range(m.shape[0]):
+                result = m[c][:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
+                channels.append(np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode='reflect'))
+            return np.stack(channels, axis=0)
 
 
 class AbstractLabelToBoundary:
@@ -549,16 +561,53 @@ class LabelToMaskAndAffinities:
 class Standardize:
     """
     Apply Z-score normalization to a given input tensor, i.e. re-scaling the values to be 0-mean and 1-std.
-    Mean and std parameter have to be provided explicitly.
     """
 
-    def __init__(self, mean, std, eps=1e-6, **kwargs):
+    def __init__(self, eps=1e-10, mean=None, std=None, channelwise=False, **kwargs):
+        if mean is not None or std is not None:
+            assert mean is not None and std is not None
         self.mean = mean
         self.std = std
         self.eps = eps
+        self.channelwise = channelwise
 
     def __call__(self, m):
-        return (m - self.mean) / np.clip(self.std, a_min=self.eps, a_max=None)
+        if self.mean is not None:
+            mean, std = self.mean, self.std
+        else:
+            if self.channelwise:
+                # normalize per-channel
+                axes = list(range(m.ndim))
+                # average across channels
+                axes = tuple(axes[1:])
+                mean = np.mean(m, axis=axes, keepdims=True)
+                std = np.std(m, axis=axes, keepdims=True)
+            else:
+                mean = np.mean(m)
+                std = np.std(m)
+
+        return (m - mean) / np.clip(std, a_min=self.eps, a_max=None)
+
+
+class PercentileNormalizer:
+    def __init__(self, pmin, pmax, channelwise=False, eps=1e-10, **kwargs):
+        self.eps = eps
+        self.pmin = pmin
+        self.pmax = pmax
+        self.channelwise = channelwise
+
+    def __call__(self, m):
+        if self.channelwise:
+            axes = list(range(m.ndim))
+            # average across channels
+            axes = tuple(axes[1:])
+            pmin = np.percentile(m, self.pmin, axis=axes, keepdims=True)
+            pmax = np.percentile(m, self.pmax, axis=axes, keepdims=True)
+        else:
+            pmin = np.percentile(m, self.pmin)
+            pmax = np.percentile(m, self.pmax)
+
+        return (m - pmin) / (pmax - pmin + self.eps)
 
 
 class Normalize:
@@ -626,17 +675,29 @@ class ToTensor:
 class Relabel:
     """
     Relabel a numpy array of labels into a consecutive numbers, e.g.
-    [10,10, 0, 6, 6] -> [2, 2, 0, 1, 1]. Useful when one has an instance segmentation volume
+    [10, 10, 0, 6, 6] -> [2, 2, 0, 1, 1]. Useful when one has an instance segmentation volume
     at hand and would like to create a one-hot-encoding for it. Without a consecutive labeling the task would be harder.
     """
 
-    def __init__(self, **kwargs):
-        pass
+    def __init__(self, append_original=False, run_cc=True, ignore_label=None, **kwargs):
+        self.append_original = append_original
+        self.ignore_label = ignore_label
+        self.run_cc = run_cc
+
+        if ignore_label is not None:
+            assert append_original, "ignore_label present, so append_original must be true, so that one can localize the ignore region"
 
     def __call__(self, m):
+        orig = m
+        if self.run_cc:
+            # assign 0 to the ignore region
+            m = measure.label(m, background=self.ignore_label)
+
         _, unique_labels = np.unique(m, return_inverse=True)
-        m = unique_labels.reshape(m.shape)
-        return m
+        result = unique_labels.reshape(m.shape)
+        if self.append_original:
+            result = np.stack([result, orig])
+        return result
 
 
 class Identity:
@@ -645,6 +706,27 @@ class Identity:
 
     def __call__(self, m):
         return m
+
+
+class RgbToLabel:
+    def __call__(self, img):
+        img = np.array(img)
+        assert img.ndim == 3 and img.shape[2] == 3
+        result = img[..., 0] * 65536 + img[..., 1] * 256 + img[..., 2]
+        return result
+
+
+class LabelToTensor:
+    def __call__(self, m):
+        m = np.array(m)
+        return torch.from_numpy(m.astype(dtype='int64'))
+
+
+class ImgNormalize:
+    def __call__(self, tensor):
+        mean = torch.mean(tensor, dim=(1, 2))
+        std = torch.std(tensor, dim=(1, 2))
+        return F.normalize(tensor, mean, std)
 
 
 def get_transformer(config, min_value, max_value, mean, std):

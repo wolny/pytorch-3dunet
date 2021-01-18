@@ -1,17 +1,13 @@
 import importlib
-import os
-import time
 
-import hdbscan
 import numpy as np
 import torch
 from skimage import measure
 from skimage.metrics import adapted_rand_error, peak_signal_noise_ratio
-from sklearn.cluster import MeanShift
 
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
 from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy
-from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, plot_segm, convert_to_numpy
+from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, convert_to_numpy
 
 logger = get_logger('EvalMetric')
 
@@ -119,16 +115,10 @@ class AdaptedRandError:
 
     Args:
         use_last_target (bool): use only the last channel from the target to compute the ARand
-        save_plots (bool): save predicted segmentation (result from `input_to_segm`) together with GT segmentation as a PNG
-        plots_dir (string): directory where the plots are to be saved
     """
 
-    def __init__(self, use_last_target=False, save_plots=False, plots_dir='.', **kwargs):
+    def __init__(self, use_last_target=False, **kwargs):
         self.use_last_target = use_last_target
-        self.save_plots = save_plots
-        self.plots_dir = plots_dir
-        if not os.path.exists(plots_dir) and save_plots:
-            os.makedirs(plots_dir)
 
     def __call__(self, input, target):
         """
@@ -141,6 +131,7 @@ class AdaptedRandError:
         Returns:
             average ARand Error across the batch
         """
+
         def _arand_err(gt, seg):
             n_seg = len(np.unique(seg))
             if n_seg == 1:
@@ -173,10 +164,6 @@ class AdaptedRandError:
             # convert _input to segmentation CDHW
             segm = self.input_to_segm(_input)
             assert segm.ndim == 4
-
-            if self.save_plots:
-                # save predicted and ground truth segmentation
-                plot_segm(segm, _target, self.plots_dir)
 
             # compute per channel arand and return the minimum value
             per_channel_arand = [_arand_err(_target, channel_segm) for channel_segm in segm]
@@ -240,10 +227,9 @@ class BoundaryAdaptedRandError(AdaptedRandError):
 
 
 class GenericAdaptedRandError(AdaptedRandError):
-    def __init__(self, input_channels, thresholds=None, use_last_target=True, invert_channels=None,
-                 save_plots=False, plots_dir='.', **kwargs):
+    def __init__(self, input_channels, thresholds=None, use_last_target=True, invert_channels=None, **kwargs):
 
-        super().__init__(use_last_target=use_last_target, save_plots=save_plots, plots_dir=plots_dir, **kwargs)
+        super().__init__(use_last_target=use_last_target, **kwargs)
         assert isinstance(input_channels, list) or isinstance(input_channels, tuple)
         self.input_channels = input_channels
         if thresholds is None:
@@ -276,58 +262,6 @@ class GenericAdaptedRandError(AdaptedRandError):
         return np.stack(segs)
 
 
-class EmbeddingsAdaptedRandError(AdaptedRandError):
-    def __init__(self, min_cluster_size=100, min_samples=None, metric='euclidean', cluster_selection_method='eom',
-                 save_plots=False, plots_dir='.', **kwargs):
-        super().__init__(save_plots=save_plots, plots_dir=plots_dir, **kwargs)
-
-        logger.info(f'HDBSCAN params: min_cluster_size: {min_cluster_size}, min_samples: {min_samples}')
-        self.clustering = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric=metric,
-                                          cluster_selection_method=cluster_selection_method)
-
-    def input_to_segm(self, embeddings):
-        logger.info("Computing clusters with HDBSCAN...")
-
-        # shape of the output segmentation
-        output_shape = embeddings.shape[1:]
-        # reshape (C, D, H, W) -> (C, D * H * W) and transpose
-        flattened_embeddings = embeddings.reshape(embeddings.shape[0], -1).transpose()
-
-        # perform clustering and reshape in order to get the segmentation volume
-        start = time.time()
-        segm = self.clustering.fit_predict(flattened_embeddings).reshape(output_shape)
-        logger.info(f'Number of clusters found by HDBSCAN: {np.max(segm)}. Duration: {time.time() - start} sec.')
-
-        # assign noise to new cluster (by default hdbscan gives -1 label to outliers)
-        noise_label = np.max(segm) + 1
-        segm[segm == -1] = noise_label
-
-        return np.expand_dims(segm, axis=0)
-
-
-# Just for completeness, however sklean MeanShift implementation is just too slow for clustering embeddings
-class EmbeddingsMeanShiftAdaptedRandError(AdaptedRandError):
-    def __init__(self, bandwidth, save_plots=False, plots_dir='.', **kwargs):
-        super().__init__(save_plots=save_plots, plots_dir=plots_dir, **kwargs)
-        logger.info(f'MeanShift params: bandwidth: {bandwidth}')
-        # use bin_seeding to speedup the mean-shift significantly
-        self.clustering = MeanShift(bandwidth=bandwidth, bin_seeding=True)
-
-    def input_to_segm(self, embeddings):
-        logger.info("Computing clusters with MeanShift...")
-
-        # shape of the output segmentation
-        output_shape = embeddings.shape[1:]
-        # reshape (C, D, H, W) -> (C, D * H * W) and transpose
-        flattened_embeddings = embeddings.reshape(embeddings.shape[0], -1).transpose()
-
-        # perform clustering and reshape in order to get the segmentation volume
-        start = time.time()
-        segm = self.clustering.fit_predict(flattened_embeddings).reshape(output_shape)
-        logger.info(f'Number of clusters found by MeanShift: {np.max(segm)}. Duration: {time.time() - start} sec.')
-        return np.expand_dims(segm, axis=0)
-
-
 class GenericAveragePrecision:
     def __init__(self, min_instance_size=None, use_last_target=False, metric='ap', **kwargs):
         self.min_instance_size = min_instance_size
@@ -341,32 +275,44 @@ class GenericAveragePrecision:
             self.metric = Accuracy(iou_threshold=0.5)
 
     def __call__(self, input, target):
-        assert isinstance(input, torch.Tensor) and isinstance(target, torch.Tensor)
-        assert input.dim() == 5
-        assert target.dim() == 5
+        if target.dim() == 5:
+            if self.use_last_target:
+                target = target[:, -1, ...]  # 4D
+            else:
+                # use 1st target channel
+                target = target[:, 0, ...]  # 4D
 
-        input, target = convert_to_numpy(input, target)
-        if self.use_last_target:
-            target = target[:, -1, ...]  # 4D
-        else:
-            # use 1st target channel
-            target = target[:, 0, ...]  # 4D
+        input1 = input2 = input
+        multi_head = isinstance(input, tuple)
+        if multi_head:
+            input1, input2 = input
+
+        input1, input2, target = convert_to_numpy(input1, input2, target)
 
         batch_aps = []
+        i_batch = 0
         # iterate over the batch
-        for inp, tar in zip(input, target):
-            segs = self.input_to_seg(inp)  # 4D
+        for inp1, inp2, tar in zip(input1, input2, target):
+            if multi_head:
+                inp = (inp1, inp2)
+            else:
+                inp = inp1
+
+            segs = self.input_to_seg(inp, tar)  # expects 4D
+            assert segs.ndim == 4
             # convert target to seg
             tar = self.target_to_seg(tar)
+
             # filter small instances if necessary
             tar = self._filter_instances(tar)
 
             # compute average precision per channel
             segs_aps = [self.metric(self._filter_instances(seg), tar) for seg in segs]
 
-            logger.info(f'Max Average Precision for channel: {np.argmax(segs_aps)}')
+            logger.info(f'Batch: {i_batch}. Max Average Precision for channel: {np.argmax(segs_aps)}')
             # save max AP
             batch_aps.append(np.max(segs_aps))
+            i_batch += 1
 
         return torch.tensor(batch_aps).mean()
 
@@ -382,7 +328,7 @@ class GenericAveragePrecision:
                     input[input == label] = 0
         return input
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         raise NotImplementedError
 
     def target_to_seg(self, target):
@@ -402,7 +348,7 @@ class BlobsAveragePrecision(GenericAveragePrecision):
         self.thresholds = thresholds
         self.input_channel = input_channel
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         input = input[self.input_channel]
         segs = []
         for th in self.thresholds:
@@ -418,6 +364,7 @@ class BlobsBoundaryAveragePrecision(GenericAveragePrecision):
     Computes Average Precision given foreground prediction, boundary prediction and ground truth instance segmentation.
     Segmentation mask is computed as (P_mask - P_boundary) > th followed by a connected component
     """
+
     def __init__(self, thresholds=None, metric='ap', min_instance_size=None, **kwargs):
         super().__init__(min_instance_size=min_instance_size, use_last_target=True, metric=metric)
         if thresholds is None:
@@ -425,7 +372,7 @@ class BlobsBoundaryAveragePrecision(GenericAveragePrecision):
         assert isinstance(thresholds, list)
         self.thresholds = thresholds
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         # input = P_mask - P_boundary
         input = input[0] - input[1]
         segs = []
@@ -450,7 +397,7 @@ class BoundaryAveragePrecision(GenericAveragePrecision):
         self.thresholds = thresholds
         self.input_channel = input_channel
 
-    def input_to_seg(self, input):
+    def input_to_seg(self, input, target=None):
         input = input[self.input_channel]
         segs = []
         for th in self.thresholds:
@@ -470,63 +417,6 @@ class PSNR:
     def __call__(self, input, target):
         input, target = convert_to_numpy(input, target)
         return peak_signal_noise_ratio(target, input)
-
-
-class WithinAngleThreshold:
-    """
-    Returns the percentage of predicted directions which are more than 'angle_threshold' apart from the ground
-    truth directions. 'angle_threshold' is expected to be given in degrees not radians.
-    """
-
-    def __init__(self, angle_threshold, **kwargs):
-        self.threshold_radians = angle_threshold / 360 * np.pi
-
-    def __call__(self, inputs, targets):
-        assert isinstance(inputs, list)
-        if len(inputs) == 1:
-            targets = [targets]
-        assert len(inputs) == len(targets)
-
-        within_count = 0
-        total_count = 0
-        for input, target in zip(inputs, targets):
-            # normalize and multiply by the stability_coeff in order to prevent NaN results from torch.acos
-            stability_coeff = 0.999999
-            input = input / torch.norm(input, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
-            target = target / torch.norm(target, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
-            # compute cosine map
-            cosines = (input * target).sum(dim=1)
-            error_radians = torch.acos(cosines)
-            # increase by the number of directions within the threshold
-            within_count += error_radians[error_radians < self.threshold_radians].numel()
-            # increase by the number of all directions
-            total_count += error_radians.numel()
-
-        return torch.tensor(within_count / total_count)
-
-
-class InverseAngularError:
-    def __init__(self, **kwargs):
-        pass
-
-    def __call__(self, inputs, targets, **kwargs):
-        assert isinstance(inputs, list)
-        if len(inputs) == 1:
-            targets = [targets]
-        assert len(inputs) == len(targets)
-
-        total_error = 0
-        for input, target in zip(inputs, targets):
-            # normalize and multiply by the stability_coeff in order to prevent NaN results from torch.acos
-            stability_coeff = 0.999999
-            input = input / torch.norm(input, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
-            target = target / torch.norm(target, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
-            # compute cosine map
-            cosines = (input * target).sum(dim=1)
-            error_radians = torch.acos(cosines)
-            total_error += error_radians.sum()
-
-        return torch.tensor(1. / total_error)
 
 
 def get_evaluation_metric(config):

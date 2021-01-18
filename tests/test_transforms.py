@@ -57,7 +57,7 @@ class TestTransforms:
         label = np.array([[10, 10, 10], [0, 0, 0], [5, 5, 5]])
         r = Relabel()
         result = r(label)
-        assert np.array_equal(result, np.array([[2, 2, 2], [0, 0, 0], [1, 1, 1]]))
+        assert np.array_equal(result, np.array([[1, 1, 1], [0, 0, 0], [2, 2, 2]]))
 
     def test_BaseTransformer(self):
         config = {

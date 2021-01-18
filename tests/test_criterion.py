@@ -4,11 +4,10 @@ import torch.nn as nn
 from skimage import measure
 
 from pytorch3dunet.augment.transforms import LabelToAffinities, StandardLabelToBoundary
-from pytorch3dunet.embeddings.contrastive_loss import ContrastiveLoss
 from pytorch3dunet.unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, \
-    DiceLoss, TagsAngularLoss, WeightedSmoothL1Loss, _MaskingLossWrapper, SkipLastTargetChannelWrapper, BCEDiceLoss
+    DiceLoss, WeightedSmoothL1Loss, _MaskingLossWrapper, SkipLastTargetChannelWrapper, BCEDiceLoss
 from pytorch3dunet.unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
-    BoundaryAdaptedRandError, EmbeddingsAdaptedRandError
+    BoundaryAdaptedRandError
 
 
 def _compute_criterion(criterion, n_times=100):
@@ -114,14 +113,6 @@ class TestCriterion:
         arand = BoundaryAdaptedRandError(use_last_target=True)
         assert arand(pred, label) < 0.2
 
-    def test_adapted_rand_from_embeddings(self, ovule_label):
-        label = ovule_label[64:128, 64:128, 64:128].astype('int64')
-        pred = np.random.rand(*label.shape).reshape((1, 1) + label.shape)
-        label = torch.tensor(label.reshape((1, 1) + label.shape))
-        pred = torch.tensor(pred)
-        arand = EmbeddingsAdaptedRandError(min_cluster_size=50)
-        assert arand(pred, label) <= 1.0
-
     def test_generalized_dice_loss(self):
         results = _compute_criterion(GeneralizedDiceLoss())
         # check that all of the coefficients belong to [0, 1]
@@ -177,27 +168,6 @@ class TestCriterion:
         output = loss(input, target)
         output.backward()
         assert output.item() > 0
-
-    def test_tags_angular_loss(self):
-        coeff = [1.0, 0.8, 0.5]
-        loss_criterion = TagsAngularLoss(coeff)
-        inputs = [torch.rand((1, 3, 4, 4, 4)) for _ in range(len(coeff))]
-        inputs = [i / torch.norm(i, p=2, dim=1).clamp(min=1e-8) for i in inputs]
-        targets = [torch.rand((1, 3, 4, 4, 4)) for _ in range(len(coeff))]
-        targets = [i / torch.norm(i, p=2, dim=1).clamp(min=1e-8) for i in targets]
-
-        loss = loss_criterion(inputs, targets, None)
-        assert loss > 0
-
-    def test_contrastive_loss(self):
-        loss_criterion = ContrastiveLoss(0.5, 1.5)
-        C = 10
-        input = torch.randn(3, 16, 64, 64, 64, requires_grad=True)
-        target = torch.randint(C, (3, 64, 64, 64))
-
-        loss = loss_criterion(input, target)
-        loss.backward()
-        assert loss > 0
 
     def test_weighted_smooth_l1loss(self):
         loss_criterion = WeightedSmoothL1Loss(threshold=0., initial_weight=0.1)

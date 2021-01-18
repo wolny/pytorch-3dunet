@@ -4,7 +4,6 @@ from torch import nn as nn
 from torch.autograd import Variable
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss
 
-from pytorch3dunet.embeddings.contrastive_loss import ContrastiveLoss
 from pytorch3dunet.unet3d.utils import expand_as_one_hot
 
 
@@ -87,18 +86,21 @@ class _AbstractDiceLoss(nn.Module):
     Base class for different implementations of Dice loss.
     """
 
-    def __init__(self, weight=None, sigmoid_normalization=True):
+    def __init__(self, weight=None, normalization='sigmoid'):
         super(_AbstractDiceLoss, self).__init__()
         self.register_buffer('weight', weight)
         # The output from the network during training is assumed to be un-normalized probabilities and we would
         # like to normalize the logits. Since Dice (or soft Dice in this case) is usually used for binary data,
         # normalizing the channels with Sigmoid is the default choice even for multi-class segmentation problems.
         # However if one would like to apply Softmax in order to get the proper probability distribution from the
-        # output, just specify sigmoid_normalization=False.
-        if sigmoid_normalization:
+        # output, just specify `normalization=Softmax`
+        assert normalization in ['sigmoid', 'softmax', 'none']
+        if normalization == 'sigmoid':
             self.normalization = nn.Sigmoid()
-        else:
+        elif normalization == 'softmax':
             self.normalization = nn.Softmax(dim=1)
+        else:
+            self.normalization = lambda x: x
 
     def dice(self, input, target, weight):
         # actual Dice score computation; to be implemented by the subclass
@@ -121,8 +123,8 @@ class DiceLoss(_AbstractDiceLoss):
     The input to the loss function is assumed to be a logit and will be normalized by the Sigmoid function.
     """
 
-    def __init__(self, weight=None, sigmoid_normalization=True):
-        super().__init__(weight, sigmoid_normalization)
+    def __init__(self, weight=None, normalization='sigmoid'):
+        super().__init__(weight, normalization)
 
     def dice(self, input, target, weight):
         return compute_per_channel_dice(input, target, weight=self.weight)
@@ -132,8 +134,8 @@ class GeneralizedDiceLoss(_AbstractDiceLoss):
     """Computes Generalized Dice Loss (GDL) as described in https://arxiv.org/pdf/1707.03237.pdf.
     """
 
-    def __init__(self, sigmoid_normalization=True, epsilon=1e-6):
-        super().__init__(weight=None, sigmoid_normalization=sigmoid_normalization)
+    def __init__(self, normalization='sigmoid', epsilon=1e-6):
+        super().__init__(weight=None, normalization=normalization)
         self.epsilon = epsilon
 
     def dice(self, input, target, weight):
@@ -235,26 +237,6 @@ class PixelWiseCrossEntropyLoss(nn.Module):
         return result.mean()
 
 
-class TagsAngularLoss(nn.Module):
-    def __init__(self, tags_coefficients):
-        super(TagsAngularLoss, self).__init__()
-        self.tags_coefficients = tags_coefficients
-
-    def forward(self, inputs, targets, weight):
-        assert isinstance(inputs, list)
-        # if there is just one output head the 'inputs' is going to be a singleton list [tensor]
-        # and 'targets' is just going to be a tensor (that's how the HDF5Dataloader works)
-        # so wrap targets in a list in this case
-        if len(inputs) == 1:
-            targets = [targets]
-        assert len(inputs) == len(targets) == len(self.tags_coefficients)
-        loss = 0
-        for input, target, alpha in zip(inputs, targets, self.tags_coefficients):
-            loss += alpha * square_angular_loss(input, target, weight)
-
-        return loss
-
-
 class WeightedSmoothL1Loss(nn.SmoothL1Loss):
     def __init__(self, threshold, initial_weight, apply_below_threshold=True):
         super().__init__(reduction="none")
@@ -273,30 +255,6 @@ class WeightedSmoothL1Loss(nn.SmoothL1Loss):
         l1[mask] = l1[mask] * self.weight
 
         return l1.mean()
-
-
-def square_angular_loss(input, target, weights=None):
-    """
-    Computes square angular loss between input and target directions.
-    Makes sure that the input and target directions are normalized so that torch.acos would not produce NaNs.
-
-    :param input: 5D input tensor (NCDHW)
-    :param target: 5D target tensor (NCDHW)
-    :param weights: 3D weight tensor in order to balance different instance sizes
-    :return: per pixel weighted sum of squared angular losses
-    """
-    assert input.size() == target.size()
-    # normalize and multiply by the stability_coeff in order to prevent NaN results from torch.acos
-    stability_coeff = 0.999999
-    input = input / torch.norm(input, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
-    target = target / torch.norm(target, p=2, dim=1).detach().clamp(min=1e-8) * stability_coeff
-    # compute cosine map
-    cosines = (input * target).sum(dim=1)
-    error_radians = torch.acos(cosines)
-    if weights is not None:
-        return (error_radians * error_radians * weights).sum()
-    else:
-        return (error_radians * error_radians).sum()
 
 
 def flatten(tensor):
@@ -349,10 +307,7 @@ def get_loss_criterion(config):
     return loss
 
 
-SUPPORTED_LOSSES = ['BCEWithLogitsLoss', 'BCEDiceLoss', 'CrossEntropyLoss', 'WeightedCrossEntropyLoss',
-                    'PixelWiseCrossEntropyLoss', 'GeneralizedDiceLoss', 'DiceLoss', 'TagsAngularLoss', 'MSELoss',
-                    'SmoothL1Loss', 'L1Loss', 'WeightedSmoothL1Loss']
-
+#######################################################################################################################
 
 def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
     if name == 'BCEWithLogitsLoss':
@@ -372,25 +327,20 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
     elif name == 'PixelWiseCrossEntropyLoss':
         return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index)
     elif name == 'GeneralizedDiceLoss':
-        sigmoid_normalization = loss_config.get('sigmoid_normalization', True)
-        return GeneralizedDiceLoss(sigmoid_normalization=sigmoid_normalization)
+        normalization = loss_config.get('normalization', 'sigmoid')
+        return GeneralizedDiceLoss(normalization=normalization)
     elif name == 'DiceLoss':
-        sigmoid_normalization = loss_config.get('sigmoid_normalization', True)
-        return DiceLoss(weight=weight, sigmoid_normalization=sigmoid_normalization)
-    elif name == 'TagsAngularLoss':
-        tags_coefficients = loss_config['tags_coefficients']
-        return TagsAngularLoss(tags_coefficients)
+        normalization = loss_config.get('normalization', 'sigmoid')
+        return DiceLoss(weight=weight, normalization=normalization)
     elif name == 'MSELoss':
         return MSELoss()
     elif name == 'SmoothL1Loss':
         return SmoothL1Loss()
     elif name == 'L1Loss':
         return L1Loss()
-    elif name == 'ContrastiveLoss':
-        return ContrastiveLoss(loss_config['delta_var'], loss_config['delta_dist'], loss_config['norm'],
-                               loss_config['alpha'], loss_config['beta'], loss_config['gamma'])
     elif name == 'WeightedSmoothL1Loss':
-        return WeightedSmoothL1Loss(threshold=loss_config['threshold'], initial_weight=loss_config['initial_weight'],
+        return WeightedSmoothL1Loss(threshold=loss_config['threshold'],
+                                    initial_weight=loss_config['initial_weight'],
                                     apply_below_threshold=loss_config.get('apply_below_threshold', True))
     else:
-        raise RuntimeError(f"Unsupported loss function: '{name}'. Supported losses: {SUPPORTED_LOSSES}")
+        raise RuntimeError(f"Unsupported loss function: '{name}'")

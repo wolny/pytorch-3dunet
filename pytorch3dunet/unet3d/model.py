@@ -2,7 +2,8 @@ import importlib
 
 import torch.nn as nn
 
-from pytorch3dunet.unet3d.buildingblocks import Encoder, Decoder, DoubleConv, ExtResNetBlock
+from pytorch3dunet.unet3d.buildingblocks import DoubleConv, ExtResNetBlock, create_encoders, \
+    create_decoders
 from pytorch3dunet.unet3d.utils import number_of_features_per_level
 
 
@@ -27,8 +28,6 @@ class Abstract3DUNet(nn.Module):
         layer_order (string): determines the order of layers
             in `SingleConv` module. e.g. 'crg' stands for Conv3d+ReLU+GroupNorm3d.
             See `SingleConv` for more info
-        f_maps (int, tuple): if int: number of feature maps in the first conv layer of the encoder (default: 64);
-            if tuple: number of feature maps at each level
         num_groups (int): number of groups for the GroupNorm
         num_levels (int): number of levels in the encoder/decoder path (applied only if f_maps is an int)
         is_segmentation (bool): if True (semantic segmentation problem) Sigmoid/Softmax normalization is applied
@@ -51,52 +50,16 @@ class Abstract3DUNet(nn.Module):
         if isinstance(f_maps, int):
             f_maps = number_of_features_per_level(f_maps, num_levels=num_levels)
 
-        # create encoder path consisting of Encoder modules. Depth of the encoder is equal to `len(f_maps)`
-        encoders = []
-        for i, out_feature_num in enumerate(f_maps):
-            if i == 0:
-                encoder = Encoder(in_channels, out_feature_num,
-                                  apply_pooling=False,  # skip pooling in the firs encoder
-                                  basic_module=basic_module,
-                                  conv_layer_order=layer_order,
-                                  conv_kernel_size=conv_kernel_size,
-                                  num_groups=num_groups,
-                                  padding=conv_padding)
-            else:
-                # TODO: adapt for anisotropy in the data, i.e. use proper pooling kernel to make the data isotropic after 1-2 pooling operations
-                encoder = Encoder(f_maps[i - 1], out_feature_num,
-                                  basic_module=basic_module,
-                                  conv_layer_order=layer_order,
-                                  conv_kernel_size=conv_kernel_size,
-                                  num_groups=num_groups,
-                                  pool_kernel_size=pool_kernel_size,
-                                  padding=conv_padding)
+        assert isinstance(f_maps, list) or isinstance(f_maps, tuple)
+        assert len(f_maps) > 1, "Required at least 2 levels in the U-Net"
 
-            encoders.append(encoder)
+        # create encoder path
+        self.encoders = create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_padding, layer_order,
+                                        num_groups, pool_kernel_size)
 
-        self.encoders = nn.ModuleList(encoders)
-
-        # create decoder path consisting of the Decoder modules. The length of the decoder is equal to `len(f_maps) - 1`
-        decoders = []
-        reversed_f_maps = list(reversed(f_maps))
-        for i in range(len(reversed_f_maps) - 1):
-            if basic_module == DoubleConv:
-                in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
-            else:
-                in_feature_num = reversed_f_maps[i]
-
-            out_feature_num = reversed_f_maps[i + 1]
-            # TODO: if non-standard pooling was used, make sure to use correct striding for transpose conv
-            # currently strides with a constant stride: (2, 2, 2)
-            decoder = Decoder(in_feature_num, out_feature_num,
-                              basic_module=basic_module,
-                              conv_layer_order=layer_order,
-                              conv_kernel_size=conv_kernel_size,
-                              num_groups=num_groups,
-                              padding=conv_padding)
-            decoders.append(decoder)
-
-        self.decoders = nn.ModuleList(decoders)
+        # create decoder path
+        self.decoders = create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups,
+                                        upsample=True)
 
         # in the last layer a 1×1 convolution reduces the number of output
         # channels to the number of labels
@@ -211,13 +174,14 @@ class UNet2D(Abstract3DUNet):
                                      **kwargs)
 
 
-def get_model(config):
+def get_model(model_config):
     def _model_class(class_name):
-        m = importlib.import_module('pytorch3dunet.unet3d.model')
-        clazz = getattr(m, class_name)
-        return clazz
+        modules = ['pytorch3dunet.unet3d.model']
+        for module in modules:
+            m = importlib.import_module(module)
+            clazz = getattr(m, class_name, None)
+            if clazz is not None:
+                return clazz
 
-    assert 'model' in config, 'Could not find model configuration'
-    model_config = config['model']
     model_class = _model_class(model_config['name'])
     return model_class(**model_config)
