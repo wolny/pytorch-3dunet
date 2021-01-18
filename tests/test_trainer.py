@@ -46,10 +46,10 @@ class TestUNet3DTrainer:
 
 
 def assert_train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map=False, shape=(3, 64, 64, 64)):
-    max_num_epochs = train_config['trainer']['epochs']
+    max_num_epochs = train_config['trainer']['max_num_epochs']
     log_after_iters = train_config['trainer']['log_after_iters']
     validate_after_iters = train_config['trainer']['validate_after_iters']
-    max_num_iterations = train_config['trainer']['iters']
+    max_num_iterations = train_config['trainer']['max_num_iterations']
 
     trainer = _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, shape)
 
@@ -101,10 +101,10 @@ def _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, 
     trainer = UNet3DTrainer(model, optimizer, lr_scheduler,
                             loss_criterion, eval_criterion,
                             device, loaders, tmpdir,
-                            max_num_epochs=train_config['trainer']['epochs'],
+                            max_num_epochs=train_config['trainer']['max_num_epochs'],
                             log_after_iters=train_config['trainer']['log_after_iters'],
                             validate_after_iters=train_config['trainer']['log_after_iters'],
-                            max_num_iterations=train_config['trainer']['iters'],
+                            max_num_iterations=train_config['trainer']['max_num_iterations'],
                             tensorboard_formatter=formatter)
     trainer.fit()
     # test loading the trainer from the checkpoint
