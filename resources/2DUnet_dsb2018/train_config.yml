@@ -17,8 +17,8 @@ trainer:
   resume: null
   validate_after_iters: 250
   log_after_iters: 250
-  epochs: 10000
-  iters: 150000
+  max_num_epochs: 10000
+  max_num_iterations: 150000
   eval_score_higher_is_better: True
 optimizer:
   learning_rate: 0.0002

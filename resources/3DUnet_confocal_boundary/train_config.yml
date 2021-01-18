@@ -114,9 +114,9 @@ optimizer:
   weight_decay: 1.0e-05
 trainer:
   checkpoint_dir: "/home/adrian/Datasets/Ovules"
-  epochs: 1000
+  max_num_epochs: 1000
+  max_num_iterations: 150000
   eval_score_higher_is_better: false
-  iters: 150000
   log_after_iters: 250
   resume: null
   validate_after_iters: 1000

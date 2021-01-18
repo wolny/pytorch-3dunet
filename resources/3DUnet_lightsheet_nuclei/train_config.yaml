@@ -35,9 +35,9 @@ trainer:
   # how many iterations between tensorboard logging
   log_after_iters: 100
   # max number of epochs
-  epochs: 200
+  max_num_epochs: 200
   # max number of iterations
-  iters: 60000
+  max_num_iterations: 60000
   # model with higher eval score is considered better
   eval_score_higher_is_better: True
 # loss function configuration
