@@ -143,16 +143,3 @@ def extract_fake_masks(emb, dist_to_mask, volume_threshold=0.1, max_instances=40
     results = results[:max_instances]
 
     return results
-
-
-# TODO: replace with new clustering scheme
-class RandomMaskExtractor(AbstractMaskExtractor):
-    """Ignores the target and extracts the instance masks based on the embeddings only.
-    Repeatedly takes a random anchor and extracts an instance until the whole volume is filled.
-    """
-
-    def __init__(self, dist_to_mask, combine_masks):
-        super().__init__(dist_to_mask, combine_masks)
-
-    def extract_masks(self, embeddings, labels=None):
-        return extract_fake_masks(embeddings, self.dist_to_mask)
