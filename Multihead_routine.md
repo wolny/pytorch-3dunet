@@ -15,7 +15,7 @@ For 'train' and 'val' phases:
 1. call the `fetch_and_check` routine 'n' number of times based on num of heads. This is the initial place to create multiple inputs to be passed to the model.
 2. call `check_dimensionality` routine 'n' times similar to above.
 
-Now add specific routine for your data before slicing (via slice builder). For Kinetochores use case I've performed dilation and euclidean distance transform for segmentation and regression heads respectively.
+Now add specific routine for your data before slicing (via slice builder).
 
 Get individual slice builders for n heads and set the label slices accordingly.
 
@@ -46,7 +46,7 @@ In Abstract3DUnet initialization, define each head individually before defining 
 2. Return 'n' outputs from the forward routine.
 
 
-Losses - losses.py (multihead loss: combining the segmenatation and regression loss)
+Losses - losses.py (multihead loss: * add your own loss *)
 
 ### For losses.py
 
@@ -55,7 +55,7 @@ Define a multihead loss class with based `_AbstractDiceLoss` class.
 Add the individual loss functions as per your case and define the forward accordingly.
 
 
-Metric - Currently combining the MeanIoU and RMSE
+Metric - metric.py
 
 ### For metric.py
 
@@ -73,4 +73,4 @@ In train routine, get 'n' targets from split_training_batch function and pass th
 In predict routine, after setting the eval mode, get 'n' predictions out of the the forward pass. Just below this, concatenate all the
 predictions as a list.
 
-DONE. 
+DONE.
