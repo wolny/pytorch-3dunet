@@ -1,7 +1,7 @@
 os: linux
 language: python
 python:
-  - "3.8"
+  - "3.7"
 before_install:
   # install conda
   - sudo apt-get update
