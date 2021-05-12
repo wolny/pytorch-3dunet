@@ -6,6 +6,7 @@ source:
   path: ..
 
 build:
+  noarch: python
   entry_points:
     - predict3dunet = pytorch3dunet.predict:main
     - train3dunet = pytorch3dunet.train:main
@@ -16,9 +17,7 @@ requirements:
     - setuptools
 
   run:
-    - python 3.7
-    # TODO: change after new torchvision release
-    - pillow<7
+    - python
     - torchvision
     - tensorboardx
     - h5py
