@@ -528,7 +528,7 @@ class CVPPPEmbeddingDiceScore:
             dice = float(nom) / float(denom)
             return dice
 
-        # input NxExDxHxW, target NxDxHxW
+        # input NxExHxW, target NxHxW
         input = input.detach().cpu().numpy()
         target = target.detach().cpu().numpy()
 
@@ -557,10 +557,10 @@ class CVPPPEmbeddingDiceScore:
         return mask
 
     def emb_to_seg(self, embeddings, target):
-        assert embeddings.ndim == 4
-        assert target.ndim == 3
+        assert embeddings.ndim == 3
+        assert target.ndim == 2
 
-        result = np.zeros(shape=embeddings.shape[1:], dtype=np.uint32)
+        result = np.zeros(shape=embeddings.shape[1:], dtype=np.uinrefine_instancet32)
         mask = target > 0
 
         # for sparse objects we might have empty patches, just return the target mask
@@ -571,10 +571,10 @@ class CVPPPEmbeddingDiceScore:
             if np.sum(mask) == 0:
                 return result
             # get random anchor
-            z, y, x = np.nonzero(mask)
-            ind = np.random.randint(len(z))
-            anchor_emb = embeddings[:, z[ind], y[ind], x[ind]]
-            anchor_emb = anchor_emb[:, None, None, None]
+            y, x = np.nonzero(mask)
+            ind = np.random.randint(len(y))
+            anchor_emb = embeddings[:, y[ind], x[ind]]
+            anchor_emb = anchor_emb[:, None, None]
             # compute the instance mask, i.e. get the epsilon-ball
             inst_mask = LA.norm(embeddings - anchor_emb, axis=0) < self.epsilon
             # refine instance mask
