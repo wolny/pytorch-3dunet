@@ -1,5 +1,5 @@
 import importlib
-
+import random
 import numpy as np
 import torch
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
@@ -727,6 +727,18 @@ class ImgNormalize:
         mean = torch.mean(tensor, dim=(1, 2))
         std = torch.std(tensor, dim=(1, 2))
         return F.normalize(tensor, mean, std)
+
+class GaussianBlur3D:
+    def __init__(self, sigma=[.1, 2.], execution_probability=0.5, **kwargs):
+        self.sigma = sigma
+        self.execution_probability = execution_probability
+
+    def __call__(self, x):
+        if random.random() < self.execution_probability:
+            sigma = random.uniform(self.sigma[0], self.sigma[1])
+            x = gaussian(x, sigma=sigma)
+            return x
+        return x
 
 
 def get_transformer(config, min_value, max_value, mean, std):
