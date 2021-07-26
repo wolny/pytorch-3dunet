@@ -117,8 +117,9 @@ class AdaptedRandError:
         use_last_target (bool): use only the last channel from the target to compute the ARand
     """
 
-    def __init__(self, use_last_target=False, **kwargs):
+    def __init__(self, use_last_target=False, ignore_index=None, **kwargs):
         self.use_last_target = use_last_target
+        self.ignore_index = ignore_index
 
     def __call__(self, input, target):
         """
@@ -148,6 +149,9 @@ class AdaptedRandError:
 
         # ensure target is of integer type
         target = target.astype(np.int)
+
+        if self.ignore_index is not None:
+            target[target == self.ignore_index] = 0
 
         per_batch_arand = []
         for _input, _target in zip(input, target):
@@ -193,9 +197,11 @@ class BoundaryAdaptedRandError(AdaptedRandError):
     Boundary map is thresholded, and connected components is run to get the predicted segmentation
     """
 
-    def __init__(self, thresholds=None, use_last_target=True, input_channel=None, invert_pmaps=True,
+    def __init__(self, thresholds=None, use_last_target=True, ignore_index=None, input_channel=None, invert_pmaps=True,
                  save_plots=False, plots_dir='.', **kwargs):
-        super().__init__(use_last_target=use_last_target, save_plots=save_plots, plots_dir=plots_dir, **kwargs)
+        super().__init__(use_last_target=use_last_target, ignore_index=ignore_index, save_plots=save_plots,
+                         plots_dir=plots_dir, **kwargs)
+
         if thresholds is None:
             thresholds = [0.3, 0.4, 0.5, 0.6]
         assert isinstance(thresholds, list)
@@ -227,9 +233,10 @@ class BoundaryAdaptedRandError(AdaptedRandError):
 
 
 class GenericAdaptedRandError(AdaptedRandError):
-    def __init__(self, input_channels, thresholds=None, use_last_target=True, invert_channels=None, **kwargs):
+    def __init__(self, input_channels, thresholds=None, use_last_target=True, ignore_index=None, invert_channels=None,
+                 **kwargs):
 
-        super().__init__(use_last_target=use_last_target, **kwargs)
+        super().__init__(use_last_target=use_last_target, ignore_index=ignore_index, **kwargs)
         assert isinstance(input_channels, list) or isinstance(input_channels, tuple)
         self.input_channels = input_channels
         if thresholds is None:
