@@ -1,5 +1,6 @@
 import importlib
 import random
+
 import numpy as np
 import torch
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
@@ -323,6 +324,7 @@ class StandardLabelToBoundary:
         assert m.ndim == 3
 
         boundaries = find_boundaries(m, connectivity=2, mode=self.mode)
+        boundaries = boundaries.astype('int32')
         if self.blur:
             boundaries = blur_boundary(boundaries, self.sigma)
 
