@@ -5,11 +5,11 @@ import torch.nn as nn
 from tensorboardX import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-from pytorch3dunet.datasets.utils import get_train_loaders
-from pytorch3dunet.unet3d.losses import get_loss_criterion
-from pytorch3dunet.unet3d.metrics import get_evaluation_metric
-from pytorch3dunet.unet3d.model import get_model
-from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, create_sample_plotter, create_optimizer, \
+from datasets.utils import get_train_loaders
+from unet3d.losses import get_loss_criterion
+from unet3d.metrics import get_evaluation_metric
+from unet3d.model import get_model
+from unet3d.utils import get_logger, get_tensorboard_formatter, create_sample_plotter, create_optimizer, \
     create_lr_scheduler, get_number_of_learnable_parameters
 from . import utils
 
@@ -405,6 +405,7 @@ class UNet3DTrainer:
         if weight is None:
             loss = self.loss_criterion(output, target)
         else:
+            # print(output.shape, target.shape, weight.shape)
             loss = self.loss_criterion(output, target, weight)
 
         return output, loss

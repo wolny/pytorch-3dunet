@@ -8,11 +8,11 @@ from pytorch3dunet.unet3d import utils
 logger = utils.get_logger('ConfigLoader')
 
 
-def load_config():
+def load_config(config_path):
     parser = argparse.ArgumentParser(description='UNet3D')
-    parser.add_argument('--config', type=str, help='Path to the YAML config file', required=True)
-    args = parser.parse_args()
-    config = _load_config_yaml(args.config)
+    #parser.add_argument('--config', type=str, help='Path to the YAML config file', required=True)
+    #args = parser.parse_args()
+    config = _load_config_yaml(config_path)
     # Get a device to train on
     device_str = config.get('device', None)
     if device_str is not None:

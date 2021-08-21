@@ -3,7 +3,7 @@
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
 
 # use a fixed random seed to guarantee that when you run the code twice you will get the same outcome
-manual_seed: 0
+manual_seed: 42
 # model configuration
 model:
   # model class, e.g. UNet3D, ResidualUNet3D
@@ -27,9 +27,9 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: "/home/adrian/Datasets/LateralRootPrimordia"
+  checkpoint_dir: '/home/moliere/.wine/drive_c/users/moliere/Sync/A_Professionell/B_MD/E_Project_cyle/E_data_handling/C_Processing/A_nucleus_segmentation/pytorch-3dunet/resources/3DUnet_lightsheet_nuclei/test/log2'
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
-  resume: null
+  resume: null #'/home/moliere/.wine/drive_c/users/moliere/Sync/A_Professionell/B_MD/E_Project_cyle/E_data_handling/C_Processing/A_nucleus_segmentation/pytorch-3dunet/resources/3DUnet_lightsheet_nuclei/test/log/last_checkpoint.pytorch'
   # how many iterations between validations
   validate_after_iters: 1000
   # how many iterations between tensorboard logging
@@ -37,7 +37,7 @@ trainer:
   # max number of epochs
   max_num_epochs: 200
   # max number of iterations
-  max_num_iterations: 60000
+  max_num_iterations: 70000
   # model with higher eval score is considered better
   eval_score_higher_is_better: True
 # loss function configuration
@@ -90,16 +90,16 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - '/home/adrian/Datasets/LateralRootPrimordia/t00015_s01_uint8_cropped_gt.h5'
-      - '/home/adrian/Datasets/LateralRootPrimordia/t00045_s01_uint8_cropped_gt.h5'
+      - '/home/moliere/.wine/drive_c/users/moliere/Sync/A_Professionell/B_MD/E_Project_cyle/E_data_handling/C_Processing/A_nucleus_segmentation/pytorch-3dunet/resources/3DUnet_lightsheet_nuclei/test/t00015_s01_uint8_cropped_gt.h5'
+      - '/home/moliere/.wine/drive_c/users/moliere/Sync/A_Professionell/B_MD/E_Project_cyle/E_data_handling/C_Processing/A_nucleus_segmentation/pytorch-3dunet/resources/3DUnet_lightsheet_nuclei/test/t00045_s01_uint8_cropped_gt.h5'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [80, 170, 170]
+      patch_shape: [32, 96, 96]
       # train stride between patches
-      stride_shape: [20, 40, 40]
+      stride_shape: [16, 64, 64]
       # minimum volume of the labels in the patch
       threshold: 0.01
       # probability of accepting patches which do not fulfil the threshold criterion
@@ -147,15 +147,15 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - '/home/adrian/Datasets/LateralRootPrimordia/t00030_s01_uint8_cropped_gt.h5'
+      - '/home/moliere/.wine/drive_c/users/moliere/Sync/A_Professionell/B_MD/E_Project_cyle/E_data_handling/C_Processing/A_nucleus_segmentation/pytorch-3dunet/resources/3DUnet_lightsheet_nuclei/test/t00030_s01_uint8_cropped_gt.h5'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [80, 170, 170]
+      patch_shape: [32, 96, 96]
       # train stride between patches
-      stride_shape: [80, 170, 170]
+      stride_shape: [32, 96, 96]
       # minimum volume of the labels in the patch
       threshold: 0.01
       # probability of accepting patches which do not fulfil the threshold criterion

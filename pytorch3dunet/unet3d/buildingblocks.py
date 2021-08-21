@@ -372,6 +372,7 @@ class AbstractUpsampling(nn.Module):
         self.upsample = upsample
 
     def forward(self, encoder_features, x):
+#        print('forward_upsampling')
         # get the spatial dimensions of the output given the encoder_features
         output_size = encoder_features.size()[2:]
         # upsample the input and return

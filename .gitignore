@@ -2,6 +2,7 @@
 .pytest_cache
 .ipynb_checkpoints
 
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -16,3 +17,7 @@ logs/
 # Python packages
 pytorch3dunet.egg-info/
 dist/
+
+# data
+dataset_exp50.1/
+resources/3DUnet_lightsheet_nuclei/test/

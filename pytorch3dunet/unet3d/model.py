@@ -2,9 +2,9 @@ import importlib
 
 import torch.nn as nn
 
-from pytorch3dunet.unet3d.buildingblocks import DoubleConv, ExtResNetBlock, create_encoders, \
+from unet3d.buildingblocks import DoubleConv, ExtResNetBlock, create_encoders, \
     create_decoders
-from pytorch3dunet.unet3d.utils import number_of_features_per_level
+from unet3d.utils import number_of_features_per_level
 
 
 class Abstract3DUNet(nn.Module):
@@ -76,6 +76,7 @@ class Abstract3DUNet(nn.Module):
             self.final_activation = None
 
     def forward(self, x):
+#        print('forward_3dUnet')
         # encoder part
         encoders_features = []
         for encoder in self.encoders:
@@ -93,11 +94,14 @@ class Abstract3DUNet(nn.Module):
             # of the previous decoder
             x = decoder(encoder_features, x)
 
+#        print('forward_final_conv')
         x = self.final_conv(x)
+#        print(x.shape)
 
         # apply final_activation (i.e. Sigmoid or Softmax) only during prediction. During training the network outputs
         # logits and it's up to the user to normalize it before visualising with tensorboard or computing validation metric
         if self.testing and self.final_activation is not None:
+#            print('forward_final')
             x = self.final_activation(x)
 
         return x
@@ -176,7 +180,7 @@ class UNet2D(Abstract3DUNet):
 
 def get_model(model_config):
     def _model_class(class_name):
-        modules = ['pytorch3dunet.unet3d.model']
+        modules = ['unet3d.model']
         for module in modules:
             m = importlib.import_module(module)
             clazz = getattr(m, class_name, None)
