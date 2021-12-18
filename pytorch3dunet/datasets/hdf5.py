@@ -19,7 +19,8 @@ class AbstractHDF5Dataset(ConfigDataset):
     Implementation of torch.utils.data.Dataset backed by the HDF5 files, which iterates over the raw and label datasets
     patch by patch with a given stride.
     """
-
+    
+    #コンストラクタ
     def __init__(self, file_path,
                  phase,
                  slice_builder_config,
