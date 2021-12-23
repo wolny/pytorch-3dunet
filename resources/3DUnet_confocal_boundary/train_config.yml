@@ -17,7 +17,7 @@ loaders:
   raw_internal_path: /raw
   train:
     file_paths:
-      - "/home/adrian/Datasets/Ovules/Train"
+      -  "/net/fs01/work01/yasuda/3dunetdata/confocal_train"
 
     slice_builder:
       name: FilterSliceBuilder
@@ -65,7 +65,7 @@ loaders:
         name: ToTensor
   val:
     file_paths:
-    - "/home/adrian/Datasets/Ovules/Val"
+    - "/net/fs01/work01/yasuda/3dunetdata/confocal_val"
 
     slice_builder:
       name: FilterSliceBuilder
@@ -113,7 +113,7 @@ optimizer:
   learning_rate: 0.0002
   weight_decay: 1.0e-05
 trainer:
-  checkpoint_dir: "/home/adrian/Datasets/Ovules"
+  checkpoint_dir: "/net/fs01/work01/yasuda/3dunetdata/"
   max_num_epochs: 1000
   max_num_iterations: 150000
   eval_score_higher_is_better: false

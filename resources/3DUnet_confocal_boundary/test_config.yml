@@ -7,11 +7,11 @@ loaders:
   - 32
   - 32
   num_workers: 8
-  output_dir: "/home/adrian/Datasets/Ovules/predictions"
+  output_dir: "/net/fs01/work01/yasuda/3dunetdata/predictions"
   raw_internal_path: raw
   test:
     file_paths:
-    - "/home/adrian/Datasets/Ovules/Test"
+    - "/net/fs01/work01/yasuda/3dunetdata/confocal_test"
     slice_builder:
       name: SliceBuilder
       patch_shape:
@@ -37,6 +37,6 @@ model:
   name: UNet3D
   num_groups: null
   out_channels: 1
-model_path: "/home/adrian/Datasets/Ovules/best_checkpoint.pytorch"
+model_path: "/net/fs01/work01/yasuda/3dunetdata/best_checkpoint.pytorch"
 predictor:
   name: StandardPredictor

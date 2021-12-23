@@ -18,6 +18,8 @@ class AbstractHDF5Dataset(ConfigDataset):
     """
     Implementation of torch.utils.data.Dataset backed by the HDF5 files, which iterates over the raw and label datasets
     patch by patch with a given stride.
+    生データセットとラベルデータセットを反復処理する、HDF5ファイルに基づくtorch.utils.data.Datasetの実装
+    与えられたストライドでパッチごとにパッチします。
     """
     
     #コンストラクタ
@@ -33,15 +35,17 @@ class AbstractHDF5Dataset(ConfigDataset):
                  random_seed=0):
         """
         :param file_path: path to H5 file containing raw data as well as labels and per pixel weights (optional)
+                          生データ，ラベル，ピクセル単位の重みを含むH5ファイルへのパス
         :param phase: 'train' for training, 'val' for validation, 'test' for testing; data augmentation is performed
             only during the 'train' phase
-        :para'/home/adrian/workspace/ilastik-datasets/VolkerDeconv/train'm slice_builder_config: configuration of the SliceBuilder
-        :param transformer_config: data augmentation configuration
-        :param mirror_padding (int or tuple): number of voxels padded to each axis
-        :param raw_internal_path (str or list): H5 internal path to the raw dataset
-        :param label_internal_path (str or list): H5 internal path to the label dataset
-        :param weight_internal_path (str or list): H5 internal path to the per pixel weights
-        :param a number between (0, 1]: specifies a fraction of ground truth instances to be sampled from the dense ground truth labels
+        :para'/home/adrian/workspace/ilastik-datasets/VolkerDeconv/train'm slice_builder_config: configuration of the SliceBuilder SliceBuilderの構成。
+        :param transformer_config: data augmentation configuration データ補強の設定
+        :param mirror_padding (int or tuple): number of voxels padded to each axis 各軸にパディングされるボクセルの数
+        :param raw_internal_path (str or list): H5 internal path to the raw dataset 生データセットへのH5内部パス
+        :param label_internal_path (str or list): H5 internal path to the label dataset ラベルデータセットへのH5内部パス
+        :param weight_internal_path (str or list): H5 internal path to the per pixel weights ピクセル単位の重みを表すH5内部パス。
+        :param a number between (0, 1]: specifies a fraction of ground truth instances to be sampled from the dense ground truth labels 
+                                        高密度の基底真理ラベルからサンプリングされる基底真理インスタンスの割合を指定します。
         """
         assert phase in ['train', 'val', 'test']
         if phase in ['train', 'val']:
