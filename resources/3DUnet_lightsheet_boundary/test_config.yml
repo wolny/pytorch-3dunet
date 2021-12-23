@@ -8,11 +8,11 @@ loaders:
   - 32
   num_workers: 8
   # directory where the output from the model will be saved
-  output_dir: "/home/adrian/Datasets/LateralRoot/predictions"
+  output_dir: "/net/fs01/work01/yasuda/3dunetsample/prediction"
   raw_internal_path: raw
   test:
     file_paths:
-    - "/home/adrian/Datasets/LateralRoot/Test"
+    - "/net/fs01/work01/yasuda/3dunetsample/osfstorage-archive_test"
     slice_builder:
       name: SliceBuilder
       patch_shape:
@@ -38,6 +38,6 @@ model:
   name: ResidualUNet3D
   num_groups: 8
   out_channels: 1
-model_path: "/home/adrian/Datasets/LateralRoot/best_checkpoint.pytorch"
+model_path: "/net/fs01/work01/yasuda/3dunet/3dunetsample/best_checkpoint.pytorch"
 predictor:
   name: StandardPredictor
