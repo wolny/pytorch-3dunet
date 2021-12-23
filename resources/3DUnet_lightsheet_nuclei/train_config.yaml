@@ -27,7 +27,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: "/home/adrian/Datasets/LateralRootPrimordia"
+  checkpoint_dir: "/net/fs01/work01/yasuda/3dunet/3dunetsample/"
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
   resume: null
   # how many iterations between validations
@@ -90,8 +90,8 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - '/home/adrian/Datasets/LateralRootPrimordia/t00015_s01_uint8_cropped_gt.h5'
-      - '/home/adrian/Datasets/LateralRootPrimordia/t00045_s01_uint8_cropped_gt.h5'
+      - '/net/fs01/work01/yasuda/3dunetsample/osfstorage-archive/t00015_s01_uint8_cropped_gt.h5'
+      - '/net/fs01/work01/yasuda/3dunetsample/osfstorage-archive/t00045_s01_uint8_cropped_gt.h5'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -147,7 +147,7 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - '/home/adrian/Datasets/LateralRootPrimordia/t00030_s01_uint8_cropped_gt.h5'
+      - '/net/fs01/work01/yasuda/3dunetsample/osfstorage-archive/t00030_s01_uint8_cropped_gt.h5'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
