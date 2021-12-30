@@ -2,7 +2,7 @@
 # microscope. Training done with Binary Cross-Entropy.
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
 
-#人を変えるみたいな感じ　ここでは0を指定しているが、違う値が
+#ここでは0を指定しているが、違う値を入れることもできる
 # use a fixed random seed to guarantee that when you run the code twice you will get the same outcome
 manual_seed: 0
 
