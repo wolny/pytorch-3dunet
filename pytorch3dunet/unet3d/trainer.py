@@ -28,6 +28,7 @@ def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval
     # get sample plotter
     sample_plotter = create_sample_plotter(trainer_config.pop('sample_plotter', None))
 
+    #もう一度途中から始める場合
     if resume is not None:
         # continue training from a given checkpoint
         return UNet3DTrainer.from_checkpoint(model=model,
@@ -64,9 +65,10 @@ def _create_trainer(config, model, optimizer, lr_scheduler, loss_criterion, eval
                              sample_plotter=sample_plotter,
                              **trainer_config)
 
-
-class UNet3DTrainerBuilder:
+#大元
+class UNet3DTrainerBuilder:   
     @staticmethod
+    #モデルの作成
     def build(config):
         # Create the model
         model = get_model(config['model'])
@@ -97,7 +99,7 @@ class UNet3DTrainerBuilder:
         # Create learning rate adjustment strategy
         lr_scheduler = create_lr_scheduler(config.get('lr_scheduler', None), optimizer)
 
-        # Create model trainer
+        # Create model trainer これをリターンしている
         trainer = _create_trainer(config, model=model, optimizer=optimizer, lr_scheduler=lr_scheduler,
                                   loss_criterion=loss_criterion, eval_criterion=eval_criterion, loaders=loaders)
 
@@ -106,7 +108,7 @@ class UNet3DTrainerBuilder:
 
 class UNet3DTrainer:
     """3D UNet trainer.
-
+    説明(引数)
     Args:
         model (Unet3D): UNet 3D model to be trained
         optimizer (nn.optim.Optimizer): optimizer used for training
@@ -138,6 +140,7 @@ class UNet3DTrainer:
             evaluation is expensive)
     """
 
+    #コンストラクタ
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion,
                  eval_criterion, device, loaders, checkpoint_dir,
                  max_num_epochs=100, max_num_iterations=int(1e5),
@@ -239,7 +242,9 @@ class UNet3DTrainer:
                    tensorboard_formatter=tensorboard_formatter,
                    sample_plotter=sample_plotter,
                    skip_train_validation=skip_train_validation)
-
+    
+    #学習を開始
+    #fitが呼び出され、中でtrainが呼び出される
     def fit(self):
         for _ in range(self.num_epoch, self.max_num_epochs):
             # train for one epoch
@@ -251,7 +256,8 @@ class UNet3DTrainer:
 
             self.num_epoch += 1
         logger.info(f"Reached maximum number of epochs: {self.max_num_epochs}. Finishing training...")
-
+    
+    #実際の中身
     def train(self):
         """Trains the model for 1 epoch.
 
@@ -341,7 +347,8 @@ class UNet3DTrainer:
             return True
 
         return False
-
+    
+    #妥当性の確認
     def validate(self):
         logger.info('Validating...')
 

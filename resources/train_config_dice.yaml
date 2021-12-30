@@ -21,7 +21,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: "CHECKPOINT_DIR"
+  checkpoint_dir: "/net/fs01/work01/yasuda/data"
   # path to last_checkpoint.pytorch; if provided the training will be resumed from that checkpoint
   resume: null
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
@@ -82,7 +82,7 @@ loaders:
     # absolute paths to the training datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - "PATH_TO_THE_TRAIN_SET"
+      - "/net/fs01/work01/yasuda/data/1224wt12b_5dose100exp2SIRT18erase.ctf.Rotation.h5"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -139,7 +139,7 @@ loaders:
     # paths to the validation datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - "PATH_TO_THE_VAL_SET"
+      - "1224wt12b_5dose100exp2SIRT18erase.ctf.Rotation_val.h5"
 
     # SliceBuilder configuration
     slice_builder:
