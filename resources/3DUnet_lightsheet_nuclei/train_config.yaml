@@ -84,7 +84,7 @@ loaders:
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
   batch_size: 1
   # how many subprocesses to use for data loading
-  num_workers: 8
+  num_workers: 1
   # path to the raw data within the H5
   raw_internal_path: raw
   # path to the the label data within the H5
@@ -95,9 +95,8 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - '/net/fs01/work01/yasuda/data/1224wt12b_5dose100exp2SIRT18erase.ctf.Rotation.h5'
-    
-
+      - '/net/fs01/work01/yasuda/data/train/'
+      
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
@@ -152,7 +151,7 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - '/net/fs01/work01/yasuda/data/1224wt12b_5dose100exp2SIRT18erase.ctf.Rotation_R.h5'
+      - '/net/fs01/work01/yasuda/data/val/'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
