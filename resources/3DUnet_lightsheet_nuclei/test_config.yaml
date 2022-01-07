@@ -1,5 +1,5 @@
 # path to the checkpoint file containing the model
-model_path: "/net/fs01/work01/yasuda/3dunet/3dunetsample/best_checkpoint.pytorch"
+model_path: "/net/fs01/work01/yasuda/data/best_checkpoint.pytorch"
 # model configuration
 model:
   # model class
@@ -37,16 +37,16 @@ loaders:
     # paths to the test datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - '/net/fs01/work01/yasuda/3dunet/3dunetsample/osfstorage-archive/t00030_s01_uint8_cropped_gt.h5'
+      - "/net/fs01/work01/yasuda/data/test/myosin_test.h5"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       # SliceBuilder class
       name: SliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [80, 170, 170]
+      patch_shape: [64, 189, 189]
       # train stride between patches
-      stride_shape: [40, 80, 80]
+      stride_shape: [2, 9, 9]
 
     transformer:
         raw:

@@ -27,7 +27,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: "/net/fs01/work01/yasuda/3dunet/3dunetsample/"
+  checkpoint_dir: "/net/fs01/work01/yasuda/data/"
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
   resume: null
   # how many iterations between validations
@@ -79,7 +79,7 @@ loaders:
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
   batch_size: 1
   # how many subprocesses to use for data loading
-  num_workers: 8
+  num_workers: 1
   # path to the raw data within the H5
   raw_internal_path: raw
   # path to the the label data within the H5
@@ -90,16 +90,14 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - '/net/fs01/work01/yasuda/3dunetsample/osfstorage-archive/t00015_s01_uint8_cropped_gt.h5'
-      - '/net/fs01/work01/yasuda/3dunetsample/osfstorage-archive/t00045_s01_uint8_cropped_gt.h5'
-
+      - '/net/fs01/work01/yasuda/data/train'
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [80, 170, 170]
+      patch_shape: [64, 189, 189]
       # train stride between patches
-      stride_shape: [20, 40, 40]
+      stride_shape: [2, 9, 9]
       # minimum volume of the labels in the patch
       threshold: 0.01
       # probability of accepting patches which do not fulfil the threshold criterion
@@ -147,15 +145,15 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - '/net/fs01/work01/yasuda/3dunetsample/osfstorage-archive/t00030_s01_uint8_cropped_gt.h5'
+      - '/net/fs01/work01/yasuda/data/val'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [80, 170, 170]
+      patch_shape: [64, 189, 189]
       # train stride between patches
-      stride_shape: [80, 170, 170]
+      stride_shape: [2, 9, 9]
       # minimum volume of the labels in the patch
       threshold: 0.01
       # probability of accepting patches which do not fulfil the threshold criterion
