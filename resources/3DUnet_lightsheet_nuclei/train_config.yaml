@@ -11,7 +11,7 @@ model:
   # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
-  ＃いずれはbackG,actin,myosin,gold,mtの５つで行いたい
+  #いずれbackG,actin,myosin,gold,mtの５つで行いたい
   in_channels: 1
   # number of output channels
   out_channels: 1
@@ -31,11 +31,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-<<<<<<< HEAD
   checkpoint_dir: "/net/fs01/work01/yasuda/data/"
-=======
-  checkpoint_dir: '/net/fs01/work01/yasuda/data'
->>>>>>> refs/remotes/origin/master
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
   resume: null
   # how many iterations between validations
@@ -155,25 +151,15 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-<<<<<<< HEAD
-      - '/net/fs01/work01/yasuda/data/val'
-=======
       - '/net/fs01/work01/yasuda/data/val/'
->>>>>>> refs/remotes/origin/master
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-<<<<<<< HEAD
       patch_shape: [64, 189, 189]
       # train stride between patches
       stride_shape: [2, 9, 9]
-=======
-      patch_shape: [118, 118, 220]
-      # train stride between patches
-      stride_shape: [16, 16, 1]
->>>>>>> refs/remotes/origin/master
       # minimum volume of the labels in the patch
       threshold: 0.01
       # probability of accepting patches which do not fulfil the threshold criterion
