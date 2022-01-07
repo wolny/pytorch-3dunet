@@ -2,19 +2,23 @@
 # microscope. Training done with Binary Cross-Entropy.
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
 
+#ここでは0を指定しているが、違う値を入れることもできる
 # use a fixed random seed to guarantee that when you run the code twice you will get the same outcome
 manual_seed: 0
+
 # model configuration
 model:
   # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
+  ＃いずれはbackG,actin,myosin,gold,mtの５つで行いたい
   in_channels: 1
   # number of output channels
   out_channels: 1
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
   layer_order: gcr
   # number of features at each level of the U-Net
+  #ちゃんと確認してみる
   f_maps: [32, 64, 128, 256]
   # number of groups in the groupnorm
   num_groups: 8
@@ -27,7 +31,11 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
+<<<<<<< HEAD
   checkpoint_dir: "/net/fs01/work01/yasuda/data/"
+=======
+  checkpoint_dir: '/net/fs01/work01/yasuda/data'
+>>>>>>> refs/remotes/origin/master
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
   resume: null
   # how many iterations between validations
@@ -57,6 +65,7 @@ eval_metric:
   # use average precision metric
   name: BlobsAveragePrecision
   # values on which the nuclei probability maps will be thresholded for AP computation
+  #0.1とかで一旦書き換えてみても良いのでは
   thresholds: [0.4, 0.5, 0.6, 0.7, 0.8]
   metric: 'ap'
 # learning rate scheduler configuration
@@ -90,7 +99,8 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - '/net/fs01/work01/yasuda/data/train'
+      - '/net/fs01/work01/yasuda/data/train/'
+      
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
@@ -145,15 +155,25 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
+<<<<<<< HEAD
       - '/net/fs01/work01/yasuda/data/val'
+=======
+      - '/net/fs01/work01/yasuda/data/val/'
+>>>>>>> refs/remotes/origin/master
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+<<<<<<< HEAD
       patch_shape: [64, 189, 189]
       # train stride between patches
       stride_shape: [2, 9, 9]
+=======
+      patch_shape: [118, 118, 220]
+      # train stride between patches
+      stride_shape: [16, 16, 1]
+>>>>>>> refs/remotes/origin/master
       # minimum volume of the labels in the patch
       threshold: 0.01
       # probability of accepting patches which do not fulfil the threshold criterion

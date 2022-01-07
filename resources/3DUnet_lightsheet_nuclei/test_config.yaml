@@ -1,5 +1,5 @@
 # path to the checkpoint file containing the model
-model_path: "/net/fs01/work01/yasuda/data/best_checkpoint.pytorch"
+model_path: '/net/fs01/work01/yasuda/data/best_checkpoint.pytorch'
 # model configuration
 model:
   # model class
@@ -11,6 +11,7 @@ model:
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
   layer_order: gcr
   # feature maps scale factor
+  #自分のデータは大きいのでで512,1024を付け加える必要あるかも
   f_maps: [32, 64, 128, 256]
   # number of groups in the groupnorm
   num_groups: 8
