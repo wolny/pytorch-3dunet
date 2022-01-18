@@ -16,3 +16,4 @@ dependencies:
   - pyyaml
   - hdbscan
   - pytest
+  - matplotlib
