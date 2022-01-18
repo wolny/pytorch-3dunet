@@ -288,24 +288,7 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
 
 
 class LazyHDF5Dataset(AbstractHDF5Dataset):
-    """
-    Implementation of the HDF5 dataset which loads the data lazily. It's slower, but has a low memory footprint.
-
-    The problem of loading h5 dataset from multiple loader workers results in an error:
-
-        # WARN: we load everything into memory due to hdf5 bug when reading H5 from multiple subprocesses, i.e.
-        # File "h5py/_proxy.pyx", line 84, in h5py._proxy.H5PY_H5Dread
-        # OSError: Can't read data (inflate() failed)
-
-    this happens when the H5 dataset is compressed. The workaround is to create the uncompressed datasets
-    from a single worker (synchronization is necessary) and use them instead. Assuming the user specified internal
-    dataset path as PATH, this will create a corresponding `_uncompressed_PATH` dataset inside the same H5 file.
-
-    Unfortunately even after fixing the above error, reading the H5 from multiple worker threads sometimes
-    returns corrupted data and as a result. e.g. cross-entropy loss fails with: RuntimeError: CUDA error: device-side assert triggered.
-
-    This can be workaround by using only a single worker thread, i.e. set `num_workers: 1` in the config.
-    """
+    """Implementation of the HDF5 dataset which loads the data lazily. It's slower, but has a low memory footprint."""
 
     def __init__(self, file_path, phase, slice_builder_config, transformer_config, mirror_padding=(16, 32, 32),
                  raw_internal_path='raw', label_internal_path='label', weight_internal_path=None,
@@ -321,38 +304,41 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
                          instance_ratio=instance_ratio,
                          random_seed=random_seed)
 
+        logger.info("Using modified HDF5Dataset!")
+
     @staticmethod
     def create_h5_file(file_path, internal_paths):
-        # make this part mutually exclusive
-        lock.acquire()
-
-        uncompressed_paths = {}
-        for internal_path in internal_paths:
-            if internal_path is not None:
-                assert '_uncompressed' not in internal_path
-                uncompressed_paths[internal_path] = f'_uncompressed_{internal_path}'
-
-        with h5py.File(file_path, 'r+') as f:
-            for k, v in uncompressed_paths.items():
-                if v not in f:
-                    # create uncompressed dataset
-                    data = f[k][...]
-                    f.create_dataset(v, data=data)
-
-        lock.release()
-
-        # finally return the H5
-        return h5py.File(file_path, 'r')
+        return LazyHDF5File(file_path)
 
     @staticmethod
     def fetch_datasets(input_file_h5, internal_paths):
-        # convert to uncompressed
-        internal_paths = [f'_uncompressed_{internal_path}' for internal_path in internal_paths]
-        return [input_file_h5[internal_path] for internal_path in internal_paths]
+        return [input_file_h5[internal_path][...] for internal_path in internal_paths]
 
-    def ds_stats(self):
-        # Do not calculate stats on the whole stacks when using lazy loader,
-        # they min, max, mean, std should be provided in the config
-        logger.info(
-            'Using LazyHDF5Dataset. Make sure that the min/max/mean/std values are provided in the loaders config')
-        return None, None, None, None
+
+class LazyHDF5File:
+    """Implementation of the LazyHDF5File class for the LazyHDF5Dataset."""
+
+    def __init__(self, path, internal_path=None):
+        self.path = path
+        self.internal_path = internal_path
+        if self.internal_path:
+            with h5py.File(self.path, "r") as f:
+                self.ndim = f[self.internal_path].ndim
+                self.shape = f[self.internal_path].shape
+
+    def ravel(self):
+        with h5py.File(self.path, "r") as f:
+            data = f[self.internal_path][:].ravel()
+        return data
+
+    def __getitem__(self, arg):
+        if isinstance(arg, str) and not self.internal_path:
+            return LazyHDF5File(self.path, arg)
+
+        if arg == Ellipsis:
+            return LazyHDF5File(self.path, self.internal_path)
+
+        with h5py.File(self.path, "r") as f:
+            data = f[self.internal_path][arg]
+
+        return data
