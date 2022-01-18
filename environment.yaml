@@ -8,7 +8,6 @@ dependencies:
   - python 3.8
   - pytorch
   - torchvision
-  - tensorboardx
   - h5py
   - scipy
   - scikit-image

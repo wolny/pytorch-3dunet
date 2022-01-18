@@ -1,10 +1,8 @@
-import importlib
-
 import torch.nn as nn
 
 from pytorch3dunet.unet3d.buildingblocks import DoubleConv, ExtResNetBlock, create_encoders, \
     create_decoders
-from pytorch3dunet.unet3d.utils import number_of_features_per_level
+from pytorch3dunet.unet3d.utils import number_of_features_per_level, get_class
 
 
 class Abstract3DUNet(nn.Module):
@@ -32,20 +30,15 @@ class Abstract3DUNet(nn.Module):
         num_levels (int): number of levels in the encoder/decoder path (applied only if f_maps is an int)
         is_segmentation (bool): if True (semantic segmentation problem) Sigmoid/Softmax normalization is applied
             after the final convolution; if False (regression problem) the normalization layer is skipped at the end
-        testing (bool): if True (testing mode) the `final_activation` (if present, i.e. `is_segmentation=true`)
-            will be applied as the last operation during the forward pass; if False the model is in training mode
-            and the `final_activation` (even if present) won't be applied; default: False
         conv_kernel_size (int or tuple): size of the convolving kernel in the basic_module
         pool_kernel_size (int or tuple): the size of the window
         conv_padding (int or tuple): add zero-padding added to all three sides of the input
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
-                 num_groups=8, num_levels=4, is_segmentation=True, testing=False,
-                 conv_kernel_size=3, pool_kernel_size=2, conv_padding=1, **kwargs):
+                 num_groups=8, num_levels=4, is_segmentation=True, conv_kernel_size=3, pool_kernel_size=2,
+                 conv_padding=1, **kwargs):
         super(Abstract3DUNet, self).__init__()
-
-        self.testing = testing
 
         if isinstance(f_maps, int):
             f_maps = number_of_features_per_level(f_maps, num_levels=num_levels)
@@ -95,9 +88,8 @@ class Abstract3DUNet(nn.Module):
 
         x = self.final_conv(x)
 
-        # apply final_activation (i.e. Sigmoid or Softmax) only during prediction. During training the network outputs
-        # logits and it's up to the user to normalize it before visualising with tensorboard or computing validation metric
-        if self.testing and self.final_activation is not None:
+        # apply final_activation (i.e. Sigmoid or Softmax) only during prediction. During training the network outputs logits
+        if not self.training and self.final_activation is not None:
             x = self.final_activation(x)
 
         return x
@@ -175,13 +167,5 @@ class UNet2D(Abstract3DUNet):
 
 
 def get_model(model_config):
-    def _model_class(class_name):
-        modules = ['pytorch3dunet.unet3d.model']
-        for module in modules:
-            m = importlib.import_module(module)
-            clazz = getattr(m, class_name, None)
-            if clazz is not None:
-                return clazz
-
-    model_class = _model_class(model_config['name'])
+    model_class = get_class(model_config['name'], modules=['pytorch3dunet.unet3d.model'])
     return model_class(**model_config)

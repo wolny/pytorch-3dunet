@@ -1,11 +1,10 @@
 import collections
-import importlib
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
 
-from pytorch3dunet.unet3d.utils import get_logger
+from pytorch3dunet.unet3d.utils import get_logger, get_class
 
 logger = get_logger('Dataset')
 
@@ -42,10 +41,10 @@ class SliceBuilder:
     Builds the position of the patches in a given raw/label/weight ndarray based on the the patch and stride shape
     """
 
-    def __init__(self, raw_datasets, label_datasets, weight_dataset, patch_shape, stride_shape, **kwargs):
+    def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, **kwargs):
         """
-        :param raw_datasets: ndarray of raw data
-        :param label_datasets: ndarray of ground truth labels
+        :param raw_dataset: ndarray of raw data
+        :param label_dataset: ndarray of ground truth labels
         :param weight_dataset: ndarray of weights for the labels
         :param patch_shape: the shape of the patch DxHxW
         :param stride_shape: the shape of the stride DxHxW
@@ -58,17 +57,17 @@ class SliceBuilder:
         if not skip_shape_check:
             self._check_patch_shape(patch_shape)
 
-        self._raw_slices = self._build_slices(raw_datasets[0], patch_shape, stride_shape)
-        if label_datasets is None:
+        self._raw_slices = self._build_slices(raw_dataset, patch_shape, stride_shape)
+        if label_dataset is None:
             self._label_slices = None
         else:
-            # take the first element in the label_datasets to build slices
-            self._label_slices = self._build_slices(label_datasets[0], patch_shape, stride_shape)
+            # take the first element in the label_dataset to build slices
+            self._label_slices = self._build_slices(label_dataset, patch_shape, stride_shape)
             assert len(self._raw_slices) == len(self._label_slices)
         if weight_dataset is None:
             self._weight_slices = None
         else:
-            self._weight_slices = self._build_slices(weight_dataset[0], patch_shape, stride_shape)
+            self._weight_slices = self._build_slices(weight_dataset, patch_shape, stride_shape)
             assert len(self.raw_slices) == len(self._weight_slices)
 
     @property
@@ -136,17 +135,17 @@ class FilterSliceBuilder(SliceBuilder):
     Filter patches containing more than `1 - threshold` of ignore_index label
     """
 
-    def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
+    def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, ignore_index=(0,),
                  threshold=0.6, slack_acceptance=0.01, **kwargs):
-        super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, **kwargs)
-        if label_datasets is None:
+        super().__init__(raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, **kwargs)
+        if label_dataset is None:
             return
 
         rand_state = np.random.RandomState(47)
 
         def ignore_predicate(raw_label_idx):
             label_idx = raw_label_idx[1]
-            patch = np.copy(label_datasets[0][label_idx])
+            patch = np.copy(label_dataset[label_idx])
             for ii in ignore_index:
                 patch[patch == ii] = 0
             non_ignore_counts = np.count_nonzero(patch != 0)
@@ -160,87 +159,6 @@ class FilterSliceBuilder(SliceBuilder):
         raw_slices, label_slices = zip(*filtered_slices)
         self._raw_slices = list(raw_slices)
         self._label_slices = list(label_slices)
-
-
-class EmbeddingsSliceBuilder(FilterSliceBuilder):
-    """
-    Filter patches containing more than `1 - threshold` of ignore_index label and patches containing more than
-    `patch_max_instances` labels
-    """
-
-    def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
-                 threshold=0.8, slack_acceptance=0.01, patch_max_instances=48, patch_min_instances=5, **kwargs):
-        super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index,
-                         threshold, slack_acceptance, **kwargs)
-
-        if label_datasets is None:
-            return
-
-        rand_state = np.random.RandomState(47)
-
-        def ignore_predicate(raw_label_idx):
-            label_idx = raw_label_idx[1]
-            patch = label_datasets[0][label_idx]
-            num_instances = np.unique(patch).size
-
-            # patch_max_instances is a hard constraint
-            if num_instances <= patch_max_instances:
-                # make sure that we have at least patch_min_instances in the batch and allow some slack
-                return num_instances >= patch_min_instances or rand_state.rand() < slack_acceptance
-
-            return False
-
-        zipped_slices = zip(self.raw_slices, self.label_slices)
-        # ignore slices containing too much ignore_index
-        filtered_slices = list(filter(ignore_predicate, zipped_slices))
-        # unzip and save slices
-        raw_slices, label_slices = zip(*filtered_slices)
-        self._raw_slices = list(raw_slices)
-        self._label_slices = list(label_slices)
-
-
-class RandomFilterSliceBuilder(EmbeddingsSliceBuilder):
-    """
-    Filter patches containing more than `1 - threshold` of ignore_index label and return only random sample of those.
-    """
-
-    def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
-                 threshold=0.8, slack_acceptance=0.01, patch_max_instances=48, patch_acceptance_probab=0.1,
-                 max_num_patches=25, **kwargs):
-        super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape,
-                         ignore_index=ignore_index, threshold=threshold, slack_acceptance=slack_acceptance,
-                         patch_max_instances=patch_max_instances, **kwargs)
-
-        self.max_num_patches = max_num_patches
-
-        if label_datasets is None:
-            return
-
-        rand_state = np.random.RandomState(47)
-
-        def ignore_predicate(raw_label_idx):
-            result = rand_state.rand() < patch_acceptance_probab
-            if result:
-                self.max_num_patches -= 1
-
-            return result and self.max_num_patches > 0
-
-        zipped_slices = zip(self.raw_slices, self.label_slices)
-        # ignore slices containing too much ignore_index
-        filtered_slices = list(filter(ignore_predicate, zipped_slices))
-        # unzip and save slices
-        raw_slices, label_slices = zip(*filtered_slices)
-        self._raw_slices = list(raw_slices)
-        self._label_slices = list(label_slices)
-
-
-def get_class(class_name, modules):
-    for module in modules:
-        m = importlib.import_module(module)
-        clazz = getattr(m, class_name, None)
-        if clazz is not None:
-            return clazz
-    raise RuntimeError(f'Unsupported dataset class: {class_name}')
 
 
 def _loader_classes(class_name):
@@ -278,7 +196,7 @@ def get_train_loaders(config):
     dataset_cls_str = loaders_config.get('dataset', None)
     if dataset_cls_str is None:
         dataset_cls_str = 'StandardHDF5Dataset'
-        logger.warn(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
+        logger.warning(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
     dataset_class = _loader_classes(dataset_cls_str)
 
     assert set(loaders_config['train']['file_paths']).isdisjoint(loaders_config['val']['file_paths']), \
@@ -374,41 +292,5 @@ def calculate_stats(images):
     flat = np.concatenate(
         [img.ravel() for img in images]
     )
-    return np.min(flat), np.max(flat), np.mean(flat), np.std(flat)
-
-
-def sample_instances(label_img, instance_ratio, random_state, ignore_labels=(0,)):
-    """
-    Given the labelled volume `label_img`, this function takes a random subset of object instances specified by `instance_ratio`
-    and zeros out the remaining labels.
-
-    Args:
-        label_img(nd.array): labelled image
-        instance_ratio(float): a number from (0, 1]
-        random_state: RNG state
-        ignore_labels: labels to be ignored during sampling
-
-    Returns:
-         labelled volume of the same size as `label_img` with a random subset of object instances.
-    """
-    unique = np.unique(label_img)
-    for il in ignore_labels:
-        unique = np.setdiff1d(unique, il)
-
-    # shuffle labels
-    random_state.shuffle(unique)
-    # pick instance_ratio objects
-    num_objects = round(instance_ratio * len(unique))
-    if num_objects == 0:
-        # if there are no objects left, just return an empty patch
-        return np.zeros_like(label_img)
-
-    # sample the labels
-    sampled_instances = unique[:num_objects]
-
-    result = np.zeros_like(label_img)
-    # keep only the sampled_instances
-    for si in sampled_instances:
-        result[label_img == si] = si
-
-    return result
+    return {'pmin': np.percentile(flat, 1), 'pmax': np.percentile(flat, 99.6), 'mean': np.mean(flat),
+            'std': np.std(flat)}

@@ -52,15 +52,17 @@ loaders:
         - name: RandomRotate90
         - name: RandomRotate
           axes: [[2, 1]]
-          angle_spectrum: 30
+          angle_spectrum: 45
           mode: reflect
         - name: ElasticDeformation
           spline_order: 3
           execution_probability: 0.2
+        - name: GaussianBlur3D
+          execution_probability: 0.5
         - name: AdditiveGaussianNoise
-          execution_probability: 0.1
+          execution_probability: 0.2
         - name: AdditivePoissonNoise
-          execution_probability: 0.1
+          execution_probability: 0.2
         - name: ToTensor
           expand_dims: true
       label:
@@ -70,7 +72,7 @@ loaders:
         - name: RandomRotate90
         - name: RandomRotate
           axes: [[2, 1]]
-          angle_spectrum: 30
+          angle_spectrum: 45
           mode: reflect
         - name: ElasticDeformation
           spline_order: 0
