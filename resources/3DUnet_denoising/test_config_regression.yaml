@@ -1,11 +1,9 @@
 # path to the checkpoint file containing the model
 model_path: "PATH_TO_CHECKPOINT_DIR/best_checkpoint.pytorch"
-# use a fixed random seed to guarantee that when you run the code twice you will get the same outcome
-manual_seed: 0
 # model configuration
 model:
   # model class, e.g. UNet3D, ResidualUNet3D
-  name: ResidualUNet3D
+  name: UNet3D
   # number of input channels to the model
   in_channels: 1
   # number of output channels
@@ -42,9 +40,9 @@ loaders:
       # SliceBuilder class
       name: SliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [64, 128, 128]
+      patch_shape: [128, 128, 128]
       # train stride between patches
-      stride_shape: [32, 100, 100]
+      stride_shape: [64, 64, 64]
 
     transformer:
         raw:

@@ -44,8 +44,7 @@ class _AbstractPredictor:
 
     @staticmethod
     def volume_shape(dataset):
-        # TODO: support multiple internal datasets
-        raw = dataset.raws[0]
+        raw = dataset.raw
         if raw.ndim == 3:
             return raw.shape
         else:

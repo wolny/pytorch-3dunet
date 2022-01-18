@@ -1,6 +1,5 @@
 [![DOI](https://zenodo.org/badge/149826542.svg)](https://doi.org/10.1101/2020.01.17.910562)
-[![Build Status](https://travis-ci.com/wolny/pytorch-3dunet.svg?branch=master)](https://travis-ci.com/wolny/pytorch-3dunet)
-
+[![Build Status](https://app.travis-ci.com/wolny/pytorch-3dunet.svg?branch=master)](https://app.travis-ci.com/wolny/pytorch-3dunet)
 
 # pytorch-3dunet
 
@@ -71,6 +70,7 @@ If not specified `MeanIoU` will be used by default.
 
 ### Regression
 - _PSNR_ - peak signal to noise ratio
+- _MSE_ - mean squared error
 
 
 ## Installation
@@ -102,8 +102,8 @@ where `CONFIG` is the path to a YAML configuration file, which specifies all asp
 
 In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the config.
 
-* sample config for 3D semantic segmentation: [train_config_dice.yaml](resources/train_config_dice.yaml))
-* sample config for 3D regression task: [train_config_regression.yaml](resources/train_config_regression.yaml))
+* sample config for 3D semantic segmentation (cell boundary segmentation): [train_config_segmentation.yaml](resources/3DUnet_confocal_boundary/train_config.yml))
+* sample config for 3D regression task (denoising): [train_config_regression.yaml](resources/3DUnet_denoising/train_config_regression.yaml))
 
 The HDF5 files should contain the raw/label data sets in the following axis order: `DHW` (in case of 3D) `CDHW` (in case of 4D).
 
@@ -112,9 +112,8 @@ One can monitor the training progress with Tensorboard `tensorboard --logdir <ch
 ### Training tips
 1. When training with binary-based losses, i.e.: `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss`:
 The target data has to be 4D (one target binary mask per channel).
-If you have a 3D binary data (foreground/background), you can just change `ToTensor` transform for the label to contain `expand_dims: true`, see e.g. [train_config_dice.yaml](resources/train_config_dice.yaml).
 When training with `WeightedCrossEntropyLoss`, `CrossEntropyLoss`, `PixelWiseCrossEntropyLoss` the target dataset has to be 3D, see also pytorch documentation for CE loss: https://pytorch.org/docs/master/generated/torch.nn.CrossEntropyLoss.html
-2. `final_sigmoid` in the `model` config section applies only to the inference time:
+2. `final_sigmoid` in the `model` config section applies only to the inference time (validation, test):
 When training with cross entropy based losses (`WeightedCrossEntropyLoss`, `CrossEntropyLoss`, `PixelWiseCrossEntropyLoss`) set `final_sigmoid=False` so that `Softmax` normalization is applied to the output.
 When training with `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss` set `final_sigmoid=True`
 
@@ -124,7 +123,7 @@ Given that `pytorch-3dunet` package was installed via conda as described above, 
 predict3dunet --config <CONFIG>
 ```
 
-In order to predict on your own data, just provide the path to your model as well as paths to HDF5 test files (see [test_config_dice.yaml](resources/test_config_dice.yaml)).
+In order to predict on your own data, just provide the path to your model as well as paths to HDF5 test files (see example [test_config_segmentation.yaml](resources/3DUnet_confocal_boundary/test_config.yml)).
 
 ### Prediction tips
 In order to avoid checkerboard artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: [64 128 128] stride: [32 96 96]` will give you a 'halo' of 32 voxels in each direction.
@@ -147,6 +146,7 @@ The data can be downloaded from the following OSF project:
 * training set: https://osf.io/9x3g2/
 * validation set: https://osf.io/vs6gb/
 * test set: https://osf.io/tn4xj/
+* pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FLateral-Root-Primordia%2Funet_bce_dice_ds1x&files=best_checkpoint.pytorch)
 
 Training and inference configs can be found in [3DUnet_lightsheet_boundary](resources/3DUnet_lightsheet_boundary).
 
@@ -160,6 +160,7 @@ The data can be downloaded from the following OSF project:
 * training set: https://osf.io/x9yns/
 * validation set: https://osf.io/xp5uf/
 * test set: https://osf.io/8jz7e/
+* pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2Funet_bce_dice_ds2x&files=best_checkpoint.pytorch)
 
 Training and inference configs can be found in [3DUnet_confocal_boundary](resources/3DUnet_confocal_boundary).
 
@@ -169,7 +170,8 @@ Sample z-slice predictions on the test set (top: raw input , bottom: boundary pr
 <img src="https://github.com/wolny/pytorch-3dunet/blob/master/resources/3DUnet_confocal_boundary/ovules_pred.png" width="400">
 
 ### Nuclei predictions for lightsheet images of Arabidopsis thaliana lateral root
-The training and validation sets can be downloaded from the following OSF project: https://osf.io/thxzn/
+* the training and validation sets can be downloaded from the following OSF project: https://osf.io/thxzn/
+* pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FLateral-Root-Primordia%2Funet_bce_dice_nuclei_ds1x&files=best_checkpoint.pytorch)
 
 Training and inference configs can be found in [3DUnet_lightsheet_nuclei](resources/3DUnet_lightsheet_nuclei).
 

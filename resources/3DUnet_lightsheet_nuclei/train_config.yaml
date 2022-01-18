@@ -2,8 +2,6 @@
 # microscope. Training done with Binary Cross-Entropy.
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
 
-# use a fixed random seed to guarantee that when you run the code twice you will get the same outcome
-manual_seed: 0
 # model configuration
 model:
   # model class, e.g. UNet3D, ResidualUNet3D
@@ -27,7 +25,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: "/home/adrian/Datasets/LateralRootPrimordia"
+  checkpoint_dir: CHECKPOINT_DIR
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
   resume: null
   # how many iterations between validations
@@ -90,8 +88,7 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - '/home/adrian/Datasets/LateralRootPrimordia/t00015_s01_uint8_cropped_gt.h5'
-      - '/home/adrian/Datasets/LateralRootPrimordia/t00045_s01_uint8_cropped_gt.h5'
+      - TRAIN_DIR
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -147,7 +144,7 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - '/home/adrian/Datasets/LateralRootPrimordia/t00030_s01_uint8_cropped_gt.h5'
+      - VAL_DIR
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:

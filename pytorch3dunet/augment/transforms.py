@@ -684,11 +684,6 @@ class GaussianBlur3D:
         return x
 
 
-def get_transformer(config, min_value, max_value, mean, std):
-    base_config = {'min_value': min_value, 'max_value': max_value, 'mean': mean, 'std': std}
-    return Transformer(config, base_config)
-
-
 class Transformer:
     def __init__(self, phase_config, base_config):
         self.phase_config = phase_config
