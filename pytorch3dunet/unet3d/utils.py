@@ -14,7 +14,7 @@ plt.ioff()
 plt.switch_backend('agg')
 
 
-def save_checkpoint(state, is_best, checkpoint_dir, logger=None):
+def save_checkpoint(state, is_best, checkpoint_dir):
     """Saves model and training parameters at '{checkpoint_dir}/last_checkpoint.pytorch'.
     If is_best==True saves '{checkpoint_dir}/best_checkpoint.pytorch' as well.
 
@@ -25,21 +25,13 @@ def save_checkpoint(state, is_best, checkpoint_dir, logger=None):
         checkpoint_dir (string): directory where the checkpoint are to be saved
     """
 
-    def log_info(message):
-        if logger is not None:
-            logger.info(message)
-
     if not os.path.exists(checkpoint_dir):
-        log_info(
-            f"Checkpoint directory does not exists. Creating {checkpoint_dir}")
         os.mkdir(checkpoint_dir)
 
     last_file_path = os.path.join(checkpoint_dir, 'last_checkpoint.pytorch')
-    log_info(f"Saving last checkpoint to '{last_file_path}'")
     torch.save(state, last_file_path)
     if is_best:
         best_file_path = os.path.join(checkpoint_dir, 'best_checkpoint.pytorch')
-        log_info(f"Saving best checkpoint to '{best_file_path}'")
         shutil.copyfile(last_file_path, best_file_path)
 
 
@@ -282,14 +274,14 @@ def _find_masks(batch, min_size=10):
     return np.stack(result, axis=0)
 
 
-def get_tensorboard_formatter(config):
-    if config is None:
+def get_tensorboard_formatter(formatter_config):
+    if formatter_config is None:
         return DefaultTensorboardFormatter()
 
-    class_name = config['name']
+    class_name = formatter_config['name']
     m = importlib.import_module('pytorch3dunet.unet3d.utils')
     clazz = getattr(m, class_name)
-    return clazz(**config)
+    return clazz(**formatter_config)
 
 
 def expand_as_one_hot(input, C, ignore_index=None):
@@ -364,10 +356,10 @@ def create_lr_scheduler(lr_config, optimizer):
     return clazz(**lr_config)
 
 
-def create_sample_plotter(sample_plotter_config):
-    if sample_plotter_config is None:
-        return None
-    class_name = sample_plotter_config['name']
-    m = importlib.import_module('pytorch3dunet.unet3d.utils')
-    clazz = getattr(m, class_name)
-    return clazz(**sample_plotter_config)
+def get_class(class_name, modules):
+    for module in modules:
+        m = importlib.import_module(module)
+        clazz = getattr(m, class_name, None)
+        if clazz is not None:
+            return clazz
+    raise RuntimeError(f'Unsupported dataset class: {class_name}')

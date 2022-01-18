@@ -183,13 +183,6 @@ class ElasticDeformation:
         return m
 
 
-def blur_boundary(boundary, sigma):
-    boundary = gaussian(boundary, sigma=sigma)
-    boundary[boundary >= 0.5] = 1
-    boundary[boundary < 0.5] = 0
-    return boundary
-
-
 class CropToFixed:
     def __init__(self, random_state, size=(256, 256), centered=False, **kwargs):
         self.random_state = random_state
@@ -311,12 +304,10 @@ class AbstractLabelToBoundary:
 
 
 class StandardLabelToBoundary:
-    def __init__(self, ignore_index=None, append_label=False, blur=False, sigma=1, mode='thick', foreground=False,
+    def __init__(self, ignore_index=None, append_label=False, mode='thick', foreground=False,
                  **kwargs):
         self.ignore_index = ignore_index
         self.append_label = append_label
-        self.blur = blur
-        self.sigma = sigma
         self.mode = mode
         self.foreground = foreground
 
@@ -325,8 +316,6 @@ class StandardLabelToBoundary:
 
         boundaries = find_boundaries(m, connectivity=2, mode=self.mode)
         boundaries = boundaries.astype('int32')
-        if self.blur:
-            boundaries = blur_boundary(boundaries, self.sigma)
 
         results = []
         if self.foreground:
@@ -343,13 +332,11 @@ class StandardLabelToBoundary:
 
 
 class BlobsWithBoundary:
-    def __init__(self, mode=None, append_label=False, blur=False, sigma=1, **kwargs):
+    def __init__(self, mode=None, append_label=False, **kwargs):
         if mode is None:
             mode = ['thick', 'inner', 'outer']
         self.mode = mode
         self.append_label = append_label
-        self.blur = blur
-        self.sigma = sigma
 
     def __call__(self, m):
         assert m.ndim == 3
@@ -359,8 +346,6 @@ class BlobsWithBoundary:
 
         for bm in self.mode:
             boundary = find_boundaries(m, connectivity=2, mode=bm)
-            if self.blur:
-                boundary = blur_boundary(boundary, self.sigma)
             results.append(boundary)
 
         if self.append_label:
@@ -509,44 +494,6 @@ class LabelToBoundaryAndAffinities:
         return np.concatenate((boundary, affinities), axis=0)
 
 
-class FlyWingBoundary:
-    """
-    Use if the volume contains a single pixel boundaries between labels. Gives the single pixel boundary in the 1st
-    channel and the 'thick' boundary in the 2nd channel and optional z-affinities
-    """
-
-    def __init__(self, append_label=False, thick_boundary=True, ignore_index=None, z_offsets=None, **kwargs):
-        self.append_label = append_label
-        self.thick_boundary = thick_boundary
-        self.ignore_index = ignore_index
-        self.lta = None
-        if z_offsets is not None:
-            self.lta = LabelToZAffinities(z_offsets, ignore_index=ignore_index)
-
-    def __call__(self, m):
-        boundary = (m == 0).astype('uint8')
-        results = [boundary]
-
-        if self.thick_boundary:
-            t_boundary = find_boundaries(m, connectivity=1, mode='outer', background=0)
-            results.append(t_boundary)
-
-        if self.lta is not None:
-            z_affs = self.lta(m)
-            for z_aff in z_affs:
-                results.append(z_aff)
-
-        if self.ignore_index is not None:
-            for b in results:
-                b[m == self.ignore_index] = self.ignore_index
-
-        if self.append_label:
-            # append original input data
-            results.append(m)
-
-        return np.stack(results, axis=0)
-
-
 class LabelToMaskAndAffinities:
     def __init__(self, xy_offsets, z_offsets, append_label=False, background=0, ignore_index=None, **kwargs):
         self.background = background
@@ -592,7 +539,7 @@ class Standardize:
 
 
 class PercentileNormalizer:
-    def __init__(self, pmin, pmax, channelwise=False, eps=1e-10, **kwargs):
+    def __init__(self, pmin=1, pmax=99.6, channelwise=False, eps=1e-10, **kwargs):
         self.eps = eps
         self.pmin = pmin
         self.pmax = pmax
@@ -723,12 +670,6 @@ class LabelToTensor:
         m = np.array(m)
         return torch.from_numpy(m.astype(dtype='int64'))
 
-
-class ImgNormalize:
-    def __call__(self, tensor):
-        mean = torch.mean(tensor, dim=(1, 2))
-        std = torch.std(tensor, dim=(1, 2))
-        return F.normalize(tensor, mean, std)
 
 class GaussianBlur3D:
     def __init__(self, sigma=[.1, 2.], execution_probability=0.5, **kwargs):

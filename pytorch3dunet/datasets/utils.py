@@ -1,11 +1,10 @@
 import collections
-import importlib
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
 
-from pytorch3dunet.unet3d.utils import get_logger
+from pytorch3dunet.unet3d.utils import get_logger, get_class
 
 logger = get_logger('Dataset')
 
@@ -162,87 +161,6 @@ class FilterSliceBuilder(SliceBuilder):
         self._label_slices = list(label_slices)
 
 
-class EmbeddingsSliceBuilder(FilterSliceBuilder):
-    """
-    Filter patches containing more than `1 - threshold` of ignore_index label and patches containing more than
-    `patch_max_instances` labels
-    """
-
-    def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
-                 threshold=0.8, slack_acceptance=0.01, patch_max_instances=48, patch_min_instances=5, **kwargs):
-        super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index,
-                         threshold, slack_acceptance, **kwargs)
-
-        if label_datasets is None:
-            return
-
-        rand_state = np.random.RandomState(47)
-
-        def ignore_predicate(raw_label_idx):
-            label_idx = raw_label_idx[1]
-            patch = label_datasets[0][label_idx]
-            num_instances = np.unique(patch).size
-
-            # patch_max_instances is a hard constraint
-            if num_instances <= patch_max_instances:
-                # make sure that we have at least patch_min_instances in the batch and allow some slack
-                return num_instances >= patch_min_instances or rand_state.rand() < slack_acceptance
-
-            return False
-
-        zipped_slices = zip(self.raw_slices, self.label_slices)
-        # ignore slices containing too much ignore_index
-        filtered_slices = list(filter(ignore_predicate, zipped_slices))
-        # unzip and save slices
-        raw_slices, label_slices = zip(*filtered_slices)
-        self._raw_slices = list(raw_slices)
-        self._label_slices = list(label_slices)
-
-
-class RandomFilterSliceBuilder(EmbeddingsSliceBuilder):
-    """
-    Filter patches containing more than `1 - threshold` of ignore_index label and return only random sample of those.
-    """
-
-    def __init__(self, raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape, ignore_index=(0,),
-                 threshold=0.8, slack_acceptance=0.01, patch_max_instances=48, patch_acceptance_probab=0.1,
-                 max_num_patches=25, **kwargs):
-        super().__init__(raw_datasets, label_datasets, weight_datasets, patch_shape, stride_shape,
-                         ignore_index=ignore_index, threshold=threshold, slack_acceptance=slack_acceptance,
-                         patch_max_instances=patch_max_instances, **kwargs)
-
-        self.max_num_patches = max_num_patches
-
-        if label_datasets is None:
-            return
-
-        rand_state = np.random.RandomState(47)
-
-        def ignore_predicate(raw_label_idx):
-            result = rand_state.rand() < patch_acceptance_probab
-            if result:
-                self.max_num_patches -= 1
-
-            return result and self.max_num_patches > 0
-
-        zipped_slices = zip(self.raw_slices, self.label_slices)
-        # ignore slices containing too much ignore_index
-        filtered_slices = list(filter(ignore_predicate, zipped_slices))
-        # unzip and save slices
-        raw_slices, label_slices = zip(*filtered_slices)
-        self._raw_slices = list(raw_slices)
-        self._label_slices = list(label_slices)
-
-
-def get_class(class_name, modules):
-    for module in modules:
-        m = importlib.import_module(module)
-        clazz = getattr(m, class_name, None)
-        if clazz is not None:
-            return clazz
-    raise RuntimeError(f'Unsupported dataset class: {class_name}')
-
-
 def _loader_classes(class_name):
     modules = [
         'pytorch3dunet.datasets.hdf5',
@@ -278,7 +196,7 @@ def get_train_loaders(config):
     dataset_cls_str = loaders_config.get('dataset', None)
     if dataset_cls_str is None:
         dataset_cls_str = 'StandardHDF5Dataset'
-        logger.warn(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
+        logger.warning(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
     dataset_class = _loader_classes(dataset_cls_str)
 
     assert set(loaders_config['train']['file_paths']).isdisjoint(loaders_config['val']['file_paths']), \

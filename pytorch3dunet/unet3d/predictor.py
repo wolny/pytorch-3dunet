@@ -119,10 +119,9 @@ class StandardPredictor(_AbstractPredictor):
         prediction_maps, normalization_masks = self._allocate_prediction_maps(prediction_maps_shape,
                                                                               output_heads, h5_output_file)
 
-        # Sets the module in evaluation mode explicitly (necessary for batchnorm/dropout layers if present)
+        # Sets the module in evaluation mode explicitly
+        # It is necessary for batchnorm/dropout layers if present as well as final Sigmoid/Softmax to be applied
         self.model.eval()
-        # Set the `testing=true` flag otherwise the final Softmax/Sigmoid won't be applied!
-        self.model.testing = True
         # Run predictions on the entire input dataset
         with torch.no_grad():
             for batch, indices in test_loader:
@@ -250,7 +249,7 @@ class LazyPredictor(StandardPredictor):
 
     def _save_results(self, prediction_maps, normalization_masks, output_heads, output_file, dataset):
         if dataset.mirror_padding:
-            logger.warn(
+            logger.warning(
                 f'Mirror padding unsupported in LazyPredictor. Output predictions will be padded with pad_width: {dataset.pad_width}')
 
         prediction_datasets = self.get_output_dataset_names(output_heads, prefix='predictions')
