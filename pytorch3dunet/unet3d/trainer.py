@@ -144,7 +144,7 @@ class UNet3DTrainer:
             logger.info(f"Loading checkpoint '{resume}'...")
             state = utils.load_checkpoint(resume, self.model, self.optimizer)
             logger.info(
-                f"Checkpoint loaded from '{resume}'. Epoch: {state['epoch']}.  Iteration: {state['num_iterations']}. "
+                f"Checkpoint loaded from '{resume}'. Epoch: {state['num_epochs']}.  Iteration: {state['num_iterations']}. "
                 f"Best val score: {state['best_eval_score']}."
             )
             self.best_eval_score = state['best_eval_score']

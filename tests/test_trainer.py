@@ -108,10 +108,15 @@ def _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, 
                             tensorboard_formatter=formatter)
     trainer.fit()
     # test loading the trainer from the checkpoint
-    trainer = UNet3DTrainer.from_checkpoint(os.path.join(tmpdir, 'last_checkpoint.pytorch'),
-                                            model, optimizer, lr_scheduler,
-                                            loss_criterion, eval_criterion,
-                                            loaders, tensorboard_formatter=formatter)
+    trainer = UNet3DTrainer(model, optimizer, lr_scheduler,
+                            loss_criterion, eval_criterion,
+                            device, loaders, tmpdir,
+                            tensorboard_formatter=formatter,
+                            max_num_epochs=train_config['trainer']['max_num_epochs'],
+                            log_after_iters=train_config['trainer']['log_after_iters'],
+                            validate_after_iters=train_config['trainer']['log_after_iters'],
+                            max_num_iterations=train_config['trainer']['max_num_iterations'],
+                            resume=os.path.join(tmpdir, 'last_checkpoint.pytorch'))
     return trainer
 
 

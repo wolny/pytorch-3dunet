@@ -42,35 +42,6 @@ class TestHDF5Dataset:
                 assert np.all(visit_raw)
                 assert np.all(visit_label)
 
-    def test_hdf5_with_multiple_label_datasets(self, transformer_config):
-        path = create_random_dataset((128, 128, 128), label_datasets=['label1', 'label2'])
-        patch_shape = (32, 64, 64)
-        stride_shape = (32, 64, 64)
-        phase = 'train'
-        dataset = StandardHDF5Dataset(path, phase=phase,
-                                      slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
-                                      transformer_config=transformer_config[phase]['transformer'],
-                                      raw_internal_path='raw',
-                                      label_internal_path=['label1', 'label2'])
-
-        for raw, labels in dataset:
-            assert len(labels) == 2
-
-    def test_hdf5_with_multiple_raw_and_label_datasets(self, transformer_config):
-        path = create_random_dataset((128, 128, 128), raw_datasets=['raw1', 'raw2'],
-                                     label_datasets=['label1', 'label2'])
-        patch_shape = (32, 64, 64)
-        stride_shape = (32, 64, 64)
-        phase = 'train'
-        dataset = StandardHDF5Dataset(path, phase=phase,
-                                      slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
-                                      transformer_config=transformer_config[phase]['transformer'],
-                                      raw_internal_path=['raw1', 'raw2'], label_internal_path=['label1', 'label2'])
-
-        for raws, labels in dataset:
-            assert len(raws) == 2
-            assert len(labels) == 2
-
     def test_augmentation(self, transformer_config):
         raw = np.random.rand(32, 96, 96)
         # assign raw to label's channels for ease of comparison
