@@ -24,13 +24,14 @@ def _compute_criterion(criterion, n_times=100):
 
 
 def _eval_criterion(criterion, batch_shape, n_times=100):
-    results = []
-    # compute criterion n_times
-    for i in range(n_times):
-        input = torch.rand(batch_shape, requires_grad=True)
-        target = torch.zeros(batch_shape).random_(0, 2)
-        output = criterion(input, target)
-        results.append(output)
+    with torch.no_grad():
+        results = []
+        # compute criterion n_times
+        for i in range(n_times):
+            input = torch.rand(batch_shape)
+            target = torch.zeros(batch_shape).random_(0, 2)
+            output = criterion(input, target)
+            results.append(output)
 
     return results
 
@@ -146,7 +147,7 @@ class TestCriterion:
                 target = torch.zeros(target_shape, dtype=torch.long).random_(0, C)
                 output = criterion(input, target)
                 output.backward()
-                results.append(output)
+                results.append(output.detach().item())
 
         results = np.array(results)
         assert np.all(results >= 0)
