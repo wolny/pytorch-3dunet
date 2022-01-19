@@ -142,13 +142,17 @@ CUDA_VISIBLE_DEVICES=0,1 predict3dunet --config <CONFIG>
 ## Examples
 
 ### Cell boundary predictions for lightsheet images of Arabidopsis thaliana lateral root
-The data can be downloaded from the following OSF project:
+Training/predictions configs can be found in [3DUnet_lightsheet_boundary](resources/3DUnet_lightsheet_boundary).
+Pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FLateral-Root-Primordia%2Funet_bce_dice_ds1x&files=best_checkpoint.pytorch).
+In order to use the pre-trained model on your own data:
+* download the `best_checkpoint.pytorch` from the above link
+* add the path to the downloaded model and the path to your data in [test_config.yml](resources/3DUnet_lightsheet_boundary/test_config.yml)
+* run `predict3dunet --config test_config.yml`
+
+The data used for training can be downloaded from the following OSF project:
 * training set: https://osf.io/9x3g2/
 * validation set: https://osf.io/vs6gb/
 * test set: https://osf.io/tn4xj/
-* pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FLateral-Root-Primordia%2Funet_bce_dice_ds1x&files=best_checkpoint.pytorch)
-
-Training and inference configs can be found in [3DUnet_lightsheet_boundary](resources/3DUnet_lightsheet_boundary).
 
 Sample z-slice predictions on the test set (top: raw input , bottom: boundary predictions):
 
@@ -156,13 +160,17 @@ Sample z-slice predictions on the test set (top: raw input , bottom: boundary pr
 <img src="https://github.com/wolny/pytorch-3dunet/blob/master/resources/3DUnet_lightsheet_boundary/root_movie1_t45_pred.png" width="400">
 
 ### Cell boundary predictions for confocal images of Arabidopsis thaliana ovules
-The data can be downloaded from the following OSF project:
+Training/predictions configs can be found in [3DUnet_confocal_boundary](resources/3DUnet_confocal_boundary).
+Pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2Funet_bce_dice_ds2x&files=best_checkpoint.pytorch)
+In order to use the pre-trained model on your own data:
+* download the `best_checkpoint.pytorch` from the above link
+* add the path to the downloaded model and the path to your data in [test_config.yml](resources/3DUnet_confocal_boundary/test_config.yml)
+* run `predict3dunet --config test_config.yml`
+
+The data used for training can be downloaded from the following OSF project:
 * training set: https://osf.io/x9yns/
 * validation set: https://osf.io/xp5uf/
 * test set: https://osf.io/8jz7e/
-* pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2Funet_bce_dice_ds2x&files=best_checkpoint.pytorch)
-
-Training and inference configs can be found in [3DUnet_confocal_boundary](resources/3DUnet_confocal_boundary).
 
 Sample z-slice predictions on the test set (top: raw input , bottom: boundary predictions):
 
@@ -170,10 +178,14 @@ Sample z-slice predictions on the test set (top: raw input , bottom: boundary pr
 <img src="https://github.com/wolny/pytorch-3dunet/blob/master/resources/3DUnet_confocal_boundary/ovules_pred.png" width="400">
 
 ### Nuclei predictions for lightsheet images of Arabidopsis thaliana lateral root
-* the training and validation sets can be downloaded from the following OSF project: https://osf.io/thxzn/
-* pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FLateral-Root-Primordia%2Funet_bce_dice_nuclei_ds1x&files=best_checkpoint.pytorch)
+Training/predictions configs can be found in [3DUnet_lightsheet_nuclei](resources/3DUnet_lightsheet_nuclei).
+Pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FLateral-Root-Primordia%2Funet_bce_dice_nuclei_ds1x&files=best_checkpoint.pytorch)
+In order to use the pre-trained model on your own data:
+* download the `best_checkpoint.pytorch` from the above link
+* add the path to the downloaded model and the path to your data in [test_config.yml](resources/3DUnet_lightsheet_nuclei/test_config.yaml)
+* run `predict3dunet --config test_config.yml`
 
-Training and inference configs can be found in [3DUnet_lightsheet_nuclei](resources/3DUnet_lightsheet_nuclei).
+The training and validation sets can be downloaded from the following OSF project: https://osf.io/thxzn/
 
 Sample z-slice predictions on the test set (top: raw input, bottom: nuclei predictions):
 
@@ -184,7 +196,7 @@ Sample z-slice predictions on the test set (top: raw input, bottom: nuclei predi
 ### 2D nuclei predictions for Kaggle DSB2018
 The data can be downloaded from: https://www.kaggle.com/c/data-science-bowl-2018/data
 
-Training and inference configs can be found in [2DUnet_dsb2018](resources/2DUnet_dsb2018).
+Training/predictions configs can be found in [2DUnet_dsb2018](resources/2DUnet_dsb2018).
 
 Sample predictions on the test image (top: raw input, bottom: nuclei predictions):
 
