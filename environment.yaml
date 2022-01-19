@@ -8,11 +8,11 @@ dependencies:
   - python 3.8
   - pytorch
   - torchvision
+  - tensorboard
   - h5py
   - scipy
   - scikit-image
   - scikit-learn
   - pyyaml
-  - hdbscan
   - pytest
   - matplotlib

@@ -18,15 +18,15 @@ requirements:
 
   run:
     - python
+    - pytorch
     - torchvision
-    - tensorboardx
+    - tensorboard
     - h5py
     - scipy
     - scikit-image
     - scikit-learn
     - pyyaml
-    - hdbscan
-    - setuptools
+    - matplotlib
 
 test:
   imports:
