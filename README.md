@@ -162,7 +162,7 @@ Sample z-slice predictions on the test set (top: raw input , bottom: boundary pr
 
 ### Cell boundary predictions for confocal images of Arabidopsis thaliana ovules
 Training/predictions configs can be found in [3DUnet_confocal_boundary](resources/3DUnet_confocal_boundary).
-Pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2Funet_bce_dice_ds2x&files=best_checkpoint.pytorch)
+Pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FArabidopsis-Ovules%2Funet_bce_dice_ds2x&files=best_checkpoint.pytorch).
 In order to use the pre-trained model on your own data:
 * download the `best_checkpoint.pytorch` from the above link
 * add the path to the downloaded model and the path to your data in [test_config.yml](resources/3DUnet_confocal_boundary/test_config.yml)
@@ -181,7 +181,7 @@ Sample z-slice predictions on the test set (top: raw input , bottom: boundary pr
 
 ### Nuclei predictions for lightsheet images of Arabidopsis thaliana lateral root
 Training/predictions configs can be found in [3DUnet_lightsheet_nuclei](resources/3DUnet_lightsheet_nuclei).
-Pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FLateral-Root-Primordia%2Funet_bce_dice_nuclei_ds1x&files=best_checkpoint.pytorch)
+Pre-trained model weights available [here](https://oc.embl.de/index.php/s/61s67Mg5VQy7dh9/download?path=%2FLateral-Root-Primordia%2Funet_bce_dice_nuclei_ds1x&files=best_checkpoint.pytorch).
 In order to use the pre-trained model on your own data:
 * download the `best_checkpoint.pytorch` from the above link
 * add the path to the downloaded model and the path to your data in [test_config.yml](resources/3DUnet_lightsheet_nuclei/test_config.yaml)
