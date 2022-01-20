@@ -1,5 +1,4 @@
 # Trained on data from the 2018 Kaggle Data Science Bowl: https://www.kaggle.com/c/data-science-bowl-2018/data
-manual_seed: 0
 model:
   name: UNet2D
   in_channels: 1
@@ -9,12 +8,12 @@ model:
   layer_order: gcr
   num_groups: 8
   f_maps: [32, 64, 128]
-  #conv_padding: 0
   final_sigmoid: true
   is_segmentation: true
 trainer:
-  checkpoint_dir: '/home/adrian/Datasets/DSB2018'
+  checkpoint_dir: PATH_TO_CHECKPOINT_DIR
   resume: null
+  pre_trained: null
   validate_after_iters: 250
   log_after_iters: 250
   max_num_epochs: 10000
@@ -41,7 +40,7 @@ loaders:
   num_workers: 8
   train:
     file_paths:
-      - '/home/adrian/Datasets/DSB2018/train'
+      - PATH_TO_TRAIN_DIR
 
     transformer:
       raw:
@@ -84,7 +83,7 @@ loaders:
           expand_dims: true
   val:
     file_paths:
-      - '/home/adrian/Datasets/DSB2018/train'
+      - PATH_TO_VAL_DIR
 
     transformer:
       raw:

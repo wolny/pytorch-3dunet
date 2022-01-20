@@ -148,6 +148,7 @@ In order to use the pre-trained model on your own data:
 * download the `best_checkpoint.pytorch` from the above link
 * add the path to the downloaded model and the path to your data in [test_config.yml](resources/3DUnet_lightsheet_boundary/test_config.yml)
 * run `predict3dunet --config test_config.yml`
+* optionally fine-tune the pre-trained model with your own data, by setting the `pre_trained` attribute in the YAML config to point to the `best_checkpoint.pytorch` path
 
 The data used for training can be downloaded from the following OSF project:
 * training set: https://osf.io/9x3g2/
@@ -166,6 +167,7 @@ In order to use the pre-trained model on your own data:
 * download the `best_checkpoint.pytorch` from the above link
 * add the path to the downloaded model and the path to your data in [test_config.yml](resources/3DUnet_confocal_boundary/test_config.yml)
 * run `predict3dunet --config test_config.yml`
+* optionally fine-tune the pre-trained model with your own data, by setting the `pre_trained` attribute in the YAML config to point to the `best_checkpoint.pytorch` path
 
 The data used for training can be downloaded from the following OSF project:
 * training set: https://osf.io/x9yns/
@@ -184,6 +186,7 @@ In order to use the pre-trained model on your own data:
 * download the `best_checkpoint.pytorch` from the above link
 * add the path to the downloaded model and the path to your data in [test_config.yml](resources/3DUnet_lightsheet_nuclei/test_config.yaml)
 * run `predict3dunet --config test_config.yml`
+* optionally fine-tune the pre-trained model with your own data, by setting the `pre_trained` attribute in the YAML config to point to the `best_checkpoint.pytorch` path
 
 The training and validation sets can be downloaded from the following OSF project: https://osf.io/thxzn/
 

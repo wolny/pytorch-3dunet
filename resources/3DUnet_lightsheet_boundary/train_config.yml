@@ -43,8 +43,8 @@ lr_scheduler:
   name: ReduceLROnPlateau
   # make sure to use the 'min' mode cause lower AdaptedRandError is better
   mode: min
-  factor: 0.5
-  patience: 30
+  factor: 0.2
+  patience: 20
 trainer:
   # model with lower eval score is considered better
   eval_score_higher_is_better: False
@@ -52,6 +52,9 @@ trainer:
   checkpoint_dir: CHECKPOINT_DIR
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
   resume: null
+  # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
+  # make sure to decrease the learning rate in the optimizer config accordingly
+  pre_trained: null
   # how many iterations between validations
   validate_after_iters: 1000
   # how many iterations between tensorboard logging
@@ -76,6 +79,7 @@ loaders:
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
+      name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
       patch_shape: [80, 170, 170]
       # train stride between patches

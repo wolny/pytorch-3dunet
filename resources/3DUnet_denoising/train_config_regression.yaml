@@ -24,11 +24,11 @@ trainer:
   # make sure to decrease the learning rate in the optimizer config accordingly
   pre_trained: null
   # how many iterations between validations
-  validate_after_iters: 200
+  validate_after_iters: 1000
   # how many iterations between tensorboard logging
   log_after_iters: 100
   # max number of epoc0hs
-  max_num_epochs: 100
+  max_num_epochs: 1000
   # max number of iterations
   max_num_iterations: 100000
   # model with higher eval score is considered better

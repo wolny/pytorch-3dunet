@@ -52,14 +52,16 @@ trainer:
   checkpoint_dir: CHECKPOINT_DIR
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
   resume: null
+  # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
+  pre_trained: null
   # how many iterations between validations
   validate_after_iters: 1000
   # how many iterations between tensorboard logging
   log_after_iters: 500
   # max number of epochs
-  epochs: 1000
+  max_num_epochs: 1000
   # max number of iterations
-  iters: 150000
+  max_num_iterations: 150000
 # Configure training and validation loaders
 loaders:
   # how many subprocesses to use for data loading
