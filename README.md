@@ -30,47 +30,41 @@ otherwise there will be an error: `RuntimeError: Expected object of scalar type 
 
 ### Semantic Segmentation
 - _BCEWithLogitsLoss_ (binary cross-entropy)
-- _DiceLoss_ (standard `DiceLoss` defined as `1 - DiceCoefficient` used for binary semantic segmentation; when more than 2 classes are present in the ground truth, it computes the `DiceLoss` per channel and averages the values).
+- _DiceLoss_ (standard `DiceLoss` defined as `1 - DiceCoefficient` used for binary semantic segmentation; when more than 2 classes are present in the ground truth, it computes the `DiceLoss` per channel and averages the values)
 - _BCEDiceLoss_ (Linear combination of BCE and Dice losses, i.e. `alpha * BCE + beta * Dice`, `alpha, beta` can be specified in the `loss` section of the config)
-- _CrossEntropyLoss_ (one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config)
-- _PixelWiseCrossEntropyLoss_ (one can specify not only class weights but also per pixel weights in order to give more gradient to important (or under-represented) regions in the ground truth)
-- _WeightedCrossEntropyLoss_ (see 'Weighted cross-entropy (WCE)' in the below paper for a detailed explanation; one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config)
-- _GeneralizedDiceLoss_ (see 'Generalized Dice Loss (GDL)' in the below paper for a detailed explanation; one can specify class weights via `weight: [w_1, ..., w_k]` in the `loss` section of the config). 
-Note: use this loss function only if the labels in the training dataset are very imbalanced e.g. one class having at least 3 orders of magnitude more voxels than the others. Otherwise use standard _DiceLoss_.
-
+- _CrossEntropyLoss_ (one can specify class weights via the `weight: [w_1, ..., w_k]` in the `loss` section of the config)
+- _PixelWiseCrossEntropyLoss_ (one can specify per pixel weights in order to give more gradient to the important/under-represented regions in the ground truth)
+- _WeightedCrossEntropyLoss_ (see 'Weighted cross-entropy (WCE)' in the below paper for a detailed explanation)
+- _GeneralizedDiceLoss_ (see 'Generalized Dice Loss (GDL)' in the below paper for a detailed explanation) Note: use this loss function only if the labels in the training dataset are very imbalanced e.g. one class having at least 3 orders of magnitude more voxels than the others. Otherwise use standard _DiceLoss_.
 
 For a detailed explanation of some of the supported loss functions see:
 [Generalised Dice overlap as a deep learning loss function for highly unbalanced segmentations](https://arxiv.org/pdf/1707.03237.pdf)
-Carole H. Sudre, Wenqi Li, Tom Vercauteren, Sebastien Ourselin, M. Jorge Cardoso
-
-**IMPORTANT**: if one wants to use their own loss function, bear in mind that the current model implementation always
-output logits and it's up to the implementation of the loss to normalize it correctly, e.g. by applying Sigmoid or Softmax.
+Carole H. Sudre et al.
 
 ### Regression
-- _MSELoss_
-- _L1Loss_
-- _SmoothL1Loss_
-- _WeightedSmoothL1Loss_ - extension of the _SmoothL1Loss_ which allows to weight the voxel values above (below) a given threshold differently
+- _MSELoss_ (mean squared error loss)
+- _L1Loss_ (mean absolute errro loss)
+- _SmoothL1Loss_ (less sensitive to outliers than MSELoss)
+- _WeightedSmoothL1Loss_ (extension of the _SmoothL1Loss_ which allows to weight the voxel values above/below a given threshold differently)
 
 
 ## Supported Evaluation Metrics
 
 ### Semantic Segmentation
-- _MeanIoU_ - Mean intersection over union
-- _DiceCoefficient_ - Dice Coefficient (computes per channel Dice Coefficient and returns the average)
+- _MeanIoU_ (mean intersection over union)
+- _DiceCoefficient_ (computes per channel Dice Coefficient and returns the average)
 If a 3D U-Net was trained to predict cell boundaries, one can use the following semantic instance segmentation metrics
 (the metrics below are computed by running connected components on thresholded boundary map and comparing the resulted instances to the ground truth instance segmentation): 
-- _BoundaryAveragePrecision_ - Average Precision applied to the boundary probability maps: thresholds the boundary maps given by the network, runs connected components to get the segmentation and computes AP between the resulting segmentation and the ground truth
-- _AdaptedRandError_ - Adapted Rand Error (see http://brainiac2.mit.edu/SNEMI3D/evaluation for a detailed explanation)
-- _AveragePrecision_ - see https://www.kaggle.com/stkbailey/step-by-step-explanation-of-scoring-metric
-
+- _BoundaryAveragePrecision_ (Average Precision applied to the boundary probability maps: thresholds the output from the network, runs connected components to get the segmentation and computes AP between the resulting segmentation and the ground truth)
+- _AdaptedRandError_ (see http://brainiac2.mit.edu/SNEMI3D/evaluation for a detailed explanation)
+- _AveragePrecision_ (see https://www.kaggle.com/stkbailey/step-by-step-explanation-of-scoring-metric)
 
 If not specified `MeanIoU` will be used by default.
 
 
 ### Regression
-- _PSNR_ - peak signal to noise ratio
-- _MSE_ - mean squared error
+- _PSNR_ (peak signal to noise ratio)
+- _MSE_ (mean squared error)
 
 
 ## Installation
