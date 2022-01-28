@@ -21,7 +21,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: "/net/fs01/work01/yasuda/data/myosin/"
+  checkpoint_dir: "/net/fs01/work01/yasuda/data/myosin/0117"
   # path to last_checkpoint.pytorch; if provided the training will be resumed from that checkpoint
   resume: null
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
@@ -51,11 +51,21 @@ loss:
   weight: null
   # a target value that is ignored and does not contribute to the input gradient
   ignore_index: null
+
 # evaluation metric configuration
-eval_metric:
-  name: MeanIoU
+#eval_metric:
+ # name: MeanIoU
   # a target label that is ignored during metric evaluation
-  ignore_index: null
+ # ignore_index: null
+
+eval_metric:
+  # use average precision metric
+  name: BlobsAveragePrecision
+  # values on which the nuclei probability maps will be thresholded for AP computation
+  #0.1とかで一旦書き換えてみても良いのでは
+  thresholds: [0.4, 0.5, 0.6, 0.7, 0.8]
+  metric: 'ap'
+  
 # learning rate scheduler configuration
 lr_scheduler:
   name: MultiStepLR
