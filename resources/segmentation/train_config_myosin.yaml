@@ -1,4 +1,3 @@
-# use a fixed random seed to guarantee that when you run the code twice you will get the same outcome
 manual_seed: 0
 # model configuration
 model:
@@ -21,7 +20,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: "/net/fs01/work01/yasuda/data/myosin/0117"
+  checkpoint_dir: "/net/fs01/work01/yasuda/data/myosin/Dice/"
   # path to last_checkpoint.pytorch; if provided the training will be resumed from that checkpoint
   resume: null
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
@@ -58,14 +57,17 @@ loss:
   # a target label that is ignored during metric evaluation
  # ignore_index: null
 
+#eval_metric:
+ # # use average precision metric
+ ##name: BlobsAveragePrecision
+  ## values on which the nuclei probability maps will be thresholded for AP computation
+  ##0.1とかで一旦書き換えてみても良いのでは
+  #thresholds: [0.4, 0.5, 0.6, 0.7, 0.8]
+  #metric: 'ap'
+
 eval_metric:
-  # use average precision metric
-  name: BlobsAveragePrecision
-  # values on which the nuclei probability maps will be thresholded for AP computation
-  #0.1とかで一旦書き換えてみても良いのでは
-  thresholds: [0.4, 0.5, 0.6, 0.7, 0.8]
-  metric: 'ap'
-  
+  name: DiceCoefficient
+
 # learning rate scheduler configuration
 lr_scheduler:
   name: MultiStepLR

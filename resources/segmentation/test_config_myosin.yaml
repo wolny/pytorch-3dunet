@@ -1,5 +1,5 @@
 # path to the checkpoint file containing the model
-model_path: "/net/fs01/work01/yasuda/data/myosin/0117/best_checkpoint.pytorch"
+model_path: "/net/fs01/work01/yasuda/data/myosin/UNet3D/Dice/best_checkpoint.pytorch"
 # model configuration
 model:
   # model class
@@ -33,7 +33,7 @@ loaders:
   # how many subprocesses to use for data loading
   num_workers: 8
   # path to the directory where the predictions from the network will be saved (optional: if not provided the TEST_SET directory will be used)
-  output_dir: "/net/fs01/work01/yasuda/data/myosin/0117/predictions"
+  output_dir: "/net/fs01/work01/yasuda/data/myosin/UNet3D/Dice/predictions"
   test:
     # paths to the test datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
@@ -54,3 +54,4 @@ loaders:
           - name: Standardize
           - name: ToTensor
             expand_dims: true
+
