@@ -8,10 +8,19 @@ from scipy.ndimage.filters import convolve
 from skimage import measure
 from skimage.filters import gaussian
 from skimage.segmentation import find_boundaries
-from torchvision.transforms import Compose
 
 # WARN: use fixed random state for reproducibility; if you want to randomize on each run seed with `time.time()` e.g.
 GLOBAL_RANDOM_STATE = np.random.RandomState(47)
+
+
+class Compose(object):
+    def __init__(self, transforms):
+        self.transforms = transforms
+
+    def __call__(self, m):
+        for t in self.transforms:
+            m = t(m)
+        return m
 
 
 class RandomFlip:
