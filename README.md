@@ -84,7 +84,7 @@ python setup.py install
 ### Installation tips
 Make sure that the installed `pytorch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. You can re-install `pytorch` compatible with your CUDA in the `3dunet` env by:
 ```
-conda install -c pytorch torchvision cudatoolkit=<YOU_CUDA_VERSION> pytorch
+conda install -c pytorch cudatoolkit=<YOU_CUDA_VERSION> pytorch
 ```
 
 ## Train
