@@ -30,7 +30,8 @@ jobs:
         conda install -c pytorch -c conda-forge --use-local pytorch-3dunet
     - name: Run pytest
       run: |
-        conda install -c conda-forge pytest
+        # workaround ImportError: /usr/share/miniconda/lib/python3.9/site-packages/h5py/defs.cpython-39-x86_64-linux-gnu.so: undefined symbol: H5Pset_fapl_ros3
+        conda install -c conda-forge pytest h5py=3.1.0
         pytest
     - name: Deploy on conda
       if: ${{ startsWith( github.ref, 'refs/tags/') && success() }}
