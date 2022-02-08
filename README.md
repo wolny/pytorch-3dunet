@@ -1,5 +1,6 @@
 [![DOI](https://zenodo.org/badge/149826542.svg)](https://zenodo.org/badge/latestdoi/149826542)
-[![Build Status](https://app.travis-ci.com/wolny/pytorch-3dunet.svg?branch=master)](https://app.travis-ci.com/wolny/pytorch-3dunet)
+![Build Status](https://github.com/wolny/pytorch-3dunet/actions/workflows/conda-build.yml/badge.svg)
+
 
 # pytorch-3dunet
 

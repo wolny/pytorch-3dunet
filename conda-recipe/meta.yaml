@@ -1,6 +1,6 @@
 package:
   name: pytorch-3dunet
-  version: {{ GIT_DESCRIBE_TAG }}
+  version: {{ RELEASE_VERSION }}
 
 source:
   path: ..
