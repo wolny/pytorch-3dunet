@@ -13,6 +13,5 @@ dependencies:
   - h5py
   - scipy
   - scikit-image
-  - scikit-learn
   - pyyaml
   - pytest

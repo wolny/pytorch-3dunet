@@ -13,7 +13,7 @@ build:
 
 requirements:
   build:
-    - python
+    - python 3.8
     - setuptools
 
   run:
@@ -25,7 +25,6 @@ requirements:
     - h5py
     - scipy
     - scikit-image
-    - scikit-learn
     - pyyaml
 
 test:

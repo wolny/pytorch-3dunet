@@ -216,7 +216,7 @@ class TestTransforms:
 
 
 def _diagonal_label_volume(size, init=1):
-    label = init * np.ones((size, size, size), dtype=np.int)
+    label = init * np.ones((size, size, size), dtype=np.int32)
     for i in range(size):
         for j in range(size):
             for k in range(size):

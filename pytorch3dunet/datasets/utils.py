@@ -240,7 +240,7 @@ def get_test_loaders(config):
     dataset_cls_str = loaders_config.get('dataset', None)
     if dataset_cls_str is None:
         dataset_cls_str = 'StandardHDF5Dataset'
-        logger.warn(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
+        logger.warning(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
     dataset_class = _loader_classes(dataset_cls_str)
 
     test_datasets = dataset_class.create_datasets(loaders_config, phase='test')

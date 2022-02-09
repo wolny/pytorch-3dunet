@@ -74,7 +74,7 @@ class TestCriterion:
         assert criterion(pred, target) == 1
 
     def test_average_precision_synthethic_data(self):
-        input = np.zeros((64, 200, 200), dtype=np.int)
+        input = np.zeros((64, 200, 200), dtype=np.int32)
         for i in range(40, 200, 40):
             input[:, :, i:i + 2] = 1
         for i in range(40, 200, 40):
@@ -82,7 +82,7 @@ class TestCriterion:
         for i in range(40, 64, 40):
             input[i:i + 2, :, :] = 1
 
-        target = measure.label(np.logical_not(input).astype(np.int), background=0)
+        target = measure.label(np.logical_not(input).astype(np.int32), background=0)
         input = torch.tensor(input.reshape((1, 1) + input.shape))
         target = torch.tensor(target.reshape((1, 1) + target.shape))
         ap = BoundaryAveragePrecision()

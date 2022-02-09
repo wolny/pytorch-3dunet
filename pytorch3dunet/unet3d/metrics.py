@@ -148,7 +148,7 @@ class AdaptedRandError:
             target = target[:, 0, ...]  # 4D
 
         # ensure target is of integer type
-        target = target.astype(np.int)
+        target = target.astype(np.int32)
 
         if self.ignore_index is not None:
             target[target == self.ignore_index] = 0

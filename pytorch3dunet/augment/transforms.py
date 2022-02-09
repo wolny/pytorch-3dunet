@@ -3,8 +3,7 @@ import random
 
 import numpy as np
 import torch
-from scipy.ndimage import rotate, map_coordinates, gaussian_filter
-from scipy.ndimage.filters import convolve
+from scipy.ndimage import rotate, map_coordinates, gaussian_filter, convolve
 from skimage import measure
 from skimage.filters import gaussian
 from skimage.segmentation import find_boundaries
@@ -285,7 +284,7 @@ class AbstractLabelToBoundary:
             # aggregate affinities with the same offset
             for i in range(0, len(kernels), 3):
                 # merge across X,Y,Z axes (logical OR)
-                xyz_aggregated_affinities = np.logical_or.reduce(channels[i:i + 3, ...]).astype(np.int)
+                xyz_aggregated_affinities = np.logical_or.reduce(channels[i:i + 3, ...]).astype(np.int32)
                 # recover ignore index
                 xyz_aggregated_affinities = _recover_ignore_index(xyz_aggregated_affinities, m, self.ignore_index)
                 results.append(xyz_aggregated_affinities)
@@ -303,7 +302,7 @@ class AbstractLabelToBoundary:
     def create_kernel(axis, offset):
         # create conv kernel
         k_size = offset + 1
-        k = np.zeros((1, 1, k_size), dtype=np.int)
+        k = np.zeros((1, 1, k_size), dtype=np.int32)
         k[0, 0, 0] = 1
         k[0, 0, offset] = -1
         return np.transpose(k, axis)
