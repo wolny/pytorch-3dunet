@@ -5,13 +5,9 @@ import shutil
 import sys
 
 import h5py
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from torch import optim
-
-plt.ioff()
-plt.switch_backend('agg')
 
 
 def save_checkpoint(state, is_best, checkpoint_dir):

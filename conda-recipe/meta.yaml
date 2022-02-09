@@ -27,7 +27,6 @@ requirements:
     - scikit-image
     - scikit-learn
     - pyyaml
-    - matplotlib
 
 test:
   imports:

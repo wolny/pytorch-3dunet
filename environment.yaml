@@ -16,4 +16,3 @@ dependencies:
   - scikit-learn
   - pyyaml
   - pytest
-  - matplotlib
