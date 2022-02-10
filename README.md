@@ -22,9 +22,7 @@ Training the standard 2D U-Net is also possible, see [2DUnet_dsb2018](resources/
 - CUDA CuDNN
 
 ### Running on Windows
-The package has not been tested on Windows, however some reported using it on Windows. One thing to keep in mind:
-when training with `CrossEntropyLoss`: the label type in the config file should be change from `long` to `int64`,
-otherwise there will be an error: `RuntimeError: Expected object of scalar type Long but got scalar type Int for argument #2 'target'`.
+The package has not been tested on Windows, however some users reported using it successfully on Windows.
 
 
 ## Supported Loss Functions
@@ -71,8 +69,8 @@ If not specified `MeanIoU` will be used by default.
 ## Installation
 - The easiest way to install `pytorch-3dunet` package is via conda:
 ```
-conda create -n 3dunet -c conda-forge -c awolny pytorch-3dunet
-conda activate 3dunet
+conda create -n pytorch3dunet -c pytorch -c conda-forge -c awolny pytorch-3dunet
+conda activate pytorch3dunet
 ```
 After installation the following commands are accessible within the conda environment:
 `train3dunet` for training the network and `predict3dunet` for prediction (see below).
@@ -83,7 +81,7 @@ python setup.py install
 ```
 
 ### Installation tips
-Make sure that the installed `pytorch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. You can re-install `pytorch` compatible with your CUDA in the `3dunet` env by:
+Make sure that the installed `pytorch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. You can re-install `pytorch` compatible with your CUDA in the `pytorch3dunet` environment by:
 ```
 conda install -c pytorch cudatoolkit=<YOU_CUDA_VERSION> pytorch
 ```
@@ -220,7 +218,6 @@ pages = {e57613},
 citation = {eLife 2020;9:e57613},
 doi = {10.7554/eLife.57613},
 url = {https://doi.org/10.7554/eLife.57613},
-abstract = {Quantitative analysis of plant and animal morphogenesis requires accurate segmentation of individual cells in volumetric images of growing organs. In the last years, deep learning has provided robust automated algorithms that approach human performance, with applications to bio-image analysis now starting to emerge. Here, we present PlantSeg, a pipeline for volumetric segmentation of plant tissues into cells. PlantSeg employs a convolutional neural network to predict cell boundaries and graph partitioning to segment cells based on the neural network predictions. PlantSeg was trained on fixed and live plant organs imaged with confocal and light sheet microscopes. PlantSeg delivers accurate results and generalizes well across different tissues, scales, acquisition settings even on non plant samples. We present results of PlantSeg applications in diverse developmental contexts. PlantSeg is free and open-source, with both a command line and a user-friendly graphical interface.},
 keywords = {instance segmentation, cell segmentation, deep learning, image analysis},
 journal = {eLife},
 issn = {2050-084X},
