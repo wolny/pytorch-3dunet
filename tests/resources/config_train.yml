@@ -32,7 +32,7 @@ lr_scheduler:
 loaders:
   dataset: StandardHDF5Dataset
   batch_size: 1
-  num_workers: 4
+  num_workers: 1
   raw_internal_path: raw
   label_internal_path: label
   weight_internal_path: null
