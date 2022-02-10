@@ -18,7 +18,8 @@ requirements:
 
   run:
     - python
-    - pytorch
+    # fix pytorch version for quicker build
+    - pytorch 1.9.1
     - tensorboard
     # workaround the issue https://github.com/pytorch/pytorch/pull/69904
     - setuptools 59.5.0
