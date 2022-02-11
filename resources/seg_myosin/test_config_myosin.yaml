@@ -1,13 +1,6 @@
 # path to the checkpoint file containing the model
-<<<<<<< HEAD
-<<<<<<< HEAD:resources/seg_myosin/test_config_myosin.yaml
 model_path: "/net/fs01/work01/yasuda/data/myosin_MeanIOU/best_checkpoint.pytorch"
-=======
-model_path: "/net/fs01/work01/yasuda/data/split_actin/0122/best_checkpoint.pytorch"
->>>>>>> refs/remotes/origin/master:resources/segmentation/test_config_actin.yaml
-=======
-model_path: "/net/fs01/work01/yasuda/data/myosin/0115/best_checkpoint.pytorch"
->>>>>>> refs/remotes/origin/master
+
 # model configuration
 model:
   # model class
@@ -37,59 +30,25 @@ loaders:
   # mirror pad the raw data in each axis for sharper prediction near the boundaries of the volume
   mirror_padding: [16, 32, 32]
   # path to the raw data within the H5
-<<<<<<< HEAD
   raw_internal_path: raw
   # how many subprocesses to use for data loading
   num_workers: 8
   # path to the directory where the predictions from the network will be saved (optional: if not provided the TEST_SET directory will be used)
-<<<<<<< HEAD:resources/seg_myosin/test_config_myosin.yaml
   output_dir: "/net/fs01/work01/yasuda/data/myosin_MeanIOU/predictions"
-=======
-  output_dir: "/net/fs01/work01/yasuda/data/aplit_actin/0122/predictions"
->>>>>>> refs/remotes/origin/master:resources/segmentation/test_config_actin.yaml
-=======
-  raw_internal_path: predictions
-  # how many subprocesses to use for data loading
-  num_workers: 8
-  # path to the directory where the predictions from the network will be saved (optional: if not provided the TEST_SET directory will be used)
-  output_dir: "/net/fs01/work01/yasuda/data/myosin/0118/predictions"
->>>>>>> refs/remotes/origin/master
   test:
     # paths to the test datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-<<<<<<< HEAD
-<<<<<<< HEAD:resources/seg_myosin/test_config_myosin.yaml
       - "/net/fs01/work01/yasuda/data/myosin/test/"
-=======
-      - "/net/fs01/work01/yasuda/data/split_actin/test/"
->>>>>>> refs/remotes/origin/master:resources/segmentation/test_config_actin.yaml
+    # SliceBuilder class
+    name: SliceBuilder
+    # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+    patch_shape: [64, 128, 128]
+    # train stride between patches
+    stride_shape: [32, 100, 100]
 
-=======
-      #- "/net/fs01/work01/yasuda/data/myosin/test/split_myosin_2.h5"
-      #- "/net/fs01/work01/yasuda/data/myosin/test/split_myosin_5.h5"
-      #- "/net/fs01/work01/yasuda/data/myosin/test/split_myosin_8.h5"
-      - "/net/fs01/work01/yasuda/data/myosin/0115/predictions/"
-      
->>>>>>> refs/remotes/origin/master
-    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
-    slice_builder:
-      # SliceBuilder class
-      name: SliceBuilder
-      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [64, 128, 128]
-      # train stride between patches
-      stride_shape: [32, 100, 100]
-
-    transformer:
-        raw:
-          - name: Standardize
-          - name: ToTensor
-            expand_dims: true
-<<<<<<< HEAD
-<<<<<<< HEAD:resources/seg_myosin/test_config_myosin.yaml
-
-=======
->>>>>>> refs/remotes/origin/master:resources/segmentation/test_config_actin.yaml
-=======
->>>>>>> refs/remotes/origin/master
+   transformer:
+      raw:
+        - name: Standardiz 
+        - name: ToTensor
+          expand_dims: true
