@@ -3,7 +3,11 @@ manual_seed: 0
 # model configuration
 model:
   # model class, e.g. UNet3D, ResidualUNet3D
+<<<<<<< HEAD:resources/seg_ResidualUNet3D/train_config_myosin.yaml
   name: ResidualUNet3D
+=======
+  name: ResidualUnet3D
+>>>>>>> refs/remotes/origin/master:resources/train_config_dice.yaml
   # number of input channels to the model
   in_channels: 1
   # number of output channels
