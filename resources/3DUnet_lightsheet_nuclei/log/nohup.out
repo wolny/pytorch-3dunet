@@ -1,0 +1,677 @@
+2022-01-14 23:26:08,027 [MainThread] INFO ConfigLoader - Using 'cuda:0' device
+2022-01-14 23:26:08,028 [MainThread] INFO TrainingSetup - {'manual_seed': 0, 'model': {'name': 'UNet3D', 'in_channels': 1, 'out_channels': 1, 'layer_order': 'gcr', 'f_maps': [32, 64, 128, 256], 'num_groups': 8, 'final_sigmoid': True, 'is_segmentation': True}, 'trainer': {'checkpoint_dir': '/net/fs01/work01/yasuda/data/', 'resume': None, 'validate_after_iters': 1000, 'log_after_iters': 100, 'max_num_epochs': 200, 'max_num_iterations': 60000, 'eval_score_higher_is_better': True}, 'loss': {'name': 'BCEWithLogitsLoss', 'skip_last_target': True}, 'optimizer': {'learning_rate': 0.0002, 'weight_decay': 1e-05}, 'eval_metric': {'name': 'BlobsAveragePrecision', 'thresholds': [0.4, 0.5, 0.6, 0.7, 0.8], 'metric': 'ap'}, 'lr_scheduler': {'name': 'ReduceLROnPlateau', 'mode': 'max', 'factor': 0.2, 'patience': 8}, 'loaders': {'dataset': 'StandardHDF5Dataset', 'batch_size': 1, 'num_workers': 1, 'raw_internal_path': 'raw', 'label_internal_path': 'label', 'weight_internal_path': None, 'train': {'file_paths': ['/net/fs01/work01/yasuda/data/myosin/train/'], 'slice_builder': {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [20, 40, 40], 'threshold': 0.01, 'slack_acceptance': 0.01}, 'transformer': {'raw': [{'name': 'Standardize'}, {'name': 'RandomFlip'}, {'name': 'RandomRotate90'}, {'name': 'RandomRotate', 'axes': [[2, 1]], 'angle_spectrum': 30, 'mode': 'reflect'}, {'name': 'ElasticDeformation', 'spline_order': 3}, {'name': 'ToTensor', 'expand_dims': True}], 'label': [{'name': 'RandomFlip'}, {'name': 'RandomRotate90'}, {'name': 'RandomRotate', 'axes': [[2, 1]], 'angle_spectrum': 30, 'mode': 'reflect'}, {'name': 'ElasticDeformation', 'spline_order': 0}, {'name': 'BlobsToMask', 'append_label': True, 'boundary': False}, {'name': 'ToTensor', 'expand_dims': False}]}}, 'val': {'file_paths': ['/net/fs01/work01/yasuda/data/myosin/val/'], 'slice_builder': {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [80, 170, 170], 'threshold': 0.01, 'slack_acceptance': 0.01}, 'transformer': {'raw': [{'name': 'Standardize'}, {'name': 'ToTensor', 'expand_dims': True}], 'label': [{'name': 'BlobsToMask', 'append_label': True, 'boundary': False}, {'name': 'ToTensor', 'expand_dims': False}]}}}, 'device': device(type='cuda', index=0)}
+2022-01-14 23:26:08,028 [MainThread] INFO TrainingSetup - Seed the RNG for all devices with 0
+2022-01-14 23:26:09,446 [MainThread] INFO UNet3DTrainer - Using 4 GPUs for training
+2022-01-14 23:26:09,446 [MainThread] INFO UNet3DTrainer - Sending the model to 'cuda:0'
+2022-01-14 23:26:11,697 [MainThread] INFO UNet3DTrainer - Number of learnable params 4081267
+2022-01-14 23:26:11,697 [MainThread] INFO Dataset - Creating training and validation set loaders...
+2022-01-14 23:26:12,881 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/split_myosin_0.h5...
+2022-01-14 23:26:13,360 [MainThread] INFO HDF5Dataset - Input stats: min=100, max=170, mean=129.39169284301457, std=5.051808631763375
+2022-01-14 23:26:13,380 [MainThread] INFO Dataset - Slice builder config: {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [20, 40, 40], 'threshold': 0.01, 'slack_acceptance': 0.01}
+2022-01-14 23:26:16,264 [MainThread] INFO HDF5Dataset - Number of patches: 1269
+2022-01-14 23:26:16,265 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/split_myosin_1.h5...
+2022-01-14 23:26:16,708 [MainThread] INFO HDF5Dataset - Input stats: min=57, max=247, mean=129.31260835337827, std=5.307423863921303
+2022-01-14 23:26:16,728 [MainThread] INFO Dataset - Slice builder config: {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [20, 40, 40], 'threshold': 0.01, 'slack_acceptance': 0.01}
+2022-01-14 23:26:19,488 [MainThread] INFO HDF5Dataset - Number of patches: 1521
+2022-01-14 23:26:19,489 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/split_myosin_3.h5...
+2022-01-14 23:26:19,933 [MainThread] INFO HDF5Dataset - Input stats: min=17, max=235, mean=129.36456044960295, std=5.43006484206945
+2022-01-14 23:26:19,952 [MainThread] INFO Dataset - Slice builder config: {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [20, 40, 40], 'threshold': 0.01, 'slack_acceptance': 0.01}
+2022-01-14 23:26:22,672 [MainThread] INFO HDF5Dataset - Number of patches: 1521
+2022-01-14 23:26:22,673 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/split_myosin_4.h5...
+2022-01-14 23:26:23,116 [MainThread] INFO HDF5Dataset - Input stats: min=0, max=255, mean=129.334027973919, std=6.1305032261307915
+2022-01-14 23:26:23,135 [MainThread] INFO Dataset - Slice builder config: {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [20, 40, 40], 'threshold': 0.01, 'slack_acceptance': 0.01}
+2022-01-14 23:26:25,860 [MainThread] INFO HDF5Dataset - Number of patches: 1521
+2022-01-14 23:26:25,861 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/split_myosin_6.h5...
+2022-01-14 23:26:26,302 [MainThread] INFO HDF5Dataset - Input stats: min=97, max=176, mean=129.13799421672638, std=5.141289938663146
+2022-01-14 23:26:26,321 [MainThread] INFO Dataset - Slice builder config: {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [20, 40, 40], 'threshold': 0.01, 'slack_acceptance': 0.01}
+2022-01-14 23:26:29,037 [MainThread] INFO HDF5Dataset - Number of patches: 913
+2022-01-14 23:26:29,038 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/split_myosin_7.h5...
+2022-01-14 23:26:29,481 [MainThread] INFO HDF5Dataset - Input stats: min=1, max=217, mean=129.28665717193536, std=5.647814388387516
+2022-01-14 23:26:29,500 [MainThread] INFO Dataset - Slice builder config: {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [20, 40, 40], 'threshold': 0.01, 'slack_acceptance': 0.01}
+2022-01-14 23:26:32,281 [MainThread] INFO HDF5Dataset - Number of patches: 952
+2022-01-14 23:26:32,284 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/split_myosin_6.h5...
+2022-01-14 23:26:32,727 [MainThread] INFO HDF5Dataset - Input stats: min=97, max=176, mean=129.13799421672638, std=5.141289938663146
+2022-01-14 23:26:32,747 [MainThread] INFO Dataset - Slice builder config: {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [80, 170, 170], 'threshold': 0.01, 'slack_acceptance': 0.01}
+2022-01-14 23:26:32,843 [MainThread] INFO HDF5Dataset - Number of patches: 25
+2022-01-14 23:26:32,843 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/split_myosin_7.h5...
+2022-01-14 23:26:33,288 [MainThread] INFO HDF5Dataset - Input stats: min=1, max=217, mean=129.28665717193536, std=5.647814388387516
+2022-01-14 23:26:33,307 [MainThread] INFO Dataset - Slice builder config: {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [80, 170, 170], 'threshold': 0.01, 'slack_acceptance': 0.01}
+2022-01-14 23:26:33,404 [MainThread] INFO HDF5Dataset - Number of patches: 27
+2022-01-14 23:26:33,404 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/split_myosin_0.h5...
+2022-01-14 23:26:33,848 [MainThread] INFO HDF5Dataset - Input stats: min=100, max=170, mean=129.39169284301457, std=5.051808631763375
+2022-01-14 23:26:33,867 [MainThread] INFO Dataset - Slice builder config: {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [80, 170, 170], 'threshold': 0.01, 'slack_acceptance': 0.01}
+2022-01-14 23:26:33,964 [MainThread] INFO HDF5Dataset - Number of patches: 37
+2022-01-14 23:26:33,965 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/split_myosin_1.h5...
+2022-01-14 23:26:34,409 [MainThread] INFO HDF5Dataset - Input stats: min=57, max=247, mean=129.31260835337827, std=5.307423863921303
+2022-01-14 23:26:34,429 [MainThread] INFO Dataset - Slice builder config: {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [80, 170, 170], 'threshold': 0.01, 'slack_acceptance': 0.01}
+2022-01-14 23:26:34,526 [MainThread] INFO HDF5Dataset - Number of patches: 48
+2022-01-14 23:26:34,526 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/split_myosin_3.h5...
+2022-01-14 23:26:34,971 [MainThread] INFO HDF5Dataset - Input stats: min=17, max=235, mean=129.36456044960295, std=5.43006484206945
+2022-01-14 23:26:34,991 [MainThread] INFO Dataset - Slice builder config: {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [80, 170, 170], 'threshold': 0.01, 'slack_acceptance': 0.01}
+2022-01-14 23:26:35,087 [MainThread] INFO HDF5Dataset - Number of patches: 48
+2022-01-14 23:26:35,088 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/split_myosin_4.h5...
+2022-01-14 23:26:35,532 [MainThread] INFO HDF5Dataset - Input stats: min=0, max=255, mean=129.334027973919, std=6.1305032261307915
+2022-01-14 23:26:35,552 [MainThread] INFO Dataset - Slice builder config: {'name': 'FilterSliceBuilder', 'patch_shape': [80, 170, 170], 'stride_shape': [80, 170, 170], 'threshold': 0.01, 'slack_acceptance': 0.01}
+2022-01-14 23:26:35,648 [MainThread] INFO HDF5Dataset - Number of patches: 48
+2022-01-14 23:26:35,649 [MainThread] INFO Dataset - Number of workers for train/val dataloader: 1
+2022-01-14 23:26:35,649 [MainThread] INFO Dataset - 4 GPUs available. Using batch_size = 4 * 1
+2022-01-14 23:26:35,649 [MainThread] INFO Dataset - Batch size for train/val loader: 4
+2022-01-14 23:26:35,650 [MainThread] INFO UNet3DTrainer - DataParallel(
+  (module): UNet3D(
+    (encoders): ModuleList(
+      (0): Encoder(
+        (basic_module): DoubleConv(
+          (SingleConv1): SingleConv(
+            (groupnorm): GroupNorm(1, 1, eps=1e-05, affine=True)
+            (conv): Conv3d(1, 16, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (SingleConv2): SingleConv(
+            (groupnorm): GroupNorm(8, 16, eps=1e-05, affine=True)
+            (conv): Conv3d(16, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+        )
+      )
+      (1): Encoder(
+        (pooling): MaxPool3d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (basic_module): DoubleConv(
+          (SingleConv1): SingleConv(
+            (groupnorm): GroupNorm(8, 32, eps=1e-05, affine=True)
+            (conv): Conv3d(32, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (SingleConv2): SingleConv(
+            (groupnorm): GroupNorm(8, 32, eps=1e-05, affine=True)
+            (conv): Conv3d(32, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+        )
+      )
+      (2): Encoder(
+        (pooling): MaxPool3d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (basic_module): DoubleConv(
+          (SingleConv1): SingleConv(
+            (groupnorm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            (conv): Conv3d(64, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (SingleConv2): SingleConv(
+            (groupnorm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            (conv): Conv3d(64, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+        )
+      )
+      (3): Encoder(
+        (pooling): MaxPool3d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (basic_module): DoubleConv(
+          (SingleConv1): SingleConv(
+            (groupnorm): GroupNorm(8, 128, eps=1e-05, affine=True)
+            (conv): Conv3d(128, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (SingleConv2): SingleConv(
+            (groupnorm): GroupNorm(8, 128, eps=1e-05, affine=True)
+            (conv): Conv3d(128, 256, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+        )
+      )
+    )
+    (decoders): ModuleList(
+      (0): Decoder(
+        (upsampling): InterpolateUpsampling()
+        (basic_module): DoubleConv(
+          (SingleConv1): SingleConv(
+            (groupnorm): GroupNorm(8, 384, eps=1e-05, affine=True)
+            (conv): Conv3d(384, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (SingleConv2): SingleConv(
+            (groupnorm): GroupNorm(8, 128, eps=1e-05, affine=True)
+            (conv): Conv3d(128, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+        )
+      )
+      (1): Decoder(
+        (upsampling): InterpolateUpsampling()
+        (basic_module): DoubleConv(
+          (SingleConv1): SingleConv(
+            (groupnorm): GroupNorm(8, 192, eps=1e-05, affine=True)
+            (conv): Conv3d(192, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (SingleConv2): SingleConv(
+            (groupnorm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            (conv): Conv3d(64, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+        )
+      )
+      (2): Decoder(
+        (upsampling): InterpolateUpsampling()
+        (basic_module): DoubleConv(
+          (SingleConv1): SingleConv(
+            (groupnorm): GroupNorm(8, 96, eps=1e-05, affine=True)
+            (conv): Conv3d(96, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (SingleConv2): SingleConv(
+            (groupnorm): GroupNorm(8, 32, eps=1e-05, affine=True)
+            (conv): Conv3d(32, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+        )
+      )
+    )
+    (final_conv): Conv3d(32, 1, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+    (final_activation): Sigmoid()
+  )
+)
+2022-01-14 23:26:35,650 [MainThread] INFO UNet3DTrainer - eval_score_higher_is_better: True
+2022-01-14 23:26:36,301 [MainThread] INFO UNet3DTrainer - Training iteration [1/60000]. Epoch [0/199]
+2022-01-14 23:26:45,884 [MainThread] INFO UNet3DTrainer - Training iteration [2/60000]. Epoch [0/199]
+2022-01-14 23:26:46,477 [MainThread] INFO UNet3DTrainer - Training iteration [3/60000]. Epoch [0/199]
+2022-01-14 23:26:55,844 [MainThread] INFO UNet3DTrainer - Training iteration [4/60000]. Epoch [0/199]
+2022-01-14 23:26:56,457 [MainThread] INFO UNet3DTrainer - Training iteration [5/60000]. Epoch [0/199]
+2022-01-14 23:26:57,089 [MainThread] INFO UNet3DTrainer - Training iteration [6/60000]. Epoch [0/199]
+2022-01-14 23:26:58,026 [MainThread] INFO UNet3DTrainer - Training iteration [7/60000]. Epoch [0/199]
+2022-01-14 23:26:58,955 [MainThread] INFO UNet3DTrainer - Training iteration [8/60000]. Epoch [0/199]
+2022-01-14 23:26:59,892 [MainThread] INFO UNet3DTrainer - Training iteration [9/60000]. Epoch [0/199]
+2022-01-14 23:27:00,827 [MainThread] INFO UNet3DTrainer - Training iteration [10/60000]. Epoch [0/199]
+2022-01-14 23:27:01,762 [MainThread] INFO UNet3DTrainer - Training iteration [11/60000]. Epoch [0/199]
+2022-01-14 23:27:18,996 [MainThread] INFO UNet3DTrainer - Training iteration [12/60000]. Epoch [0/199]
+2022-01-14 23:27:19,626 [MainThread] INFO UNet3DTrainer - Training iteration [13/60000]. Epoch [0/199]
+2022-01-14 23:27:37,619 [MainThread] INFO UNet3DTrainer - Training iteration [14/60000]. Epoch [0/199]
+2022-01-14 23:27:38,215 [MainThread] INFO UNet3DTrainer - Training iteration [15/60000]. Epoch [0/199]
+2022-01-14 23:27:38,967 [MainThread] INFO UNet3DTrainer - Training iteration [16/60000]. Epoch [0/199]
+2022-01-14 23:27:39,914 [MainThread] INFO UNet3DTrainer - Training iteration [17/60000]. Epoch [0/199]
+2022-01-14 23:27:48,726 [MainThread] INFO UNet3DTrainer - Training iteration [18/60000]. Epoch [0/199]
+2022-01-14 23:27:49,319 [MainThread] INFO UNet3DTrainer - Training iteration [19/60000]. Epoch [0/199]
+2022-01-14 23:27:49,988 [MainThread] INFO UNet3DTrainer - Training iteration [20/60000]. Epoch [0/199]
+2022-01-14 23:27:50,930 [MainThread] INFO UNet3DTrainer - Training iteration [21/60000]. Epoch [0/199]
+2022-01-14 23:28:00,050 [MainThread] INFO UNet3DTrainer - Training iteration [22/60000]. Epoch [0/199]
+2022-01-14 23:28:26,821 [MainThread] INFO UNet3DTrainer - Training iteration [23/60000]. Epoch [0/199]
+2022-01-14 23:28:27,428 [MainThread] INFO UNet3DTrainer - Training iteration [24/60000]. Epoch [0/199]
+2022-01-14 23:28:36,730 [MainThread] INFO UNet3DTrainer - Training iteration [25/60000]. Epoch [0/199]
+2022-01-14 23:28:37,348 [MainThread] INFO UNet3DTrainer - Training iteration [26/60000]. Epoch [0/199]
+2022-01-14 23:28:37,996 [MainThread] INFO UNet3DTrainer - Training iteration [27/60000]. Epoch [0/199]
+2022-01-14 23:28:38,938 [MainThread] INFO UNet3DTrainer - Training iteration [28/60000]. Epoch [0/199]
+2022-01-14 23:28:39,883 [MainThread] INFO UNet3DTrainer - Training iteration [29/60000]. Epoch [0/199]
+2022-01-14 23:28:40,828 [MainThread] INFO UNet3DTrainer - Training iteration [30/60000]. Epoch [0/199]
+2022-01-14 23:28:49,301 [MainThread] INFO UNet3DTrainer - Training iteration [31/60000]. Epoch [0/199]
+2022-01-14 23:28:58,601 [MainThread] INFO UNet3DTrainer - Training iteration [32/60000]. Epoch [0/199]
+2022-01-14 23:28:59,202 [MainThread] INFO UNet3DTrainer - Training iteration [33/60000]. Epoch [0/199]
+2022-01-14 23:28:59,871 [MainThread] INFO UNet3DTrainer - Training iteration [34/60000]. Epoch [0/199]
+2022-01-14 23:29:00,817 [MainThread] INFO UNet3DTrainer - Training iteration [35/60000]. Epoch [0/199]
+2022-01-14 23:29:01,763 [MainThread] INFO UNet3DTrainer - Training iteration [36/60000]. Epoch [0/199]
+2022-01-14 23:29:02,711 [MainThread] INFO UNet3DTrainer - Training iteration [37/60000]. Epoch [0/199]
+2022-01-14 23:29:03,662 [MainThread] INFO UNet3DTrainer - Training iteration [38/60000]. Epoch [0/199]
+2022-01-14 23:29:04,616 [MainThread] INFO UNet3DTrainer - Training iteration [39/60000]. Epoch [0/199]
+2022-01-14 23:29:21,665 [MainThread] INFO UNet3DTrainer - Training iteration [40/60000]. Epoch [0/199]
+2022-01-14 23:29:30,994 [MainThread] INFO UNet3DTrainer - Training iteration [41/60000]. Epoch [0/199]
+2022-01-14 23:29:31,574 [MainThread] INFO UNet3DTrainer - Training iteration [42/60000]. Epoch [0/199]
+2022-01-14 23:29:32,265 [MainThread] INFO UNet3DTrainer - Training iteration [43/60000]. Epoch [0/199]
+2022-01-14 23:29:41,480 [MainThread] INFO UNet3DTrainer - Training iteration [44/60000]. Epoch [0/199]
+2022-01-14 23:29:50,825 [MainThread] INFO UNet3DTrainer - Training iteration [45/60000]. Epoch [0/199]
+2022-01-14 23:29:51,432 [MainThread] INFO UNet3DTrainer - Training iteration [46/60000]. Epoch [0/199]
+2022-01-14 23:30:09,503 [MainThread] INFO UNet3DTrainer - Training iteration [47/60000]. Epoch [0/199]
+2022-01-14 23:30:18,771 [MainThread] INFO UNet3DTrainer - Training iteration [48/60000]. Epoch [0/199]
+2022-01-14 23:30:28,096 [MainThread] INFO UNet3DTrainer - Training iteration [49/60000]. Epoch [0/199]
+2022-01-14 23:30:28,707 [MainThread] INFO UNet3DTrainer - Training iteration [50/60000]. Epoch [0/199]
+2022-01-14 23:30:29,365 [MainThread] INFO UNet3DTrainer - Training iteration [51/60000]. Epoch [0/199]
+2022-01-14 23:30:38,607 [MainThread] INFO UNet3DTrainer - Training iteration [52/60000]. Epoch [0/199]
+2022-01-14 23:30:39,210 [MainThread] INFO UNet3DTrainer - Training iteration [53/60000]. Epoch [0/199]
+2022-01-14 23:30:39,872 [MainThread] INFO UNet3DTrainer - Training iteration [54/60000]. Epoch [0/199]
+2022-01-14 23:30:40,821 [MainThread] INFO UNet3DTrainer - Training iteration [55/60000]. Epoch [0/199]
+2022-01-14 23:30:41,774 [MainThread] INFO UNet3DTrainer - Training iteration [56/60000]. Epoch [0/199]
+2022-01-14 23:30:42,723 [MainThread] INFO UNet3DTrainer - Training iteration [57/60000]. Epoch [0/199]
+2022-01-14 23:30:43,678 [MainThread] INFO UNet3DTrainer - Training iteration [58/60000]. Epoch [0/199]
+2022-01-14 23:30:52,113 [MainThread] INFO UNet3DTrainer - Training iteration [59/60000]. Epoch [0/199]
+2022-01-14 23:31:01,422 [MainThread] INFO UNet3DTrainer - Training iteration [60/60000]. Epoch [0/199]
+2022-01-14 23:31:02,020 [MainThread] INFO UNet3DTrainer - Training iteration [61/60000]. Epoch [0/199]
+2022-01-14 23:31:02,687 [MainThread] INFO UNet3DTrainer - Training iteration [62/60000]. Epoch [0/199]
+2022-01-14 23:31:11,954 [MainThread] INFO UNet3DTrainer - Training iteration [63/60000]. Epoch [0/199]
+2022-01-14 23:31:12,544 [MainThread] INFO UNet3DTrainer - Training iteration [64/60000]. Epoch [0/199]
+2022-01-14 23:31:21,900 [MainThread] INFO UNet3DTrainer - Training iteration [65/60000]. Epoch [0/199]
+2022-01-14 23:31:22,512 [MainThread] INFO UNet3DTrainer - Training iteration [66/60000]. Epoch [0/199]
+2022-01-14 23:31:23,168 [MainThread] INFO UNet3DTrainer - Training iteration [67/60000]. Epoch [0/199]
+2022-01-14 23:31:24,115 [MainThread] INFO UNet3DTrainer - Training iteration [68/60000]. Epoch [0/199]
+2022-01-14 23:31:25,069 [MainThread] INFO UNet3DTrainer - Training iteration [69/60000]. Epoch [0/199]
+2022-01-14 23:31:26,023 [MainThread] INFO UNet3DTrainer - Training iteration [70/60000]. Epoch [0/199]
+2022-01-14 23:31:26,977 [MainThread] INFO UNet3DTrainer - Training iteration [71/60000]. Epoch [0/199]
+2022-01-14 23:31:27,933 [MainThread] INFO UNet3DTrainer - Training iteration [72/60000]. Epoch [0/199]
+2022-01-14 23:31:28,888 [MainThread] INFO UNet3DTrainer - Training iteration [73/60000]. Epoch [0/199]
+2022-01-14 23:31:29,845 [MainThread] INFO UNet3DTrainer - Training iteration [74/60000]. Epoch [0/199]
+2022-01-14 23:31:38,261 [MainThread] INFO UNet3DTrainer - Training iteration [75/60000]. Epoch [0/199]
+2022-01-14 23:31:47,586 [MainThread] INFO UNet3DTrainer - Training iteration [76/60000]. Epoch [0/199]
+2022-01-14 23:31:56,885 [MainThread] INFO UNet3DTrainer - Training iteration [77/60000]. Epoch [0/199]
+2022-01-14 23:32:06,256 [MainThread] INFO UNet3DTrainer - Training iteration [78/60000]. Epoch [0/199]
+2022-01-14 23:32:15,549 [MainThread] INFO UNet3DTrainer - Training iteration [79/60000]. Epoch [0/199]
+2022-01-14 23:32:16,166 [MainThread] INFO UNet3DTrainer - Training iteration [80/60000]. Epoch [0/199]
+2022-01-14 23:32:16,825 [MainThread] INFO UNet3DTrainer - Training iteration [81/60000]. Epoch [0/199]
+2022-01-14 23:32:17,773 [MainThread] INFO UNet3DTrainer - Training iteration [82/60000]. Epoch [0/199]
+2022-01-14 23:32:18,723 [MainThread] INFO UNet3DTrainer - Training iteration [83/60000]. Epoch [0/199]
+2022-01-14 23:32:19,673 [MainThread] INFO UNet3DTrainer - Training iteration [84/60000]. Epoch [0/199]
+2022-01-14 23:32:28,087 [MainThread] INFO UNet3DTrainer - Training iteration [85/60000]. Epoch [0/199]
+2022-01-14 23:32:46,138 [MainThread] INFO UNet3DTrainer - Training iteration [86/60000]. Epoch [0/199]
+2022-01-14 23:32:55,430 [MainThread] INFO UNet3DTrainer - Training iteration [87/60000]. Epoch [0/199]
+2022-01-14 23:32:56,017 [MainThread] INFO UNet3DTrainer - Training iteration [88/60000]. Epoch [0/199]
+2022-01-14 23:32:56,698 [MainThread] INFO UNet3DTrainer - Training iteration [89/60000]. Epoch [0/199]
+2022-01-14 23:32:57,643 [MainThread] INFO UNet3DTrainer - Training iteration [90/60000]. Epoch [0/199]
+2022-01-14 23:32:58,599 [MainThread] INFO UNet3DTrainer - Training iteration [91/60000]. Epoch [0/199]
+2022-01-14 23:32:59,549 [MainThread] INFO UNet3DTrainer - Training iteration [92/60000]. Epoch [0/199]
+2022-01-14 23:33:00,503 [MainThread] INFO UNet3DTrainer - Training iteration [93/60000]. Epoch [0/199]
+2022-01-14 23:33:01,456 [MainThread] INFO UNet3DTrainer - Training iteration [94/60000]. Epoch [0/199]
+2022-01-14 23:33:02,413 [MainThread] INFO UNet3DTrainer - Training iteration [95/60000]. Epoch [0/199]
+2022-01-14 23:33:10,815 [MainThread] INFO UNet3DTrainer - Training iteration [96/60000]. Epoch [0/199]
+2022-01-14 23:33:11,431 [MainThread] INFO UNet3DTrainer - Training iteration [97/60000]. Epoch [0/199]
+2022-01-14 23:33:20,708 [MainThread] INFO UNet3DTrainer - Training iteration [98/60000]. Epoch [0/199]
+2022-01-14 23:33:38,703 [MainThread] INFO UNet3DTrainer - Training iteration [99/60000]. Epoch [0/199]
+2022-01-14 23:33:39,316 [MainThread] INFO UNet3DTrainer - Training iteration [100/60000]. Epoch [0/199]
+2022-01-14 23:33:41,676 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-01-14 23:33:42,534 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-01-14 23:33:43,391 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-01-14 23:33:44,260 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-01-14 23:33:44,262 [MainThread] INFO UNet3DTrainer - Training stats. Loss: 0.4393628391623497. Evaluation score: 0.0
+2022-01-14 23:33:44,263 [MainThread] INFO UNet3DTrainer - Logging model parameters and gradients
+/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/unet3d/utils.py:260: RuntimeWarning: invalid value encountered in true_divide
+2022-01-14 23:33:49,031 [MainThread] INFO UNet3DTrainer - Training iteration [101/60000]. Epoch [0/199]
+2022-01-14 23:33:58,356 [MainThread] INFO UNet3DTrainer - Training iteration [102/60000]. Epoch [0/199]
+2022-01-14 23:34:07,706 [MainThread] INFO UNet3DTrainer - Training iteration [103/60000]. Epoch [0/199]
+2022-01-14 23:34:08,318 [MainThread] INFO UNet3DTrainer - Training iteration [104/60000]. Epoch [0/199]
+2022-01-14 23:34:08,976 [MainThread] INFO UNet3DTrainer - Training iteration [105/60000]. Epoch [0/199]
+2022-01-14 23:34:18,231 [MainThread] INFO UNet3DTrainer - Training iteration [106/60000]. Epoch [0/199]
+2022-01-14 23:34:27,557 [MainThread] INFO UNet3DTrainer - Training iteration [107/60000]. Epoch [0/199]
+2022-01-14 23:34:36,845 [MainThread] INFO UNet3DTrainer - Training iteration [108/60000]. Epoch [0/199]
+2022-01-14 23:34:37,441 [MainThread] INFO UNet3DTrainer - Training iteration [109/60000]. Epoch [0/199]
+2022-01-14 23:34:38,117 [MainThread] INFO UNet3DTrainer - Training iteration [110/60000]. Epoch [0/199]
+2022-01-14 23:34:39,073 [MainThread] INFO UNet3DTrainer - Training iteration [111/60000]. Epoch [0/199]
+2022-01-14 23:34:40,025 [MainThread] INFO UNet3DTrainer - Training iteration [112/60000]. Epoch [0/199]
+2022-01-14 23:34:40,981 [MainThread] INFO UNet3DTrainer - Training iteration [113/60000]. Epoch [0/199]
+2022-01-14 23:34:41,937 [MainThread] INFO UNet3DTrainer - Training iteration [114/60000]. Epoch [0/199]
+2022-01-14 23:34:42,891 [MainThread] INFO UNet3DTrainer - Training iteration [115/60000]. Epoch [0/199]
+2022-01-14 23:34:43,843 [MainThread] INFO UNet3DTrainer - Training iteration [116/60000]. Epoch [0/199]
+2022-01-14 23:34:44,798 [MainThread] INFO UNet3DTrainer - Training iteration [117/60000]. Epoch [0/199]
+2022-01-14 23:34:45,753 [MainThread] INFO UNet3DTrainer - Training iteration [118/60000]. Epoch [0/199]
+2022-01-14 23:34:46,709 [MainThread] INFO UNet3DTrainer - Training iteration [119/60000]. Epoch [0/199]
+2022-01-14 23:34:47,666 [MainThread] INFO UNet3DTrainer - Training iteration [120/60000]. Epoch [0/199]
+2022-01-14 23:34:48,629 [MainThread] INFO UNet3DTrainer - Training iteration [121/60000]. Epoch [0/199]
+2022-01-14 23:34:49,592 [MainThread] INFO UNet3DTrainer - Training iteration [122/60000]. Epoch [0/199]
+2022-01-14 23:34:50,554 [MainThread] INFO UNet3DTrainer - Training iteration [123/60000]. Epoch [0/199]
+2022-01-14 23:34:51,517 [MainThread] INFO UNet3DTrainer - Training iteration [124/60000]. Epoch [0/199]
+2022-01-14 23:34:59,953 [MainThread] INFO UNet3DTrainer - Training iteration [125/60000]. Epoch [0/199]
+2022-01-14 23:35:09,312 [MainThread] INFO UNet3DTrainer - Training iteration [126/60000]. Epoch [0/199]
+2022-01-14 23:35:18,608 [MainThread] INFO UNet3DTrainer - Training iteration [127/60000]. Epoch [0/199]
+2022-01-14 23:35:27,936 [MainThread] INFO UNet3DTrainer - Training iteration [128/60000]. Epoch [0/199]
+2022-01-14 23:35:28,561 [MainThread] INFO UNet3DTrainer - Training iteration [129/60000]. Epoch [0/199]
+2022-01-14 23:35:29,212 [MainThread] INFO UNet3DTrainer - Training iteration [130/60000]. Epoch [0/199]
+2022-01-14 23:35:30,160 [MainThread] INFO UNet3DTrainer - Training iteration [131/60000]. Epoch [0/199]
+2022-01-14 23:35:31,113 [MainThread] INFO UNet3DTrainer - Training iteration [132/60000]. Epoch [0/199]
+2022-01-14 23:35:48,463 [MainThread] INFO UNet3DTrainer - Training iteration [133/60000]. Epoch [0/199]
+2022-01-14 23:35:49,078 [MainThread] INFO UNet3DTrainer - Training iteration [134/60000]. Epoch [0/199]
+2022-01-14 23:35:49,748 [MainThread] INFO UNet3DTrainer - Training iteration [135/60000]. Epoch [0/199]
+2022-01-14 23:35:59,015 [MainThread] INFO UNet3DTrainer - Training iteration [136/60000]. Epoch [0/199]
+2022-01-14 23:36:08,364 [MainThread] INFO UNet3DTrainer - Training iteration [137/60000]. Epoch [0/199]
+2022-01-14 23:36:08,980 [MainThread] INFO UNet3DTrainer - Training iteration [138/60000]. Epoch [0/199]
+2022-01-14 23:36:09,646 [MainThread] INFO UNet3DTrainer - Training iteration [139/60000]. Epoch [0/199]
+2022-01-14 23:36:27,559 [MainThread] INFO UNet3DTrainer - Training iteration [140/60000]. Epoch [0/199]
+2022-01-14 23:36:28,178 [MainThread] INFO UNet3DTrainer - Training iteration [141/60000]. Epoch [0/199]
+2022-01-14 23:36:37,494 [MainThread] INFO UNet3DTrainer - Training iteration [142/60000]. Epoch [0/199]
+2022-01-14 23:36:38,108 [MainThread] INFO UNet3DTrainer - Training iteration [143/60000]. Epoch [0/199]
+2022-01-14 23:36:56,166 [MainThread] INFO UNet3DTrainer - Training iteration [144/60000]. Epoch [0/199]
+2022-01-14 23:36:56,773 [MainThread] INFO UNet3DTrainer - Training iteration [145/60000]. Epoch [0/199]
+2022-01-14 23:36:57,573 [MainThread] INFO UNet3DTrainer - Training iteration [146/60000]. Epoch [0/199]
+2022-01-14 23:36:58,527 [MainThread] INFO UNet3DTrainer - Training iteration [147/60000]. Epoch [0/199]
+2022-01-14 23:37:07,352 [MainThread] INFO UNet3DTrainer - Training iteration [148/60000]. Epoch [0/199]
+2022-01-14 23:37:16,655 [MainThread] INFO UNet3DTrainer - Training iteration [149/60000]. Epoch [0/199]
+2022-01-14 23:37:17,256 [MainThread] INFO UNet3DTrainer - Training iteration [150/60000]. Epoch [0/199]
+2022-01-14 23:37:17,929 [MainThread] INFO UNet3DTrainer - Training iteration [151/60000]. Epoch [0/199]
+2022-01-14 23:37:18,883 [MainThread] INFO UNet3DTrainer - Training iteration [152/60000]. Epoch [0/199]
+2022-01-14 23:37:27,843 [MainThread] INFO UNet3DTrainer - Training iteration [153/60000]. Epoch [0/199]
+2022-01-14 23:37:28,442 [MainThread] INFO UNet3DTrainer - Training iteration [154/60000]. Epoch [0/199]
+2022-01-14 23:37:29,117 [MainThread] INFO UNet3DTrainer - Training iteration [155/60000]. Epoch [0/199]
+2022-01-14 23:37:38,413 [MainThread] INFO UNet3DTrainer - Training iteration [156/60000]. Epoch [0/199]
+2022-01-14 23:37:47,704 [MainThread] INFO UNet3DTrainer - Training iteration [157/60000]. Epoch [0/199]
+2022-01-14 23:37:57,006 [MainThread] INFO UNet3DTrainer - Training iteration [158/60000]. Epoch [0/199]
+2022-01-14 23:37:57,615 [MainThread] INFO UNet3DTrainer - Training iteration [159/60000]. Epoch [0/199]
+2022-01-14 23:37:58,274 [MainThread] INFO UNet3DTrainer - Training iteration [160/60000]. Epoch [0/199]
+2022-01-14 23:38:07,609 [MainThread] INFO UNet3DTrainer - Training iteration [161/60000]. Epoch [0/199]
+2022-01-14 23:38:08,223 [MainThread] INFO UNet3DTrainer - Training iteration [162/60000]. Epoch [0/199]
+2022-01-14 23:38:08,890 [MainThread] INFO UNet3DTrainer - Training iteration [163/60000]. Epoch [0/199]
+2022-01-14 23:38:09,839 [MainThread] INFO UNet3DTrainer - Training iteration [164/60000]. Epoch [0/199]
+2022-01-14 23:38:10,793 [MainThread] INFO UNet3DTrainer - Training iteration [165/60000]. Epoch [0/199]
+2022-01-14 23:38:19,389 [MainThread] INFO UNet3DTrainer - Training iteration [166/60000]. Epoch [0/199]
+2022-01-14 23:38:28,742 [MainThread] INFO UNet3DTrainer - Training iteration [167/60000]. Epoch [0/199]
+2022-01-14 23:38:29,345 [MainThread] INFO UNet3DTrainer - Training iteration [168/60000]. Epoch [0/199]
+2022-01-14 23:38:30,020 [MainThread] INFO UNet3DTrainer - Training iteration [169/60000]. Epoch [0/199]
+2022-01-14 23:38:39,272 [MainThread] INFO UNet3DTrainer - Training iteration [170/60000]. Epoch [0/199]
+2022-01-14 23:38:39,900 [MainThread] INFO UNet3DTrainer - Training iteration [171/60000]. Epoch [0/199]
+2022-01-14 23:38:40,545 [MainThread] INFO UNet3DTrainer - Training iteration [172/60000]. Epoch [0/199]
+2022-01-14 23:38:58,524 [MainThread] INFO UNet3DTrainer - Training iteration [173/60000]. Epoch [0/199]
+2022-01-14 23:39:16,535 [MainThread] INFO UNet3DTrainer - Training iteration [174/60000]. Epoch [0/199]
+2022-01-14 23:39:17,153 [MainThread] INFO UNet3DTrainer - Training iteration [175/60000]. Epoch [0/199]
+2022-01-14 23:39:26,488 [MainThread] INFO UNet3DTrainer - Training iteration [176/60000]. Epoch [0/199]
+2022-01-14 23:39:27,095 [MainThread] INFO UNet3DTrainer - Training iteration [177/60000]. Epoch [0/199]
+2022-01-14 23:39:45,076 [MainThread] INFO UNet3DTrainer - Training iteration [178/60000]. Epoch [0/199]
+2022-01-14 23:39:54,359 [MainThread] INFO UNet3DTrainer - Training iteration [179/60000]. Epoch [0/199]
+2022-01-14 23:39:54,950 [MainThread] INFO UNet3DTrainer - Training iteration [180/60000]. Epoch [0/199]
+2022-01-14 23:39:55,642 [MainThread] INFO UNet3DTrainer - Training iteration [181/60000]. Epoch [0/199]
+2022-01-14 23:39:56,589 [MainThread] INFO UNet3DTrainer - Training iteration [182/60000]. Epoch [0/199]
+2022-01-14 23:39:57,538 [MainThread] INFO UNet3DTrainer - Training iteration [183/60000]. Epoch [0/199]
+2022-01-14 23:40:14,839 [MainThread] INFO UNet3DTrainer - Training iteration [184/60000]. Epoch [0/199]
+2022-01-14 23:40:15,462 [MainThread] INFO UNet3DTrainer - Training iteration [185/60000]. Epoch [0/199]
+2022-01-14 23:40:16,145 [MainThread] INFO UNet3DTrainer - Training iteration [186/60000]. Epoch [0/199]
+2022-01-14 23:40:17,090 [MainThread] INFO UNet3DTrainer - Training iteration [187/60000]. Epoch [0/199]
+2022-01-14 23:40:18,044 [MainThread] INFO UNet3DTrainer - Training iteration [188/60000]. Epoch [0/199]
+2022-01-14 23:40:18,994 [MainThread] INFO UNet3DTrainer - Training iteration [189/60000]. Epoch [0/199]
+2022-01-14 23:40:19,948 [MainThread] INFO UNet3DTrainer - Training iteration [190/60000]. Epoch [0/199]
+2022-01-14 23:40:28,443 [MainThread] INFO UNet3DTrainer - Training iteration [191/60000]. Epoch [0/199]
+2022-01-14 23:40:29,055 [MainThread] INFO UNet3DTrainer - Training iteration [192/60000]. Epoch [0/199]
+2022-01-14 23:40:29,713 [MainThread] INFO UNet3DTrainer - Training iteration [193/60000]. Epoch [0/199]
+2022-01-14 23:40:30,666 [MainThread] INFO UNet3DTrainer - Training iteration [194/60000]. Epoch [0/199]
+2022-01-14 23:40:31,622 [MainThread] INFO UNet3DTrainer - Training iteration [195/60000]. Epoch [0/199]
+2022-01-14 23:40:32,581 [MainThread] INFO UNet3DTrainer - Training iteration [196/60000]. Epoch [0/199]
+2022-01-14 23:40:41,000 [MainThread] INFO UNet3DTrainer - Training iteration [197/60000]. Epoch [0/199]
+2022-01-14 23:40:41,629 [MainThread] INFO UNet3DTrainer - Training iteration [198/60000]. Epoch [0/199]
+2022-01-14 23:40:42,270 [MainThread] INFO UNet3DTrainer - Training iteration [199/60000]. Epoch [0/199]
+2022-01-14 23:40:43,230 [MainThread] INFO UNet3DTrainer - Training iteration [200/60000]. Epoch [0/199]
+2022-01-14 23:40:45,859 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-01-14 23:40:46,713 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-01-14 23:40:47,770 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-01-14 23:40:48,622 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-01-14 23:40:48,623 [MainThread] INFO UNet3DTrainer - Training stats. Loss: 0.42508459836244583. Evaluation score: 0.0
+2022-01-14 23:40:48,624 [MainThread] INFO UNet3DTrainer - Logging model parameters and gradients
+2022-01-14 23:40:52,668 [MainThread] INFO UNet3DTrainer - Training iteration [201/60000]. Epoch [0/199]
+2022-01-14 23:41:01,969 [MainThread] INFO UNet3DTrainer - Training iteration [202/60000]. Epoch [0/199]
+2022-01-14 23:41:02,591 [MainThread] INFO UNet3DTrainer - Training iteration [203/60000]. Epoch [0/199]
+2022-01-14 23:41:11,931 [MainThread] INFO UNet3DTrainer - Training iteration [204/60000]. Epoch [0/199]
+2022-01-14 23:41:21,270 [MainThread] INFO UNet3DTrainer - Training iteration [205/60000]. Epoch [0/199]
+2022-01-14 23:41:30,579 [MainThread] INFO UNet3DTrainer - Training iteration [206/60000]. Epoch [0/199]
+2022-01-14 23:41:39,899 [MainThread] INFO UNet3DTrainer - Training iteration [207/60000]. Epoch [0/199]
+2022-01-14 23:41:40,490 [MainThread] INFO UNet3DTrainer - Training iteration [208/60000]. Epoch [0/199]
+2022-01-14 23:41:41,160 [MainThread] INFO UNet3DTrainer - Training iteration [209/60000]. Epoch [0/199]
+2022-01-14 23:41:42,108 [MainThread] INFO UNet3DTrainer - Training iteration [210/60000]. Epoch [0/199]
+2022-01-14 23:41:43,063 [MainThread] INFO UNet3DTrainer - Training iteration [211/60000]. Epoch [0/199]
+2022-01-14 23:41:44,077 [MainThread] INFO UNet3DTrainer - Training iteration [212/60000]. Epoch [0/199]
+2022-01-14 23:41:45,032 [MainThread] INFO UNet3DTrainer - Training iteration [213/60000]. Epoch [0/199]
+2022-01-14 23:41:53,433 [MainThread] INFO UNet3DTrainer - Training iteration [214/60000]. Epoch [0/199]
+2022-01-14 23:41:54,044 [MainThread] INFO UNet3DTrainer - Training iteration [215/60000]. Epoch [0/199]
+2022-01-14 23:42:12,138 [MainThread] INFO UNet3DTrainer - Training iteration [216/60000]. Epoch [0/199]
+2022-01-14 23:42:12,746 [MainThread] INFO UNet3DTrainer - Training iteration [217/60000]. Epoch [0/199]
+2022-01-14 23:42:13,499 [MainThread] INFO UNet3DTrainer - Training iteration [218/60000]. Epoch [0/199]
+2022-01-14 23:42:14,443 [MainThread] INFO UNet3DTrainer - Training iteration [219/60000]. Epoch [0/199]
+2022-01-14 23:42:15,401 [MainThread] INFO UNet3DTrainer - Training iteration [220/60000]. Epoch [0/199]
+2022-01-14 23:42:16,353 [MainThread] INFO UNet3DTrainer - Training iteration [221/60000]. Epoch [0/199]
+2022-01-14 23:42:24,813 [MainThread] INFO UNet3DTrainer - Training iteration [222/60000]. Epoch [0/199]
+2022-01-14 23:42:25,409 [MainThread] INFO UNet3DTrainer - Training iteration [223/60000]. Epoch [0/199]
+2022-01-14 23:42:34,736 [MainThread] INFO UNet3DTrainer - Training iteration [224/60000]. Epoch [0/199]
+2022-01-14 23:42:35,339 [MainThread] INFO UNet3DTrainer - Training iteration [225/60000]. Epoch [0/199]
+2022-01-14 23:42:44,652 [MainThread] INFO UNet3DTrainer - Training iteration [226/60000]. Epoch [0/199]
+2022-01-14 23:42:45,256 [MainThread] INFO UNet3DTrainer - Training iteration [227/60000]. Epoch [0/199]
+2022-01-14 23:42:54,581 [MainThread] INFO UNet3DTrainer - Training iteration [228/60000]. Epoch [0/199]
+2022-01-14 23:43:12,601 [MainThread] INFO UNet3DTrainer - Training iteration [229/60000]. Epoch [0/199]
+2022-01-14 23:43:13,198 [MainThread] INFO UNet3DTrainer - Training iteration [230/60000]. Epoch [0/199]
+2022-01-14 23:43:13,977 [MainThread] INFO UNet3DTrainer - Training iteration [231/60000]. Epoch [0/199]
+2022-01-14 23:43:14,931 [MainThread] INFO UNet3DTrainer - Training iteration [232/60000]. Epoch [0/199]
+2022-01-14 23:43:15,882 [MainThread] INFO UNet3DTrainer - Training iteration [233/60000]. Epoch [0/199]
+2022-01-14 23:43:24,454 [MainThread] INFO UNet3DTrainer - Training iteration [234/60000]. Epoch [0/199]
+2022-01-14 23:43:33,764 [MainThread] INFO UNet3DTrainer - Training iteration [235/60000]. Epoch [0/199]
+2022-01-14 23:43:43,086 [MainThread] INFO UNet3DTrainer - Training iteration [236/60000]. Epoch [0/199]
+2022-01-14 23:43:43,697 [MainThread] INFO UNet3DTrainer - Training iteration [237/60000]. Epoch [0/199]
+2022-01-14 23:43:44,363 [MainThread] INFO UNet3DTrainer - Training iteration [238/60000]. Epoch [0/199]
+2022-01-14 23:43:53,677 [MainThread] INFO UNet3DTrainer - Training iteration [239/60000]. Epoch [0/199]
+2022-01-14 23:44:11,737 [MainThread] INFO UNet3DTrainer - Training iteration [240/60000]. Epoch [0/199]
+2022-01-14 23:44:21,015 [MainThread] INFO UNet3DTrainer - Training iteration [241/60000]. Epoch [0/199]
+2022-01-14 23:44:30,310 [MainThread] INFO UNet3DTrainer - Training iteration [242/60000]. Epoch [0/199]
+2022-01-14 23:44:30,901 [MainThread] INFO UNet3DTrainer - Training iteration [243/60000]. Epoch [0/199]
+2022-01-14 23:44:40,227 [MainThread] INFO UNet3DTrainer - Training iteration [244/60000]. Epoch [0/199]
+2022-01-14 23:44:40,841 [MainThread] INFO UNet3DTrainer - Training iteration [245/60000]. Epoch [0/199]
+2022-01-14 23:44:50,180 [MainThread] INFO UNet3DTrainer - Training iteration [246/60000]. Epoch [0/199]
+2022-01-14 23:44:50,779 [MainThread] INFO UNet3DTrainer - Training iteration [247/60000]. Epoch [0/199]
+2022-01-14 23:44:51,456 [MainThread] INFO UNet3DTrainer - Training iteration [248/60000]. Epoch [0/199]
+2022-01-14 23:44:52,406 [MainThread] INFO UNet3DTrainer - Training iteration [249/60000]. Epoch [0/199]
+2022-01-14 23:44:53,357 [MainThread] INFO UNet3DTrainer - Training iteration [250/60000]. Epoch [0/199]
+2022-01-14 23:45:02,002 [MainThread] INFO UNet3DTrainer - Training iteration [251/60000]. Epoch [0/199]
+2022-01-14 23:45:11,303 [MainThread] INFO UNet3DTrainer - Training iteration [252/60000]. Epoch [0/199]
+2022-01-14 23:45:20,632 [MainThread] INFO UNet3DTrainer - Training iteration [253/60000]. Epoch [0/199]
+2022-01-14 23:45:29,909 [MainThread] INFO UNet3DTrainer - Training iteration [254/60000]. Epoch [0/199]
+2022-01-14 23:45:30,514 [MainThread] INFO UNet3DTrainer - Training iteration [255/60000]. Epoch [0/199]
+2022-01-14 23:45:31,177 [MainThread] INFO UNet3DTrainer - Training iteration [256/60000]. Epoch [0/199]
+2022-01-14 23:45:32,134 [MainThread] INFO UNet3DTrainer - Training iteration [257/60000]. Epoch [0/199]
+2022-01-14 23:45:33,084 [MainThread] INFO UNet3DTrainer - Training iteration [258/60000]. Epoch [0/199]
+2022-01-14 23:45:34,037 [MainThread] INFO UNet3DTrainer - Training iteration [259/60000]. Epoch [0/199]
+2022-01-14 23:45:34,992 [MainThread] INFO UNet3DTrainer - Training iteration [260/60000]. Epoch [0/199]
+2022-01-14 23:45:35,949 [MainThread] INFO UNet3DTrainer - Training iteration [261/60000]. Epoch [0/199]
+2022-01-14 23:45:36,905 [MainThread] INFO UNet3DTrainer - Training iteration [262/60000]. Epoch [0/199]
+2022-01-14 23:45:37,870 [MainThread] INFO UNet3DTrainer - Training iteration [263/60000]. Epoch [0/199]
+2022-01-14 23:45:46,297 [MainThread] INFO UNet3DTrainer - Training iteration [264/60000]. Epoch [0/199]
+2022-01-14 23:45:46,885 [MainThread] INFO UNet3DTrainer - Training iteration [265/60000]. Epoch [0/199]
+2022-01-14 23:45:56,193 [MainThread] INFO UNet3DTrainer - Training iteration [266/60000]. Epoch [0/199]
+2022-01-14 23:46:05,523 [MainThread] INFO UNet3DTrainer - Training iteration [267/60000]. Epoch [0/199]
+2022-01-14 23:46:06,148 [MainThread] INFO UNet3DTrainer - Training iteration [268/60000]. Epoch [0/199]
+2022-01-14 23:46:15,440 [MainThread] INFO UNet3DTrainer - Training iteration [269/60000]. Epoch [0/199]
+2022-01-14 23:46:16,036 [MainThread] INFO UNet3DTrainer - Training iteration [270/60000]. Epoch [0/199]
+2022-01-14 23:46:16,713 [MainThread] INFO UNet3DTrainer - Training iteration [271/60000]. Epoch [0/199]
+2022-01-14 23:46:25,974 [MainThread] INFO UNet3DTrainer - Training iteration [272/60000]. Epoch [0/199]
+2022-01-14 23:46:26,570 [MainThread] INFO UNet3DTrainer - Training iteration [273/60000]. Epoch [0/199]
+2022-01-14 23:46:27,262 [MainThread] INFO UNet3DTrainer - Training iteration [274/60000]. Epoch [0/199]
+2022-01-14 23:46:36,499 [MainThread] INFO UNet3DTrainer - Training iteration [275/60000]. Epoch [0/199]
+2022-01-14 23:46:37,095 [MainThread] INFO UNet3DTrainer - Training iteration [276/60000]. Epoch [0/199]
+2022-01-14 23:46:46,434 [MainThread] INFO UNet3DTrainer - Training iteration [277/60000]. Epoch [0/199]
+2022-01-14 23:46:47,027 [MainThread] INFO UNet3DTrainer - Training iteration [278/60000]. Epoch [0/199]
+2022-01-14 23:46:47,702 [MainThread] INFO UNet3DTrainer - Training iteration [279/60000]. Epoch [0/199]
+2022-01-14 23:46:48,653 [MainThread] INFO UNet3DTrainer - Training iteration [280/60000]. Epoch [0/199]
+2022-01-14 23:46:49,606 [MainThread] INFO UNet3DTrainer - Training iteration [281/60000]. Epoch [0/199]
+2022-01-14 23:46:50,562 [MainThread] INFO UNet3DTrainer - Training iteration [282/60000]. Epoch [0/199]
+2022-01-14 23:46:59,003 [MainThread] INFO UNet3DTrainer - Training iteration [283/60000]. Epoch [0/199]
+2022-01-14 23:46:59,615 [MainThread] INFO UNet3DTrainer - Training iteration [284/60000]. Epoch [0/199]
+2022-01-14 23:47:00,267 [MainThread] INFO UNet3DTrainer - Training iteration [285/60000]. Epoch [0/199]
+2022-01-14 23:47:01,224 [MainThread] INFO UNet3DTrainer - Training iteration [286/60000]. Epoch [0/199]
+2022-01-14 23:47:02,183 [MainThread] INFO UNet3DTrainer - Training iteration [287/60000]. Epoch [0/199]
+2022-01-14 23:47:03,141 [MainThread] INFO UNet3DTrainer - Training iteration [288/60000]. Epoch [0/199]
+2022-01-14 23:47:04,101 [MainThread] INFO UNet3DTrainer - Training iteration [289/60000]. Epoch [0/199]
+2022-01-14 23:47:05,062 [MainThread] INFO UNet3DTrainer - Training iteration [290/60000]. Epoch [0/199]
+2022-01-14 23:47:13,498 [MainThread] INFO UNet3DTrainer - Training iteration [291/60000]. Epoch [0/199]
+2022-01-14 23:47:14,112 [MainThread] INFO UNet3DTrainer - Training iteration [292/60000]. Epoch [0/199]
+2022-01-14 23:47:14,770 [MainThread] INFO UNet3DTrainer - Training iteration [293/60000]. Epoch [0/199]
+2022-01-14 23:47:15,731 [MainThread] INFO UNet3DTrainer - Training iteration [294/60000]. Epoch [0/199]
+2022-01-14 23:47:24,643 [MainThread] INFO UNet3DTrainer - Training iteration [295/60000]. Epoch [0/199]
+2022-01-14 23:47:25,247 [MainThread] INFO UNet3DTrainer - Training iteration [296/60000]. Epoch [0/199]
+2022-01-14 23:47:25,916 [MainThread] INFO UNet3DTrainer - Training iteration [297/60000]. Epoch [0/199]
+2022-01-14 23:47:26,878 [MainThread] INFO UNet3DTrainer - Training iteration [298/60000]. Epoch [0/199]
+2022-01-14 23:47:27,831 [MainThread] INFO UNet3DTrainer - Training iteration [299/60000]. Epoch [0/199]
+2022-01-14 23:47:28,788 [MainThread] INFO UNet3DTrainer - Training iteration [300/60000]. Epoch [0/199]
+2022-01-14 23:47:31,225 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-01-14 23:47:32,155 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-01-14 23:47:32,943 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-01-14 23:47:33,798 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-01-14 23:47:33,799 [MainThread] INFO UNet3DTrainer - Training stats. Loss: 0.4199895572662353. Evaluation score: 0.0
+2022-01-14 23:47:33,799 [MainThread] INFO UNet3DTrainer - Logging model parameters and gradients
+2022-01-14 23:47:37,622 [MainThread] INFO UNet3DTrainer - Training iteration [301/60000]. Epoch [0/199]
+2022-01-14 23:47:38,237 [MainThread] INFO UNet3DTrainer - Training iteration [302/60000]. Epoch [0/199]
+2022-01-14 23:47:47,621 [MainThread] INFO UNet3DTrainer - Training iteration [303/60000]. Epoch [0/199]
+2022-01-14 23:47:48,227 [MainThread] INFO UNet3DTrainer - Training iteration [304/60000]. Epoch [0/199]
+2022-01-14 23:47:48,905 [MainThread] INFO UNet3DTrainer - Training iteration [305/60000]. Epoch [0/199]
+2022-01-14 23:47:49,862 [MainThread] INFO UNet3DTrainer - Training iteration [306/60000]. Epoch [0/199]
+2022-01-14 23:47:58,788 [MainThread] INFO UNet3DTrainer - Training iteration [307/60000]. Epoch [0/199]
+2022-01-14 23:47:59,383 [MainThread] INFO UNet3DTrainer - Training iteration [308/60000]. Epoch [0/199]
+2022-01-14 23:48:00,074 [MainThread] INFO UNet3DTrainer - Training iteration [309/60000]. Epoch [0/199]
+2022-01-14 23:48:01,040 [MainThread] INFO UNet3DTrainer - Training iteration [310/60000]. Epoch [0/199]
+2022-01-14 23:48:09,974 [MainThread] INFO UNet3DTrainer - Training iteration [311/60000]. Epoch [0/199]
+2022-01-14 23:48:19,240 [MainThread] INFO UNet3DTrainer - Training iteration [312/60000]. Epoch [0/199]
+2022-01-14 23:48:19,835 [MainThread] INFO UNet3DTrainer - Training iteration [313/60000]. Epoch [0/199]
+2022-01-14 23:48:20,519 [MainThread] INFO UNet3DTrainer - Training iteration [314/60000]. Epoch [0/199]
+2022-01-14 23:48:21,475 [MainThread] INFO UNet3DTrainer - Training iteration [315/60000]. Epoch [0/199]
+2022-01-14 23:48:30,441 [MainThread] INFO UNet3DTrainer - Training iteration [316/60000]. Epoch [0/199]
+2022-01-14 23:48:31,044 [MainThread] INFO UNet3DTrainer - Training iteration [317/60000]. Epoch [0/199]
+2022-01-14 23:48:31,713 [MainThread] INFO UNet3DTrainer - Training iteration [318/60000]. Epoch [0/199]
+2022-01-14 23:48:40,970 [MainThread] INFO UNet3DTrainer - Training iteration [319/60000]. Epoch [0/199]
+2022-01-14 23:48:41,577 [MainThread] INFO UNet3DTrainer - Training iteration [320/60000]. Epoch [0/199]
+2022-01-14 23:48:42,256 [MainThread] INFO UNet3DTrainer - Training iteration [321/60000]. Epoch [0/199]
+2022-01-14 23:48:43,215 [MainThread] INFO UNet3DTrainer - Training iteration [322/60000]. Epoch [0/199]
+2022-01-14 23:48:52,180 [MainThread] INFO UNet3DTrainer - Training iteration [323/60000]. Epoch [0/199]
+2022-01-14 23:49:01,517 [MainThread] INFO UNet3DTrainer - Training iteration [324/60000]. Epoch [0/199]
+2022-01-14 23:49:10,812 [MainThread] INFO UNet3DTrainer - Training iteration [325/60000]. Epoch [0/199]
+2022-01-14 23:49:11,422 [MainThread] INFO UNet3DTrainer - Training iteration [326/60000]. Epoch [0/199]
+2022-01-14 23:49:12,083 [MainThread] INFO UNet3DTrainer - Training iteration [327/60000]. Epoch [0/199]
+2022-01-14 23:49:13,039 [MainThread] INFO UNet3DTrainer - Training iteration [328/60000]. Epoch [0/199]
+2022-01-14 23:49:13,997 [MainThread] INFO UNet3DTrainer - Training iteration [329/60000]. Epoch [0/199]
+2022-01-14 23:49:14,955 [MainThread] INFO UNet3DTrainer - Training iteration [330/60000]. Epoch [0/199]
+2022-01-14 23:49:15,913 [MainThread] INFO UNet3DTrainer - Training iteration [331/60000]. Epoch [0/199]
+2022-01-14 23:49:16,870 [MainThread] INFO UNet3DTrainer - Training iteration [332/60000]. Epoch [0/199]
+2022-01-14 23:49:25,330 [MainThread] INFO UNet3DTrainer - Training iteration [333/60000]. Epoch [0/199]
+2022-01-14 23:49:25,942 [MainThread] INFO UNet3DTrainer - Training iteration [334/60000]. Epoch [0/199]
+2022-01-14 23:49:26,612 [MainThread] INFO UNet3DTrainer - Training iteration [335/60000]. Epoch [0/199]
+2022-01-14 23:49:27,572 [MainThread] INFO UNet3DTrainer - Training iteration [336/60000]. Epoch [0/199]
+2022-01-14 23:49:36,454 [MainThread] INFO UNet3DTrainer - Training iteration [337/60000]. Epoch [0/199]
+2022-01-14 23:49:45,745 [MainThread] INFO UNet3DTrainer - Training iteration [338/60000]. Epoch [0/199]
+2022-01-14 23:49:55,045 [MainThread] INFO UNet3DTrainer - Training iteration [339/60000]. Epoch [0/199]
+2022-01-14 23:50:21,848 [MainThread] INFO UNet3DTrainer - Training iteration [340/60000]. Epoch [0/199]
+2022-01-14 23:50:22,469 [MainThread] INFO UNet3DTrainer - Training iteration [341/60000]. Epoch [0/199]
+2022-01-14 23:50:31,831 [MainThread] INFO UNet3DTrainer - Training iteration [342/60000]. Epoch [0/199]
+2022-01-14 23:50:32,439 [MainThread] INFO UNet3DTrainer - Training iteration [343/60000]. Epoch [0/199]
+2022-01-14 23:50:33,110 [MainThread] INFO UNet3DTrainer - Training iteration [344/60000]. Epoch [0/199]
+2022-01-14 23:50:42,379 [MainThread] INFO UNet3DTrainer - Training iteration [345/60000]. Epoch [0/199]
+2022-01-14 23:50:51,676 [MainThread] INFO UNet3DTrainer - Training iteration [346/60000]. Epoch [0/199]
+2022-01-14 23:51:01,020 [MainThread] INFO UNet3DTrainer - Training iteration [347/60000]. Epoch [0/199]
+2022-01-14 23:51:01,609 [MainThread] INFO UNet3DTrainer - Training iteration [348/60000]. Epoch [0/199]
+2022-01-14 23:51:10,935 [MainThread] INFO UNet3DTrainer - Training iteration [349/60000]. Epoch [0/199]
+2022-01-14 23:51:11,539 [MainThread] INFO UNet3DTrainer - Training iteration [350/60000]. Epoch [0/199]
+2022-01-14 23:51:12,214 [MainThread] INFO UNet3DTrainer - Training iteration [351/60000]. Epoch [0/199]
+2022-01-14 23:51:21,506 [MainThread] INFO UNet3DTrainer - Training iteration [352/60000]. Epoch [0/199]
+2022-01-14 23:51:22,106 [MainThread] INFO UNet3DTrainer - Training iteration [353/60000]. Epoch [0/199]
+2022-01-14 23:51:31,475 [MainThread] INFO UNet3DTrainer - Training iteration [354/60000]. Epoch [0/199]
+2022-01-14 23:51:40,774 [MainThread] INFO UNet3DTrainer - Training iteration [355/60000]. Epoch [0/199]
+2022-01-14 23:51:58,728 [MainThread] INFO UNet3DTrainer - Training iteration [356/60000]. Epoch [0/199]
+2022-01-14 23:51:59,346 [MainThread] INFO UNet3DTrainer - Training iteration [357/60000]. Epoch [0/199]
+2022-01-14 23:52:00,108 [MainThread] INFO UNet3DTrainer - Training iteration [358/60000]. Epoch [0/199]
+2022-01-14 23:52:09,300 [MainThread] INFO UNet3DTrainer - Training iteration [359/60000]. Epoch [0/199]
+2022-01-14 23:52:09,905 [MainThread] INFO UNet3DTrainer - Training iteration [360/60000]. Epoch [0/199]
+2022-01-14 23:52:19,173 [MainThread] INFO UNet3DTrainer - Training iteration [361/60000]. Epoch [0/199]
+2022-01-14 23:52:19,771 [MainThread] INFO UNet3DTrainer - Training iteration [362/60000]. Epoch [0/199]
+2022-01-14 23:52:20,433 [MainThread] INFO UNet3DTrainer - Training iteration [363/60000]. Epoch [0/199]
+2022-01-14 23:52:21,387 [MainThread] INFO UNet3DTrainer - Training iteration [364/60000]. Epoch [0/199]
+2022-01-14 23:52:22,339 [MainThread] INFO UNet3DTrainer - Training iteration [365/60000]. Epoch [0/199]
+2022-01-14 23:52:23,294 [MainThread] INFO UNet3DTrainer - Training iteration [366/60000]. Epoch [0/199]
+2022-01-14 23:52:24,251 [MainThread] INFO UNet3DTrainer - Training iteration [367/60000]. Epoch [0/199]
+2022-01-14 23:52:25,209 [MainThread] INFO UNet3DTrainer - Training iteration [368/60000]. Epoch [0/199]
+2022-01-14 23:52:26,164 [MainThread] INFO UNet3DTrainer - Training iteration [369/60000]. Epoch [0/199]
+2022-01-14 23:52:43,308 [MainThread] INFO UNet3DTrainer - Training iteration [370/60000]. Epoch [0/199]
+2022-01-14 23:53:01,291 [MainThread] INFO UNet3DTrainer - Training iteration [371/60000]. Epoch [0/199]
+2022-01-14 23:53:01,928 [MainThread] INFO UNet3DTrainer - Training iteration [372/60000]. Epoch [0/199]
+2022-01-14 23:53:02,656 [MainThread] INFO UNet3DTrainer - Training iteration [373/60000]. Epoch [0/199]
+2022-01-14 23:53:11,858 [MainThread] INFO UNet3DTrainer - Training iteration [374/60000]. Epoch [0/199]
+2022-01-14 23:53:21,181 [MainThread] INFO UNet3DTrainer - Training iteration [375/60000]. Epoch [0/199]
+2022-01-14 23:53:21,795 [MainThread] INFO UNet3DTrainer - Training iteration [376/60000]. Epoch [0/199]
+2022-01-14 23:53:22,508 [MainThread] INFO UNet3DTrainer - Training iteration [377/60000]. Epoch [0/199]
+2022-01-14 23:53:23,461 [MainThread] INFO UNet3DTrainer - Training iteration [378/60000]. Epoch [0/199]
+2022-01-14 23:53:24,413 [MainThread] INFO UNet3DTrainer - Training iteration [379/60000]. Epoch [0/199]
+2022-01-14 23:53:25,367 [MainThread] INFO UNet3DTrainer - Training iteration [380/60000]. Epoch [0/199]
+2022-01-14 23:53:26,322 [MainThread] INFO UNet3DTrainer - Training iteration [381/60000]. Epoch [0/199]
+2022-01-14 23:53:27,276 [MainThread] INFO UNet3DTrainer - Training iteration [382/60000]. Epoch [0/199]
+2022-01-14 23:53:28,232 [MainThread] INFO UNet3DTrainer - Training iteration [383/60000]. Epoch [0/199]
+2022-01-14 23:53:29,189 [MainThread] INFO UNet3DTrainer - Training iteration [384/60000]. Epoch [0/199]
+2022-01-14 23:53:37,604 [MainThread] INFO UNet3DTrainer - Training iteration [385/60000]. Epoch [0/199]
+2022-01-14 23:53:38,218 [MainThread] INFO UNet3DTrainer - Training iteration [386/60000]. Epoch [0/199]
+2022-01-14 23:53:47,526 [MainThread] INFO UNet3DTrainer - Training iteration [387/60000]. Epoch [0/199]
+2022-01-14 23:53:48,144 [MainThread] INFO UNet3DTrainer - Training iteration [388/60000]. Epoch [0/199]
+2022-01-14 23:53:48,800 [MainThread] INFO UNet3DTrainer - Training iteration [389/60000]. Epoch [0/199]
+2022-01-14 23:53:49,756 [MainThread] INFO UNet3DTrainer - Training iteration [390/60000]. Epoch [0/199]
+2022-01-14 23:53:50,715 [MainThread] INFO UNet3DTrainer - Training iteration [391/60000]. Epoch [0/199]
+2022-01-14 23:53:51,671 [MainThread] INFO UNet3DTrainer - Training iteration [392/60000]. Epoch [0/199]
+2022-01-14 23:53:52,629 [MainThread] INFO UNet3DTrainer - Training iteration [393/60000]. Epoch [0/199]
+2022-01-14 23:53:53,590 [MainThread] INFO UNet3DTrainer - Training iteration [394/60000]. Epoch [0/199]
+2022-01-14 23:54:02,039 [MainThread] INFO UNet3DTrainer - Training iteration [395/60000]. Epoch [0/199]
+2022-01-14 23:54:02,665 [MainThread] INFO UNet3DTrainer - Training iteration [396/60000]. Epoch [0/199]
+2022-01-14 23:54:03,315 [MainThread] INFO UNet3DTrainer - Training iteration [397/60000]. Epoch [0/199]
+2022-01-14 23:54:04,276 [MainThread] INFO UNet3DTrainer - Training iteration [398/60000]. Epoch [0/199]
+2022-01-14 23:54:05,236 [MainThread] INFO UNet3DTrainer - Training iteration [399/60000]. Epoch [0/199]
+2022-01-14 23:54:06,197 [MainThread] INFO UNet3DTrainer - Training iteration [400/60000]. Epoch [0/199]
+2022-01-14 23:54:08,632 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-01-14 23:54:09,637 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-01-14 23:54:10,495 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-01-14 23:54:11,576 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-01-14 23:54:11,577 [MainThread] INFO UNet3DTrainer - Training stats. Loss: 0.41510201059281826. Evaluation score: 0.0
+2022-01-14 23:54:11,577 [MainThread] INFO UNet3DTrainer - Logging model parameters and gradients
+2022-01-14 23:54:23,858 [MainThread] INFO UNet3DTrainer - Training iteration [401/60000]. Epoch [0/199]
+2022-01-14 23:54:24,466 [MainThread] INFO UNet3DTrainer - Training iteration [402/60000]. Epoch [0/199]
+2022-01-14 23:54:33,773 [MainThread] INFO UNet3DTrainer - Training iteration [403/60000]. Epoch [0/199]
+2022-01-14 23:54:34,361 [MainThread] INFO UNet3DTrainer - Training iteration [404/60000]. Epoch [0/199]
+2022-01-14 23:54:43,733 [MainThread] INFO UNet3DTrainer - Training iteration [405/60000]. Epoch [0/199]
+2022-01-14 23:54:44,336 [MainThread] INFO UNet3DTrainer - Training iteration [406/60000]. Epoch [0/199]
+2022-01-14 23:54:53,622 [MainThread] INFO UNet3DTrainer - Training iteration [407/60000]. Epoch [0/199]
+2022-01-14 23:54:54,244 [MainThread] INFO UNet3DTrainer - Training iteration [408/60000]. Epoch [0/199]
+2022-01-14 23:54:54,893 [MainThread] INFO UNet3DTrainer - Training iteration [409/60000]. Epoch [0/199]
+2022-01-14 23:54:55,865 [MainThread] INFO UNet3DTrainer - Training iteration [410/60000]. Epoch [0/199]
+2022-01-14 23:54:56,820 [MainThread] INFO UNet3DTrainer - Training iteration [411/60000]. Epoch [0/199]
+2022-01-14 23:54:57,776 [MainThread] INFO UNet3DTrainer - Training iteration [412/60000]. Epoch [0/199]
+2022-01-14 23:54:58,736 [MainThread] INFO UNet3DTrainer - Training iteration [413/60000]. Epoch [0/199]
+2022-01-14 23:54:59,695 [MainThread] INFO UNet3DTrainer - Training iteration [414/60000]. Epoch [0/199]
+2022-01-14 23:55:08,226 [MainThread] INFO UNet3DTrainer - Training iteration [415/60000]. Epoch [0/199]
+2022-01-14 23:55:08,826 [MainThread] INFO UNet3DTrainer - Training iteration [416/60000]. Epoch [0/199]
+2022-01-14 23:55:09,509 [MainThread] INFO UNet3DTrainer - Training iteration [417/60000]. Epoch [0/199]
+2022-01-14 23:55:10,463 [MainThread] INFO UNet3DTrainer - Training iteration [418/60000]. Epoch [0/199]
+2022-01-14 23:55:11,424 [MainThread] INFO UNet3DTrainer - Training iteration [419/60000]. Epoch [0/199]
+2022-01-14 23:55:28,728 [MainThread] INFO UNet3DTrainer - Training iteration [420/60000]. Epoch [0/199]
+2022-01-14 23:55:29,331 [MainThread] INFO UNet3DTrainer - Training iteration [421/60000]. Epoch [0/199]
+2022-01-14 23:55:30,027 [MainThread] INFO UNet3DTrainer - Training iteration [422/60000]. Epoch [0/199]
+2022-01-14 23:55:39,262 [MainThread] INFO UNet3DTrainer - Training iteration [423/60000]. Epoch [0/199]
+2022-01-14 23:55:48,555 [MainThread] INFO UNet3DTrainer - Training iteration [424/60000]. Epoch [0/199]
+2022-01-14 23:55:49,162 [MainThread] INFO UNet3DTrainer - Training iteration [425/60000]. Epoch [0/199]
+2022-01-14 23:55:49,834 [MainThread] INFO UNet3DTrainer - Training iteration [426/60000]. Epoch [0/199]
+2022-01-14 23:55:50,790 [MainThread] INFO UNet3DTrainer - Training iteration [427/60000]. Epoch [0/199]
+2022-01-14 23:55:51,746 [MainThread] INFO UNet3DTrainer - Training iteration [428/60000]. Epoch [0/199]
+2022-01-14 23:55:52,700 [MainThread] INFO UNet3DTrainer - Training iteration [429/60000]. Epoch [0/199]
+2022-01-14 23:55:53,659 [MainThread] INFO UNet3DTrainer - Training iteration [430/60000]. Epoch [0/199]
+2022-01-14 23:55:54,616 [MainThread] INFO UNet3DTrainer - Training iteration [431/60000]. Epoch [0/199]
+2022-01-14 23:56:11,773 [MainThread] INFO UNet3DTrainer - Training iteration [432/60000]. Epoch [0/199]
+2022-01-14 23:56:21,109 [MainThread] INFO UNet3DTrainer - Training iteration [433/60000]. Epoch [0/199]
+2022-01-14 23:56:30,396 [MainThread] INFO UNet3DTrainer - Training iteration [434/60000]. Epoch [0/199]
+2022-01-14 23:56:39,677 [MainThread] INFO UNet3DTrainer - Training iteration [435/60000]. Epoch [0/199]
+2022-01-14 23:56:40,291 [MainThread] INFO UNet3DTrainer - Training iteration [436/60000]. Epoch [0/199]
+2022-01-14 23:56:40,953 [MainThread] INFO UNet3DTrainer - Training iteration [437/60000]. Epoch [0/199]
+2022-01-14 23:56:41,908 [MainThread] INFO UNet3DTrainer - Training iteration [438/60000]. Epoch [0/199]
+2022-01-14 23:56:42,867 [MainThread] INFO UNet3DTrainer - Training iteration [439/60000]. Epoch [0/199]
+2022-01-14 23:56:43,822 [MainThread] INFO UNet3DTrainer - Training iteration [440/60000]. Epoch [0/199]
+2022-01-14 23:56:44,778 [MainThread] INFO UNet3DTrainer - Training iteration [441/60000]. Epoch [0/199]
+2022-01-14 23:56:45,736 [MainThread] INFO UNet3DTrainer - Training iteration [442/60000]. Epoch [0/199]
+2022-01-14 23:56:46,692 [MainThread] INFO UNet3DTrainer - Training iteration [443/60000]. Epoch [0/199]
+2022-01-14 23:56:47,650 [MainThread] INFO UNet3DTrainer - Training iteration [444/60000]. Epoch [0/199]
+2022-01-14 23:56:56,085 [MainThread] INFO UNet3DTrainer - Training iteration [445/60000]. Epoch [0/199]
+Traceback (most recent call last):
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/torch/utils/data/dataloader.py", line 990, in _try_get_data
+    data = self._data_queue.get(timeout=timeout)
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/multiprocessing/queues.py", line 113, in get
+    if not self._poll(timeout):
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/multiprocessing/connection.py", line 262, in poll
+    return self._poll(timeout)
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/multiprocessing/connection.py", line 429, in _poll
+    r = wait([self], timeout)
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/multiprocessing/connection.py", line 936, in wait
+    ready = selector.select(timeout)
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/selectors.py", line 416, in select
+    fd_event_list = self._selector.poll(timeout)
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/torch/utils/data/_utils/signal_handling.py", line 66, in handler
+    _error_if_any_worker_fails()
+RuntimeError: DataLoader worker (pid 29613) is killed by signal: Terminated. 
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/people/yasuda/.conda/envs/3dunet/bin/train3dunet", line 10, in <module>
+    sys.exit(main())
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/train.py", line 29, in main
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/unet3d/trainer.py", line 246, in fit
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/unet3d/trainer.py", line 267, in train
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/torch/utils/data/dataloader.py", line 521, in __next__
+    data = self._next_data()
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/torch/utils/data/dataloader.py", line 1186, in _next_data
+    idx, data = self._get_data()
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/torch/utils/data/dataloader.py", line 1152, in _get_data
+    success, data = self._try_get_data()
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/torch/utils/data/dataloader.py", line 1003, in _try_get_data
+    raise RuntimeError('DataLoader worker (pid(s) {}) exited unexpectedly'.format(pids_str)) from e
+RuntimeError: DataLoader worker (pid(s) 29613) exited unexpectedly

@@ -95,15 +95,17 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - '/net/fs01/work01/yasuda/data/train/'
+      - '/net/fs01/work01/yasuda/data/myosin/train/'
       
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [64, 189, 189]
-      # train stride between patches
-      stride_shape: [2, 9, 9]
+      #patch_shape: [64, 189, 189]
+      patch_shape: [80, 170, 170]
+      #train stride between patches
+      #stride_shape: [2, 9, 9]
+      stride_shape: [20, 40, 40]
       # minimum volume of the labels in the patch
       threshold: 0.01
       # probability of accepting patches which do not fulfil the threshold criterion
@@ -151,15 +153,17 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - '/net/fs01/work01/yasuda/data/val/'
+      - '/net/fs01/work01/yasuda/data/myosin/val/'
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [64, 189, 189]
+      #patch_shape: [64, 189, 189]
+      patch_shape: [80, 170, 170]
       # train stride between patches
-      stride_shape: [2, 9, 9]
+      #stride_shape: [2, 9, 9]
+      stride_shape: [80, 170, 170]
       # minimum volume of the labels in the patch
       threshold: 0.01
       # probability of accepting patches which do not fulfil the threshold criterion
