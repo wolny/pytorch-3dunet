@@ -7,8 +7,6 @@ source:
 
 build:
   noarch: python
-  script: "pip install . --no-deps --ignore-installed --no-cache-dir -vvv"
-
   entry_points:
     - predict3dunet = pytorch3dunet.predict:main
     - train3dunet = pytorch3dunet.train:main
