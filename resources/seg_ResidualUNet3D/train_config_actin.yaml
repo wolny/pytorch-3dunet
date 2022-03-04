@@ -21,7 +21,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: "/net/fs01/work01/yasuda/data/myosin/UNet3D/"
+  checkpoint_dir: "/net/fs01/work01/yasuda/data/actin/ResidualUNet3D/2/"
   # path to last_checkpoint.pytorch; if provided the training will be resumed from that checkpoint
   resume: null
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth

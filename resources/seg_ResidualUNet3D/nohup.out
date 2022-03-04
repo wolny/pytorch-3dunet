@@ -1,0 +1,621 @@
+2022-03-04 09:20:05,808 [MainThread] INFO ConfigLoader - Using 'cuda:0' device
+2022-03-04 09:20:05,808 [MainThread] INFO TrainingSetup - {'manual_seed': 0, 'model': {'name': 'ResidualUNet3D', 'in_channels': 1, 'out_channels': 1, 'layer_order': 'gcr', 'f_maps': 32, 'num_groups': 8, 'final_sigmoid': True, 'is_segmentation': True}, 'trainer': {'checkpoint_dir': '/net/fs01/work01/yasuda/data/actin/ResidualUNet3D/2/', 'resume': None, 'pre_trained': None, 'validate_after_iters': 20, 'log_after_iters': 20, 'max_num_epochs': 50, 'max_num_iterations': 100000, 'eval_score_higher_is_better': True}, 'optimizer': {'learning_rate': 0.0002, ':weight_decay': 0.0001}, 'loss': {'name': 'DiceLoss', 'weight': None, 'ignore_index': None}, 'eval_metric': {'name': 'BlobsAveragePrecision', 'thresholds': [0.4, 0.5, 0.6, 0.7, 0.8], 'metric': 'ap'}, 'lr_scheduler': {'name': 'MultiStepLR', 'milestones': [10, 30, 60], 'gamma': 0.2}, 'loaders': {'dataset': 'StandardHDF5Dataset', 'batch_size': 1, 'num_workers': 4, 'raw_internal_path': 'raw', 'label_internal_path': 'label', 'weight_internal_path': None, 'train': {'file_paths': ['/net/fs01/work01/yasuda/data/actin/train/split_actin_1.h5', '/net/fs01/work01/yasuda/data/actin/train/split_actin_3.h5', '/net/fs01/work01/yasuda/data/actin/train/split_actin_4.h5', '/net/fs01/work01/yasuda/data/actin/train/split_actin_6.h5', '/net/fs01/work01/yasuda/data/actin/train/split_actin_7.h5'], 'slice_builder': {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}, 'transformer': {'raw': [{'name': 'Standardize'}, {'name': 'RandomFlip'}, {'name': 'RandomRotate90'}, {'name': 'RandomRotate', 'axes': [[2, 1]], 'angle_spectrum': 15, 'mode': 'reflect'}, {'name': 'ElasticDeformation', 'spline_order': 3}, {'name': 'RandomContrast'}, {'name': 'AdditiveGaussianNoise'}, {'name': 'AdditivePoissonNoise'}, {'name': 'ToTensor', 'expand_dims': True}], 'label': [{'name': 'RandomFlip'}, {'name': 'RandomRotate90'}, {'name': 'RandomRotate', 'axes': [[2, 1]], 'angle_spectrum': 15, 'mode': 'reflect'}, {'name': 'ElasticDeformation', 'spline_order': 0}, {'name': 'ToTensor', 'expand_dims': True}]}}, 'val': {'file_paths': ['/net/fs01/work01/yasuda/data/actin/val/split_actin_1.h5', '/net/fs01/work01/yasuda/data/actin/val/split_actin_3.h5', '/net/fs01/work01/yasuda/data/actin/val/split_actin_4.h5', '/net/fs01/work01/yasuda/data/actin/val/split_actin_6.h5', '/net/fs01/work01/yasuda/data/actin/val/split_actin_7.h5'], 'slice_builder': {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}, 'transformer': {'raw': [{'name': 'Standardize'}, {'name': 'ToTensor', 'expand_dims': True}], 'label': [{'name': 'ToTensor', 'expand_dims': True}]}}}, 'device': device(type='cuda', index=0)}
+2022-03-04 09:20:05,808 [MainThread] INFO TrainingSetup - Seed the RNG for all devices with 0
+2022-03-04 09:20:10,266 [MainThread] INFO UNet3DTrainer - Using 4 GPUs for training
+2022-03-04 09:20:10,266 [MainThread] INFO UNet3DTrainer - Sending the model to 'cuda:0'
+2022-03-04 09:20:14,134 [MainThread] INFO UNet3DTrainer - Number of learnable params 35315683
+2022-03-04 09:20:14,135 [MainThread] INFO Dataset - Creating training and validation set loaders...
+2022-03-04 09:20:15,411 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/actin/train/split_actin_1.h5...
+2022-03-04 09:20:17,284 [MainThread] INFO HDF5Dataset - Input stats: min=57, max=247, mean=129.31260835337827, std=5.307423863921303
+2022-03-04 09:20:18,064 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}
+2022-03-04 09:20:18,427 [MainThread] INFO HDF5Dataset - Number of patches: 34225
+2022-03-04 09:20:18,428 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/actin/train/split_actin_3.h5...
+2022-03-04 09:20:20,162 [MainThread] INFO HDF5Dataset - Input stats: min=17, max=235, mean=129.36456044960295, std=5.43006484206945
+2022-03-04 09:20:21,411 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}
+2022-03-04 09:20:21,665 [MainThread] INFO HDF5Dataset - Number of patches: 34225
+2022-03-04 09:20:21,760 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/actin/train/split_actin_4.h5...
+2022-03-04 09:20:24,062 [MainThread] INFO HDF5Dataset - Input stats: min=0, max=255, mean=129.334027973919, std=6.1305032261307915
+2022-03-04 09:20:25,056 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}
+2022-03-04 09:20:25,267 [MainThread] INFO HDF5Dataset - Number of patches: 34225
+2022-03-04 09:20:25,382 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/actin/train/split_actin_6.h5...
+2022-03-04 09:20:27,937 [MainThread] INFO HDF5Dataset - Input stats: min=97, max=176, mean=129.13799421672638, std=5.141289938663146
+2022-03-04 09:20:29,616 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}
+2022-03-04 09:20:29,848 [MainThread] INFO HDF5Dataset - Number of patches: 34225
+2022-03-04 09:20:29,990 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/actin/train/split_actin_7.h5...
+2022-03-04 09:20:32,993 [MainThread] INFO HDF5Dataset - Input stats: min=1, max=217, mean=129.28665717193536, std=5.647814388387516
+2022-03-04 09:20:34,639 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}
+2022-03-04 09:20:34,882 [MainThread] INFO HDF5Dataset - Number of patches: 34225
+2022-03-04 09:20:35,731 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/actin/val/split_actin_1.h5...
+2022-03-04 09:20:39,150 [MainThread] INFO HDF5Dataset - Input stats: min=57, max=247, mean=129.31260835337827, std=5.307423863921303
+2022-03-04 09:20:40,344 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}
+2022-03-04 09:20:40,349 [MainThread] INFO HDF5Dataset - Number of patches: 700
+2022-03-04 09:20:40,385 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/actin/val/split_actin_3.h5...
+2022-03-04 09:20:42,521 [MainThread] INFO HDF5Dataset - Input stats: min=17, max=235, mean=129.36456044960295, std=5.43006484206945
+2022-03-04 09:20:43,575 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}
+2022-03-04 09:20:43,577 [MainThread] INFO HDF5Dataset - Number of patches: 700
+2022-03-04 09:20:43,616 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/actin/val/split_actin_4.h5...
+2022-03-04 09:20:46,952 [MainThread] INFO HDF5Dataset - Input stats: min=0, max=255, mean=129.334027973919, std=6.1305032261307915
+2022-03-04 09:20:47,726 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}
+2022-03-04 09:20:47,727 [MainThread] INFO HDF5Dataset - Number of patches: 700
+2022-03-04 09:20:47,728 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/actin/val/split_actin_6.h5...
+2022-03-04 09:20:49,996 [MainThread] INFO HDF5Dataset - Input stats: min=97, max=176, mean=129.13799421672638, std=5.141289938663146
+2022-03-04 09:20:50,895 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}
+2022-03-04 09:20:50,900 [MainThread] INFO HDF5Dataset - Number of patches: 700
+2022-03-04 09:20:50,901 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/actin/val/split_actin_7.h5...
+2022-03-04 09:20:53,669 [MainThread] INFO HDF5Dataset - Input stats: min=1, max=217, mean=129.28665717193536, std=5.647814388387516
+2022-03-04 09:20:54,810 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}
+2022-03-04 09:20:54,815 [MainThread] INFO HDF5Dataset - Number of patches: 700
+2022-03-04 09:20:54,850 [MainThread] INFO Dataset - Number of workers for train/val dataloader: 4
+2022-03-04 09:20:54,851 [MainThread] INFO Dataset - 4 GPUs available. Using batch_size = 4 * 1
+2022-03-04 09:20:54,851 [MainThread] INFO Dataset - Batch size for train/val loader: 4
+2022-03-04 09:20:54,905 [MainThread] INFO UNet3DTrainer - DataParallel(
+  (module): ResidualUNet3D(
+    (encoders): ModuleList(
+      (0): Encoder(
+        (basic_module): ExtResNetBlock(
+          (conv1): SingleConv(
+            (groupnorm): GroupNorm(1, 1, eps=1e-05, affine=True)
+            (conv): Conv3d(1, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv2): SingleConv(
+            (groupnorm): GroupNorm(8, 32, eps=1e-05, affine=True)
+            (conv): Conv3d(32, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv3): SingleConv(
+            (groupnorm): GroupNorm(8, 32, eps=1e-05, affine=True)
+            (conv): Conv3d(32, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+          )
+          (non_linearity): ReLU(inplace=True)
+        )
+      )
+      (1): Encoder(
+        (pooling): MaxPool3d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (basic_module): ExtResNetBlock(
+          (conv1): SingleConv(
+            (groupnorm): GroupNorm(8, 32, eps=1e-05, affine=True)
+            (conv): Conv3d(32, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv2): SingleConv(
+            (groupnorm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            (conv): Conv3d(64, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv3): SingleConv(
+            (groupnorm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            (conv): Conv3d(64, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+          )
+          (non_linearity): ReLU(inplace=True)
+        )
+      )
+      (2): Encoder(
+        (pooling): MaxPool3d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (basic_module): ExtResNetBlock(
+          (conv1): SingleConv(
+            (groupnorm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            (conv): Conv3d(64, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv2): SingleConv(
+            (groupnorm): GroupNorm(8, 128, eps=1e-05, affine=True)
+            (conv): Conv3d(128, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv3): SingleConv(
+            (groupnorm): GroupNorm(8, 128, eps=1e-05, affine=True)
+            (conv): Conv3d(128, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+          )
+          (non_linearity): ReLU(inplace=True)
+        )
+      )
+      (3): Encoder(
+        (pooling): MaxPool3d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (basic_module): ExtResNetBlock(
+          (conv1): SingleConv(
+            (groupnorm): GroupNorm(8, 128, eps=1e-05, affine=True)
+            (conv): Conv3d(128, 256, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv2): SingleConv(
+            (groupnorm): GroupNorm(8, 256, eps=1e-05, affine=True)
+            (conv): Conv3d(256, 256, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv3): SingleConv(
+            (groupnorm): GroupNorm(8, 256, eps=1e-05, affine=True)
+            (conv): Conv3d(256, 256, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+          )
+          (non_linearity): ReLU(inplace=True)
+        )
+      )
+      (4): Encoder(
+        (pooling): MaxPool3d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (basic_module): ExtResNetBlock(
+          (conv1): SingleConv(
+            (groupnorm): GroupNorm(8, 256, eps=1e-05, affine=True)
+            (conv): Conv3d(256, 512, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv2): SingleConv(
+            (groupnorm): GroupNorm(8, 512, eps=1e-05, affine=True)
+            (conv): Conv3d(512, 512, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv3): SingleConv(
+            (groupnorm): GroupNorm(8, 512, eps=1e-05, affine=True)
+            (conv): Conv3d(512, 512, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+          )
+          (non_linearity): ReLU(inplace=True)
+        )
+      )
+    )
+    (decoders): ModuleList(
+      (0): Decoder(
+        (upsampling): TransposeConvUpsampling(
+          (upsample): ConvTranspose3d(512, 256, kernel_size=(3, 3, 3), stride=(2, 2, 2), padding=(1, 1, 1))
+        )
+        (basic_module): ExtResNetBlock(
+          (conv1): SingleConv(
+            (groupnorm): GroupNorm(8, 256, eps=1e-05, affine=True)
+            (conv): Conv3d(256, 256, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv2): SingleConv(
+            (groupnorm): GroupNorm(8, 256, eps=1e-05, affine=True)
+            (conv): Conv3d(256, 256, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv3): SingleConv(
+            (groupnorm): GroupNorm(8, 256, eps=1e-05, affine=True)
+            (conv): Conv3d(256, 256, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+          )
+          (non_linearity): ReLU(inplace=True)
+        )
+      )
+      (1): Decoder(
+        (upsampling): TransposeConvUpsampling(
+          (upsample): ConvTranspose3d(256, 128, kernel_size=(3, 3, 3), stride=(2, 2, 2), padding=(1, 1, 1))
+        )
+        (basic_module): ExtResNetBlock(
+          (conv1): SingleConv(
+            (groupnorm): GroupNorm(8, 128, eps=1e-05, affine=True)
+            (conv): Conv3d(128, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv2): SingleConv(
+            (groupnorm): GroupNorm(8, 128, eps=1e-05, affine=True)
+            (conv): Conv3d(128, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv3): SingleConv(
+            (groupnorm): GroupNorm(8, 128, eps=1e-05, affine=True)
+            (conv): Conv3d(128, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+          )
+          (non_linearity): ReLU(inplace=True)
+        )
+      )
+      (2): Decoder(
+        (upsampling): TransposeConvUpsampling(
+          (upsample): ConvTranspose3d(128, 64, kernel_size=(3, 3, 3), stride=(2, 2, 2), padding=(1, 1, 1))
+        )
+        (basic_module): ExtResNetBlock(
+          (conv1): SingleConv(
+            (groupnorm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            (conv): Conv3d(64, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv2): SingleConv(
+            (groupnorm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            (conv): Conv3d(64, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv3): SingleConv(
+            (groupnorm): GroupNorm(8, 64, eps=1e-05, affine=True)
+            (conv): Conv3d(64, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+          )
+          (non_linearity): ReLU(inplace=True)
+        )
+      )
+      (3): Decoder(
+        (upsampling): TransposeConvUpsampling(
+          (upsample): ConvTranspose3d(64, 32, kernel_size=(3, 3, 3), stride=(2, 2, 2), padding=(1, 1, 1))
+        )
+        (basic_module): ExtResNetBlock(
+          (conv1): SingleConv(
+            (groupnorm): GroupNorm(8, 32, eps=1e-05, affine=True)
+            (conv): Conv3d(32, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv2): SingleConv(
+            (groupnorm): GroupNorm(8, 32, eps=1e-05, affine=True)
+            (conv): Conv3d(32, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+            (ReLU): ReLU(inplace=True)
+          )
+          (conv3): SingleConv(
+            (groupnorm): GroupNorm(8, 32, eps=1e-05, affine=True)
+            (conv): Conv3d(32, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
+          )
+          (non_linearity): ReLU(inplace=True)
+        )
+      )
+    )
+    (final_conv): Conv3d(32, 1, kernel_size=(1, 1, 1), stride=(1, 1, 1))
+    (final_activation): Sigmoid()
+  )
+)
+2022-03-04 09:20:54,908 [MainThread] INFO UNet3DTrainer - eval_score_higher_is_better: True
+2022-03-04 09:20:56,912 [MainThread] INFO UNet3DTrainer - Training iteration [1/100000]. Epoch [0/49]
+2022-03-04 09:21:10,410 [MainThread] INFO UNet3DTrainer - Training iteration [2/100000]. Epoch [0/49]
+2022-03-04 09:21:10,626 [MainThread] INFO UNet3DTrainer - Training iteration [3/100000]. Epoch [0/49]
+2022-03-04 09:21:10,884 [MainThread] INFO UNet3DTrainer - Training iteration [4/100000]. Epoch [0/49]
+2022-03-04 09:21:11,155 [MainThread] INFO UNet3DTrainer - Training iteration [5/100000]. Epoch [0/49]
+2022-03-04 09:21:11,450 [MainThread] INFO UNet3DTrainer - Training iteration [6/100000]. Epoch [0/49]
+2022-03-04 09:21:11,731 [MainThread] INFO UNet3DTrainer - Training iteration [7/100000]. Epoch [0/49]
+2022-03-04 09:21:11,943 [MainThread] INFO UNet3DTrainer - Training iteration [8/100000]. Epoch [0/49]
+2022-03-04 09:21:12,143 [MainThread] INFO UNet3DTrainer - Training iteration [9/100000]. Epoch [0/49]
+2022-03-04 09:21:12,380 [MainThread] INFO UNet3DTrainer - Training iteration [10/100000]. Epoch [0/49]
+2022-03-04 09:21:12,566 [MainThread] INFO UNet3DTrainer - Training iteration [11/100000]. Epoch [0/49]
+2022-03-04 09:21:12,809 [MainThread] INFO UNet3DTrainer - Training iteration [12/100000]. Epoch [0/49]
+2022-03-04 09:21:13,076 [MainThread] INFO UNet3DTrainer - Training iteration [13/100000]. Epoch [0/49]
+2022-03-04 09:21:13,351 [MainThread] INFO UNet3DTrainer - Training iteration [14/100000]. Epoch [0/49]
+2022-03-04 09:21:13,625 [MainThread] INFO UNet3DTrainer - Training iteration [15/100000]. Epoch [0/49]
+2022-03-04 09:21:13,906 [MainThread] INFO UNet3DTrainer - Training iteration [16/100000]. Epoch [0/49]
+2022-03-04 09:21:14,208 [MainThread] INFO UNet3DTrainer - Training iteration [17/100000]. Epoch [0/49]
+2022-03-04 09:21:14,481 [MainThread] INFO UNet3DTrainer - Training iteration [18/100000]. Epoch [0/49]
+2022-03-04 09:21:14,748 [MainThread] INFO UNet3DTrainer - Training iteration [19/100000]. Epoch [0/49]
+2022-03-04 09:21:15,042 [MainThread] INFO UNet3DTrainer - Training iteration [20/100000]. Epoch [0/49]
+2022-03-04 09:21:15,309 [MainThread] INFO UNet3DTrainer - Validating...
+2022-03-04 09:21:16,246 [MainThread] INFO UNet3DTrainer - Validation iteration 0
+/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/unet3d/utils.py:260: RuntimeWarning: invalid value encountered in true_divide
+2022-03-04 09:21:16,666 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:16,788 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:16,889 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:16,938 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:16,998 [MainThread] INFO UNet3DTrainer - Validation iteration 1
+2022-03-04 09:21:17,165 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:17,212 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:17,330 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:17,376 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:17,436 [MainThread] INFO UNet3DTrainer - Validation iteration 2
+2022-03-04 09:21:17,600 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:17,648 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:17,698 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:17,746 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:17,752 [MainThread] INFO UNet3DTrainer - Validation iteration 3
+2022-03-04 09:21:17,924 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:17,974 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:18,021 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:18,070 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:18,072 [MainThread] INFO UNet3DTrainer - Validation iteration 4
+2022-03-04 09:21:18,241 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:18,291 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:18,342 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:18,390 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:18,391 [MainThread] INFO UNet3DTrainer - Validation iteration 5
+2022-03-04 09:21:18,560 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:18,610 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:18,657 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:18,708 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:18,709 [MainThread] INFO UNet3DTrainer - Validation iteration 6
+2022-03-04 09:21:18,865 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:18,913 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:18,961 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:19,008 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:19,010 [MainThread] INFO UNet3DTrainer - Validation iteration 7
+2022-03-04 09:21:19,161 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:19,211 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:19,262 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:19,312 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:19,313 [MainThread] INFO UNet3DTrainer - Validation iteration 8
+2022-03-04 09:21:19,462 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:19,509 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:19,559 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:19,605 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:19,607 [MainThread] INFO UNet3DTrainer - Validation iteration 9
+2022-03-04 09:21:19,753 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:19,799 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:19,850 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:19,900 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:19,904 [MainThread] INFO UNet3DTrainer - Validation iteration 10
+2022-03-04 09:21:20,060 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:20,110 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:20,158 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:20,208 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:20,210 [MainThread] INFO UNet3DTrainer - Validation iteration 11
+2022-03-04 09:21:20,356 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:20,403 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:20,557 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:20,607 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:20,609 [MainThread] INFO UNet3DTrainer - Validation iteration 12
+2022-03-04 09:21:20,767 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:20,827 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:20,886 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:20,935 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:20,937 [MainThread] INFO UNet3DTrainer - Validation iteration 13
+2022-03-04 09:21:21,059 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:21,110 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:21,158 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:21,209 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:21,211 [MainThread] INFO UNet3DTrainer - Validation iteration 14
+2022-03-04 09:21:21,327 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:21,377 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:21,425 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:21,473 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:21,475 [MainThread] INFO UNet3DTrainer - Validation iteration 15
+2022-03-04 09:21:21,592 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:21,643 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:21,688 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:21,734 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:21,736 [MainThread] INFO UNet3DTrainer - Validation iteration 16
+2022-03-04 09:21:21,852 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:21,899 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:21,946 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:21,995 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:21,997 [MainThread] INFO UNet3DTrainer - Validation iteration 17
+2022-03-04 09:21:22,109 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:22,159 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:22,210 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:22,261 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:22,263 [MainThread] INFO UNet3DTrainer - Validation iteration 18
+2022-03-04 09:21:22,377 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:22,428 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:22,477 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:22,524 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:22,527 [MainThread] INFO UNet3DTrainer - Validation iteration 19
+2022-03-04 09:21:22,645 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:22,693 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:22,743 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:22,790 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:22,792 [MainThread] INFO UNet3DTrainer - Validation iteration 20
+2022-03-04 09:21:22,906 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:22,956 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:23,007 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:23,054 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:23,056 [MainThread] INFO UNet3DTrainer - Validation iteration 21
+2022-03-04 09:21:23,170 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:23,225 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:23,280 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:23,335 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:23,337 [MainThread] INFO UNet3DTrainer - Validation iteration 22
+2022-03-04 09:21:23,456 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:23,508 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:23,557 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:23,605 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:23,607 [MainThread] INFO UNet3DTrainer - Validation iteration 23
+2022-03-04 09:21:23,730 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:23,787 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:23,843 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:23,896 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:23,898 [MainThread] INFO UNet3DTrainer - Validation iteration 24
+2022-03-04 09:21:24,023 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:24,078 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:24,139 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:24,198 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:24,200 [MainThread] INFO UNet3DTrainer - Validation iteration 25
+2022-03-04 09:21:24,321 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:24,376 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:24,432 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:24,492 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:24,494 [MainThread] INFO UNet3DTrainer - Validation iteration 26
+2022-03-04 09:21:24,623 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:24,679 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:24,734 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:24,785 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:24,788 [MainThread] INFO UNet3DTrainer - Validation iteration 27
+2022-03-04 09:21:24,909 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:24,959 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:25,011 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:25,059 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:25,061 [MainThread] INFO UNet3DTrainer - Validation iteration 28
+2022-03-04 09:21:25,176 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:25,225 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:25,275 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:25,325 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:25,327 [MainThread] INFO UNet3DTrainer - Validation iteration 29
+2022-03-04 09:21:25,451 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:25,508 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:25,568 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:25,625 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:25,627 [MainThread] INFO UNet3DTrainer - Validation iteration 30
+2022-03-04 09:21:25,751 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:25,800 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:25,851 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:25,900 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:25,903 [MainThread] INFO UNet3DTrainer - Validation iteration 31
+2022-03-04 09:21:26,018 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:26,068 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:26,114 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:26,163 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:26,165 [MainThread] INFO UNet3DTrainer - Validation iteration 32
+2022-03-04 09:21:26,278 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:26,327 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:26,375 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:26,424 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:26,590 [MainThread] INFO UNet3DTrainer - Validation iteration 33
+2022-03-04 09:21:26,713 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:26,763 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:26,812 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:26,861 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:26,863 [MainThread] INFO UNet3DTrainer - Validation iteration 34
+2022-03-04 09:21:26,980 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:27,030 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:27,076 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:27,125 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:27,127 [MainThread] INFO UNet3DTrainer - Validation iteration 35
+2022-03-04 09:21:27,249 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:27,294 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:27,344 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:27,390 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:27,392 [MainThread] INFO UNet3DTrainer - Validation iteration 36
+2022-03-04 09:21:27,514 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:27,560 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:27,606 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:27,653 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:27,656 [MainThread] INFO UNet3DTrainer - Validation iteration 37
+2022-03-04 09:21:27,805 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:27,851 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:27,900 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:27,952 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:27,957 [MainThread] INFO UNet3DTrainer - Validation iteration 38
+2022-03-04 09:21:28,082 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:28,134 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:28,185 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:28,231 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:28,234 [MainThread] INFO UNet3DTrainer - Validation iteration 39
+2022-03-04 09:21:28,365 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:28,426 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:28,483 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:28,544 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:28,546 [MainThread] INFO UNet3DTrainer - Validation iteration 40
+2022-03-04 09:21:28,698 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:28,758 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:28,819 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:28,876 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:28,878 [MainThread] INFO UNet3DTrainer - Validation iteration 41
+2022-03-04 09:21:29,019 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:29,081 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:29,142 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:29,208 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:29,211 [MainThread] INFO UNet3DTrainer - Validation iteration 42
+2022-03-04 09:21:29,349 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:29,407 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:29,468 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:29,520 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:29,522 [MainThread] INFO UNet3DTrainer - Validation iteration 43
+2022-03-04 09:21:29,668 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:29,717 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:29,764 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:29,810 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:29,812 [MainThread] INFO UNet3DTrainer - Validation iteration 44
+2022-03-04 09:21:29,961 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:30,009 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:30,055 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:30,104 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:30,106 [MainThread] INFO UNet3DTrainer - Validation iteration 45
+2022-03-04 09:21:30,255 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:30,305 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:30,351 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:30,397 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:30,399 [MainThread] INFO UNet3DTrainer - Validation iteration 46
+2022-03-04 09:21:30,550 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:30,601 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:30,648 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:30,698 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:30,700 [MainThread] INFO UNet3DTrainer - Validation iteration 47
+2022-03-04 09:21:30,851 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:30,900 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:30,950 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:30,995 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:30,999 [MainThread] INFO UNet3DTrainer - Validation iteration 48
+2022-03-04 09:21:31,157 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:31,203 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:31,250 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:31,298 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:31,301 [MainThread] INFO UNet3DTrainer - Validation iteration 49
+2022-03-04 09:21:31,459 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:31,505 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:31,554 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:31,600 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:31,602 [MainThread] INFO UNet3DTrainer - Validation iteration 50
+2022-03-04 09:21:31,751 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:31,797 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:31,846 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:31,892 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:31,894 [MainThread] INFO UNet3DTrainer - Validation iteration 51
+2022-03-04 09:21:32,043 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:32,089 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:32,135 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:32,181 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:32,184 [MainThread] INFO UNet3DTrainer - Validation iteration 52
+2022-03-04 09:21:32,338 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:32,385 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:32,434 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:32,483 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:32,485 [MainThread] INFO UNet3DTrainer - Validation iteration 53
+2022-03-04 09:21:32,633 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:32,683 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:32,732 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:32,777 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:32,780 [MainThread] INFO UNet3DTrainer - Validation iteration 54
+2022-03-04 09:21:32,927 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:32,973 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:33,019 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:33,068 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:33,072 [MainThread] INFO UNet3DTrainer - Validation iteration 55
+2022-03-04 09:21:33,230 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:33,276 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:33,324 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:33,370 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:33,372 [MainThread] INFO UNet3DTrainer - Validation iteration 56
+2022-03-04 09:21:33,522 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:33,572 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:33,619 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:33,665 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:33,667 [MainThread] INFO UNet3DTrainer - Validation iteration 57
+2022-03-04 09:21:33,781 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:33,828 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:33,875 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:33,927 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:33,929 [MainThread] INFO UNet3DTrainer - Validation iteration 58
+2022-03-04 09:21:34,044 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:34,094 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:34,141 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:34,189 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:34,191 [MainThread] INFO UNet3DTrainer - Validation iteration 59
+2022-03-04 09:21:34,308 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:34,357 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:34,402 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:34,452 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:34,454 [MainThread] INFO UNet3DTrainer - Validation iteration 60
+2022-03-04 09:21:34,566 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:34,615 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:34,664 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:34,710 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:34,712 [MainThread] INFO UNet3DTrainer - Validation iteration 61
+2022-03-04 09:21:34,826 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:34,874 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:34,924 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:34,975 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:34,977 [MainThread] INFO UNet3DTrainer - Validation iteration 62
+2022-03-04 09:21:35,089 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:35,139 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:35,193 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:35,243 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:35,245 [MainThread] INFO UNet3DTrainer - Validation iteration 63
+2022-03-04 09:21:35,362 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:35,411 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:35,457 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:35,503 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:35,505 [MainThread] INFO UNet3DTrainer - Validation iteration 64
+2022-03-04 09:21:35,617 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:35,668 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:35,717 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:35,763 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:35,766 [MainThread] INFO UNet3DTrainer - Validation iteration 65
+2022-03-04 09:21:35,880 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:35,928 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:35,977 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:36,028 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:36,030 [MainThread] INFO UNet3DTrainer - Validation iteration 66
+2022-03-04 09:21:36,145 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:36,194 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:36,240 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:36,289 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:36,291 [MainThread] INFO UNet3DTrainer - Validation iteration 67
+2022-03-04 09:21:36,402 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:36,448 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:36,494 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:36,542 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:36,545 [MainThread] INFO UNet3DTrainer - Validation iteration 68
+2022-03-04 09:21:36,657 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:36,703 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:36,749 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:36,795 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:36,797 [MainThread] INFO UNet3DTrainer - Validation iteration 69
+2022-03-04 09:21:36,910 [MainThread] INFO EvalMetric - Batch: 0. Max Average Precision for channel: 0
+2022-03-04 09:21:36,960 [MainThread] INFO EvalMetric - Batch: 1. Max Average Precision for channel: 0
+2022-03-04 09:21:37,017 [MainThread] INFO EvalMetric - Batch: 2. Max Average Precision for channel: 0
+2022-03-04 09:21:37,074 [MainThread] INFO EvalMetric - Batch: 3. Max Average Precision for channel: 0
+2022-03-04 09:21:37,076 [MainThread] INFO UNet3DTrainer - Validation iteration 70

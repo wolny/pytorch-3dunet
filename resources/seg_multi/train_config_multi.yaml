@@ -2,17 +2,18 @@
 manual_seed: 0
 # model configuration
 model:
-  name: ResidualUnet3D
+  # model class, e.g. UNet3D, ResidualUNet3D
+  name: UNet3D
   # number of input channels to the model
-  in_channels: 1
+  in_channels: 4
   # number of output channels
-  out_channels: 1
+  out_channels: 4
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
   layer_order: gcr
   # feature maps scale factor
   f_maps: 32
   # number of groups in the groupnorm
-  num_groups: 8
+  num_groups: 4
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
   final_sigmoid: true
   # if True applies the final normalization layer (sigmoid or softmax), otherwise the networks returns the output from the final convolution layer; use False for regression problems, e.g. de-noising
@@ -21,20 +22,20 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: "/net/fs01/work01/yasuda/data/myosin/ResidualUNet3D/2"
+  checkpoint_dir: "/net/fs01/work01/yasuda/data/multi/"
   # path to last_checkpoint.pytorch; if provided the training will be resumed from that checkpoint
   resume: null
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
   # make sure to decrease the learning rate in the optimizer config accordingly
   pre_trained: null
   # how many iterations between validations
-  validate_after_iters: 20
+  validate_after_iters: 1000
   # how many iterations between tensorboard logging
-  log_after_iters: 20
+  log_after_iters: 100
   # max number of epochs
-  max_num_epochs: 50
+  max_num_epochs: 200
   # max number of iterations
-  max_num_iterations: 100000
+  max_num_iterations: 60000
   # model with higher eval score is considered better
   eval_score_higher_is_better: True
 # optimizer configuration
@@ -46,11 +47,12 @@ optimizer:
 # loss function configuration
 loss:
   # loss function to be used during training
-  name: DiceLoss
+  name: CrossEntropyLoss
   # A manual rescaling weight given to each class.
-  weight: null
+  #weight: null
   # a target value that is ignored and does not contribute to the input gradient
   ignore_index: null
+  
 
 # evaluation metric configuration
 eval_metric:
@@ -85,7 +87,11 @@ loaders:
     # absolute paths to the training datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - "/net/fs01/work01/yasuda/data/myosin/train/"
+      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_1.h5"
+      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_3.h5"
+      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_4.h5"
+      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_6.h5"
+      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_7.h5"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -142,7 +148,11 @@ loaders:
     # paths to the validation datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - "/net/fs01/work01/yasuda/data/myosin/val/"
+      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_1.h5"
+      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_3.h5"
+      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_4.h5"
+      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_6.h5"
+      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_7.h5"
 
     # SliceBuilder configuration
     slice_builder:
@@ -151,7 +161,7 @@ loaders:
       # validation patch (can be bigger than train patch since there is no backprop)
       patch_shape: [32, 64, 64]
       # validation stride (validation patches doesn't need to overlap)
-      stride_shape: [32, 64, 64]
+      stride_shape: [8, 16, 16]
     transformer:
       raw:
         - name: Standardize
@@ -160,3 +170,4 @@ loaders:
       label:
         - name: ToTensor
           expand_dims: true
+
