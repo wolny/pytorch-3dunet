@@ -47,9 +47,9 @@ optimizer:
 # loss function configuration
 loss:
   # loss function to be used during training
-  name: CrossEntropyLoss
+  name: DiceLoss
   # A manual rescaling weight given to each class.
-  #weight: null
+  weight: null
   # a target value that is ignored and does not contribute to the input gradient
   ignore_index: null
   
@@ -87,11 +87,7 @@ loaders:
     # absolute paths to the training datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_1.h5"
-      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_3.h5"
-      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_4.h5"
-      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_6.h5"
-      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_7.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/multi/train/"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -148,11 +144,7 @@ loaders:
     # paths to the validation datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_1.h5"
-      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_3.h5"
-      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_4.h5"
-      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_6.h5"
-      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_7.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/multi/val/"
 
     # SliceBuilder configuration
     slice_builder:
