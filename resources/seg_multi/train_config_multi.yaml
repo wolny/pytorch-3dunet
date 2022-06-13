@@ -93,16 +93,11 @@ loaders:
     # absolute paths to the training datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-<<<<<<< HEAD
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_3.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_4.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_5.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_6.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_7.h5"
-=======
-      - "/net/fs01/work01/yasuda/data/221x1891x1891/R/train/split_R_4.h5"
-      - "/net/fs01/work01/yasuda/data/221x1891x1891/R/train/split_R_7.h5"
->>>>>>> refs/remotes/origin/master
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -159,16 +154,11 @@ loaders:
     # paths to the validation datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-<<<<<<< HEAD
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_3.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_4.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_5.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_6.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_7.h5"
-=======
-      - "/net/fs01/work01/yasuda/data/221x1891x1891/R/val/split_R_4.h5"
-      - "/net/fs01/work01/yasuda/data/221x1891x1891/R/val/split_R_7.h5"
->>>>>>> refs/remotes/origin/master
 
     # SliceBuilder configuration
     slice_builder:
