@@ -86,11 +86,11 @@ loaders:
     # absolute paths to the training datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - "/net/fs01/work01/yasuda/data/actin/train/split_actin_1.h5"
-      - "/net/fs01/work01/yasuda/data/actin/train/split_actin_3.h5"
-      - "/net/fs01/work01/yasuda/data/actin/train/split_actin_4.h5"
-      - "/net/fs01/work01/yasuda/data/actin/train/split_actin_6.h5"
-      - "/net/fs01/work01/yasuda/data/actin/train/split_actin_7.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/actin/train/split_actin_1.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/actin/train/split_actin_3.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/actin/train/split_actin_4.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/actin/train/split_actin_6.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/actin/train/split_actin_7.h5"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -147,11 +147,11 @@ loaders:
     # paths to the validation datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - "/net/fs01/work01/yasuda/data/actin/val/split_actin_1.h5"
-      - "/net/fs01/work01/yasuda/data/actin/val/split_actin_3.h5"
-      - "/net/fs01/work01/yasuda/data/actin/val/split_actin_4.h5"
-      - "/net/fs01/work01/yasuda/data/actin/val/split_actin_6.h5"
-      - "/net/fs01/work01/yasuda/data/actin/val/split_actin_7.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/actin/val/split_actin_1.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/actin/val/split_actin_3.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/actin/val/split_actin_4.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/actin/val/split_actin_6.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/actin/val/split_actin_7.h5"
 
     # SliceBuilder configuration
     slice_builder:

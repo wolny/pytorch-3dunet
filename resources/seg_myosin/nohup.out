@@ -1,206 +1,57 @@
-2022-02-09 00:58:19,660 [MainThread] INFO ConfigLoader - Using 'cuda:0' device
-2022-02-09 00:58:19,660 [MainThread] INFO TrainingSetup - {'manual_seed': 0, 'model': {'name': 'UNet3D', 'in_channels': 1, 'out_channels': 1, 'layer_order': 'gcr', 'f_maps': 32, 'num_groups': 8, 'final_sigmoid': True, 'is_segmentation': True}, 'trainer': {'checkpoint_dir': '/net/fs01/work01/yasuda/data/myosin/UNet3D/GenericAveragePrecision', 'resume': None, 'pre_trained': None, 'validate_after_iters': 20, 'log_after_iters': 20, 'max_num_epochs': 50, 'max_num_iterations': 100000, 'eval_score_higher_is_better': True}, 'optimizer': {'learning_rate': 0.0002, 'weight_decay': 0.0001}, 'loss': {'name': 'DiceLoss', 'weight': None, 'ignore_index': None}, 'eval_metric': {'name': 'GenericAveragePrecision', 'metric': 'ap'}, 'lr_scheduler': {'name': 'MultiStepLR', 'milestones': [10, 30, 60], 'gamma': 0.2}, 'loaders': {'dataset': 'StandardHDF5Dataset', 'batch_size': 1, 'num_workers': 4, 'raw_internal_path': 'raw', 'label_internal_path': 'label', 'weight_internal_path': None, 'train': {'file_paths': ['/net/fs01/work01/yasuda/data/myosin/train/'], 'slice_builder': {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}, 'transformer': {'raw': [{'name': 'Standardize'}, {'name': 'RandomFlip'}, {'name': 'RandomRotate90'}, {'name': 'RandomRotate', 'axes': [[2, 1]], 'angle_spectrum': 15, 'mode': 'reflect'}, {'name': 'ElasticDeformation', 'spline_order': 3}, {'name': 'RandomContrast'}, {'name': 'AdditiveGaussianNoise'}, {'name': 'AdditivePoissonNoise'}, {'name': 'ToTensor', 'expand_dims': True}], 'label': [{'name': 'RandomFlip'}, {'name': 'RandomRotate90'}, {'name': 'RandomRotate', 'axes': [[2, 1]], 'angle_spectrum': 15, 'mode': 'reflect'}, {'name': 'ElasticDeformation', 'spline_order': 0}, {'name': 'ToTensor', 'expand_dims': True}]}}, 'val': {'file_paths': ['/net/fs01/work01/yasuda/data/myosin/val/'], 'slice_builder': {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}, 'transformer': {'raw': [{'name': 'Standardize'}, {'name': 'ToTensor', 'expand_dims': True}], 'label': [{'name': 'ToTensor', 'expand_dims': True}]}}}, 'device': device(type='cuda', index=0)}
-2022-02-09 00:58:19,660 [MainThread] INFO TrainingSetup - Seed the RNG for all devices with 0
-2022-02-09 00:58:20,551 [MainThread] INFO UNet3DTrainer - Using 2 GPUs for training
-2022-02-09 00:58:20,551 [MainThread] INFO UNet3DTrainer - Sending the model to 'cuda:0'
-2022-02-09 00:58:22,238 [MainThread] INFO UNet3DTrainer - Number of learnable params 4081267
-2022-02-09 00:58:22,238 [MainThread] INFO Dataset - Creating training and validation set loaders...
-2022-02-09 00:58:22,991 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/split_myosin_0.h5...
-2022-02-09 00:58:23,477 [MainThread] INFO HDF5Dataset - Input stats: min=100, max=170, mean=129.39169284301457, std=5.051808631763375
-2022-02-09 00:58:23,499 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}
-2022-02-09 00:58:23,798 [MainThread] INFO HDF5Dataset - Number of patches: 34225
-2022-02-09 00:58:23,799 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/split_myosin_1.h5...
-2022-02-09 00:58:24,255 [MainThread] INFO HDF5Dataset - Input stats: min=57, max=247, mean=129.31260835337827, std=5.307423863921303
-2022-02-09 00:58:24,277 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}
-2022-02-09 00:58:24,510 [MainThread] INFO HDF5Dataset - Number of patches: 34225
-2022-02-09 00:58:24,511 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/split_myosin_3.h5...
-2022-02-09 00:58:24,965 [MainThread] INFO HDF5Dataset - Input stats: min=17, max=235, mean=129.36456044960295, std=5.43006484206945
-2022-02-09 00:58:24,987 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}
-2022-02-09 00:58:25,156 [MainThread] INFO HDF5Dataset - Number of patches: 34225
-2022-02-09 00:58:25,157 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/split_myosin_4.h5...
-2022-02-09 00:58:25,612 [MainThread] INFO HDF5Dataset - Input stats: min=0, max=255, mean=129.334027973919, std=6.1305032261307915
-2022-02-09 00:58:25,634 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}
-2022-02-09 00:58:25,823 [MainThread] INFO HDF5Dataset - Number of patches: 34225
-2022-02-09 00:58:25,824 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/split_myosin_6.h5...
-2022-02-09 00:58:26,278 [MainThread] INFO HDF5Dataset - Input stats: min=97, max=176, mean=129.13799421672638, std=5.141289938663146
-2022-02-09 00:58:26,300 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}
-2022-02-09 00:58:26,514 [MainThread] INFO HDF5Dataset - Number of patches: 34225
-2022-02-09 00:58:26,514 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/split_myosin_7.h5...
-2022-02-09 00:58:26,975 [MainThread] INFO HDF5Dataset - Input stats: min=1, max=217, mean=129.28665717193536, std=5.647814388387516
-2022-02-09 00:58:26,997 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}
-2022-02-09 00:58:27,249 [MainThread] INFO HDF5Dataset - Number of patches: 34225
-2022-02-09 00:58:27,251 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/split_myosin_6.h5...
-2022-02-09 00:58:27,712 [MainThread] INFO HDF5Dataset - Input stats: min=97, max=176, mean=129.13799421672638, std=5.141289938663146
-2022-02-09 00:58:27,732 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}
-2022-02-09 00:58:27,733 [MainThread] INFO HDF5Dataset - Number of patches: 700
-2022-02-09 00:58:27,734 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/split_myosin_7.h5...
-2022-02-09 00:58:28,188 [MainThread] INFO HDF5Dataset - Input stats: min=1, max=217, mean=129.28665717193536, std=5.647814388387516
-2022-02-09 00:58:28,208 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}
-2022-02-09 00:58:28,209 [MainThread] INFO HDF5Dataset - Number of patches: 700
-2022-02-09 00:58:28,209 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/split_myosin_0.h5...
-2022-02-09 00:58:28,663 [MainThread] INFO HDF5Dataset - Input stats: min=100, max=170, mean=129.39169284301457, std=5.051808631763375
-2022-02-09 00:58:28,683 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}
-2022-02-09 00:58:28,684 [MainThread] INFO HDF5Dataset - Number of patches: 700
-2022-02-09 00:58:28,685 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/split_myosin_1.h5...
-2022-02-09 00:58:29,139 [MainThread] INFO HDF5Dataset - Input stats: min=57, max=247, mean=129.31260835337827, std=5.307423863921303
-2022-02-09 00:58:29,159 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}
-2022-02-09 00:58:29,160 [MainThread] INFO HDF5Dataset - Number of patches: 700
-2022-02-09 00:58:29,161 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/split_myosin_3.h5...
-2022-02-09 00:58:29,615 [MainThread] INFO HDF5Dataset - Input stats: min=17, max=235, mean=129.36456044960295, std=5.43006484206945
-2022-02-09 00:58:29,635 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}
-2022-02-09 00:58:29,636 [MainThread] INFO HDF5Dataset - Number of patches: 700
-2022-02-09 00:58:29,637 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/split_myosin_4.h5...
-2022-02-09 00:58:30,091 [MainThread] INFO HDF5Dataset - Input stats: min=0, max=255, mean=129.334027973919, std=6.1305032261307915
-2022-02-09 00:58:30,111 [MainThread] INFO Dataset - Slice builder config: {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}
-2022-02-09 00:58:30,112 [MainThread] INFO HDF5Dataset - Number of patches: 700
-2022-02-09 00:58:30,112 [MainThread] INFO Dataset - Number of workers for train/val dataloader: 4
-2022-02-09 00:58:30,112 [MainThread] INFO Dataset - 2 GPUs available. Using batch_size = 2 * 1
-2022-02-09 00:58:30,112 [MainThread] INFO Dataset - Batch size for train/val loader: 2
-2022-02-09 00:58:30,114 [MainThread] INFO UNet3DTrainer - DataParallel(
-  (module): UNet3D(
-    (encoders): ModuleList(
-      (0): Encoder(
-        (basic_module): DoubleConv(
-          (SingleConv1): SingleConv(
-            (groupnorm): GroupNorm(1, 1, eps=1e-05, affine=True)
-            (conv): Conv3d(1, 16, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-          (SingleConv2): SingleConv(
-            (groupnorm): GroupNorm(8, 16, eps=1e-05, affine=True)
-            (conv): Conv3d(16, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-        )
-      )
-      (1): Encoder(
-        (pooling): MaxPool3d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-        (basic_module): DoubleConv(
-          (SingleConv1): SingleConv(
-            (groupnorm): GroupNorm(8, 32, eps=1e-05, affine=True)
-            (conv): Conv3d(32, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-          (SingleConv2): SingleConv(
-            (groupnorm): GroupNorm(8, 32, eps=1e-05, affine=True)
-            (conv): Conv3d(32, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-        )
-      )
-      (2): Encoder(
-        (pooling): MaxPool3d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-        (basic_module): DoubleConv(
-          (SingleConv1): SingleConv(
-            (groupnorm): GroupNorm(8, 64, eps=1e-05, affine=True)
-            (conv): Conv3d(64, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-          (SingleConv2): SingleConv(
-            (groupnorm): GroupNorm(8, 64, eps=1e-05, affine=True)
-            (conv): Conv3d(64, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-        )
-      )
-      (3): Encoder(
-        (pooling): MaxPool3d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-        (basic_module): DoubleConv(
-          (SingleConv1): SingleConv(
-            (groupnorm): GroupNorm(8, 128, eps=1e-05, affine=True)
-            (conv): Conv3d(128, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-          (SingleConv2): SingleConv(
-            (groupnorm): GroupNorm(8, 128, eps=1e-05, affine=True)
-            (conv): Conv3d(128, 256, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-        )
-      )
-    )
-    (decoders): ModuleList(
-      (0): Decoder(
-        (upsampling): InterpolateUpsampling()
-        (basic_module): DoubleConv(
-          (SingleConv1): SingleConv(
-            (groupnorm): GroupNorm(8, 384, eps=1e-05, affine=True)
-            (conv): Conv3d(384, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-          (SingleConv2): SingleConv(
-            (groupnorm): GroupNorm(8, 128, eps=1e-05, affine=True)
-            (conv): Conv3d(128, 128, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-        )
-      )
-      (1): Decoder(
-        (upsampling): InterpolateUpsampling()
-        (basic_module): DoubleConv(
-          (SingleConv1): SingleConv(
-            (groupnorm): GroupNorm(8, 192, eps=1e-05, affine=True)
-            (conv): Conv3d(192, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-          (SingleConv2): SingleConv(
-            (groupnorm): GroupNorm(8, 64, eps=1e-05, affine=True)
-            (conv): Conv3d(64, 64, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-        )
-      )
-      (2): Decoder(
-        (upsampling): InterpolateUpsampling()
-        (basic_module): DoubleConv(
-          (SingleConv1): SingleConv(
-            (groupnorm): GroupNorm(8, 96, eps=1e-05, affine=True)
-            (conv): Conv3d(96, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-          (SingleConv2): SingleConv(
-            (groupnorm): GroupNorm(8, 32, eps=1e-05, affine=True)
-            (conv): Conv3d(32, 32, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1), bias=False)
-            (ReLU): ReLU(inplace=True)
-          )
-        )
-      )
-    )
-    (final_conv): Conv3d(32, 1, kernel_size=(1, 1, 1), stride=(1, 1, 1))
-    (final_activation): Sigmoid()
-  )
-)
-2022-02-09 00:58:30,114 [MainThread] INFO UNet3DTrainer - eval_score_higher_is_better: True
-2022-02-09 00:58:30,289 [MainThread] INFO UNet3DTrainer - Training iteration [1/100000]. Epoch [0/49]
-2022-02-09 00:58:32,553 [MainThread] INFO UNet3DTrainer - Training iteration [2/100000]. Epoch [0/49]
-2022-02-09 00:58:32,621 [MainThread] INFO UNet3DTrainer - Training iteration [3/100000]. Epoch [0/49]
-2022-02-09 00:58:32,695 [MainThread] INFO UNet3DTrainer - Training iteration [4/100000]. Epoch [0/49]
-2022-02-09 00:58:32,772 [MainThread] INFO UNet3DTrainer - Training iteration [5/100000]. Epoch [0/49]
-2022-02-09 00:58:32,838 [MainThread] INFO UNet3DTrainer - Training iteration [6/100000]. Epoch [0/49]
-2022-02-09 00:58:32,896 [MainThread] INFO UNet3DTrainer - Training iteration [7/100000]. Epoch [0/49]
-2022-02-09 00:58:32,950 [MainThread] INFO UNet3DTrainer - Training iteration [8/100000]. Epoch [0/49]
-2022-02-09 00:58:33,008 [MainThread] INFO UNet3DTrainer - Training iteration [9/100000]. Epoch [0/49]
-2022-02-09 00:58:33,068 [MainThread] INFO UNet3DTrainer - Training iteration [10/100000]. Epoch [0/49]
-2022-02-09 00:58:33,125 [MainThread] INFO UNet3DTrainer - Training iteration [11/100000]. Epoch [0/49]
-2022-02-09 00:58:33,180 [MainThread] INFO UNet3DTrainer - Training iteration [12/100000]. Epoch [0/49]
-2022-02-09 00:58:33,239 [MainThread] INFO UNet3DTrainer - Training iteration [13/100000]. Epoch [0/49]
-2022-02-09 00:58:33,296 [MainThread] INFO UNet3DTrainer - Training iteration [14/100000]. Epoch [0/49]
-2022-02-09 00:58:33,353 [MainThread] INFO UNet3DTrainer - Training iteration [15/100000]. Epoch [0/49]
-2022-02-09 00:58:33,409 [MainThread] INFO UNet3DTrainer - Training iteration [16/100000]. Epoch [0/49]
-2022-02-09 00:58:33,468 [MainThread] INFO UNet3DTrainer - Training iteration [17/100000]. Epoch [0/49]
-2022-02-09 00:58:33,524 [MainThread] INFO UNet3DTrainer - Training iteration [18/100000]. Epoch [0/49]
-2022-02-09 00:58:33,582 [MainThread] INFO UNet3DTrainer - Training iteration [19/100000]. Epoch [0/49]
-2022-02-09 00:58:33,638 [MainThread] INFO UNet3DTrainer - Training iteration [20/100000]. Epoch [0/49]
-2022-02-09 00:58:33,695 [MainThread] INFO UNet3DTrainer - Validating...
-2022-02-09 00:58:33,850 [MainThread] INFO UNet3DTrainer - Validation iteration 0
-/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/unet3d/utils.py:260: RuntimeWarning: invalid value encountered in true_divide
+2022-05-12 16:53:51,240 [MainThread] INFO ConfigLoader - Using 'cuda:0' device
+2022-05-12 16:53:51,240 [MainThread] INFO TrainingSetup - {'manual_seed': 0, 'model': {'name': 'UNet3D', 'in_channels': 1, 'out_channels': 1, 'layer_order': 'gcr', 'f_maps': 32, 'num_groups': 8, 'final_sigmoid': True, 'is_segmentation': True}, 'trainer': {'checkpoint_dir': '/net/fs01/work01/yasuda/data/myosin/UNet3D/GenericAveragePrecision', 'resume': None, 'pre_trained': None, 'validate_after_iters': 20, 'log_after_iters': 20, 'max_num_epochs': 50, 'max_num_iterations': 100000, 'eval_score_higher_is_better': True}, 'optimizer': {'learning_rate': 0.0002, 'weight_decay': 0.0001}, 'loss': {'name': 'DiceLoss', 'weight': None, 'ignore_index': None}, 'eval_metric': {'name': 'GenericAveragePrecision', 'metric': 'ap'}, 'lr_scheduler': {'name': 'MultiStepLR', 'milestones': [10, 30, 60], 'gamma': 0.2}, 'loaders': {'dataset': 'StandardHDF5Dataset', 'batch_size': 1, 'num_workers': 4, 'raw_internal_path': 'raw', 'label_internal_path': 'label', 'weight_internal_path': None, 'train': {'file_paths': ['/net/fs01/work01/yasuda/data/myosin/train/'], 'slice_builder': {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [8, 16, 16]}, 'transformer': {'raw': [{'name': 'Standardize'}, {'name': 'RandomFlip'}, {'name': 'RandomRotate90'}, {'name': 'RandomRotate', 'axes': [[2, 1]], 'angle_spectrum': 15, 'mode': 'reflect'}, {'name': 'ElasticDeformation', 'spline_order': 3}, {'name': 'RandomContrast'}, {'name': 'AdditiveGaussianNoise'}, {'name': 'AdditivePoissonNoise'}, {'name': 'ToTensor', 'expand_dims': True}], 'label': [{'name': 'RandomFlip'}, {'name': 'RandomRotate90'}, {'name': 'RandomRotate', 'axes': [[2, 1]], 'angle_spectrum': 15, 'mode': 'reflect'}, {'name': 'ElasticDeformation', 'spline_order': 0}, {'name': 'ToTensor', 'expand_dims': True}]}}, 'val': {'file_paths': ['/net/fs01/work01/yasuda/data/myosin/val/'], 'slice_builder': {'name': 'SliceBuilder', 'patch_shape': [32, 64, 64], 'stride_shape': [32, 64, 64]}, 'transformer': {'raw': [{'name': 'Standardize'}, {'name': 'ToTensor', 'expand_dims': True}], 'label': [{'name': 'ToTensor', 'expand_dims': True}]}}}, 'device': device(type='cuda', index=0)}
+2022-05-12 16:53:51,241 [MainThread] INFO TrainingSetup - Seed the RNG for all devices with 0
+2022-05-12 16:53:52,496 [MainThread] INFO UNet3DTrainer - Using 4 GPUs for training
+2022-05-12 16:53:52,496 [MainThread] INFO UNet3DTrainer - Sending the model to 'cuda:0'
+2022-05-12 16:53:55,046 [MainThread] INFO UNet3DTrainer - Number of learnable params 4081267
+2022-05-12 16:53:55,046 [MainThread] INFO Dataset - Creating training and validation set loaders...
+2022-05-12 16:53:56,063 [MainThread] INFO HDF5Dataset - Loading train set from: /net/fs01/work01/yasuda/data/myosin/train/...
+2022-05-12 16:53:56,064 [MainThread] ERROR HDF5Dataset - Skipping train set: /net/fs01/work01/yasuda/data/myosin/train/
+Traceback (most recent call last):
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/datasets/hdf5.py", line 232, in create_datasets
+    dataset = cls(file_path=file_path,
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/datasets/hdf5.py", line 270, in __init__
+    super().__init__(file_path=file_path,
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/datasets/hdf5.py", line 75, in __init__
+    input_file = self.create_h5_file(file_path, internal_paths)
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/datasets/hdf5.py", line 283, in create_h5_file
+    return h5py.File(file_path, 'r')
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/h5py/_hl/files.py", line 455, in __init__
+    fid = make_fid(name, mode, userblock_size,
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/h5py/_hl/files.py", line 199, in make_fid
+    fid = h5f.open(name, flags, fapl=fapl)
+  File "h5py/_objects.pyx", line 54, in h5py._objects.with_phil.wrapper
+  File "h5py/_objects.pyx", line 55, in h5py._objects.with_phil.wrapper
+  File "h5py/h5f.pyx", line 100, in h5py.h5f.open
+FileNotFoundError: [Errno 2] Unable to open file (unable to open file: name = '/net/fs01/work01/yasuda/data/myosin/train/', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+2022-05-12 16:53:56,067 [MainThread] INFO HDF5Dataset - Loading val set from: /net/fs01/work01/yasuda/data/myosin/val/...
+2022-05-12 16:53:56,067 [MainThread] ERROR HDF5Dataset - Skipping val set: /net/fs01/work01/yasuda/data/myosin/val/
+Traceback (most recent call last):
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/datasets/hdf5.py", line 232, in create_datasets
+    dataset = cls(file_path=file_path,
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/datasets/hdf5.py", line 270, in __init__
+    super().__init__(file_path=file_path,
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/datasets/hdf5.py", line 75, in __init__
+    input_file = self.create_h5_file(file_path, internal_paths)
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/datasets/hdf5.py", line 283, in create_h5_file
+    return h5py.File(file_path, 'r')
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/h5py/_hl/files.py", line 455, in __init__
+    fid = make_fid(name, mode, userblock_size,
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/h5py/_hl/files.py", line 199, in make_fid
+    fid = h5f.open(name, flags, fapl=fapl)
+  File "h5py/_objects.pyx", line 54, in h5py._objects.with_phil.wrapper
+  File "h5py/_objects.pyx", line 55, in h5py._objects.with_phil.wrapper
+  File "h5py/h5f.pyx", line 100, in h5py.h5f.open
+FileNotFoundError: [Errno 2] Unable to open file (unable to open file: name = '/net/fs01/work01/yasuda/data/myosin/val/', errno = 2, error message = 'No such file or directory', flags = 0, o_flags = 0)
+2022-05-12 16:53:56,068 [MainThread] INFO Dataset - Number of workers for train/val dataloader: 4
+2022-05-12 16:53:56,068 [MainThread] INFO Dataset - 4 GPUs available. Using batch_size = 4 * 1
+2022-05-12 16:53:56,068 [MainThread] INFO Dataset - Batch size for train/val loader: 4
 Traceback (most recent call last):
   File "/home/people/yasuda/.conda/envs/3dunet/bin/train3dunet", line 10, in <module>
     sys.exit(main())
-  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/train.py", line 29, in main
-  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/unet3d/trainer.py", line 246, in fit
-  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/unet3d/trainer.py", line 286, in train
-  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/unet3d/trainer.py", line 371, in validate
-  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/unet3d/metrics.py", line 308, in __call__
-  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/unet3d/metrics.py", line 339, in input_to_seg
-NotImplementedError
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/train.py", line 27, in main
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/unet3d/trainer.py", line 92, in build
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/pytorch3dunet-1.3.3-py3.9.egg/pytorch3dunet/datasets/utils.py", line 302, in get_train_loaders
+  File "/home/people/yasuda/.conda/envs/3dunet/lib/python3.9/site-packages/torch/utils/data/dataset.py", line 290, in __init__
+    assert len(self.datasets) > 0, 'datasets should not be an empty iterable'  # type: ignore[arg-type]
+AssertionError: datasets should not be an empty iterable

@@ -38,7 +38,7 @@ loaders:
   weight_internal_path: null
   train:
     file_paths:
-      - ''
+      - '/net/fs01/work01/yasuda/pytorch-3dunet/tests/resources/train/'
 
     slice_builder:
       name: SliceBuilder
@@ -61,7 +61,7 @@ loaders:
           expand_dims: false
   val:
     file_paths:
-      - ''
+      - '/net/fs01/work01/yasuda/pytorch-3dunet/tests/resources/val/'
 
     slice_builder:
       name: SliceBuilder

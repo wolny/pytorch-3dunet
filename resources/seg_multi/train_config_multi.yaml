@@ -13,7 +13,7 @@ model:
   # feature maps scale factor
   f_maps: 32
   # number of groups in the groupnorm
-  num_groups: 4
+  num_groups: 5
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
   final_sigmoid: true
   # if True applies the final normalization layer (sigmoid or softmax), otherwise the networks returns the output from the final convolution layer; use False for regression problems, e.g. de-noising
@@ -22,7 +22,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: "/net/fs01/work01/yasuda/data/multi/"
+  checkpoint_dir: "/net/fs01/work01/yasuda/data/multi/gcr"
   # path to last_checkpoint.pytorch; if provided the training will be resumed from that checkpoint
   resume: null
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
@@ -44,15 +44,21 @@ optimizer:
   learning_rate: 0.0002
   # weight decay
   weight_decay: 0.0001
+
 # loss function configuration
+#loss:
+  # loss function to be used during training
+ # name: BCEWithLogitsLoss
+  # skip last channel in the target containing the labeled nuclei instances
+  #skip_last_target: true 
+
 loss:
   # loss function to be used during training
-  name: CrossEntropyLoss
+  name: DiceLoss
   # A manual rescaling weight given to each class.
-  #weight: null
+  weight: null
   # a target value that is ignored and does not contribute to the input gradient
   ignore_index: null
-  
 
 # evaluation metric configuration
 eval_metric:
@@ -87,11 +93,11 @@ loaders:
     # absolute paths to the training datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_1.h5"
-      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_3.h5"
-      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_4.h5"
-      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_6.h5"
-      - "/net/fs01/work01/yasuda/data/multi/train/split_multi_h5/split_R_7.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_3.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_4.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_5.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_6.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_7.h5"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -148,11 +154,11 @@ loaders:
     # paths to the validation datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
-      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_1.h5"
-      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_3.h5"
-      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_4.h5"
-      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_6.h5"
-      - "/net/fs01/work01/yasuda/data/multi/val/split_multi_h5/split_R_7.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_3.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_4.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_5.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_6.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_7.h5"
 
     # SliceBuilder configuration
     slice_builder:
