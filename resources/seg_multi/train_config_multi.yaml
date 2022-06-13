@@ -5,11 +5,11 @@ model:
   # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
-  in_channels: 4
+  in_channels: 5
   # number of output channels
-  out_channels: 4
+  out_channels: 5
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
-  layer_order: gcr
+  layer_order: crg
   # feature maps scale factor
   f_maps: 32
   # number of groups in the groupnorm
@@ -93,11 +93,16 @@ loaders:
     # absolute paths to the training datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
+<<<<<<< HEAD
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_3.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_4.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_5.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_6.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/train/split_R_7.h5"
+=======
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/R/train/split_R_4.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/R/train/split_R_7.h5"
+>>>>>>> refs/remotes/origin/master
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -154,11 +159,16 @@ loaders:
     # paths to the validation datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)
     file_paths:
+<<<<<<< HEAD
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_3.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_4.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_5.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_6.h5"
       - "/net/fs01/work01/yasuda/data/221x1891x1891/4d_R/val/split_R_7.h5"
+=======
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/R/val/split_R_4.h5"
+      - "/net/fs01/work01/yasuda/data/221x1891x1891/R/val/split_R_7.h5"
+>>>>>>> refs/remotes/origin/master
 
     # SliceBuilder configuration
     slice_builder:
