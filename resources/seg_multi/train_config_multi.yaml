@@ -5,15 +5,15 @@ model:
   # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
-  in_channels: 5
+  in_channels: 4
   # number of output channels
-  out_channels: 5
+  out_channels: 4
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
   layer_order: crg
   # feature maps scale factor
   f_maps: 32
   # number of groups in the groupnorm
-  num_groups: 5
+  num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
   final_sigmoid: true
   # if True applies the final normalization layer (sigmoid or softmax), otherwise the networks returns the output from the final convolution layer; use False for regression problems, e.g. de-noising
@@ -22,7 +22,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: "/net/fs01/work01/yasuda/data/multi/gcr"
+  checkpoint_dir: "/net/fs01/work01/yasuda/data/multi/0615"
   # path to last_checkpoint.pytorch; if provided the training will be resumed from that checkpoint
   resume: null
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
@@ -167,7 +167,7 @@ loaders:
       # validation patch (can be bigger than train patch since there is no backprop)
       patch_shape: [32, 64, 64]
       # validation stride (validation patches doesn't need to overlap)
-      stride_shape: [8, 16, 16]
+      stride_shape: [32, 64, 64]
     transformer:
       raw:
         - name: Standardize
