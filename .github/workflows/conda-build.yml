@@ -24,10 +24,10 @@ jobs:
     - name: Build pytorch-3dunet
       run: |
           conda install -q conda-build
-          conda build -c pytorch -c conda-forge conda-recipe
+          conda build -c pytorch -c nvidia -c conda-forge conda-recipe
     - name: Install dependencies
       run: |
-        conda install -c pytorch -c conda-forge --use-local pytorch-3dunet
+        conda install -c pytorch -c nvidia -c conda-forge --use-local pytorch-3dunet
     - name: Run pytest
       run: |
         # workaround ImportError: /usr/share/miniconda/lib/python3.9/site-packages/h5py/defs.cpython-39-x86_64-linux-gnu.so: undefined symbol: H5Pset_fapl_ros3
