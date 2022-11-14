@@ -4,8 +4,8 @@ import torch.nn as nn
 from skimage import measure
 
 from pytorch3dunet.augment.transforms import LabelToAffinities, StandardLabelToBoundary
-from pytorch3dunet.unet3d.losses import GeneralizedDiceLoss, WeightedCrossEntropyLoss, \
-    DiceLoss, WeightedSmoothL1Loss, _MaskingLossWrapper, SkipLastTargetChannelWrapper, BCEDiceLoss
+from pytorch3dunet.unet3d.losses import GeneralizedDiceLoss, DiceLoss, WeightedSmoothL1Loss, _MaskingLossWrapper, \
+    SkipLastTargetChannelWrapper, BCEDiceLoss
 from pytorch3dunet.unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
     BoundaryAdaptedRandError
 
@@ -132,25 +132,6 @@ class TestCriterion:
         results = _compute_criterion(BCEDiceLoss(1., 1.))
         results = np.array(results)
         assert np.all(results > 0)
-
-    def test_weighted_ce(self):
-        criterion = WeightedCrossEntropyLoss()
-        shape = [1, 0, 30, 30, 30]
-        target_shape = [1, 30, 30, 30]
-        results = []
-        for C in range(1, 5):
-            input_shape = list(shape)
-            input_shape[1] = C
-            input_shape = tuple(input_shape)
-            for i in range(100):
-                input = torch.rand(input_shape, requires_grad=True)
-                target = torch.zeros(target_shape, dtype=torch.long).random_(0, C)
-                output = criterion(input, target)
-                output.backward()
-                results.append(output.detach().item())
-
-        results = np.array(results)
-        assert np.all(results >= 0)
 
     def test_ignore_index_loss(self):
         loss = _MaskingLossWrapper(nn.BCEWithLogitsLoss(), ignore_index=-1)
