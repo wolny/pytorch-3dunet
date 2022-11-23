@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/149826542.svg)](https://zenodo.org/badge/latestdoi/149826542)
+[![DOI](https://zenodo.org/badge/149826542.svg)](https://doi.org/10.7554/eLife.57613)
 [![Build Status](https://github.com/wolny/pytorch-3dunet/actions/workflows/conda-build.yml/badge.svg)](https://github.com/wolny/pytorch-3dunet/actions/)
 
 
