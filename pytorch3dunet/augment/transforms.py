@@ -339,29 +339,6 @@ class StandardLabelToBoundary:
         return np.stack(results, axis=0)
 
 
-class BlobsWithBoundary:
-    def __init__(self, mode=None, append_label=False, **kwargs):
-        if mode is None:
-            mode = ['thick', 'inner', 'outer']
-        self.mode = mode
-        self.append_label = append_label
-
-    def __call__(self, m):
-        assert m.ndim == 3
-
-        # get the segmentation mask
-        results = [(m > 0).astype('uint8')]
-
-        for bm in self.mode:
-            boundary = find_boundaries(m, connectivity=2, mode=bm)
-            results.append(boundary)
-
-        if self.append_label:
-            results.append(m)
-
-        return np.stack(results, axis=0)
-
-
 class BlobsToMask:
     """
     Returns binary mask from labeled image, i.e. every label greater than 0 is treated as foreground.

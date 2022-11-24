@@ -15,7 +15,7 @@ logger = get_logger('EvalMetric')
 class DiceCoefficient:
     """Computes Dice Coefficient.
     Generalized to multiple channels by computing per-channel Dice Score
-    (as described in https://arxiv.org/pdf/1707.03237.pdf) and theTn simply taking the average.
+    (as described in https://arxiv.org/pdf/1707.03237.pdf) and then simply taking the average.
     Input is expected to be probabilities instead of logits.
     This metric is mostly useful when channels contain the same semantic class (e.g. affinities computed with different offsets).
     DO NOT USE this metric when training with DiceLoss, otherwise the results will be biased towards the loss.
@@ -114,7 +114,7 @@ class AdaptedRandError:
     it's enough to extend this class and implement the `input_to_segm` method.
 
     Args:
-        use_last_target (bool): use only the last channel from the target to compute the ARand
+        use_last_target (bool): if true, use the last channel from the target to compute the ARand, otherwise the first.
     """
 
     def __init__(self, use_last_target=False, ignore_index=None, **kwargs):

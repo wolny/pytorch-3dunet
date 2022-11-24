@@ -31,7 +31,7 @@ class AbstractHDF5Dataset(ConfigDataset):
         :param file_path: path to H5 file containing raw data as well as labels and per pixel weights (optional)
         :param phase: 'train' for training, 'val' for validation, 'test' for testing; data augmentation is performed
             only during the 'train' phase
-        :para'/home/adrian/workspace/ilastik-datasets/VolkerDeconv/train'm slice_builder_config: configuration of the SliceBuilder
+        :param slice_builder_config: configuration of the SliceBuilder
         :param transformer_config: data augmentation configuration
         :param mirror_padding (int or tuple): number of voxels padded to each axis
         :param raw_internal_path (str or list): H5 internal path to the raw dataset
