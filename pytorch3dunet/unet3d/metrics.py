@@ -149,11 +149,7 @@ class AdaptedRandError:
 
         per_batch_arand = []
         for _input, _target in zip(input, target):
-            n_clusters = len(np.unique(_target))
-            # skip ARand eval if there is only one label in the patch due to the zero-division error in Arand impl
-            # xxx/skimage/metrics/_adapted_rand_error.py:70: RuntimeWarning: invalid value encountered in double_scalars
-            # precision = sum_p_ij2 / sum_a2
-            if n_clusters == 1:
+            if np.all(_target == _target[0]):  # skip ARand eval if there is only one label in the patch due to zero-division
                 logger.info('Skipping ARandError computation: only 1 label present in the ground truth')
                 per_batch_arand.append(0.)
                 continue
