@@ -8,10 +8,14 @@
 
 PyTorch implementation 3D U-Net and its variants:
 
-- Standard 3D U-Net based on [3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation](https://arxiv.org/abs/1606.06650) 
+- `UNet3D` Standard 3D U-Net based on [3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation](https://arxiv.org/abs/1606.06650) 
 Özgün Çiçek et al.
 
-- Residual 3D U-Net based on [Superhuman Accuracy on the SNEMI3D Connectomics Challenge](https://arxiv.org/pdf/1706.00120.pdf) Kisuk Lee et al.
+- `ResidualUNet3D` Residual 3D U-Net based on [Superhuman Accuracy on the SNEMI3D Connectomics Challenge](https://arxiv.org/pdf/1706.00120.pdf) Kisuk Lee et al.
+
+- `ResidualUNetSE3D` Similar to `ResidualUNet3D` with the addition of Squeeze and Excitation blocks based on [Deep Learning Semantic Segmentation for High-Resolution Medical Volumes](https://ieeexplore.ieee.org/abstract/document/9425041) Imad Eddine Toubal et al. Original squeeze and excite paper: [Squeeze-and-Excitation Networks](https://arxiv.org/pdf/1709.01507.pdf) Jie Hu et al.
+
+- `UNETR` A transformer-based implementation of U-Net based on [UNETR: Transformers for 3D Medical Image Segmentation](https://arxiv.org/pdf/2103.10504.pdf) Ali Hatamizadeh et al.
 
 The code allows for training the U-Net for both: **semantic segmentation** (binary and multi-class) and **regression** problems (e.g. de-noising, learning deconvolutions).
 
@@ -30,42 +34,42 @@ The package has not been tested on Windows, however some users reported using it
 ## Supported Loss Functions
 
 ### Semantic Segmentation
-- _BCEWithLogitsLoss_ (binary cross-entropy)
-- _DiceLoss_ (standard `DiceLoss` defined as `1 - DiceCoefficient` used for binary semantic segmentation; when more than 2 classes are present in the ground truth, it computes the `DiceLoss` per channel and averages the values)
-- _BCEDiceLoss_ (Linear combination of BCE and Dice losses, i.e. `alpha * BCE + beta * Dice`, `alpha, beta` can be specified in the `loss` section of the config)
-- _CrossEntropyLoss_ (one can specify class weights via the `weight: [w_1, ..., w_k]` in the `loss` section of the config)
-- _PixelWiseCrossEntropyLoss_ (one can specify per pixel weights in order to give more gradient to the important/under-represented regions in the ground truth)
-- _WeightedCrossEntropyLoss_ (see 'Weighted cross-entropy (WCE)' in the below paper for a detailed explanation)
-- _GeneralizedDiceLoss_ (see 'Generalized Dice Loss (GDL)' in the below paper for a detailed explanation) Note: use this loss function only if the labels in the training dataset are very imbalanced e.g. one class having at least 3 orders of magnitude more voxels than the others. Otherwise use standard _DiceLoss_.
+- `BCEWithLogitsLoss` (binary cross-entropy)
+- `DiceLoss` (standard `DiceLoss` defined as `1 - DiceCoefficient` used for binary semantic segmentation; when more than 2 classes are present in the ground truth, it computes the `DiceLoss` per channel and averages the values)
+- `BCEDiceLoss` (Linear combination of BCE and Dice losses, i.e. `alpha * BCE + beta * Dice`, `alpha, beta` can be specified in the `loss` section of the config)
+- `CrossEntropyLoss` (one can specify class weights via the `weight: [w_1, ..., w_k]` in the `loss` section of the config)
+- `PixelWiseCrossEntropyLoss` (one can specify per pixel weights in order to give more gradient to the important/under-represented regions in the ground truth)
+- `WeightedCrossEntropyLoss` (see 'Weighted cross-entropy (WCE)' in the below paper for a detailed explanation)
+- `GeneralizedDiceLoss` (see 'Generalized Dice Loss (GDL)' in the below paper for a detailed explanation) Note: use this loss function only if the labels in the training dataset are very imbalanced e.g. one class having at least 3 orders of magnitude more voxels than the others. Otherwise use standard `DiceLoss`.
 
 For a detailed explanation of some of the supported loss functions see:
 [Generalised Dice overlap as a deep learning loss function for highly unbalanced segmentations](https://arxiv.org/pdf/1707.03237.pdf)
 Carole H. Sudre et al.
 
 ### Regression
-- _MSELoss_ (mean squared error loss)
-- _L1Loss_ (mean absolute errro loss)
-- _SmoothL1Loss_ (less sensitive to outliers than MSELoss)
-- _WeightedSmoothL1Loss_ (extension of the _SmoothL1Loss_ which allows to weight the voxel values above/below a given threshold differently)
+- `MSELoss` (mean squared error loss)
+- `L1Loss` (mean absolute errro loss)
+- `SmoothL1Loss` (less sensitive to outliers than MSELoss)
+- `WeightedSmoothL1Loss` (extension of the `SmoothL1Loss` which allows to weight the voxel values above/below a given threshold differently)
 
 
 ## Supported Evaluation Metrics
 
 ### Semantic Segmentation
-- _MeanIoU_ (mean intersection over union)
-- _DiceCoefficient_ (computes per channel Dice Coefficient and returns the average)
+- `MeanIoU` (mean intersection over union)
+- `DiceCoefficient` (computes per channel Dice Coefficient and returns the average)
 If a 3D U-Net was trained to predict cell boundaries, one can use the following semantic instance segmentation metrics
 (the metrics below are computed by running connected components on thresholded boundary map and comparing the resulted instances to the ground truth instance segmentation): 
-- _BoundaryAveragePrecision_ (Average Precision applied to the boundary probability maps: thresholds the output from the network, runs connected components to get the segmentation and computes AP between the resulting segmentation and the ground truth)
-- _AdaptedRandError_ (see http://brainiac2.mit.edu/SNEMI3D/evaluation for a detailed explanation)
-- _AveragePrecision_ (see https://www.kaggle.com/stkbailey/step-by-step-explanation-of-scoring-metric)
+- `BoundaryAveragePrecision` (Average Precision applied to the boundary probability maps: thresholds the output from the network, runs connected components to get the segmentation and computes AP between the resulting segmentation and the ground truth)
+- `AdaptedRandError` (see http://brainiac2.mit.edu/SNEMI3D/evaluation for a detailed explanation)
+- `AveragePrecision` (see https://www.kaggle.com/stkbailey/step-by-step-explanation-of-scoring-metric)
 
 If not specified `MeanIoU` will be used by default.
 
 
 ### Regression
-- _PSNR_ (peak signal to noise ratio)
-- _MSE_ (mean squared error)
+- `PSNR` (peak signal to noise ratio)
+- `MSE` (mean squared error)
 
 
 ## Installation
