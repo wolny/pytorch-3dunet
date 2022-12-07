@@ -149,7 +149,7 @@ class AdaptedRandError:
 
         per_batch_arand = []
         for _input, _target in zip(input, target):
-            if np.all(_target == _target[0]):  # skip ARand eval if there is only one label in the patch due to zero-division
+            if np.all(_target == _target.flat[0]):  # skip ARand eval if there is only one label in the patch due to zero-division
                 logger.info('Skipping ARandError computation: only 1 label present in the ground truth')
                 per_batch_arand.append(0.)
                 continue
