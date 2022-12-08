@@ -126,18 +126,12 @@ class AdaptedRandError:
         Compute ARand Error for each input, target pair in the batch and return the mean value.
 
         Args:
-            input (torch.tensor): 5D (NCDHW) output from the network
-            target (torch.tensor): 4D (NDHW) ground truth segmentation
+            input (torch.tensor):  5D (NCDHW) output from the network
+            target (torch.tensor): 5D (NCDHW) ground truth segmentation
 
         Returns:
             average ARand Error across the batch
         """
-
-        def _arand_err(gt, seg):
-            n_seg = len(np.unique(seg))
-            if n_seg == 1:
-                return 0.
-            return adapted_rand_error(gt, seg)[0]
 
         # converts input and target to numpy arrays
         input, target = convert_to_numpy(input, target)
@@ -155,11 +149,7 @@ class AdaptedRandError:
 
         per_batch_arand = []
         for _input, _target in zip(input, target):
-            n_clusters = len(np.unique(_target))
-            # skip ARand eval if there is only one label in the patch due to the zero-division error in Arand impl
-            # xxx/skimage/metrics/_adapted_rand_error.py:70: RuntimeWarning: invalid value encountered in double_scalars
-            # precision = sum_p_ij2 / sum_a2
-            if n_clusters == 1:
+            if np.all(_target == _target.flat[0]):  # skip ARand eval if there is only one label in the patch due to zero-division
                 logger.info('Skipping ARandError computation: only 1 label present in the ground truth')
                 per_batch_arand.append(0.)
                 continue
@@ -169,7 +159,7 @@ class AdaptedRandError:
             assert segm.ndim == 4
 
             # compute per channel arand and return the minimum value
-            per_channel_arand = [_arand_err(_target, channel_segm) for channel_segm in segm]
+            per_channel_arand = [adapted_rand_error(_target, channel_segm)[0] for channel_segm in segm]
             per_batch_arand.append(np.min(per_channel_arand))
 
         # return mean arand error
