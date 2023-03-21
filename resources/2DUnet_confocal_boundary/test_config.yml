@@ -1,0 +1,43 @@
+# Download test data from: https://osf.io/8jz7e/
+model_path: PATH_TO_BEST_CHECKPOINT
+model:
+  name: UNet3D
+  # number of input channels to the model
+  in_channels: 1
+  # number of output channels
+  out_channels: 1
+  # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
+  layer_order: gcr
+  # initial number of feature maps
+  f_maps: 32
+  # number of groups in the groupnorm
+  num_groups: 8
+  # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
+  final_sigmoid: true
+predictor:
+  name: 'StandardPredictor'
+  patch_halo: [0, 16, 16]
+loaders:
+  # save predictions to output_dir
+  output_dir: PATH_TO_OUTPUT_DIR
+  # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
+  batch_size: 1
+  # mirror pad the raw data in each axis for sharper prediction near the boundaries of the volume
+  mirror_padding: [16, 32, 32]
+  # how many subprocesses to use for data loading
+  num_workers: 8
+  # test loaders configuration
+  test:
+    file_paths:
+      - PATH_TO_TEST_DIR
+
+    slice_builder:
+      name: SliceBuilder
+      patch_shape: [80, 170, 170]
+      stride_shape: [40, 90, 90]
+
+    transformer:
+      raw:
+        - name: Standardize
+        - name: ToTensor
+          expand_dims: true

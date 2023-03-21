@@ -16,6 +16,17 @@ class AbstractHDF5Dataset(ConfigDataset):
     """
     Implementation of torch.utils.data.Dataset backed by the HDF5 files, which iterates over the raw and label datasets
     patch by patch with a given stride.
+
+    Args:
+        file_path (str): path to H5 file containing raw data as well as labels and per pixel weights (optional)
+        phase (str): 'train' for training, 'val' for validation, 'test' for testing
+        slice_builder_config (dict): configuration of the SliceBuilder
+        transformer_config (dict): data augmentation configuration
+        mirror_padding (int or tuple): number of voxels padded to each axis
+        raw_internal_path (str or list): H5 internal path to the raw dataset
+        label_internal_path (str or list): H5 internal path to the label dataset
+        weight_internal_path (str or list): H5 internal path to the per pixel weights (optional)
+        global_normalization (bool): if True, the mean and std of the raw data will be calculated over the whole dataset
     """
 
     def __init__(self, file_path,
@@ -27,39 +38,19 @@ class AbstractHDF5Dataset(ConfigDataset):
                  label_internal_path='label',
                  weight_internal_path=None,
                  global_normalization=True):
-        """
-        :param file_path: path to H5 file containing raw data as well as labels and per pixel weights (optional)
-        :param phase: 'train' for training, 'val' for validation, 'test' for testing; data augmentation is performed
-            only during the 'train' phase
-        :param slice_builder_config: configuration of the SliceBuilder
-        :param transformer_config: data augmentation configuration
-        :param mirror_padding (int or tuple): number of voxels padded to each axis
-        :param raw_internal_path (str or list): H5 internal path to the raw dataset
-        :param label_internal_path (str or list): H5 internal path to the label dataset
-        :param weight_internal_path (str or list): H5 internal path to the per pixel weights
-        """
         assert phase in ['train', 'val', 'test']
         if phase in ['train', 'val']:
             mirror_padding = None
 
-        if mirror_padding is not None:
-            if isinstance(mirror_padding, int):
-                mirror_padding = (mirror_padding,) * 3
-            else:
-                assert len(mirror_padding) == 3, f"Invalid mirror_padding: {mirror_padding}"
-
-        self.mirror_padding = mirror_padding
         self.phase = phase
         self.file_path = file_path
+        self.mirror_padding = mirror_padding
 
         input_file = self.create_h5_file(file_path)
 
-        self.raw = self.fetch_and_check(input_file, raw_internal_path)
+        self.raw = self.load_dataset(input_file, raw_internal_path)
 
-        if global_normalization:
-            stats = calculate_stats(self.raw)
-        else:
-            stats = {'pmin': None, 'pmax': None, 'mean': None, 'std': None}
+        stats = calculate_stats(self.raw, global_normalization)
 
         self.transformer = transforms.Transformer(transformer_config, stats)
         self.raw_transform = self.transformer.raw_transform()
@@ -67,11 +58,11 @@ class AbstractHDF5Dataset(ConfigDataset):
         if phase != 'test':
             # create label/weight transform only in train/val phase
             self.label_transform = self.transformer.label_transform()
-            self.label = self.fetch_and_check(input_file, label_internal_path)
+            self.label = self.load_dataset(input_file, label_internal_path)
 
             if weight_internal_path is not None:
                 # look for the weight map in the raw file
-                self.weight_map = self.fetch_and_check(input_file, weight_internal_path)
+                self.weight_map = self.load_dataset(input_file, weight_internal_path)
                 self.weight_transform = self.transformer.weight_transform()
             else:
                 self.weight_map = None
@@ -82,11 +73,16 @@ class AbstractHDF5Dataset(ConfigDataset):
             self.label = None
             self.weight_map = None
 
-            # add mirror padding if needed
-            if self.mirror_padding is not None:
-                z, y, x = self.mirror_padding
+            if mirror_padding is not None:
+                if isinstance(mirror_padding, int):
+                    mirror_padding = (mirror_padding,) * 3
+
+                # add mirror padding to the whole volume
+                z, y, x = mirror_padding
                 pad_width = ((z, z), (y, y), (x, x))
+
                 if self.raw.ndim == 4:
+                    # pad each channel separately
                     channels = [np.pad(r, pad_width=pad_width, mode='reflect') for r in self.raw]
                     self.raw = np.stack(channels)
                 else:
@@ -102,11 +98,10 @@ class AbstractHDF5Dataset(ConfigDataset):
         logger.info(f'Number of patches: {self.patch_count}')
 
     @staticmethod
-    def fetch_and_check(input_file, internal_path):
+    def load_dataset(input_file, internal_path):
         ds = input_file[internal_path][:]
-        if ds.ndim == 2:
-            # expand dims if 2d
-            ds = np.expand_dims(ds, axis=0)
+        assert ds.ndim in [3, 4], \
+            f"Invalid dataset dimension: {ds.ndim}. Supported dataset formats: (C, Z, Y, X) or (Z, Y, X)"
         return ds
 
     def __getitem__(self, idx):
