@@ -26,14 +26,17 @@ jobs:
         conda install --yes -c conda-forge mamba
         mamba install -q boa
         mamba mambabuild -c pytorch -c nvidia -c conda-forge conda-recipe
-    - name: Install dependencies
+    - name: Create pytorch3dunet env
       run: |
-        mamba install -c pytorch -c nvidia -c conda-forge --use-local pytorch-3dunet pytest
+        mamba create -n pytorch3dunet -c pytorch -c nvidia -c conda-forge pytorch-3dunet pytest
     - name: Run pytest
+      shell: bash -l {0}
       run: |
         # workaround ImportError: /usr/share/miniconda/lib/python3.9/site-packages/h5py/defs.cpython-39-x86_64-linux-gnu.so: undefined symbol: H5Pset_fapl_ros3
         # mamba install -c conda-forge pytest h5py=3.1.0
+        conda activate pytorch3dunet
         pytest
+        conda deactivate
     - name: Deploy on conda
       if: ${{ startsWith( github.ref, 'refs/tags/') && success() }}
       env:
