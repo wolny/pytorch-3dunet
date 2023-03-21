@@ -7,6 +7,7 @@ from skimage import measure
 
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
 from pytorch3dunet.datasets.utils import SliceBuilder
+from pytorch3dunet.unet3d.model import UNet2D
 from pytorch3dunet.unet3d.utils import get_logger
 from pytorch3dunet.unet3d.utils import remove_halo
 
@@ -123,12 +124,20 @@ class StandardPredictor(_AbstractPredictor):
         self.model.eval()
         # Run predictions on the entire input dataset
         with torch.no_grad():
-            for batch, indices in test_loader:
+            for input, indices in test_loader:
                 # send batch to device
-                batch = batch.to(device)
+                input = input.to(device)
 
-                # forward pass
-                predictions = self.model(batch)
+                if isinstance(self.model, UNet2D):
+                    # remove the singleton z-dimension from the input
+                    input = torch.squeeze(input, dim=-3)
+                    # forward pass
+                    predictions = self.model(input)
+                    # add the singleton z-dimension to the output
+                    predictions = torch.unsqueeze(predictions, dim=-3)
+                else:
+                    # forward pass
+                    predictions = self.model(input)
 
                 # wrap predictions into a list if there is only one output head from the network
                 if output_heads == 1:
@@ -292,7 +301,6 @@ class DSB2018Predictor(_AbstractPredictor):
         device = self.config['device']
         # Sets the module in evaluation mode explicitly
         self.model.eval()
-        self.model.testing = True
         # Run predictions on the entire input dataset
         with torch.no_grad():
             for img, path in test_loader:

@@ -12,7 +12,7 @@ from pytorch3dunet.unet3d.model import get_model
 logger = utils.get_logger('UNet3DPredict')
 
 
-def _get_predictor(model, output_dir, config):
+def get_predictor(model, output_dir, config):
     predictor_config = config.get('predictor', {})
     class_name = predictor_config.get('name', 'StandardPredictor')
 
@@ -48,7 +48,7 @@ def main():
         logger.info(f'Saving predictions to: {output_dir}')
 
     # create predictor instance
-    predictor = _get_predictor(model, output_dir, config)
+    predictor = get_predictor(model, output_dir, config)
 
     for test_loader in get_test_loaders(config):
         # run the model prediction on the test_loader and save the results in the output_dir

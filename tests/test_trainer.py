@@ -9,7 +9,7 @@ from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
-from pytorch3dunet.unet3d.trainer import UNet3DTrainer
+from pytorch3dunet.unet3d.trainer import UNetTrainer
 from pytorch3dunet.unet3d.utils import DefaultTensorboardFormatter, create_optimizer, create_lr_scheduler
 
 
@@ -98,25 +98,25 @@ def _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, 
     lr_scheduler = create_lr_scheduler(train_config.get('lr_scheduler', None), optimizer)
 
     formatter = DefaultTensorboardFormatter()
-    trainer = UNet3DTrainer(model, optimizer, lr_scheduler,
-                            loss_criterion, eval_criterion,
-                            device, loaders, tmpdir,
-                            max_num_epochs=train_config['trainer']['max_num_epochs'],
-                            log_after_iters=train_config['trainer']['log_after_iters'],
-                            validate_after_iters=train_config['trainer']['log_after_iters'],
-                            max_num_iterations=train_config['trainer']['max_num_iterations'],
-                            tensorboard_formatter=formatter)
+    trainer = UNetTrainer(model, optimizer, lr_scheduler,
+                          loss_criterion, eval_criterion,
+                          device, loaders, tmpdir,
+                          max_num_epochs=train_config['trainer']['max_num_epochs'],
+                          log_after_iters=train_config['trainer']['log_after_iters'],
+                          validate_after_iters=train_config['trainer']['log_after_iters'],
+                          max_num_iterations=train_config['trainer']['max_num_iterations'],
+                          tensorboard_formatter=formatter)
     trainer.fit()
     # test loading the trainer from the checkpoint
-    trainer = UNet3DTrainer(model, optimizer, lr_scheduler,
-                            loss_criterion, eval_criterion,
-                            device, loaders, tmpdir,
-                            tensorboard_formatter=formatter,
-                            max_num_epochs=train_config['trainer']['max_num_epochs'],
-                            log_after_iters=train_config['trainer']['log_after_iters'],
-                            validate_after_iters=train_config['trainer']['log_after_iters'],
-                            max_num_iterations=train_config['trainer']['max_num_iterations'],
-                            resume=os.path.join(tmpdir, 'last_checkpoint.pytorch'))
+    trainer = UNetTrainer(model, optimizer, lr_scheduler,
+                          loss_criterion, eval_criterion,
+                          device, loaders, tmpdir,
+                          tensorboard_formatter=formatter,
+                          max_num_epochs=train_config['trainer']['max_num_epochs'],
+                          log_after_iters=train_config['trainer']['log_after_iters'],
+                          validate_after_iters=train_config['trainer']['log_after_iters'],
+                          max_num_iterations=train_config['trainer']['max_num_iterations'],
+                          resume=os.path.join(tmpdir, 'last_checkpoint.pytorch'))
     return trainer
 
 

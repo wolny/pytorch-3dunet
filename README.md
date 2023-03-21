@@ -16,7 +16,20 @@ PyTorch implementation 3D U-Net and its variants:
 The code allows for training the U-Net for both: **semantic segmentation** (binary and multi-class) and **regression** problems (e.g. de-noising, learning deconvolutions).
 
 ## 2D U-Net
-Training the standard 2D U-Net is also possible, see [2DUnet_dsb2018](resources/2DUnet_dsb2018/train_config.yml) for example configuration. Just make sure to keep the singleton z-dimension in your H5 dataset (i.e. `(1, Y, X)` instead of `(Y, X)`) , because data loading / data augmentation requires tensors of rank 3 always.
+2D U-Net is also supported, see [2DUnet_confocal](resources/2DUnet_confocal_boundary) or [2DUnet_dsb2018](resources/2DUnet_dsb2018/train_config.yml) for example configuration. 
+Just make sure to keep the singleton z-dimension in your H5 dataset (i.e. `(1, Y, X)` instead of `(Y, X)`) , because data loading / data augmentation requires tensors of rank 3.
+The 2D U-Net itself uses the standard 2D convolutional layers instead of 3D convolutional with kernel size `(1, 3, 3)` for performance reasons.
+
+## Input Data Format
+The input data should be stored in HDF5 files. The HDF5 files for training should contain two datasets: `raw` and `label` (and optionally `weights` dataset). 
+The `raw` dataset should contain the input data, while the `label` dataset should contain the ground truth labels (optional `weights` dataset should contain the values for weighting the loss function in different regions of the input). 
+The format of the `raw` and `label` datasets depends on whether the problem is 2D or 3D and whether the data is single-channel or multi-channel, see the table below:
+
+|                | 2D           | 3D           |
+|----------------|--------------|--------------|
+| single-channel | (1, Y, X)    | (Z, Y, X)    |
+| multi-channel  | (C, 1, Y, X) | (C, Z, Y, X) |
+
 
 ## Prerequisites
 - Linux
@@ -83,10 +96,7 @@ python setup.py install
 ```
 
 ### Installation tips
-Make sure that the installed `pytorch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. You can re-install `pytorch` compatible with your CUDA in the `pytorch3dunet` environment by:
-```
-conda install -c pytorch cudatoolkit=<YOU_CUDA_VERSION> pytorch
-```
+Make sure that the installed `pytorch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. 
 
 ## Train
 Given that `pytorch-3dunet` package was installed via conda as described above, one can train the network by simply invoking:
