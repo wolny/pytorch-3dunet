@@ -32,8 +32,6 @@ jobs:
     - name: Run pytest
       shell: bash -l {0}
       run: |
-        # workaround ImportError: /usr/share/miniconda/lib/python3.9/site-packages/h5py/defs.cpython-39-x86_64-linux-gnu.so: undefined symbol: H5Pset_fapl_ros3
-        # mamba install -c conda-forge pytest h5py=3.1.0
         conda activate pytorch3dunet
         pytest
         conda deactivate
@@ -41,6 +39,7 @@ jobs:
       if: ${{ startsWith( github.ref, 'refs/tags/') && success() }}
       env:
         ANACONDA_SECRET: ${{ secrets.ANACONDA_TOKEN }}
+      shell: bash -l {0}
       run: |
         mamba install -q anaconda-client
         anaconda -t $ANACONDA_SECRET upload $CONDA/conda-bld/**/pytorch-3dunet-*.tar.bz2
