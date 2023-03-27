@@ -13,15 +13,14 @@ build:
 
 requirements:
   build:
-    - python 3.8
+    - python
     - setuptools
 
   run:
     - python
     - pytorch
     - tensorboard
-    # workaround the issue https://github.com/pytorch/pytorch/pull/69904
-    - setuptools 59.5.0
+    - setuptools
     - h5py
     - scipy
     - scikit-image

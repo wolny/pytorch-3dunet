@@ -8,15 +8,13 @@ from torch.utils.tensorboard import SummaryWriter
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
-from pytorch3dunet.unet3d.model import get_model
-from pytorch3dunet.unet3d.utils import (create_lr_scheduler, create_optimizer,
-                                        get_logger,
-                                        get_number_of_learnable_parameters,
-                                        get_tensorboard_formatter)
+from pytorch3dunet.unet3d.model import get_model, UNet2D
+from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, create_optimizer, \
+    create_lr_scheduler, get_number_of_learnable_parameters
 
 from . import utils
 
-logger = get_logger('UNet3DTrainer')
+logger = get_logger('UNetTrainer')
 
 
 def create_trainer(config):
@@ -56,21 +54,21 @@ def create_trainer(config):
     resume = trainer_config.pop('resume', None)
     pre_trained = trainer_config.pop('pre_trained', None)
 
-    return UNet3DTrainer(model=model,
-                         optimizer=optimizer,
-                         lr_scheduler=lr_scheduler,
-                         loss_criterion=loss_criterion,
-                         eval_criterion=eval_criterion,
-                         tensorboard_formatter=tensorboard_formatter,
-                         device=config['device'],
-                         loaders=loaders,
-                         resume=resume,
-                         pre_trained=pre_trained,
-                         **trainer_config)
+    return UNetTrainer(model=model,
+                       optimizer=optimizer,
+                       lr_scheduler=lr_scheduler,
+                       loss_criterion=loss_criterion,
+                       eval_criterion=eval_criterion,
+                       tensorboard_formatter=tensorboard_formatter,
+                       device=config['device'],
+                       loaders=loaders,
+                       resume=resume,
+                       pre_trained=pre_trained,
+                       **trainer_config)
 
 
-class UNet3DTrainer:
-    """3D UNet trainer.
+class UNetTrainer:
+    """UNet trainer.
 
     Args:
         model (Unet3D): UNet 3D model to be trained
@@ -302,8 +300,16 @@ class UNet3DTrainer:
         return input, target, weight
 
     def _forward_pass(self, input, target, weight=None):
-        # forward pass
-        output = self.model(input)
+        if isinstance(self.model, UNet2D):
+            # remove the singleton z-dimension from the input
+            input = torch.squeeze(input, dim=-3)
+            # forward pass
+            output = self.model(input)
+            # add the singleton z-dimension to the output
+            output = torch.unsqueeze(output, dim=-3)
+        else:
+            # forward pass
+            output = self.model(input)
 
         # compute the loss
         if weight is None:

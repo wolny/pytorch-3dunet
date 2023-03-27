@@ -1,6 +1,5 @@
 manual_seed: 0
 model:
-  # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet2D
   in_channels: 3
   out_channels: 2
@@ -10,7 +9,7 @@ model:
   final_sigmoid: false
   is_segmentation: true
 trainer:
-  checkpoint_dir: 3dunet
+  checkpoint_dir: 2dunet
   resume: null
   validate_after_iters: 2
   log_after_iters: 2

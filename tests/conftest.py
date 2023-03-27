@@ -37,6 +37,12 @@ def test_config():
 
 
 @pytest.fixture
+def test_config_2d():
+    config_path = os.path.join(TEST_FILES, 'config_test_2d.yml')
+    return yaml.safe_load(open(config_path, 'r'))
+
+
+@pytest.fixture
 def train_config_2d():
     config_path = os.path.join(TEST_FILES, 'config_train_2d.yml')
     return yaml.safe_load(open(config_path, 'r'))

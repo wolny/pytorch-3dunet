@@ -20,7 +20,20 @@ PyTorch implementation 3D U-Net and its variants:
 The code allows for training the U-Net for both: **semantic segmentation** (binary and multi-class) and **regression** problems (e.g. de-noising, learning deconvolutions).
 
 ## 2D U-Net
-Training the standard 2D U-Net is also possible, see [2DUnet_dsb2018](resources/2DUnet_dsb2018/train_config.yml) for example configuration. Just make sure to keep the singleton z-dimension in your H5 dataset (i.e. `(1, Y, X)` instead of `(Y, X)`) , because data loading / data augmentation requires tensors of rank 3 always.
+2D U-Net is also supported, see [2DUnet_confocal](resources/2DUnet_confocal_boundary) or [2DUnet_dsb2018](resources/2DUnet_dsb2018/train_config.yml) for example configuration. 
+Just make sure to keep the singleton z-dimension in your H5 dataset (i.e. `(1, Y, X)` instead of `(Y, X)`) , because data loading / data augmentation requires tensors of rank 3.
+The 2D U-Net itself uses the standard 2D convolutional layers instead of 3D convolutional with kernel size `(1, 3, 3)` for performance reasons.
+
+## Input Data Format
+The input data should be stored in HDF5 files. The HDF5 files for training should contain two datasets: `raw` and `label` (and optionally `weights` dataset). 
+The `raw` dataset should contain the input data, while the `label` dataset should contain the ground truth labels (optional `weights` dataset should contain the values for weighting the loss function in different regions of the input). 
+The format of the `raw` and `label` datasets depends on whether the problem is 2D or 3D and whether the data is single-channel or multi-channel, see the table below:
+
+|                | 2D           | 3D           |
+|----------------|--------------|--------------|
+| single-channel | (1, Y, X)    | (Z, Y, X)    |
+| multi-channel  | (C, 1, Y, X) | (C, Z, Y, X) |
+
 
 ## Prerequisites
 - Linux
@@ -30,6 +43,69 @@ Training the standard 2D U-Net is also possible, see [2DUnet_dsb2018](resources/
 ### Running on Windows
 The package has not been tested on Windows, however some users reported using it successfully on Windows.
 
+
+## Installation
+- The easiest way to install `pytorch-3dunet` package is via conda:
+```
+conda create -n pytorch3dunet --c pytorch -c nvidia -c conda-forge -c awolny pytorch-3dunet
+conda activate pytorch3dunet
+```
+After installation the following commands are accessible within the conda environment:
+`train3dunet` for training the network and `predict3dunet` for prediction (see below).
+
+- One can also install directly from source:
+```
+python setup.py install
+```
+
+### Installation tips
+Make sure that the installed `pytorch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. 
+
+## Train
+Given that `pytorch-3dunet` package was installed via conda as described above, one can train the network by simply invoking:
+```
+train3dunet --config <CONFIG>
+```
+where `CONFIG` is the path to a YAML configuration file, which specifies all aspects of the training procedure. 
+
+In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the config.
+
+* sample config for 3D semantic segmentation (cell boundary segmentation): [train_config_segmentation.yaml](resources/3DUnet_confocal_boundary/train_config.yml))
+* sample config for 3D regression task (denoising): [train_config_regression.yaml](resources/3DUnet_denoising/train_config_regression.yaml))
+
+The HDF5 files should contain the raw/label data sets in the following axis order: `DHW` (in case of 3D) `CDHW` (in case of 4D).
+
+One can monitor the training progress with Tensorboard `tensorboard --logdir <checkpoint_dir>/logs/` (you need `tensorflow` installed in your conda env), where `checkpoint_dir` is the path to the checkpoint directory specified in the config.
+
+### Training tips
+1. When training with binary-based losses, i.e.: `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss`:
+The target data has to be 4D (one target binary mask per channel).
+When training with `WeightedCrossEntropyLoss`, `CrossEntropyLoss`, `PixelWiseCrossEntropyLoss` the target dataset has to be 3D, see also pytorch documentation for CE loss: https://pytorch.org/docs/master/generated/torch.nn.CrossEntropyLoss.html
+2. `final_sigmoid` in the `model` config section applies only to the inference time (validation, test):
+   * When training with `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss` set `final_sigmoid=True`
+   * When training with cross entropy based losses (`WeightedCrossEntropyLoss`, `CrossEntropyLoss`, `PixelWiseCrossEntropyLoss`) set `final_sigmoid=False` so that `Softmax` normalization is applied to the output.
+
+## Prediction
+Given that `pytorch-3dunet` package was installed via conda as described above, one can run the prediction via:
+```
+predict3dunet --config <CONFIG>
+```
+
+In order to predict on your own data, just provide the path to your model as well as paths to HDF5 test files (see example [test_config_segmentation.yaml](resources/3DUnet_confocal_boundary/test_config.yml)).
+
+### Prediction tips
+In order to avoid patch boundary artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: [64, 128, 128] stride: [32, 96, 96]` will give you a 'halo' of 32 voxels in each direction.
+
+## Data Parallelism
+By default, if multiple GPUs are available training/prediction will be run on all the GPUs using [DataParallel](https://pytorch.org/tutorials/beginner/blitz/data_parallel_tutorial.html).
+If training/prediction on all available GPUs is not desirable, restrict the number of GPUs using `CUDA_VISIBLE_DEVICES`, e.g.
+```bash
+CUDA_VISIBLE_DEVICES=0,1 train3dunet --config <CONFIG>
+``` 
+or
+```bash
+CUDA_VISIBLE_DEVICES=0,1 predict3dunet --config <CONFIG>
+```
 
 ## Supported Loss Functions
 
@@ -70,73 +146,6 @@ If not specified `MeanIoU` will be used by default.
 ### Regression
 - `PSNR` (peak signal to noise ratio)
 - `MSE` (mean squared error)
-
-
-## Installation
-- The easiest way to install `pytorch-3dunet` package is via conda:
-```
-conda create -n pytorch3dunet -c pytorch -c conda-forge -c awolny pytorch-3dunet
-conda activate pytorch3dunet
-```
-After installation the following commands are accessible within the conda environment:
-`train3dunet` for training the network and `predict3dunet` for prediction (see below).
-
-- One can also install directly from source:
-```
-python setup.py install
-```
-
-### Installation tips
-Make sure that the installed `pytorch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. You can re-install `pytorch` compatible with your CUDA in the `pytorch3dunet` environment by:
-```
-conda install -c pytorch cudatoolkit=<YOU_CUDA_VERSION> pytorch
-```
-
-## Train
-Given that `pytorch-3dunet` package was installed via conda as described above, one can train the network by simply invoking:
-```
-train3dunet --config <CONFIG>
-```
-where `CONFIG` is the path to a YAML configuration file, which specifies all aspects of the training procedure. 
-
-In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the config.
-
-* sample config for 3D semantic segmentation (cell boundary segmentation): [train_config_segmentation.yaml](resources/3DUnet_confocal_boundary/train_config.yml))
-* sample config for 3D regression task (denoising): [train_config_regression.yaml](resources/3DUnet_denoising/train_config_regression.yaml))
-
-The HDF5 files should contain the raw/label data sets in the following axis order: `DHW` (in case of 3D) `CDHW` (in case of 4D).
-
-One can monitor the training progress with Tensorboard `tensorboard --logdir <checkpoint_dir>/logs/` (you need `tensorflow` installed in your conda env), where `checkpoint_dir` is the path to the checkpoint directory specified in the config.
-
-### Training tips
-1. When training with binary-based losses, i.e.: `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss`:
-The target data has to be 4D (one target binary mask per channel).
-When training with `WeightedCrossEntropyLoss`, `CrossEntropyLoss`, `PixelWiseCrossEntropyLoss` the target dataset has to be 3D, see also pytorch documentation for CE loss: https://pytorch.org/docs/master/generated/torch.nn.CrossEntropyLoss.html
-2. `final_sigmoid` in the `model` config section applies only to the inference time (validation, test):
-When training with cross entropy based losses (`WeightedCrossEntropyLoss`, `CrossEntropyLoss`, `PixelWiseCrossEntropyLoss`) set `final_sigmoid=False` so that `Softmax` normalization is applied to the output.
-When training with `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss` set `final_sigmoid=True`
-
-## Prediction
-Given that `pytorch-3dunet` package was installed via conda as described above, one can run the prediction via:
-```
-predict3dunet --config <CONFIG>
-```
-
-In order to predict on your own data, just provide the path to your model as well as paths to HDF5 test files (see example [test_config_segmentation.yaml](resources/3DUnet_confocal_boundary/test_config.yml)).
-
-### Prediction tips
-In order to avoid patch boundary artifacts in the output prediction masks the patch predictions are averaged, so make sure that `patch/stride` params lead to overlapping blocks, e.g. `patch: [64, 128, 128] stride: [32, 96, 96]` will give you a 'halo' of 32 voxels in each direction.
-
-## Data Parallelism
-By default, if multiple GPUs are available training/prediction will be run on all the GPUs using [DataParallel](https://pytorch.org/tutorials/beginner/blitz/data_parallel_tutorial.html).
-If training/prediction on all available GPUs is not desirable, restrict the number of GPUs using `CUDA_VISIBLE_DEVICES`, e.g.
-```bash
-CUDA_VISIBLE_DEVICES=0,1 train3dunet --config <CONFIG>
-``` 
-or
-```bash
-CUDA_VISIBLE_DEVICES=0,1 predict3dunet --config <CONFIG>
-```
 
 ## Examples
 

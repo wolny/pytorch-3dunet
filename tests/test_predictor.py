@@ -6,37 +6,41 @@ import numpy as np
 import torch
 
 from pytorch3dunet.datasets.utils import get_test_loaders
-from pytorch3dunet.predict import _get_predictor
+from pytorch3dunet.predict import get_predictor
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.utils import remove_halo
 
 
+def _run_prediction(test_config, tmpdir, shape):
+    # Add output dir
+    test_config['loaders']['output_dir'] = tmpdir
+    # create random dataset
+    tmp = NamedTemporaryFile(delete=False)
+    with h5py.File(tmp.name, 'w') as f:
+        f.create_dataset('raw', data=np.random.rand(*shape))
+    # Add input file
+    test_config['loaders']['test']['file_paths'] = [tmp.name]
+    # Create the model with random weights
+    model = get_model(test_config['model'])
+    # Create device and update config
+    device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+    test_config['device'] = device
+    model = model.to(device)
+    for test_loader in get_test_loaders(test_config):
+        predictor = get_predictor(model, tmpdir, test_config)
+        # run the model prediction on the entire dataset and save to the 'output_file' H5
+        predictor(test_loader)
+    return tmp
+
+
 class TestPredictor:
-    def test_stanard_predictor(self, tmpdir, test_config):
-        # Add output dir
-        test_config['loaders']['output_dir'] = tmpdir
+    def test_3d_predictor(self, tmpdir, test_config):
+        tmp = _run_prediction(test_config, tmpdir, shape=(32, 64, 64))
 
-        # create random dataset
-        tmp = NamedTemporaryFile(delete=False)
+        assert os.path.exists(os.path.join(tmpdir, os.path.split(tmp.name)[1] + '_predictions.h5'))
 
-        with h5py.File(tmp.name, 'w') as f:
-            shape = (32, 64, 64)
-            f.create_dataset('raw', data=np.random.rand(*shape))
-
-        # Add input file
-        test_config['loaders']['test']['file_paths'] = [tmp.name]
-
-        # Create the model with random weights
-        model = get_model(test_config['model'])
-        # Create device and update config
-        device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
-        test_config['device'] = device
-        model = model.to(device)
-
-        for test_loader in get_test_loaders(test_config):
-            predictor = _get_predictor(model, tmpdir, test_config)
-            # run the model prediction on the entire dataset and save to the 'output_file' H5
-            predictor(test_loader)
+    def test_2d_predictor(self, tmpdir, test_config_2d):
+        tmp = _run_prediction(test_config_2d, tmpdir, shape=(3, 1, 256, 256))
 
         assert os.path.exists(os.path.join(tmpdir, os.path.split(tmp.name)[1] + '_predictions.h5'))
 

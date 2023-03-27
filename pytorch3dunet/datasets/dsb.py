@@ -49,7 +49,7 @@ class DSB2018Dataset(ConfigDataset):
         self.images, self.paths = self._load_files(images_dir, expand_dims)
         self.file_path = images_dir
 
-        stats = calculate_stats(self.images)
+        stats = calculate_stats(self.images, True)
 
         transformer = transforms.Transformer(transformer_config, stats)
 

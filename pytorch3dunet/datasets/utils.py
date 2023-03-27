@@ -38,19 +38,18 @@ class ConfigDataset(Dataset):
 
 class SliceBuilder:
     """
-    Builds the position of the patches in a given raw/label/weight ndarray based on the the patch and stride shape
+    Builds the position of the patches in a given raw/label/weight ndarray based on the patch and stride shape.
+
+    Args:
+        raw_dataset (ndarray): raw data
+        label_dataset (ndarray): ground truth labels
+        weight_dataset (ndarray): weights for the labels
+        patch_shape (tuple): the shape of the patch DxHxW
+        stride_shape (tuple): the shape of the stride DxHxW
+        kwargs: additional metadata
     """
 
     def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, **kwargs):
-        """
-        :param raw_dataset: ndarray of raw data
-        :param label_dataset: ndarray of ground truth labels
-        :param weight_dataset: ndarray of weights for the labels
-        :param patch_shape: the shape of the patch DxHxW
-        :param stride_shape: the shape of the stride DxHxW
-        :param kwargs: additional metadata
-        """
-
         patch_shape = tuple(patch_shape)
         stride_shape = tuple(stride_shape)
         skip_shape_check = kwargs.get('skip_shape_check', False)
@@ -284,13 +283,22 @@ def default_prediction_collate(batch):
     raise TypeError((error_msg.format(type(batch[0]))))
 
 
-def calculate_stats(images):
+def calculate_stats(images, global_normalization=True):
     """
-    Calculates min, max, mean, std given a list of ndarrays
+    Calculates min, max, mean, std given a list of nd-arrays
     """
-    # flatten first since the images might not be the same size
-    flat = np.concatenate(
-        [img.ravel() for img in images]
-    )
-    return {'pmin': np.percentile(flat, 1), 'pmax': np.percentile(flat, 99.6), 'mean': np.mean(flat),
-            'std': np.std(flat)}
+    if global_normalization:
+        # flatten first since the images might not be the same size
+        flat = np.concatenate(
+            [img.ravel() for img in images]
+        )
+        pmin, pmax, mean, std = np.percentile(flat, 1), np.percentile(flat, 99.6), np.mean(flat), np.std(flat)
+    else:
+        pmin, pmax, mean, std = None, None, None, None
+
+    return {
+        'pmin': pmin,
+        'pmax': pmax,
+        'mean': mean,
+        'std': std
+    }
