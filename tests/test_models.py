@@ -1,7 +1,7 @@
 import torch
 
 from pytorch3dunet.unet3d.buildingblocks import ResNetBlock
-from pytorch3dunet.unet3d.model import UNet2D, UNet3D, ResidualUNet3D
+from pytorch3dunet.unet3d.model import UNet2D, UNet3D, ResidualUNet3D, ResidualUNetSE3D
 
 
 class TestModel:
@@ -45,6 +45,14 @@ class TestModel:
 
     def test_resunet3d(self):
         model = ResidualUNet3D(1, 1, f_maps=16, final_sigmoid=True)
+        model.eval()
+        x = torch.rand(1, 1, 32, 64, 64)
+        y = model(x)
+
+        assert torch.all(0 <= y) and torch.all(y <= 1)
+
+    def test_resunetSE3d(self):
+        model = ResidualUNetSE3D(1, 1, f_maps=16, final_sigmoid=True)
         model.eval()
         x = torch.rand(1, 1, 32, 64, 64)
         y = model(x)
