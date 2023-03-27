@@ -6,7 +6,7 @@
 
 # pytorch-3dunet
 
-PyTorch implementation 3D U-Net and its variants:
+PyTorch implementation of 3D U-Net and its variants:
 
 - `UNet3D` Standard 3D U-Net based on [3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation](https://arxiv.org/abs/1606.06650)
 
