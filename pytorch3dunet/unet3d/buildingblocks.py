@@ -4,6 +4,9 @@ import torch
 from torch import nn as nn
 from torch.nn import functional as F
 
+from pytorch3dunet.unet3d.se import (ChannelSELayer3D, ChannelSpatialSELayer3D,
+                                     SpatialSELayer3D)
+
 
 def create_conv(in_channels, out_channels, kernel_size, order, num_groups, padding, is3d):
     """
@@ -202,6 +205,25 @@ class ResNetBlock(nn.Module):
 
         return out
 
+class ExtResNetBlockSE(ExtResNetBlock):
+    def __init__(self, in_channels, out_channels, kernel_size=3, order='cge', num_groups=8, se_module='scse', **kwargs):
+        super(ExtResNetBlockSE, self).__init__(
+            in_channels, out_channels, kernel_size=kernel_size, order=order,
+            num_groups=num_groups, **kwargs)
+        assert se_module in ['scse', 'cse', 'sse']
+        if se_module == 'scse':
+            self.se_module = ChannelSpatialSELayer3D(
+                num_channels=out_channels, reduction_ratio=1)
+        elif se_module == 'cse':
+            self.se_module = ChannelSELayer3D(
+                num_channels=out_channels, reduction_ratio=1)
+        elif se_module == 'sse':
+            self.se_module = SpatialSELayer3D(num_channels=out_channels)
+
+    def forward(self, x):
+        out = super(ExtResNetBlockSE, self).forward(x)
+        out = self.se_module(out)
+        return out
 
 class Encoder(nn.Module):
     """

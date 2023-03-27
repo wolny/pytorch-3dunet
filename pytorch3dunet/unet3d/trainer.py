@@ -11,6 +11,7 @@ from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model, UNet2D
 from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, create_optimizer, \
     create_lr_scheduler, get_number_of_learnable_parameters
+
 from . import utils
 
 logger = get_logger('UNetTrainer')
@@ -369,14 +370,14 @@ class UNetTrainer:
             self.writer.add_histogram(name + '/grad', value.grad.data.cpu().numpy(), self.num_iterations)
 
     def _log_images(self, input, target, prediction, prefix=''):
-        if self.model.training:
-            if isinstance(self.model, nn.DataParallel):
-                net = self.model.module
-            else:
-                net = self.model
 
-            if net.final_activation is not None:
-                prediction = net.final_activation(prediction)
+        if isinstance(self.model, nn.DataParallel):
+            net = self.model.module
+        else:
+            net = self.model
+
+        if net.final_activation is not None:
+            prediction = net.final_activation(prediction)
 
         inputs_map = {
             'inputs': input,
