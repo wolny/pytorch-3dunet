@@ -8,8 +8,7 @@
 
 PyTorch implementation 3D U-Net and its variants:
 
-- `UNet3D` Standard 3D U-Net based on [3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation](https://arxiv.org/abs/1606.06650) 
-Özgün Çiçek et al.
+- `UNet3D` Standard 3D U-Net based on [3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation](https://arxiv.org/abs/1606.06650)
 
 - `ResidualUNet3D` Residual 3D U-Net based on [Superhuman Accuracy on the SNEMI3D Connectomics Challenge](https://arxiv.org/pdf/1706.00120.pdf)
 
