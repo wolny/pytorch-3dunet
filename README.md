@@ -1,3 +1,5 @@
+![alt text](resources/logo_small_80.png)
+
 [![DOI](https://zenodo.org/badge/149826542.svg)](https://doi.org/10.7554/eLife.57613)
 [![Build Status](https://github.com/wolny/pytorch-3dunet/actions/workflows/conda-build.yml/badge.svg)](https://github.com/wolny/pytorch-3dunet/actions/)
 [![Anaconda-Server Badge](https://anaconda.org/awolny/pytorch-3dunet/badges/latest_release_date.svg)](https://anaconda.org/awolny/pytorch-3dunet)
