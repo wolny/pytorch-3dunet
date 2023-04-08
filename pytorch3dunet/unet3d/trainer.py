@@ -209,7 +209,7 @@ class UNetTrainer:
                 logger.info(
                     f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
                 self._log_stats('train', train_losses.avg, train_eval_scores.avg)
-                self._log_params()
+                #self._log_params()
                 self._log_images(input, target, output, 'train_')
 
             if self.should_stop():
