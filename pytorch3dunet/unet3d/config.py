@@ -13,19 +13,18 @@ def load_config():
     parser.add_argument('--config', type=str, help='Path to the YAML config file', required=True)
     args = parser.parse_args()
     config = yaml.safe_load(open(args.config, 'r'))
-    # Get a device to train on
-    device_str = config.get('device', None)
-    if device_str is not None:
-        logger.info(f"Device specified in config: '{device_str}'")
-        if device_str.startswith('cuda') and not torch.cuda.is_available():
-            logger.warning('CUDA not available, using CPU')
-            device_str = 'cpu'
-    else:
-        device_str = "cuda:0" if torch.cuda.is_available() else 'cpu'
-        logger.info(f"Using '{device_str}' device")
 
-    device = torch.device(device_str)
-    config['device'] = device
+    device = config.get('device', None)
+    if device == 'cpu':
+        logger.warning('CPU mode forced in config, this will likely result in slow training/prediction')
+        config['device'] = 'cpu'
+        return config
+
+    if torch.cuda.is_available():
+        config['device'] = 'cuda'
+    else:
+        logger.warning('CUDA not available, using CPU')
+        config['device'] = 'cpu'
     return config
 
 

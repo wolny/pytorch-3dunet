@@ -34,13 +34,12 @@ def main():
     logger.info(f'Loading model from {model_path}...')
     utils.load_checkpoint(model_path, model)
     # use DataParallel if more than 1 GPU available
-    device = config['device']
-    if torch.cuda.device_count() > 1 and not device.type == 'cpu':
+
+    if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
         model = nn.DataParallel(model)
         logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')
 
-    logger.info(f"Sending the model to '{device}'")
-    model = model.to(device)
+    model = model.cuda()
 
     output_dir = config['loaders'].get('output_dir', None)
     if output_dir is not None:

@@ -22,12 +22,12 @@ model:
 predictor:
   # standard in memory predictor
   name: 'StandardPredictor'
+  # halo around each input patch, created with mirror reflectiion
+  patch_halo: [ 4, 8, 8 ]
 # specify the test datasets
 loaders:
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
   batch_size: 1
-  # mirror pad the raw data in each axis for sharper prediction near the boundaries of the volume
-  mirror_padding: [16, 32, 32]
   # path to the raw data within the H5
   raw_internal_path: raw
   # how many subprocesses to use for data loading
@@ -44,12 +44,12 @@ loaders:
       # SliceBuilder class
       name: SliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [32, 64, 64]
+      patch_shape: [ 32, 64, 64 ]
       # train stride between patches
-      stride_shape: [16, 32, 32]
+      stride_shape: [ 16, 32, 32 ]
 
     transformer:
-        raw:
-          - name: Standardize
-          - name: ToTensor
-            expand_dims: true
+      raw:
+        - name: Standardize
+        - name: ToTensor
+          expand_dims: true

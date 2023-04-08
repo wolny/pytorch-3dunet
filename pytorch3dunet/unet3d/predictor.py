@@ -1,15 +1,18 @@
 import os
+import time
+from concurrent import futures
 
 import h5py
 import numpy as np
 import torch
 from skimage import measure
+from torch import nn
+from tqdm import tqdm
 
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
 from pytorch3dunet.datasets.utils import SliceBuilder
 from pytorch3dunet.unet3d.model import UNet2D
 from pytorch3dunet.unet3d.utils import get_logger
-from pytorch3dunet.unet3d.utils import remove_halo
 
 logger = get_logger('UNetPredictor')
 
@@ -22,18 +25,14 @@ def _get_output_file(dataset, suffix='_predictions', output_dir=None):
     return output_file
 
 
-def _get_dataset_names(config, number_of_datasets, prefix='predictions'):
-    dataset_names = config.get('dest_dataset_name')
-    if dataset_names is not None:
-        if isinstance(dataset_names, str):
-            return [dataset_names]
-        else:
-            return dataset_names
-    else:
-        if number_of_datasets == 1:
-            return [prefix]
-        else:
-            return [f'{prefix}{i}' for i in range(number_of_datasets)]
+def _get_dataset_name(config, prefix='predictions'):
+    return config.get('dest_dataset_name', 'predictions')
+
+
+def _is_2d_model(model):
+    if isinstance(model, nn.DataParallel):
+        model = model.module
+    return isinstance(model, UNet2D)
 
 
 class _AbstractPredictor:
@@ -51,13 +50,6 @@ class _AbstractPredictor:
         else:
             return raw.shape[1:]
 
-    @staticmethod
-    def get_output_dataset_names(number_of_datasets, prefix='predictions'):
-        if number_of_datasets == 1:
-            return [prefix]
-        else:
-            return [f'{prefix}{i}' for i in range(number_of_datasets)]
-
     def __call__(self, test_loader):
         raise NotImplementedError
 
@@ -69,8 +61,7 @@ class StandardPredictor(_AbstractPredictor):
     use `LazyPredictor` instead.
 
     The output dataset names inside the H5 is given by `dest_dataset_name` config argument. If the argument is
-    not present in the config 'predictions{n}' is used as a default dataset name, where `n` denotes the number
-    of the output head from the network.
+    not present in the config 'predictions' is used as a default dataset name.
 
     Args:
         model (Unet3D): trained 3D UNet model used for prediction
@@ -83,23 +74,18 @@ class StandardPredictor(_AbstractPredictor):
 
     def __call__(self, test_loader):
         assert isinstance(test_loader.dataset, AbstractHDF5Dataset)
-
         logger.info(f"Processing '{test_loader.dataset.file_path}'...")
-        output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
-
-        out_channels = self.config['model'].get('out_channels')
+        start = time.time()
 
         prediction_channel = self.config.get('prediction_channel', None)
         if prediction_channel is not None:
             logger.info(f"Saving only channel '{prediction_channel}' from the network output")
 
-        device = self.config['device']
-        output_heads = self.config['model'].get('output_heads', 1)
+        logger.info(f'Running inference on {len(test_loader)} batches')
 
-        logger.info(f'Running prediction on {len(test_loader)} batches...')
-
-        # dimensionality of the the output predictions
+        # dimensionality of the output predictions
         volume_shape = self.volume_shape(test_loader.dataset)
+        out_channels = self.config['model'].get('out_channels')
         if prediction_channel is None:
             prediction_maps_shape = (out_channels,) + volume_shape
         else:
@@ -108,115 +94,99 @@ class StandardPredictor(_AbstractPredictor):
 
         logger.info(f'The shape of the output prediction maps (CDHW): {prediction_maps_shape}')
 
-        patch_halo = self.predictor_config.get('patch_halo', (4, 8, 8))
-        self._validate_halo(patch_halo, self.config['loaders']['test']['slice_builder'])
-        logger.info(f'Using patch_halo: {patch_halo}')
+        # evey patch will be mirror-padded with the following halo
+        patch_halo = self.predictor_config.get('patch_halo', (4, 4, 4))
+        if _is_2d_model(self.model):
+            patch_halo = list(patch_halo)
+            patch_halo[0] = 0
 
         # create destination H5 file
+        output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
         h5_output_file = h5py.File(output_file, 'w')
         # allocate prediction and normalization arrays
         logger.info('Allocating prediction and normalization arrays...')
-        prediction_maps, normalization_masks = self._allocate_prediction_maps(prediction_maps_shape,
-                                                                              output_heads, h5_output_file)
+        prediction_map, normalization_mask = self._allocate_prediction_maps(prediction_maps_shape, h5_output_file)
 
         # Sets the module in evaluation mode explicitly
         # It is necessary for batchnorm/dropout layers if present as well as final Sigmoid/Softmax to be applied
         self.model.eval()
         # Run predictions on the entire input dataset
         with torch.no_grad():
-            for input, indices in test_loader:
-                # send batch to device
-                input = input.to(device)
+            for input, indices in tqdm(test_loader):
+                input = _pad(input, patch_halo)
+                # send batch to gpu
+                if torch.cuda.is_available():
+                    input = input.cuda(non_blocking=True)
 
-                if isinstance(self.model, UNet2D):
+                if _is_2d_model(self.model):
                     # remove the singleton z-dimension from the input
                     input = torch.squeeze(input, dim=-3)
                     # forward pass
-                    predictions = self.model(input)
+                    prediction = self.model(input)
                     # add the singleton z-dimension to the output
-                    predictions = torch.unsqueeze(predictions, dim=-3)
+                    prediction = torch.unsqueeze(prediction, dim=-3)
                 else:
                     # forward pass
-                    predictions = self.model(input)
+                    prediction = self.model(input)
 
-                # wrap predictions into a list if there is only one output head from the network
-                if output_heads == 1:
-                    predictions = [predictions]
+                # convert to numpy array and unpad
+                prediction = _unpad(prediction.cpu().numpy(), patch_halo)
 
-                # for each output head
-                for prediction, prediction_map, normalization_mask in zip(predictions, prediction_maps,
-                                                                          normalization_masks):
+                # for each batch sample
+                for pred, index in zip(prediction, indices):
+                    # save patch index: (C,D,H,W)
+                    if prediction_channel is None:
+                        channel_slice = slice(0, out_channels)
+                    else:
+                        # use only the specified channel
+                        channel_slice = slice(0, 1)
+                        pred = np.expand_dims(pred[prediction_channel], axis=0)
 
-                    # convert to numpy array
-                    prediction = prediction.cpu().numpy()
+                    # add channel dimension to the index
+                    index = tuple([channel_slice] + index)
+                    # accumulate probabilities into the output prediction array
+                    prediction_map[index] += pred
+                    # count voxel visits for normalization
+                    normalization_mask[index] += 1
 
-                    # for each batch sample
-                    for pred, index in zip(prediction, indices):
-                        # save patch index: (C,D,H,W)
-                        if prediction_channel is None:
-                            channel_slice = slice(0, out_channels)
-                        else:
-                            channel_slice = slice(0, 1)
-                        index = (channel_slice,) + index
-
-                        if prediction_channel is not None:
-                            # use only the 'prediction_channel'
-                            logger.info(f"Using channel '{prediction_channel}'...")
-                            pred = np.expand_dims(pred[prediction_channel], axis=0)
-
-                        logger.info(f'Saving predictions for slice:{index}...')
-
-                        # remove halo in order to avoid block artifacts in the output probability maps
-                        u_prediction, u_index = remove_halo(pred, index, volume_shape, patch_halo)
-                        # accumulate probabilities into the output prediction array
-                        prediction_map[u_index] += u_prediction
-                        # count voxel visits for normalization
-                        normalization_mask[u_index] += 1
-
+        logger.info(f'Finished inference in {time.time() - start:.2f} seconds')
         # save results
         logger.info(f'Saving predictions to: {output_file}')
-        self._save_results(prediction_maps, normalization_masks, output_heads, h5_output_file, test_loader.dataset)
+        self._save_results(prediction_map, normalization_mask, h5_output_file, test_loader.dataset)
         # close the output H5 file
         h5_output_file.close()
 
-    def _allocate_prediction_maps(self, output_shape, output_heads, output_file):
+    def _allocate_prediction_maps(self, output_shape, output_file):
         # initialize the output prediction arrays
-        prediction_maps = [np.zeros(output_shape, dtype='float32') for _ in range(output_heads)]
+        prediction_map = np.zeros(output_shape, dtype='float32')
         # initialize normalization mask in order to average out probabilities of overlapping patches
-        normalization_masks = [np.zeros(output_shape, dtype='uint8') for _ in range(output_heads)]
-        return prediction_maps, normalization_masks
+        normalization_mask = np.zeros(output_shape, dtype='uint8')
+        return prediction_map, normalization_mask
 
-    def _save_results(self, prediction_maps, normalization_masks, output_heads, output_file, dataset):
-        def _slice_from_pad(pad):
-            if pad == 0:
-                return slice(None, None)
-            else:
-                return slice(pad, -pad)
+    def _save_results(self, prediction_map, normalization_mask, output_file, dataset):
+        dataset_name = _get_dataset_name(self.config)
+        prediction_map = prediction_map / normalization_mask
+        output_file.create_dataset(dataset_name, data=prediction_map, compression="gzip")
 
-        # save probability maps
-        prediction_datasets = self.get_output_dataset_names(output_heads, prefix='predictions')
-        for prediction_map, normalization_mask, prediction_dataset in zip(prediction_maps, normalization_masks,
-                                                                          prediction_datasets):
-            prediction_map = prediction_map / normalization_mask
 
-            if dataset.mirror_padding is not None:
-                z_s, y_s, x_s = [_slice_from_pad(p) for p in dataset.mirror_padding]
+def _pad(m, patch_halo):
+    if patch_halo is not None:
+        z, y, x = patch_halo
+        return nn.functional.pad(m, (x, x, y, y, z, z), mode='reflect')
 
-                logger.info(f'Dataset loaded with mirror padding: {dataset.mirror_padding}. Cropping before saving...')
 
-                prediction_map = prediction_map[:, z_s, y_s, x_s]
+def _unpad(m, patch_halo):
+    def _slice_from_pad(pad):
+        if pad == 0:
+            return slice(None, None)
+        else:
+            return slice(pad, -pad)
 
-            output_file.create_dataset(prediction_dataset, data=prediction_map, compression="gzip")
+    if patch_halo is not None:
+        z_s, y_s, x_s = [_slice_from_pad(p) for p in patch_halo]
+        m = m[..., z_s, y_s, x_s]
 
-    @staticmethod
-    def _validate_halo(patch_halo, slice_builder_config):
-        patch = slice_builder_config['patch_shape']
-        stride = slice_builder_config['stride_shape']
-
-        patch_overlap = np.subtract(patch, stride)
-
-        assert np.all(
-            patch_overlap - patch_halo >= 0), f"Not enough patch overlap for stride: {stride} and halo: {patch_halo}"
+    return m
 
 
 class LazyPredictor(StandardPredictor):
@@ -238,55 +208,31 @@ class LazyPredictor(StandardPredictor):
     def __init__(self, model, output_dir, config, **kwargs):
         super().__init__(model, output_dir, config, **kwargs)
 
-    def _allocate_prediction_maps(self, output_shape, output_heads, output_file):
+    def _allocate_prediction_maps(self, output_shape, output_file):
+        dataset_name = _get_dataset_name(self.config)
         # allocate datasets for probability maps
-        prediction_datasets = self.get_output_dataset_names(output_heads, prefix='predictions')
-        prediction_maps = [
-            output_file.create_dataset(dataset_name, shape=output_shape, dtype='float32', chunks=True,
-                                       compression='gzip')
-            for dataset_name in prediction_datasets]
-
+        prediction_map = output_file.create_dataset(dataset_name, shape=output_shape, dtype='float32', chunks=True,
+                                                    compression='gzip')
         # allocate datasets for normalization masks
-        normalization_datasets = self.get_output_dataset_names(output_heads, prefix='normalization')
-        normalization_masks = [
-            output_file.create_dataset(dataset_name, shape=output_shape, dtype='uint8', chunks=True,
-                                       compression='gzip')
-            for dataset_name in normalization_datasets]
+        normalization_mask = output_file.create_dataset('normalization', shape=output_shape, dtype='uint8', chunks=True,
+                                                        compression='gzip')
+        return prediction_map, normalization_mask
 
-        return prediction_maps, normalization_masks
-
-    def _save_results(self, prediction_maps, normalization_masks, output_heads, output_file, dataset):
-        if dataset.mirror_padding:
-            logger.warning(
-                f'Mirror padding unsupported in LazyPredictor. Output predictions will be padded with pad_width: {dataset.pad_width}')
-
-        prediction_datasets = self.get_output_dataset_names(output_heads, prefix='predictions')
-        normalization_datasets = self.get_output_dataset_names(output_heads, prefix='normalization')
-
-        # normalize the prediction_maps inside the H5
-        for prediction_map, normalization_mask, prediction_dataset, normalization_dataset in zip(prediction_maps,
-                                                                                                 normalization_masks,
-                                                                                                 prediction_datasets,
-                                                                                                 normalization_datasets):
-            # split the volume into 4 parts and load each into the memory separately
-            logger.info(f'Normalizing {prediction_dataset}...')
-
-            z, y, x = prediction_map.shape[1:]
-            # take slices which are 1/27 of the original volume
-            patch_shape = (z // 3, y // 3, x // 3)
-            for index in SliceBuilder._build_slices(prediction_map, patch_shape=patch_shape, stride_shape=patch_shape):
-                logger.info(f'Normalizing slice: {index}')
-                prediction_map[index] /= normalization_mask[index]
-                # make sure to reset the slice that has been visited already in order to avoid 'double' normalization
-                # when the patches overlap with each other
-                normalization_mask[index] = 1
-
-            logger.info(f'Deleting {normalization_dataset}...')
-            del output_file[normalization_dataset]
+    def _save_results(self, prediction_map, normalization_mask, output_file, dataset):
+        z, y, x = prediction_map.shape[1:]
+        # take slices which are 1/27 of the original volume
+        patch_shape = (z // 3, y // 3, x // 3)
+        for index in SliceBuilder._build_slices(prediction_map, patch_shape=patch_shape, stride_shape=patch_shape):
+            logger.info(f'Normalizing slice: {index}')
+            prediction_map[index] /= normalization_mask[index]
+            # make sure to reset the slice that has been visited already in order to avoid 'double' normalization
+            # when the patches overlap with each other
+            normalization_mask[index] = 1
+        del output_file['normalization']
 
 
 class DSB2018Predictor(_AbstractPredictor):
-    def __init__(self, model, output_dir, config, save_segmentation=False, pmaps_thershold=0.5, **kwargs):
+    def __init__(self, model, output_dir, config, save_segmentation=True, pmaps_thershold=0.5, **kwargs):
         super().__init__(model, output_dir, config, **kwargs)
         self.pmaps_thershold = pmaps_thershold
         self.save_segmentation = save_segmentation
@@ -298,37 +244,46 @@ class DSB2018Predictor(_AbstractPredictor):
             return slice(pad, -pad)
 
     def __call__(self, test_loader):
-        device = self.config['device']
         # Sets the module in evaluation mode explicitly
         self.model.eval()
+        # initial process pool for saving results to disk
+        executor = futures.ProcessPoolExecutor(max_workers=32)
         # Run predictions on the entire input dataset
         with torch.no_grad():
             for img, path in test_loader:
-                # send batch to device
-                img = img.to(device)
+                # send batch to gpu
+                if torch.cuda.is_available():
+                    img = img.cuda(non_blocking=True)
                 # forward pass
                 pred = self.model(img)
-                # convert to numpy array
-                for single_pred, single_path in zip(pred, path):
-                    logger.info(f'Processing {single_path}')
-                    single_pred = single_pred.cpu().numpy().squeeze()
 
-                    if hasattr(test_loader.dataset, 'mirror_padding') \
-                            and test_loader.dataset.mirror_padding is not None:
-                        z_s, y_s, x_s = [self._slice_from_pad(p) for p in test_loader.dataset.mirror_padding]
-                        single_pred = single_pred[y_s, x_s]
+                executor.submit(
+                    dsb_save_batch,
+                    self.output_dir,
+                    path
+                )
 
-                    # save to h5 file
-                    out_file = os.path.splitext(single_path)[0] + '_predictions.h5'
-                    if self.output_dir is not None:
-                        out_file = os.path.join(self.output_dir, os.path.split(out_file)[1])
+        print('Waiting for all predictions to be saved to disk...')
+        executor.shutdown(wait=True)
 
-                    with h5py.File(out_file, 'w') as f:
-                        logger.info(f'Saving output to {out_file}')
-                        f.create_dataset('predictions', data=single_pred, compression='gzip')
-                        if self.save_segmentation:
-                            f.create_dataset('segmentation', data=self._pmaps_to_seg(single_pred), compression='gzip')
 
-    def _pmaps_to_seg(self, pred):
-        mask = (pred > self.pmaps_thershold).astype('uint8')
+def dsb_save_batch(output_dir, path, pred, save_segmentation=True, pmaps_thershold=0.5):
+    def _pmaps_to_seg(pred):
+        mask = (pred > pmaps_thershold)
         return measure.label(mask).astype('uint16')
+
+    # convert to numpy array
+    for single_pred, single_path in zip(pred, path):
+        logger.info(f'Processing {single_path}')
+        single_pred = single_pred.squeeze()
+
+        # save to h5 file
+        out_file = os.path.splitext(single_path)[0] + '_predictions.h5'
+        if output_dir is not None:
+            out_file = os.path.join(output_dir, os.path.split(out_file)[1])
+
+        with h5py.File(out_file, 'w') as f:
+            # logger.info(f'Saving output to {out_file}')
+            f.create_dataset('predictions', data=single_pred, compression='gzip')
+            if save_segmentation:
+                f.create_dataset('segmentation', data=_pmaps_to_seg(single_pred), compression='gzip')

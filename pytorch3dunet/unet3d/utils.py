@@ -106,66 +106,6 @@ class RunningAverage:
         self.avg = self.sum / self.count
 
 
-def find_maximum_patch_size(model, device):
-    """Tries to find the biggest patch size that can be send to GPU for inference
-    without throwing CUDA out of memory"""
-    logger = get_logger('PatchFinder')
-    in_channels = model.in_channels
-
-    patch_shapes = [(64, 128, 128), (96, 128, 128),
-                    (64, 160, 160), (96, 160, 160),
-                    (64, 192, 192), (96, 192, 192)]
-
-    for shape in patch_shapes:
-        # generate random patch of a given size
-        patch = np.random.randn(*shape).astype('float32')
-
-        patch = torch \
-            .from_numpy(patch) \
-            .view((1, in_channels) + patch.shape) \
-            .to(device)
-
-        logger.info(f"Current patch size: {shape}")
-        model(patch)
-
-
-def remove_halo(patch, index, shape, patch_halo):
-    """
-    Remove `pad_width` voxels around the edges of a given patch.
-    """
-    assert len(patch_halo) == 3
-
-    def _new_slices(slicing, max_size, pad):
-        if slicing.start == 0:
-            p_start = 0
-            i_start = 0
-        else:
-            p_start = pad
-            i_start = slicing.start + pad
-
-        if slicing.stop == max_size:
-            p_stop = None
-            i_stop = max_size
-        else:
-            p_stop = -pad if pad != 0 else 1
-            i_stop = slicing.stop - pad
-
-        return slice(p_start, p_stop), slice(i_start, i_stop)
-
-    D, H, W = shape
-
-    i_c, i_z, i_y, i_x = index
-    p_c = slice(0, patch.shape[0])
-
-    p_z, i_z = _new_slices(i_z, D, patch_halo[0])
-    p_y, i_y = _new_slices(i_y, H, patch_halo[1])
-    p_x, i_x = _new_slices(i_x, W, patch_halo[2])
-
-    patch_index = (p_c, p_z, p_y, p_x)
-    index = (i_c, i_z, i_y, i_x)
-    return patch[patch_index], index
-
-
 def number_of_features_per_level(init_channel_number, num_levels):
     return [init_channel_number * 2 ** k for k in range(num_levels)]
 

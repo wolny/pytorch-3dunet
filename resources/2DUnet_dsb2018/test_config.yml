@@ -20,8 +20,6 @@ loaders:
   output_dir: '/home/adrian/Datasets/DSB2018/test/predictions'
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
   batch_size: 1
-  # mirror pad the raw data in each axis for sharper prediction near the boundaries of the volume
-  mirror_padding: [0, 32, 32]
   # how many subprocesses to use for data loading
   num_workers: 8
   # test loaders configuration

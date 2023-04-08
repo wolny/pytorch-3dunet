@@ -221,7 +221,7 @@ class PixelWiseCrossEntropyLoss(nn.Module):
 
         # create default class_weights if None
         if self.class_weights is None:
-            class_weights = torch.ones(input.size()[1]).float().to(input.device)
+            class_weights = torch.ones(input.size()[1]).float().cuda()
         else:
             class_weights = self.class_weights
 
@@ -286,14 +286,12 @@ def get_loss_criterion(config):
     skip_last_target = loss_config.pop('skip_last_target', False)
     weight = loss_config.pop('weight', None)
 
-    if weight is not None:
-        # convert to cuda tensor if necessary
-        weight = torch.tensor(weight).to(config['device'])
+    if weight is not None and torch.cuda.is_available():
+        weight = torch.tensor(weight).cuda()
 
     pos_weight = loss_config.pop('pos_weight', None)
-    if pos_weight is not None:
-        # convert to cuda tensor if necessary
-        pos_weight = torch.tensor(pos_weight).to(config['device'])
+    if pos_weight is not None and torch.cuda.is_available():
+        pos_weight = torch.tensor(pos_weight).cuda()
 
     loss = _create_loss(name, loss_config, weight, ignore_index, pos_weight)
 

@@ -17,9 +17,10 @@ requirements:
     - setuptools
 
   run:
-    - python
+    - python 3.9
     - pytorch
     - tensorboard
+    - tqdm
     - setuptools
     - h5py
     - scipy

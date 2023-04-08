@@ -25,7 +25,6 @@ class TestHDF5Dataset:
                 dataset = StandardHDF5Dataset(path, phase=phase,
                                               slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
                                               transformer_config=transformer_config[phase]['transformer'],
-                                              mirror_padding=None,
                                               raw_internal_path='raw',
                                               label_internal_path='label')
 

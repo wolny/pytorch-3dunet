@@ -3,7 +3,6 @@ import os
 from itertools import chain
 
 import h5py
-import numpy as np
 
 import pytorch3dunet.augment.transforms as transforms
 from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calculate_stats
@@ -22,29 +21,18 @@ class AbstractHDF5Dataset(ConfigDataset):
         phase (str): 'train' for training, 'val' for validation, 'test' for testing
         slice_builder_config (dict): configuration of the SliceBuilder
         transformer_config (dict): data augmentation configuration
-        mirror_padding (int or tuple): number of voxels padded to each axis
         raw_internal_path (str or list): H5 internal path to the raw dataset
         label_internal_path (str or list): H5 internal path to the label dataset
         weight_internal_path (str or list): H5 internal path to the per pixel weights (optional)
         global_normalization (bool): if True, the mean and std of the raw data will be calculated over the whole dataset
     """
 
-    def __init__(self, file_path,
-                 phase,
-                 slice_builder_config,
-                 transformer_config,
-                 mirror_padding=(16, 32, 32),
-                 raw_internal_path='raw',
-                 label_internal_path='label',
-                 weight_internal_path=None,
-                 global_normalization=True):
+    def __init__(self, file_path, phase, slice_builder_config, transformer_config, raw_internal_path='raw',
+                 label_internal_path='label', weight_internal_path=None, global_normalization=True):
         assert phase in ['train', 'val', 'test']
-        if phase in ['train', 'val']:
-            mirror_padding = None
 
         self.phase = phase
         self.file_path = file_path
-        self.mirror_padding = mirror_padding
 
         input_file = self.create_h5_file(file_path)
 
@@ -72,21 +60,6 @@ class AbstractHDF5Dataset(ConfigDataset):
             # 'test' phase used only for predictions so ignore the label dataset
             self.label = None
             self.weight_map = None
-
-            if mirror_padding is not None:
-                if isinstance(mirror_padding, int):
-                    mirror_padding = (mirror_padding,) * 3
-
-                # add mirror padding to the whole volume
-                z, y, x = mirror_padding
-                pad_width = ((z, z), (y, y), (x, x))
-
-                if self.raw.ndim == 4:
-                    # pad each channel separately
-                    channels = [np.pad(r, pad_width=pad_width, mode='reflect') for r in self.raw]
-                    self.raw = np.stack(channels)
-                else:
-                    self.raw = np.pad(self.raw, pad_width=pad_width, mode='reflect')
 
         # build slice indices for raw and label data sets
         slice_builder = get_slice_builder(self.raw, self.label, self.weight_map, slice_builder_config)
@@ -170,7 +143,6 @@ class AbstractHDF5Dataset(ConfigDataset):
                               phase=phase,
                               slice_builder_config=slice_builder_config,
                               transformer_config=transformer_config,
-                              mirror_padding=dataset_config.get('mirror_padding', None),
                               raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
                               label_internal_path=dataset_config.get('label_internal_path', 'label'),
                               weight_internal_path=dataset_config.get('weight_internal_path', None),
@@ -197,21 +169,16 @@ class AbstractHDF5Dataset(ConfigDataset):
 
 class StandardHDF5Dataset(AbstractHDF5Dataset):
     """
-    Implementation of the HDF5 dataset which loads the data from all of the H5 files into the memory.
+    Implementation of the HDF5 dataset which loads the data from the H5 files into the memory.
     Fast but might consume a lot of memory.
     """
 
-    def __init__(self, file_path, phase, slice_builder_config, transformer_config, mirror_padding=(16, 32, 32),
+    def __init__(self, file_path, phase, slice_builder_config, transformer_config,
                  raw_internal_path='raw', label_internal_path='label', weight_internal_path=None,
                  global_normalization=True):
-        super().__init__(file_path=file_path,
-                         phase=phase,
-                         slice_builder_config=slice_builder_config,
-                         transformer_config=transformer_config,
-                         mirror_padding=mirror_padding,
-                         raw_internal_path=raw_internal_path,
-                         label_internal_path=label_internal_path,
-                         weight_internal_path=weight_internal_path,
+        super().__init__(file_path=file_path, phase=phase, slice_builder_config=slice_builder_config,
+                         transformer_config=transformer_config, raw_internal_path=raw_internal_path,
+                         label_internal_path=label_internal_path, weight_internal_path=weight_internal_path,
                          global_normalization=global_normalization)
 
     @staticmethod
@@ -222,17 +189,12 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
 class LazyHDF5Dataset(AbstractHDF5Dataset):
     """Implementation of the HDF5 dataset which loads the data lazily. It's slower, but has a low memory footprint."""
 
-    def __init__(self, file_path, phase, slice_builder_config, transformer_config, mirror_padding=(16, 32, 32),
+    def __init__(self, file_path, phase, slice_builder_config, transformer_config,
                  raw_internal_path='raw', label_internal_path='label', weight_internal_path=None,
                  global_normalization=False):
-        super().__init__(file_path=file_path,
-                         phase=phase,
-                         slice_builder_config=slice_builder_config,
-                         transformer_config=transformer_config,
-                         mirror_padding=mirror_padding,
-                         raw_internal_path=raw_internal_path,
-                         label_internal_path=label_internal_path,
-                         weight_internal_path=weight_internal_path,
+        super().__init__(file_path=file_path, phase=phase, slice_builder_config=slice_builder_config,
+                         transformer_config=transformer_config, raw_internal_path=raw_internal_path,
+                         label_internal_path=label_internal_path, weight_internal_path=weight_internal_path,
                          global_normalization=global_normalization)
 
         logger.info("Using modified HDF5Dataset!")

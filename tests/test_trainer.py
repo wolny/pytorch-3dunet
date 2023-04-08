@@ -63,7 +63,7 @@ def assert_train_save_load(tmpdir, train_config, loss, val_metric, model, weight
 def _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, shape):
     binary_loss = loss in ['BCEWithLogitsLoss', 'DiceLoss', 'BCEDiceLoss', 'GeneralizedDiceLoss']
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
 
     train_config['model']['name'] = model
     train_config.update({
@@ -98,24 +98,18 @@ def _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, 
     lr_scheduler = create_lr_scheduler(train_config.get('lr_scheduler', None), optimizer)
 
     formatter = DefaultTensorboardFormatter()
-    trainer = UNetTrainer(model, optimizer, lr_scheduler,
-                          loss_criterion, eval_criterion,
-                          device, loaders, tmpdir,
+    trainer = UNetTrainer(model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders, tmpdir,
                           max_num_epochs=train_config['trainer']['max_num_epochs'],
-                          log_after_iters=train_config['trainer']['log_after_iters'],
-                          validate_after_iters=train_config['trainer']['log_after_iters'],
                           max_num_iterations=train_config['trainer']['max_num_iterations'],
-                          tensorboard_formatter=formatter)
+                          validate_after_iters=train_config['trainer']['log_after_iters'],
+                          log_after_iters=train_config['trainer']['log_after_iters'], tensorboard_formatter=formatter)
     trainer.fit()
     # test loading the trainer from the checkpoint
-    trainer = UNetTrainer(model, optimizer, lr_scheduler,
-                          loss_criterion, eval_criterion,
-                          device, loaders, tmpdir,
-                          tensorboard_formatter=formatter,
+    trainer = UNetTrainer(model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders, tmpdir,
                           max_num_epochs=train_config['trainer']['max_num_epochs'],
-                          log_after_iters=train_config['trainer']['log_after_iters'],
-                          validate_after_iters=train_config['trainer']['log_after_iters'],
                           max_num_iterations=train_config['trainer']['max_num_iterations'],
+                          validate_after_iters=train_config['trainer']['log_after_iters'],
+                          log_after_iters=train_config['trainer']['log_after_iters'], tensorboard_formatter=formatter,
                           resume=os.path.join(tmpdir, 'last_checkpoint.pytorch'))
     return trainer
 

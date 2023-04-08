@@ -11,7 +11,6 @@ from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model, UNet2D
 from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, create_optimizer, \
     create_lr_scheduler, get_number_of_learnable_parameters
-
 from . import utils
 
 logger = get_logger('UNetTrainer')
@@ -21,14 +20,10 @@ def create_trainer(config):
     # Create the model
     model = get_model(config['model'])
     # use DataParallel if more than 1 GPU available
-    device = config['device']
-    if torch.cuda.device_count() > 1 and not device.type == 'cpu':
+    if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
         model = nn.DataParallel(model)
         logger.info(f'Using {torch.cuda.device_count()} GPUs for training')
-
-    # put the model on GPUs
-    logger.info(f"Sending the model to '{config['device']}'")
-    model = model.to(device)
+        model.cuda()
 
     # Log the number of learnable parameters
     logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
@@ -54,17 +49,9 @@ def create_trainer(config):
     resume = trainer_config.pop('resume', None)
     pre_trained = trainer_config.pop('pre_trained', None)
 
-    return UNetTrainer(model=model,
-                       optimizer=optimizer,
-                       lr_scheduler=lr_scheduler,
-                       loss_criterion=loss_criterion,
-                       eval_criterion=eval_criterion,
-                       tensorboard_formatter=tensorboard_formatter,
-                       device=config['device'],
-                       loaders=loaders,
-                       resume=resume,
-                       pre_trained=pre_trained,
-                       **trainer_config)
+    return UNetTrainer(model=model, optimizer=optimizer, lr_scheduler=lr_scheduler, loss_criterion=loss_criterion,
+                       eval_criterion=eval_criterion, loaders=loaders, tensorboard_formatter=tensorboard_formatter,
+                       resume=resume, pre_trained=pre_trained, **trainer_config)
 
 
 class UNetTrainer:
@@ -80,7 +67,6 @@ class UNetTrainer:
         loss_criterion (callable): loss function
         eval_criterion (callable): used to compute training/validation metric (such as Dice, IoU, AP or Rand score)
             saving the best checkpoint is based on the result of this function on the validation set
-        device (torch.device): device to train on
         loaders (dict): 'train' and 'val' loaders
         checkpoint_dir (string): dir for saving checkpoints and tensorboard logs
         max_num_epochs (int): maximum number of epochs
@@ -99,21 +85,16 @@ class UNetTrainer:
             evaluation is expensive)
     """
 
-    def __init__(self, model, optimizer, lr_scheduler, loss_criterion,
-                 eval_criterion, device, loaders, checkpoint_dir,
-                 max_num_epochs, max_num_iterations,
-                 validate_after_iters=200, log_after_iters=100,
-                 validate_iters=None, num_iterations=1, num_epoch=0,
-                 eval_score_higher_is_better=True,
-                 tensorboard_formatter=None, skip_train_validation=False,
-                 resume=None, pre_trained=None, **kwargs):
+    def __init__(self, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders, checkpoint_dir,
+                 max_num_epochs, max_num_iterations, validate_after_iters=200, log_after_iters=100, validate_iters=None,
+                 num_iterations=1, num_epoch=0, eval_score_higher_is_better=True, tensorboard_formatter=None,
+                 skip_train_validation=False, resume=None, pre_trained=None, **kwargs):
 
         self.model = model
         self.optimizer = optimizer
         self.scheduler = lr_scheduler
         self.loss_criterion = loss_criterion
         self.eval_criterion = eval_criterion
-        self.device = device
         self.loaders = loaders
         self.checkpoint_dir = checkpoint_dir
         self.max_num_epochs = max_num_epochs
@@ -285,13 +266,15 @@ class UNetTrainer:
             return val_scores.avg
 
     def _split_training_batch(self, t):
-        def _move_to_device(input):
+        def _move_to_gpu(input):
             if isinstance(input, tuple) or isinstance(input, list):
-                return tuple([_move_to_device(x) for x in input])
+                return tuple([_move_to_gpu(x) for x in input])
             else:
-                return input.to(self.device)
+                if torch.cuda.is_available():
+                    input = input.cuda(non_blocking=True)
+                return input
 
-        t = _move_to_device(t)
+        t = _move_to_gpu(t)
         weight = None
         if len(t) == 2:
             input, target = t

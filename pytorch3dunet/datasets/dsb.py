@@ -30,16 +30,9 @@ def dsb_prediction_collate(batch):
 
 
 class DSB2018Dataset(ConfigDataset):
-    def __init__(self, root_dir, phase, transformer_config, mirror_padding=(0, 32, 32), expand_dims=True):
+    def __init__(self, root_dir, phase, transformer_config, expand_dims=True):
         assert os.path.isdir(root_dir), f'{root_dir} is not a directory'
         assert phase in ['train', 'val', 'test']
-
-        # use mirror padding only during the 'test' phase
-        if phase in ['train', 'val']:
-            mirror_padding = None
-        if mirror_padding is not None:
-            assert len(mirror_padding) == 3, f"Invalid mirror_padding: {mirror_padding}"
-        self.mirror_padding = mirror_padding
 
         self.phase = phase
 
@@ -68,17 +61,6 @@ class DSB2018Dataset(ConfigDataset):
             self.masks = None
             self.masks_transform = None
 
-            # add mirror padding if needed
-            if self.mirror_padding is not None:
-                z, y, x = self.mirror_padding
-                pad_width = ((z, z), (y, y), (x, x))
-                padded_imgs = []
-                for img in self.images:
-                    padded_img = np.pad(img, pad_width=pad_width, mode='reflect')
-                    padded_imgs.append(padded_img)
-
-                self.images = padded_imgs
-
     def __getitem__(self, idx):
         if idx >= len(self):
             raise StopIteration
@@ -104,10 +86,8 @@ class DSB2018Dataset(ConfigDataset):
         transformer_config = phase_config['transformer']
         # load files to process
         file_paths = phase_config['file_paths']
-        # mirror padding conf
-        mirror_padding = dataset_config.get('mirror_padding', None)
         expand_dims = dataset_config.get('expand_dims', True)
-        return [cls(file_paths[0], phase, transformer_config, mirror_padding, expand_dims)]
+        return [cls(file_paths[0], phase, transformer_config, expand_dims)]
 
     @staticmethod
     def _load_files(dir, expand_dims):
