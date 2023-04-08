@@ -143,7 +143,7 @@ class StandardPredictor(_AbstractPredictor):
                         pred = np.expand_dims(pred[prediction_channel], axis=0)
 
                     # add channel dimension to the index
-                    index = tuple([channel_slice] + index)
+                    index = tuple([channel_slice] + list(index))
                     # accumulate probabilities into the output prediction array
                     prediction_map[index] += pred
                     # count voxel visits for normalization
