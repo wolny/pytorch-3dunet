@@ -113,10 +113,11 @@ class StandardPredictor(_AbstractPredictor):
         # Run predictions on the entire input dataset
         with torch.no_grad():
             for input, indices in tqdm(test_loader):
-                input = _pad(input, patch_halo)
                 # send batch to gpu
                 if torch.cuda.is_available():
                     input = input.cuda(non_blocking=True)
+
+                input = _pad(input, patch_halo)
 
                 if _is_2d_model(self.model):
                     # remove the singleton z-dimension from the input
@@ -129,9 +130,10 @@ class StandardPredictor(_AbstractPredictor):
                     # forward pass
                     prediction = self.model(input)
 
-                # convert to numpy array and unpad
-                prediction = _unpad(prediction.cpu().numpy(), patch_halo)
-
+                # unpad
+                prediction = _unpad(prediction, patch_halo)
+                # convert to numpy array
+                prediction = prediction.cpu().numpy()
                 # for each batch sample
                 for pred, index in zip(prediction, indices):
                     # save patch index: (C,D,H,W)
@@ -143,7 +145,7 @@ class StandardPredictor(_AbstractPredictor):
                         pred = np.expand_dims(pred[prediction_channel], axis=0)
 
                     # add channel dimension to the index
-                    index = tuple([channel_slice] + list(index))
+                    index = (channel_slice,) + tuple(index)
                     # accumulate probabilities into the output prediction array
                     prediction_map[index] += pred
                     # count voxel visits for normalization
@@ -173,19 +175,16 @@ def _pad(m, patch_halo):
     if patch_halo is not None:
         z, y, x = patch_halo
         return nn.functional.pad(m, (x, x, y, y, z, z), mode='reflect')
+    return m
 
 
 def _unpad(m, patch_halo):
-    def _slice_from_pad(pad):
-        if pad == 0:
-            return slice(None, None)
-        else:
-            return slice(pad, -pad)
-
     if patch_halo is not None:
-        z_s, y_s, x_s = [_slice_from_pad(p) for p in patch_halo]
-        m = m[..., z_s, y_s, x_s]
-
+        z, y, x = patch_halo
+        if z == 0:
+            return m[..., y:-y, x:-x]
+        else:
+            return m[..., z:-z, y:-y, x:-x]
     return m
 
 

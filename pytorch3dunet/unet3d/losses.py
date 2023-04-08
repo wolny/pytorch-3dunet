@@ -286,12 +286,12 @@ def get_loss_criterion(config):
     skip_last_target = loss_config.pop('skip_last_target', False)
     weight = loss_config.pop('weight', None)
 
-    if weight is not None and torch.cuda.is_available():
-        weight = torch.tensor(weight).cuda()
+    if weight is not None:
+        weight = torch.tensor(weight)
 
     pos_weight = loss_config.pop('pos_weight', None)
-    if pos_weight is not None and torch.cuda.is_available():
-        pos_weight = torch.tensor(pos_weight).cuda()
+    if pos_weight is not None:
+        pos_weight = torch.tensor(pos_weight)
 
     loss = _create_loss(name, loss_config, weight, ignore_index, pos_weight)
 
@@ -301,6 +301,9 @@ def get_loss_criterion(config):
 
     if skip_last_target:
         loss = SkipLastTargetChannelWrapper(loss, loss_config.get('squeeze_channel', False))
+
+    if torch.cuda.is_available():
+        loss = loss.cuda()
 
     return loss
 
