@@ -7,7 +7,7 @@ from torch.nn import functional as F
 from pytorch3dunet.unet3d.se import ChannelSELayer3D, ChannelSpatialSELayer3D, SpatialSELayer3D
 
 
-def create_conv(in_channels, out_channels, kernel_size, order, num_groups, padding, is3d):
+def create_conv(in_channels, out_channels, kernel_size, order, num_groups, stride, padding, is3d):
     """
     Create a list of modules with together constitute a single conv layer with non-linearity
     and optional batchnorm/groupnorm.
@@ -23,6 +23,7 @@ def create_conv(in_channels, out_channels, kernel_size, order, num_groups, paddi
             'ce' -> conv + ELU
             'bcr' -> batchnorm + conv + ReLU
         num_groups (int): number of groups for the GroupNorm
+        stride (int or tuple): stride of the convolution
         padding (int or tuple): add zero-padding added to all three sides of the input
         is3d (bool): is3d (bool): if True use Conv3d, otherwise use Conv2d
     Return:
@@ -43,9 +44,9 @@ def create_conv(in_channels, out_channels, kernel_size, order, num_groups, paddi
             # add learnable bias only in the absence of batchnorm/groupnorm
             bias = not ('g' in order or 'b' in order)
             if is3d:
-                conv = nn.Conv3d(in_channels, out_channels, kernel_size, padding=padding, bias=bias)
+                conv = nn.Conv3d(in_channels, out_channels, kernel_size, stride, padding, bias=bias)
             else:
-                conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding, bias=bias)
+                conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, bias=bias)
 
             modules.append(('conv', conv))
         elif char == 'g':
@@ -97,10 +98,12 @@ class SingleConv(nn.Sequential):
         is3d (bool): if True use Conv3d, otherwise use Conv2d
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size=3, order='gcr', num_groups=8, padding=1, is3d=True):
+    def __init__(self, in_channels, out_channels, kernel_size=3, order='gcr', num_groups=8, stride=1, padding=1,
+                 is3d=True):
         super(SingleConv, self).__init__()
 
-        for name, module in create_conv(in_channels, out_channels, kernel_size, order, num_groups, padding, is3d):
+        for name, module in create_conv(in_channels, out_channels, kernel_size, order, num_groups, stride, padding,
+                                        is3d):
             self.add_module(name, module)
 
 
