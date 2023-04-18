@@ -398,6 +398,7 @@ def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_
                           conv_layer_order=layer_order,
                           conv_kernel_size=conv_kernel_size,
                           num_groups=num_groups,
+                          mode='trilinear' if is3d else 'bilinear',
                           padding=conv_padding,
                           is3d=is3d)
         decoders.append(decoder)
@@ -435,7 +436,7 @@ class InterpolateUpsampling(AbstractUpsampling):
 
     @staticmethod
     def _interpolate(x, size, mode):
-        return F.interpolate(x, size=size, mode=mode)
+        return F.interpolate(x, size=size, mode=mode)  # Todo: check if align_corners=True is needed
 
 
 class TransposeConvUpsampling(AbstractUpsampling):
