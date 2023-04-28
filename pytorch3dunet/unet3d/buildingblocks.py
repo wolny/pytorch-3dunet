@@ -381,7 +381,7 @@ def create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_pa
     return nn.ModuleList(encoders)
 
 
-def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups, is3d):
+def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups, mode, is3d):
     # create decoder path consisting of the Decoder modules. The length of the decoder list is equal to `len(f_maps) - 1`
     decoders = []
     reversed_f_maps = list(reversed(f_maps))
@@ -398,7 +398,7 @@ def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_
                           conv_layer_order=layer_order,
                           conv_kernel_size=conv_kernel_size,
                           num_groups=num_groups,
-                          mode='trilinear' if is3d else 'bilinear',
+                          mode=mode,
                           padding=conv_padding,
                           is3d=is3d)
         decoders.append(decoder)
