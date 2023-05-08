@@ -44,9 +44,10 @@ The package has not been tested on Windows, however some users reported using it
 
 
 ## Installation
-- The easiest way to install `pytorch-3dunet` package is via conda:
+- The easiest way to install `pytorch-3dunet` package is via conda/mamba:
 ```
-conda create -n pytorch3dunet -c pytorch -c nvidia -c conda-forge -c awolny pytorch-3dunet
+conda install -c conda-forge mamba
+mamba create -n pytorch3dunet -c pytorch -c nvidia -c conda-forge -c awolny pytorch-3dunet
 conda activate pytorch3dunet
 ```
 After installation the following commands are accessible within the conda environment:
