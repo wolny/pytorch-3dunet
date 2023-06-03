@@ -42,19 +42,30 @@ The format of the `raw` and `label` datasets depends on whether the problem is 2
 ### Running on Windows
 The package has not been tested on Windows, however some users reported using it successfully on Windows.
 
-
 ## Installation
-- The easiest way to install `pytorch-3dunet` package is via conda/mamba:
+
+- The easiest way to install `pytorch-3dunet` is through GitHub:
+
+```shell
+python -m pip install git+https://github.com/wolny/pytorch-3dunet.git
+# Or with a version from https://github.com/wolny/pytorch-3dunet/tags
+python -m pip install git+https://github.com/wolny/pytorch-3dunet.git@1.5.1
 ```
+
+- The next easiest way to install `pytorch-3dunet` package is via conda/mamba:
+
+```shell
 conda install -c conda-forge mamba
 mamba create -n pytorch3dunet -c pytorch -c nvidia -c conda-forge -c awolny pytorch-3dunet
 conda activate pytorch3dunet
 ```
+
 After installation the following commands are accessible within the conda environment:
 `train3dunet` for training the network and `predict3dunet` for prediction (see below).
 
 - One can also install directly from source:
-```
+
+```shell
 python setup.py install
 ```
 
