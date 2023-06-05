@@ -38,8 +38,9 @@ def main():
     if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
         model = nn.DataParallel(model)
         logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')
-
-    model = model.cuda()
+        model = model.cuda()
+    if torch.cuda.is_available() and not config['device'] == 'cpu':
+        model = model.cuda()
 
     output_dir = config['loaders'].get('output_dir', None)
     if output_dir is not None:

@@ -19,13 +19,13 @@ logger = get_logger('UNetTrainer')
 def create_trainer(config):
     # Create the model
     model = get_model(config['model'])
-    # use DataParallel if more than 1 GPU available
+
     if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
         model = nn.DataParallel(model)
-        logger.info(f'Using {torch.cuda.device_count()} GPUs for training')
-        
-    if torch.cuda.device_count() > 0 and not config['device'] == 'cpu':
-        model.cuda()
+        logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')
+        model = model.cuda()
+    if torch.cuda.is_available() and not config['device'] == 'cpu':
+        model = model.cuda()
 
     # Log the number of learnable parameters
     logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
@@ -211,7 +211,7 @@ class UNetTrainer:
                 logger.info(
                     f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
                 self._log_stats('train', train_losses.avg, train_eval_scores.avg)
-                #self._log_params()
+                # self._log_params()
                 self._log_images(input, target, output, 'train_')
 
             if self.should_stop():
