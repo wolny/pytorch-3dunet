@@ -6,6 +6,8 @@ from torch.nn import functional as F
 
 from pytorch3dunet.unet3d.se import ChannelSELayer3D, ChannelSpatialSELayer3D, SpatialSELayer3D
 
+from partialconv2d import PartialConv2d
+from partialconv3d import PartialConv3d
 
 def create_conv(in_channels, out_channels, kernel_size, order, num_groups, padding, is3d):
     """
@@ -43,9 +45,9 @@ def create_conv(in_channels, out_channels, kernel_size, order, num_groups, paddi
             # add learnable bias only in the absence of batchnorm/groupnorm
             bias = not ('g' in order or 'b' in order)
             if is3d:
-                conv = nn.Conv3d(in_channels, out_channels, kernel_size, padding=padding, bias=bias)
+                conv = PartialConv3d(in_channels, out_channels, kernel_size, padding=padding, bias=bias)
             else:
-                conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding, bias=bias)
+                conv = PartialConv2d(in_channels, out_channels, kernel_size, padding=padding, bias=bias)
 
             modules.append(('conv', conv))
         elif char == 'g':
@@ -302,8 +304,8 @@ class Decoder(nn.Module):
         upsample (bool): should the input be upsampled
     """
 
-    def __init__(self, in_channels, out_channels, conv_kernel_size=3, scale_factor=(2, 2, 2), basic_module=DoubleConv,
-                 conv_layer_order='gcr', num_groups=8, mode='nearest', padding=1, upsample=True, is3d=True):
+    def __init__(self, in_channels, out_channels, conv_kernel_size=3, upsampling_conv_kernel_size=3, scale_factor=(2, 2, 2), basic_module=DoubleConv,
+                 conv_layer_order='gcr', num_groups=8, mode='nearest', padding=1, upsample=True, upsampling_padding=1, is3d=True):
         super(Decoder, self).__init__()
 
         if upsample:
@@ -315,7 +317,7 @@ class Decoder(nn.Module):
             else:
                 # if basic_module=ResNetBlock use transposed convolution upsampling and summation joining
                 self.upsampling = TransposeConvUpsampling(in_channels=in_channels, out_channels=out_channels,
-                                                          kernel_size=conv_kernel_size, scale_factor=scale_factor)
+                                                          kernel_size=upsampling_conv_kernel_size, scale_factor=scale_factor, padding=upsampling_padding)
                 # sum joining
                 self.joining = partial(self._joining, concat=False)
                 # adapt the number of in_channels for the ResNetBlock
@@ -378,7 +380,7 @@ def create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_pa
     return nn.ModuleList(encoders)
 
 
-def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups, is3d):
+def create_decoders(f_maps, basic_module, conv_kernel_size, upsampling_conv_kernel_size, scale_factor, conv_padding, upsampling_padding, layer_order, num_groups, is3d):
     # create decoder path consisting of the Decoder modules. The length of the decoder list is equal to `len(f_maps) - 1`
     decoders = []
     reversed_f_maps = list(reversed(f_maps))
@@ -394,8 +396,11 @@ def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_
                           basic_module=basic_module,
                           conv_layer_order=layer_order,
                           conv_kernel_size=conv_kernel_size,
+                          upsampling_conv_kernel_size=upsampling_conv_kernel_size,
+                          scale_factor=scale_factor,
                           num_groups=num_groups,
                           padding=conv_padding,
+                          upsampling_padding=upsampling_padding,
                           is3d=is3d)
         decoders.append(decoder)
     return nn.ModuleList(decoders)
@@ -449,10 +454,10 @@ class TransposeConvUpsampling(AbstractUpsampling):
 
     """
 
-    def __init__(self, in_channels=None, out_channels=None, kernel_size=3, scale_factor=(2, 2, 2)):
+    def __init__(self, in_channels=None, out_channels=None, kernel_size=3, scale_factor=(2, 2, 2), padding=1):
         # make sure that the output size reverses the MaxPool3d from the corresponding encoder
         upsample = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size, stride=scale_factor,
-                                      padding=1)
+                                      padding=padding)
         super().__init__(upsample)
 
 
