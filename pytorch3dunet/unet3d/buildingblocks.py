@@ -6,8 +6,8 @@ from torch.nn import functional as F
 
 from pytorch3dunet.unet3d.se import ChannelSELayer3D, ChannelSpatialSELayer3D, SpatialSELayer3D
 
-from partialconv2d import PartialConv2d
-from partialconv3d import PartialConv3d
+from pytorch3dunet.unet3d.partialconv3d import PartialConv3d
+from pytorch3dunet.unet3d.partialconv2d import PartialConv2d
 
 def create_conv(in_channels, out_channels, kernel_size, order, num_groups, padding, is3d):
     """
