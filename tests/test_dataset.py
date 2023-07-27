@@ -44,7 +44,7 @@ class TestHDF5Dataset:
     def test_augmentation(self, transformer_config):
         raw = np.random.rand(32, 96, 96)
         # assign raw to label's channels for ease of comparison
-        label = np.stack(raw for _ in range(3))
+        label = np.stack([raw for _ in range(3)])
         # create temporary h5 file
         tmp_file = NamedTemporaryFile()
         tmp_path = tmp_file.name
