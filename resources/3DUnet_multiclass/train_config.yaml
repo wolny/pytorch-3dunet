@@ -1,0 +1,159 @@
+# Sample configuration file for training a 3D U-Net on a multiclass semantic segmentation task.
+
+# model configuration
+model:
+  # model class, e.g. UNet3D, ResidualUNet3D
+  name: UNet3D
+  # number of input channels to the model
+  in_channels: 1
+  # number of classes
+  out_channels: 3
+  # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
+  layer_order: gcr
+  # number of features at each level of the U-Net
+  f_maps: [ 32, 64, 128, 256 ]
+  # number of groups in the groupnorm
+  num_groups: 8
+  # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax (in this case softmax)
+  final_sigmoid: false
+  # if True applies the final normalization layer (sigmoid or softmax), otherwise the networks returns the output from the final convolution layer; use False for regression problems, e.g. de-noising
+  is_segmentation: true
+# trainer configuration
+trainer:
+  # path to the checkpoint directory
+  checkpoint_dir: CHECKPOINT_DIR
+  # path to the latest checkpoint; if provided the training will be resumed from that checkpoint
+  resume: null
+  # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
+  # make sure to decrease the learning rate in the optimizer config accordingly
+  pre_trained: null
+  # how many iterations between validations
+  validate_after_iters: 1000
+  # how many iterations between tensorboard logging
+  log_after_iters: 500
+  # max number of epochs
+  max_num_epochs: 200
+  # max number of iterations
+  max_num_iterations: 60000
+  # model with higher eval score is considered better
+  eval_score_higher_is_better: True
+# loss function configuration
+loss:
+  # use BCE loss for training
+  name: CrossEntropyLoss
+  # skip last channel in the target containing the labeled nuclei instances
+  skip_last_target: true
+# optimizer configuration
+optimizer:
+  # initial learning rate
+  learning_rate: 0.0002
+  # weight decay
+  weight_decay: 0.00001
+# evaluation metric
+eval_metric:
+  # use average precision metric
+  name: MeanIoU
+# learning rate scheduler configuration
+lr_scheduler:
+  # reduce learning rate when evaluation metric plateaus
+  name: ReduceLROnPlateau
+  # use 'max' if eval_score_higher_is_better=True, 'min' otherwise
+  mode: max
+  # factor by which learning rate will be reduced
+  factor: 0.2
+  # number of *validation runs* with no improvement after which learning rate will be reduced
+  patience: 8
+
+# data loaders configuration
+loaders:
+  # class of the HDF5 dataset, currently StandardHDF5Dataset and LazyHDF5Dataset are supported.
+  # When using LazyHDF5Dataset make sure to set `num_workers = 1`, due to a bug in h5py which corrupts the data
+  # when reading from multiple threads.
+  dataset: StandardHDF5Dataset
+  # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
+  batch_size: 1
+  # how many subprocesses to use for data loading
+  num_workers: 8
+  # path to the raw data within the H5
+  raw_internal_path: raw
+  # path to the label data within the H5
+  label_internal_path: label
+  # path to the pixel-wise weight map withing the H5 if present
+  weight_internal_path: null
+  # configuration of the train loader
+  train:
+    # paths to the training datasets
+    file_paths:
+      - TRAIN_DIR
+
+    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
+    slice_builder:
+      name: FilterSliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [ 80, 170, 170 ]
+      # train stride between patches
+      stride_shape: [ 20, 40, 40 ]
+      # minimum volume of the labels in the patch
+      threshold: 0.01
+      # probability of accepting patches which do not fulfil the threshold criterion
+      slack_acceptance: 0.01
+
+    transformer:
+      raw:
+        # subtract mean and divide by std dev
+        - name: Standardize
+        # randomly flips the volume in one of the axis
+        - name: RandomFlip
+        # randomly rotates the volume with 90 deg across a randomly chosen plane
+        - name: RandomRotate90
+        - name: RandomRotate
+          # rotate only in ZY plane due to anisotropy
+          axes: [ [ 2, 1 ] ]
+          # rotates by choosing random angle from [-30, 30] deg
+          angle_spectrum: 30
+          mode: reflect
+        - name: ElasticDeformation
+          spline_order: 3
+        - name: ToTensor
+          expand_dims: true
+      label:
+        - name: RandomFlip
+        - name: RandomRotate90
+        - name: RandomRotate
+          # rotate only in ZY plane due to anisotropy
+          axes: [ [ 2, 1 ] ]
+          angle_spectrum: 30
+          mode: reflect
+        - name: ElasticDeformation
+          spline_order: 0
+          # convert target volume to binary mask
+        - name: ToTensor
+          expand_dims: false
+
+  # configuration of the val loader
+  val:
+    # paths to the val datasets
+    file_paths:
+      - VAL_DIR
+
+    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
+    slice_builder:
+      name: FilterSliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [ 80, 170, 170 ]
+      # train stride between patches
+      stride_shape: [ 80, 170, 170 ]
+      # minimum volume of the labels in the patch
+      threshold: 0.01
+      # probability of accepting patches which do not fulfil the threshold criterion
+      slack_acceptance: 0.01
+
+    # data augmentation
+    transformer:
+      raw:
+        - name: Standardize
+        - name: ToTensor
+          expand_dims: true
+      label:
+        - name: ToTensor
+          expand_dims: false
