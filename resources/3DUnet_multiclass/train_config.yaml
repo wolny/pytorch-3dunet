@@ -41,8 +41,6 @@ trainer:
 loss:
   # use BCE loss for training
   name: CrossEntropyLoss
-  # skip last channel in the target containing the labeled nuclei instances
-  skip_last_target: true
 # optimizer configuration
 optimizer:
   # initial learning rate
@@ -129,6 +127,7 @@ loaders:
           # convert target volume to binary mask
         - name: ToTensor
           expand_dims: false
+          dtype: long
 
   # configuration of the val loader
   val:
@@ -157,3 +156,4 @@ loaders:
       label:
         - name: ToTensor
           expand_dims: false
+          dtype: long
