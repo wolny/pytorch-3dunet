@@ -249,7 +249,7 @@ def get_test_loaders(config):
     logger.info(f'Number of workers for the dataloader: {num_workers}')
 
     batch_size = loaders_config.get('batch_size', 1)
-    if torch.cuda.device_count() > 1 and not config['device'].type == 'cpu':
+    if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
         logger.info(
             f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}')
         batch_size = batch_size * torch.cuda.device_count()
