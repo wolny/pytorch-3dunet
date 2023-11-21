@@ -136,17 +136,21 @@ class DoubleConv(nn.Sequential):
             'ce' -> conv + ELU
         num_groups (int): number of groups for the GroupNorm
         padding (int or tuple): add zero-padding added to all three sides of the input
+        upscale (int): number of the convolution to upscale in encoder if DoubleConv, default: 2
         dropout_prob (float or tuple): dropout probability for each convolution, default 0.1
         is3d (bool): if True use Conv3d instead of Conv2d layers
     """
 
     def __init__(self, in_channels, out_channels, encoder, kernel_size=3, order='gcr',
-                 num_groups=8, padding=1, dropout_prob=0.1, is3d=True):
+                 num_groups=8, padding=1, upscale=2, dropout_prob=0.1, is3d=True):
         super(DoubleConv, self).__init__()
         if encoder:
             # we're in the encoder path
             conv1_in_channels = in_channels
-            conv1_out_channels = out_channels // 2
+            if upscale is 1:
+              conv1_out_channels = out_channels
+            else:
+              conv1_out_channels = out_channels // 2
             if conv1_out_channels < in_channels:
                 conv1_out_channels = in_channels
             conv2_in_channels, conv2_out_channels = conv1_out_channels, out_channels
@@ -264,13 +268,14 @@ class Encoder(nn.Module):
             in `DoubleConv` module. See `DoubleConv` for more info.
         num_groups (int): number of groups for the GroupNorm
         padding (int or tuple): add zero-padding added to all three sides of the input
+        upscale (int): number of the convolution to upscale in encoder if DoubleConv, default: 2
         dropout_prob (float or tuple): dropout probability, default 0.1
         is3d (bool): use 3d or 2d convolutions/pooling operation
     """
 
     def __init__(self, in_channels, out_channels, conv_kernel_size=3, apply_pooling=True,
                  pool_kernel_size=2, pool_type='max', basic_module=DoubleConv, conv_layer_order='gcr',
-                 num_groups=8, padding=1, dropout_prob=0.1, is3d=True):
+                 num_groups=8, padding=1, upscale=2, dropout_prob=0.1, is3d=True):
         super(Encoder, self).__init__()
         assert pool_type in ['max', 'avg']
         if apply_pooling:
@@ -293,6 +298,7 @@ class Encoder(nn.Module):
                                          order=conv_layer_order,
                                          num_groups=num_groups,
                                          padding=padding,
+                                         upscale=upscale,
                                          dropout_prob=dropout_prob,
                                          is3d=is3d)
 
@@ -395,7 +401,7 @@ class Decoder(nn.Module):
 
 
 def create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_padding,
-                    dropout_prob,
+                    conv_upscale, dropout_prob,
                     layer_order, num_groups, pool_kernel_size, is3d):
     # create encoder path consisting of Encoder modules. Depth of the encoder is equal to `len(f_maps)`
     encoders = []
@@ -409,6 +415,7 @@ def create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_pa
                               conv_kernel_size=conv_kernel_size,
                               num_groups=num_groups,
                               padding=conv_padding,
+                              upscale=conv_upscale,
                               dropout_prob=dropout_prob,
                               is3d=is3d)
         else:
@@ -419,6 +426,7 @@ def create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_pa
                               num_groups=num_groups,
                               pool_kernel_size=pool_kernel_size,
                               padding=conv_padding,
+                              upscale=conv_upscale,
                               dropout_prob=dropout_prob,
                               is3d=is3d)
 
