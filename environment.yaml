@@ -16,3 +16,4 @@ dependencies:
   - pyyaml
   - pytest
   - Pillow=9.5.0
+  - pandas
