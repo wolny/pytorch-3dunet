@@ -1,9 +1,9 @@
 import os
-
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.tensorboard import SummaryWriter
+from datetime import datetime
 
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
@@ -115,7 +115,12 @@ class UNetTrainer:
         else:
             self.best_eval_score = float('+inf')
 
-        self.writer = SummaryWriter(log_dir=os.path.join(checkpoint_dir, 'logs'))
+        self.writer = SummaryWriter(
+            log_dir=os.path.join(
+                checkpoint_dir, 'logs', 
+                datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                )
+            )
 
         assert tensorboard_formatter is not None, 'TensorboardFormatter must be provided'
         self.tensorboard_formatter = tensorboard_formatter
