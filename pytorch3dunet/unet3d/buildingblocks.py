@@ -340,8 +340,8 @@ class Decoder(nn.Module):
         # don't adapt channels after join operation
         adapt_channels = False
 
-        if upsample is not None and upsample is not 'none':
-            if upsample is 'default':
+        if upsample is not None and upsample != 'none':
+            if upsample == 'default':
                 if basic_module == DoubleConv:
                     upsample = 'nearest'    # use nearest neighbot interpolation for upsampling
                     concat = True           # use concat joining
@@ -352,7 +352,7 @@ class Decoder(nn.Module):
                     adapt_channels = True   # adapt channels after joining
 
             # perform deconvolution upsampling if mode is deconv
-            if upsample is 'deconv':
+            if upsample == 'deconv':
                 self.upsampling = TransposeConvUpsampling(in_channels=in_channels, out_channels=out_channels,
                                                           kernel_size=conv_kernel_size, scale_factor=scale_factor,
                                                           is3d=is3d)
@@ -433,7 +433,7 @@ def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_
     decoders = []
     reversed_f_maps = list(reversed(f_maps))
     for i in range(len(reversed_f_maps) - 1):
-        if basic_module == DoubleConv and upsample is not 'deconv':
+        if basic_module == DoubleConv and upsample != 'deconv':
             in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
         else:
             in_feature_num = reversed_f_maps[i]
