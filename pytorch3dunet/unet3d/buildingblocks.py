@@ -313,7 +313,7 @@ class Decoder(nn.Module):
         in_channels (int): number of input channels
         out_channels (int): number of output channels
         conv_kernel_size (int or tuple): size of the convolving kernel
-        scale_factor (tuple): used as the multiplier for the image H/W/D in
+        scale_factor (int or tuple): used as the multiplier for the image H/W/D in
             case of nn.Upsample or as stride in case of ConvTranspose3d, must reverse the MaxPool3d operation
             from the corresponding encoder
         basic_module(nn.Module): either ResNetBlock or DoubleConv
@@ -321,34 +321,55 @@ class Decoder(nn.Module):
             in `DoubleConv` module. See `DoubleConv` for more info.
         num_groups (int): number of groups for the GroupNorm
         padding (int or tuple): add zero-padding added to all three sides of the input
-        upsample (bool): should the input be upsampled
+        upsample (str): algorithm used for upsampling:
+            InterpolateUpsampling:   'nearest' | 'linear' | 'bilinear' | 'trilinear' | 'area'
+            TransposeConvUpsampling: 'deconv'
+            No upsampling:           None
+            Default: 'default' (chooses automatically)
         dropout_prob (float or tuple): dropout probability, default 0.1
     """
 
     def __init__(self, in_channels, out_channels, conv_kernel_size=3, scale_factor=2, basic_module=DoubleConv,
-                 conv_layer_order='gcr', num_groups=8, padding=1, upsample=True,
+                 conv_layer_order='gcr', num_groups=8, padding=1, upsample='default',
                  dropout_prob=0.1, is3d=True):
         super(Decoder, self).__init__()
+  
+        # perform concat joining per default
+        concat = True
 
-        if upsample:
-            if basic_module == DoubleConv:
-                # if DoubleConv is the basic_module use interpolation for upsampling and concatenation joining
-                self.upsampling = InterpolateUpsampling(mode=mode)
-                # concat joining
-                self.joining = partial(self._joining, concat=True)
-            else:
-                # if basic_module=ResNetBlock use transposed convolution upsampling and summation joining
+        # don't adapt channels after join operation
+        adapt_channels = False
+
+        if upsample is not None and upsample is not 'none':
+            if upsample is 'default':
+                if basic_module == DoubleConv:
+                    upsample = 'nearest'    # use nearest neighbot interpolation for upsampling
+                    concat = True           # use concat joining
+                    adapt_channels = False  # don't adapt channels
+                elif basic_module = ResNetBlock:
+                    upsample = 'deconv'     # use deconvolution upsampling
+                    concat = False          # use summation joining
+                    adapt_channels = True   # adapt channels after joining
+
+            # perform deconvolution upsampling if mode is deconv
+            if upsample is 'deconv':
                 self.upsampling = TransposeConvUpsampling(in_channels=in_channels, out_channels=out_channels,
-                                                          kernel_size=conv_kernel_size, scale_factor=scale_factor)
-                # sum joining
-                self.joining = partial(self._joining, concat=False)
-                # adapt the number of in_channels for the ResNetBlock
-                in_channels = out_channels
+                                                          kernel_size=conv_kernel_size, scale_factor=scale_factor,
+                                                          is3d=is3d)
+            else:
+                self.upsampling = InterpolateUpsampling(mode=upsample)
         else:
             # no upsampling
             self.upsampling = NoUpsampling()
             # concat joining
             self.joining = partial(self._joining, concat=True)
+
+        # perform joining operation
+        self.joining = partial(self._joining, concat=concat)
+
+        # adapt the number of in_channels for the ResNetBlock
+        if adapt_channels is True:
+            in_channels = out_channels
 
         self.basic_module = basic_module(in_channels, out_channels,
                                          encoder=False,
@@ -407,7 +428,7 @@ def create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_pa
 
 
 def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order,
-                    num_groups, dropout_prob, is3d):
+                    num_groups, upsample, dropout_prob, is3d):
     # create decoder path consisting of the Decoder modules. The length of the decoder list is equal to `len(f_maps) - 1`
     decoders = []
     reversed_f_maps = list(reversed(f_maps))
@@ -425,6 +446,7 @@ def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_
                           conv_kernel_size=conv_kernel_size,
                           num_groups=num_groups,
                           padding=conv_padding,
+                          upsample=upsample,
                           dropout_prob=dropout_prob,
                           is3d=is3d)
         decoders.append(decoder)
@@ -476,13 +498,17 @@ class TransposeConvUpsampling(AbstractUpsampling):
             used only if transposed_conv is True
         scale_factor (int or tuple): stride of the convolution
             used only if transposed_conv is True
-
+        is3d (bool): if True use ConvTranspose3d, otherwise use ConvTranspose2d
     """
 
-    def __init__(self, in_channels=None, out_channels=None, kernel_size=3, scale_factor=(2, 2, 2)):
+    def __init__(self, in_channels=None, out_channels=None, kernel_size=3, scale_factor=2, is3d=True):
         # make sure that the output size reverses the MaxPool3d from the corresponding encoder
-        upsample = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size, stride=scale_factor,
-                                      padding=1)
+        if is3d is True:
+          upsample = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size, stride=scale_factor,
+                                        padding=1, bias=False)
+        else:
+          upsample = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=kernel_size, stride=scale_factor,
+                                        padding=1, bias=False)
         super().__init__(upsample)
 
 
