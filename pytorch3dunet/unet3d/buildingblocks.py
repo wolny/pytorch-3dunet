@@ -346,7 +346,7 @@ class Decoder(nn.Module):
                     upsample = 'nearest'    # use nearest neighbot interpolation for upsampling
                     concat = True           # use concat joining
                     adapt_channels = False  # don't adapt channels
-                elif basic_module = ResNetBlock:
+                elif basic_module == ResNetBlock:
                     upsample = 'deconv'     # use deconvolution upsampling
                     concat = False          # use summation joining
                     adapt_channels = True   # adapt channels after joining
@@ -433,7 +433,7 @@ def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_
     decoders = []
     reversed_f_maps = list(reversed(f_maps))
     for i in range(len(reversed_f_maps) - 1):
-        if basic_module == DoubleConv:
+        if basic_module == DoubleConv and upsample is not 'deconv':
             in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
         else:
             in_feature_num = reversed_f_maps[i]
