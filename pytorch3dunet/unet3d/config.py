@@ -1,5 +1,6 @@
 import argparse
-
+import os
+import shutil
 import torch
 import yaml
 
@@ -25,7 +26,23 @@ def load_config():
     else:
         logger.warning('CUDA not available, using CPU')
         config['device'] = 'cpu'
-    return config
+    return config, args.config
+
+
+def copy_config(config, config_path):
+    """Copies the config file to the checkpoint folder."""
+    
+    def _get_last_subfolder_path(path):
+        subfolders = [f.path for f in os.scandir(path) if f.is_dir()]
+        return max(subfolders, default=None)
+    
+    checkpoint_dir = os.path.join(
+        config['trainer'].pop('checkpoint_dir'), 'logs')
+    last_run_dir = _get_last_subfolder_path(checkpoint_dir)
+    config_file_name = os.path.basename(config_path)
+    
+    if last_run_dir:
+        shutil.copy2(config_path, os.path.join(last_run_dir, config_file_name))
 
 
 def _load_config_yaml(config_file):
