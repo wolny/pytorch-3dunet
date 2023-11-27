@@ -2,7 +2,7 @@ import random
 
 import torch
 
-from pytorch3dunet.unet3d.config import load_config
+from pytorch3dunet.unet3d.config import load_config, copy_config
 from pytorch3dunet.unet3d.trainer import create_trainer
 from pytorch3dunet.unet3d.utils import get_logger
 
@@ -11,7 +11,7 @@ logger = get_logger('TrainingSetup')
 
 def main():
     # Load and log experiment configuration
-    config = load_config()
+    config, config_path = load_config()
     logger.info(config)
 
     manual_seed = config.get('manual_seed', None)
@@ -23,8 +23,10 @@ def main():
         # see https://pytorch.org/docs/stable/notes/randomness.html
         torch.backends.cudnn.deterministic = True
 
-    # create trainer
+    # Create trainer
     trainer = create_trainer(config)
+    # Copy config file
+    copy_config(config, config_path)
     # Start training
     trainer.fit()
 
