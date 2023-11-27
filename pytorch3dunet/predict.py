@@ -38,7 +38,6 @@ def main():
     if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
         model = nn.DataParallel(model)
         logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')
-        model = model.cuda()
     if torch.cuda.is_available() and not config['device'] == 'cpu':
         model = model.cuda()
 
