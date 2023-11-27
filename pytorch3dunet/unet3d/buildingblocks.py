@@ -147,7 +147,7 @@ class DoubleConv(nn.Sequential):
         if encoder:
             # we're in the encoder path
             conv1_in_channels = in_channels
-            if upscale is 1:
+            if upscale == 1:
               conv1_out_channels = out_channels
             else:
               conv1_out_channels = out_channels // 2
