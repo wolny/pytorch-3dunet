@@ -209,7 +209,17 @@ class UNetTrainer:
             if self.num_iterations % self.log_after_iters == 0:
                 # compute eval criterion
                 if not self.skip_train_validation:
-                    eval_score = self.eval_criterion(output, target)
+                    # apply final activation before calculating eval score
+                    if isinstance(self.model, nn.DataParallel):
+                        final_activation = self.model.module.final_activation
+                    else:
+                        final_activation = self.model.final_activation
+
+                    if final_activation is not None:
+                        act_output = final_activation(output)
+                    else:
+                        act_output = output
+                    eval_score = self.eval_criterion(act_output, target)
                     train_eval_scores.update(eval_score.item(), self._batch_size(input))
 
                 # log stats, params and images
