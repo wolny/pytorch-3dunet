@@ -195,8 +195,9 @@ class UNetTrainer:
                 # adjust learning rate if necessary
                 if isinstance(self.scheduler, ReduceLROnPlateau):
                     self.scheduler.step(eval_score)
-                else:
+                elif self.scheduler is not None:
                     self.scheduler.step()
+
                 # log current learning rate in tensorboard
                 self._log_lr()
                 # remember best validation metric
