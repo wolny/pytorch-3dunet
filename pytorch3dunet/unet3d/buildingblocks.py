@@ -349,10 +349,10 @@ class Decoder(nn.Module):
         if upsample is not None and upsample != 'none':
             if upsample == 'default':
                 if basic_module == DoubleConv:
-                    upsample = 'nearest'    # use nearest neighbot interpolation for upsampling
+                    upsample = 'nearest'    # use nearest neighbor interpolation for upsampling
                     concat = True           # use concat joining
                     adapt_channels = False  # don't adapt channels
-                elif basic_module == ResNetBlock:
+                elif basic_module == ResNetBlock or basic_module == ResNetBlockSE:
                     upsample = 'deconv'     # use deconvolution upsampling
                     concat = False          # use summation joining
                     adapt_channels = True   # adapt channels after joining
