@@ -25,7 +25,7 @@ jobs:
       run: |
         conda install --yes -c conda-forge mamba
         mamba install -q boa
-        mamba mambabuild -c pytorch -c nvidia -c conda-forge conda-recipe
+        conda mambabuild -c pytorch -c nvidia -c conda-forge conda-recipe
     - name: Create pytorch3dunet env
       run: |
         mamba create -n pytorch3dunet -c pytorch -c nvidia -c conda-forge pytorch-3dunet pytest
