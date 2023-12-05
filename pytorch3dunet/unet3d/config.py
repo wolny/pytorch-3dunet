@@ -12,6 +12,7 @@ logger = utils.get_logger('ConfigLoader')
 
 def _override_config(args, config):
     """Overrides config params with the ones given in command line."""
+
     args_dict = vars(args)
     # remove the first argument which is the config file path
     args_dict.pop('config')
@@ -33,6 +34,7 @@ def load_config():
     parser = argparse.ArgumentParser(description='UNet3D')
     parser.add_argument('--config', type=str, help='Path to the YAML config file', required=True)
     # add additional command line arguments for the prediction that override the ones in the config file
+    parser.add_argument('--model_path', type=str, required=False)
     parser.add_argument('--loaders.output_dir', type=str, nargs="+", required=False)
     parser.add_argument('--loaders.test.file_paths', type=str, required=False)
     parser.add_argument('--loaders.test.slice_builder.patch_shape', type=int, nargs="+", required=False)
