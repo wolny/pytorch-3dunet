@@ -7,21 +7,22 @@ source:
 
 build:
   noarch: python
+  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation --ignore-installed --no-cache-dir
+  number: 0
   entry_points:
     - predict3dunet = pytorch3dunet.predict:main
     - train3dunet = pytorch3dunet.train:main
 
 requirements:
   build:
-    - python
-    - setuptools
+    - python >=3.9
+    - pip
 
   run:
-    - python 3.9
+    - python >=3.9
     - pytorch
     - tensorboard
     - tqdm
-    - setuptools
     - h5py
     - scipy
     - scikit-image
@@ -35,9 +36,16 @@ test:
     - pytorch3dunet.datasets
   requires:
     - pytest
-  run:
-    - py.test
+  source_files:
+    - tests
+  commands:
+    - pytest tests
 
 about:
   home: https://github.com/wolny/pytorch-3dunet
+  summary: 'Versatile U-Net implementation for volumetric semantic segmentation written in PyTorch'
+  description: |
+    PyTorch implementation of 3D U-Net and its variants (ResidualUNet3D, ResidualUNetSE3D).
+    The code allows for training the U-Net for both: semantic segmentation (binary and multi-class) 
+    and regression problems (e.g. de-noising, learning deconvolutions).
   license: MIT

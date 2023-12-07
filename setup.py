@@ -8,7 +8,7 @@ setup(
     author="Adrian Wolny, Lorenzo Cerrone",
     url="https://github.com/wolny/pytorch-3dunet",
     license="MIT",
-    python_requires='>=3.7', 
+    python_requires='>=3.9',
     entry_points={'console_scripts': [
         'train3dunet=pytorch3dunet.train:main',
         'predict3dunet=pytorch3dunet.predict:main']
