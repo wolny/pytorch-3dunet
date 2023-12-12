@@ -41,7 +41,8 @@ def load_config():
     parser.add_argument('--loaders.test.slice_builder.stride_shape', type=int, nargs="+", required=False)
 
     args = parser.parse_args()
-    config = yaml.safe_load(open(args.config, 'r'))
+    config_path = args.config
+    config = yaml.safe_load(open(config_path, 'r'))
     _override_config(args, config)
 
     device = config.get('device', None)
@@ -55,7 +56,7 @@ def load_config():
     else:
         logger.warning('CUDA not available, using CPU')
         config['device'] = 'cpu'
-    return config, args.config
+    return config, config_path
 
 
 def copy_config(config, config_path):

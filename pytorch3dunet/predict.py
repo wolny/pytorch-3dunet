@@ -24,7 +24,7 @@ def get_predictor(model, output_dir, config):
 
 def main():
     # Load configuration
-    config = load_config()
+    config, _ = load_config()
 
     # Create the model
     model = get_model(config['model'])
