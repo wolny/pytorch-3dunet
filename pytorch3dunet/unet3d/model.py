@@ -218,6 +218,30 @@ class UNet2D(AbstractUNet):
                                      is3d=False)
 
 
+class ResidualUNet2D(AbstractUNet):
+    """
+    Residual 2DUnet model implementation based on https://arxiv.org/pdf/1706.00120.pdf.
+    """
+
+    def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',
+                 num_groups=8, num_levels=5, is_segmentation=True, conv_padding=1,
+                 conv_upscale=2, upsample='default', dropout_prob=0.1, **kwargs):
+        super(ResidualUNet2D, self).__init__(in_channels=in_channels,
+                                             out_channels=out_channels,
+                                             final_sigmoid=final_sigmoid,
+                                             basic_module=ResNetBlock,
+                                             f_maps=f_maps,
+                                             layer_order=layer_order,
+                                             num_groups=num_groups,
+                                             num_levels=num_levels,
+                                             is_segmentation=is_segmentation,
+                                             conv_padding=conv_padding,
+                                             conv_upscale=conv_upscale,
+                                             upsample=upsample,
+                                             dropout_prob=dropout_prob,
+                                             is3d=False)
+
+
 def get_model(model_config):
     model_class = get_class(model_config['name'], modules=[
         'pytorch3dunet.unet3d.model'
