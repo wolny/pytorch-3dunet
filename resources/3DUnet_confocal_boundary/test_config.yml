@@ -1,0 +1,42 @@
+# Download test data from: https://osf.io/8jz7e/
+
+loaders:
+  batch_size: 4
+  mirror_padding:
+  - 16
+  - 32
+  - 32
+  num_workers: 8
+  output_dir: "/net/fs01/work01/yasuda/3dunetdata/predictions"
+  raw_internal_path: raw
+  test:
+    file_paths:
+    - "/net/fs01/work01/yasuda/3dunetdata/confocal_test"
+    slice_builder:
+      name: SliceBuilder
+      patch_shape:
+      - 48
+      - 80
+      - 80
+      stride_shape:
+      - 24
+      - 40
+      - 40
+    transformer:
+      raw:
+      - name: Standardize
+      - expand_dims: true
+        name: ToTensor
+manual_seed: 0
+model:
+  f_maps: 32
+  final_sigmoid: true
+  in_channels: 1
+  is_segmentation: true
+  layer_order: bcr
+  name: UNet3D
+  num_groups: null
+  out_channels: 1
+model_path: "/net/fs01/work01/yasuda/3dunetdata/best_checkpoint.pytorch"
+predictor:
+  name: StandardPredictor
