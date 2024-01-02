@@ -314,7 +314,7 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
     if name == 'BCEWithLogitsLoss':
         return nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     elif name == 'BCEDiceLoss':
-        alpha = loss_config.get('alphs', 1.)
+        alpha = loss_config.get('alpha', 1.)
         beta = loss_config.get('beta', 1.)
         return BCEDiceLoss(alpha, beta)
     elif name == 'CrossEntropyLoss':
