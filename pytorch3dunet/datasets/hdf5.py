@@ -72,6 +72,7 @@ class AbstractHDF5Dataset(ConfigDataset):
 
     @staticmethod
     def load_dataset(input_file, internal_path):
+        assert internal_path in input_file, f"Internal path: {internal_path} not found in the H5 file"
         ds = input_file[internal_path][:]
         assert ds.ndim in [3, 4], \
             f"Invalid dataset dimension: {ds.ndim}. Supported dataset formats: (C, Z, Y, X) or (Z, Y, X)"

@@ -1,10 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn as nn
-from torch.autograd import Variable
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss
-
-from pytorch3dunet.unet3d.utils import expand_as_one_hot
 
 
 def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
@@ -69,15 +66,17 @@ class SkipLastTargetChannelWrapper(nn.Module):
         self.loss = loss
         self.squeeze_channel = squeeze_channel
 
-    def forward(self, input, target):
+    def forward(self, input, target, weight=None):
         assert target.size(1) > 1, 'Target tensor has a singleton channel dimension, cannot remove channel'
 
         # skips last target channel if needed
         target = target[:, :-1, ...]
 
         if self.squeeze_channel:
-            # squeeze channel dimension if singleton
+            # squeeze channel dimension
             target = torch.squeeze(target, dim=1)
+        if weight is not None:
+            return self.loss(input, target, weight)
         return self.loss(input, target)
 
 
@@ -198,14 +197,13 @@ class WeightedCrossEntropyLoss(nn.Module):
         flattened = flatten(input)
         nominator = (1. - flattened).sum(-1)
         denominator = flattened.sum(-1)
-        class_weights = Variable(nominator / denominator, requires_grad=False)
-        return class_weights
+        class_weights = nominator / denominator
+        return class_weights.detach()
 
 
 class PixelWiseCrossEntropyLoss(nn.Module):
-    def __init__(self, class_weights=None, ignore_index=None):
+    def __init__(self, ignore_index=None):
         super(PixelWiseCrossEntropyLoss, self).__init__()
-        self.register_buffer('class_weights', class_weights)
         self.ignore_index = ignore_index
         self.log_softmax = nn.LogSoftmax(dim=1)
 
@@ -214,26 +212,26 @@ class PixelWiseCrossEntropyLoss(nn.Module):
         # normalize the input
         log_probabilities = self.log_softmax(input)
         # standard CrossEntropyLoss requires the target to be (NxDxHxW), so we need to expand it to (NxCxDxHxW)
-        target = expand_as_one_hot(target, C=input.size()[1], ignore_index=self.ignore_index)
-        # expand weights
-        weights = weights.unsqueeze(1)
-        weights = weights.expand_as(input)
-
-        # create default class_weights if None
-        if self.class_weights is None:
-            class_weights = torch.ones(input.size()[1]).float().cuda()
+        if self.ignore_index is not None:
+            mask = target == self.ignore_index
+            target[mask] = 0
         else:
-            class_weights = self.class_weights
-
-        # resize class_weights to be broadcastable into the weights
-        class_weights = class_weights.view(1, -1, 1, 1, 1)
-
-        # multiply weights tensor by class weights
-        weights = class_weights * weights
-
+            mask = torch.zeros_like(target)
+        # add channel dimension and invert the mask
+        mask = 1 - mask.unsqueeze(1)
+        # convert target to one-hot encoding
+        target = F.one_hot(target.long())
+        if target.ndim == 5:
+            # permute target to (NxCxDxHxW)
+            target = target.permute(0, 4, 1, 2, 3).contiguous()
+        else:
+            target = target.permute(0, 3, 1, 2).contiguous()
+        # apply the mask on the target
+        target = target * mask
+        # add channel dimension to the weights
+        weights = weights.unsqueeze(1)
         # compute the losses
         result = -weights * target * log_probabilities
-        # average the losses
         return result.mean()
 
 
@@ -326,7 +324,7 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
             ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
         return WeightedCrossEntropyLoss(ignore_index=ignore_index)
     elif name == 'PixelWiseCrossEntropyLoss':
-        return PixelWiseCrossEntropyLoss(class_weights=weight, ignore_index=ignore_index)
+        return PixelWiseCrossEntropyLoss(ignore_index=ignore_index)
     elif name == 'GeneralizedDiceLoss':
         normalization = loss_config.get('normalization', 'sigmoid')
         return GeneralizedDiceLoss(normalization=normalization)
