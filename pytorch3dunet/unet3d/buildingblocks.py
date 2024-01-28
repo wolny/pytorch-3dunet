@@ -522,13 +522,7 @@ class TransposeConvUpsampling(AbstractUpsampling):
 
         def forward(self, x, size):
             x = self.conv_transposed(x)
-            if self.is3d:
-                output_size = x.size()[-3:]
-            else:
-                output_size = x.size()[-2:]
-            if output_size != size:
-                return F.interpolate(x, size=size)
-            return x
+            return F.interpolate(x, size=size)
 
     def __init__(self, in_channels, out_channels, kernel_size=3, scale_factor=2, is3d=True):
         # make sure that the output size reverses the MaxPool3d from the corresponding encoder
