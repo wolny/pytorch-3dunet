@@ -134,7 +134,7 @@ class FilterSliceBuilder(SliceBuilder):
     Filter patches containing more than `1 - threshold` of ignore_index label
     """
 
-    def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, ignore_index=(0,),
+    def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, ignore_index=None,
                  threshold=0.6, slack_acceptance=0.01, **kwargs):
         super().__init__(raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, **kwargs)
         if label_dataset is None:
@@ -144,15 +144,17 @@ class FilterSliceBuilder(SliceBuilder):
 
         def ignore_predicate(raw_label_idx):
             label_idx = raw_label_idx[1]
-            patch = np.copy(label_dataset[label_idx])
-            for ii in ignore_index:
-                patch[patch == ii] = 0
+            patch = label_dataset[label_idx]
+            if ignore_index is not None:
+                patch = np.copy(patch)
+                patch[patch == ignore_index] = 0
             non_ignore_counts = np.count_nonzero(patch != 0)
             non_ignore_counts = non_ignore_counts / patch.size
             return non_ignore_counts > threshold or rand_state.rand() < slack_acceptance
 
         zipped_slices = zip(self.raw_slices, self.label_slices)
         # ignore slices containing too much ignore_index
+        logger.info(f'Filtering slices...')
         filtered_slices = list(filter(ignore_predicate, zipped_slices))
         # unzip and save slices
         raw_slices, label_slices = zip(*filtered_slices)
