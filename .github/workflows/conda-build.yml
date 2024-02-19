@@ -40,5 +40,5 @@ jobs:
         ANACONDA_SECRET: ${{ secrets.ANACONDA_TOKEN }}
       shell: bash -l {0}
       run: |
-        mamba install -q anaconda-client
+        conda install -q anaconda-client
         anaconda -t $ANACONDA_SECRET upload $CONDA/conda-bld/**/pytorch-3dunet-*.tar.bz2
