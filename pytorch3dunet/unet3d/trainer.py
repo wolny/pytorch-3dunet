@@ -16,15 +16,18 @@ from . import utils
 logger = get_logger('UNetTrainer')
 
 
-def create_trainer(config):
+def create_trainer(config, rank):
     # Create the model
     model = get_model(config['model'])
 
-    if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
-        model = nn.DataParallel(model)
-        logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')
-    if torch.cuda.is_available() and not config['device'] == 'cpu':
-        model = model.cuda()
+    # if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
+    #     model = nn.DataParallel(model)
+    #     logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')
+    # if torch.cuda.is_available() and not config['device'] == 'cpu':
+    #     model = model.cuda()
+    device_count = torch.cuda.device_count()
+    model = nn.parallel.DistributedDataParallel(model, device_ids=[i + (device_count * rank) for i in range(device_count)])
+    model = model.cuda()
 
     # Log the number of learnable parameters
     logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
@@ -52,7 +55,7 @@ def create_trainer(config):
 
     return UNetTrainer(model=model, optimizer=optimizer, lr_scheduler=lr_scheduler, loss_criterion=loss_criterion,
                        eval_criterion=eval_criterion, loaders=loaders, tensorboard_formatter=tensorboard_formatter,
-                       resume=resume, pre_trained=pre_trained, **trainer_config)
+                       resume=resume, pre_trained=pre_trained, rank=rank, **trainer_config)
 
 
 class UNetTrainer:
@@ -89,7 +92,7 @@ class UNetTrainer:
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders, checkpoint_dir,
                  max_num_epochs, max_num_iterations, validate_after_iters=200, log_after_iters=100, validate_iters=None,
                  num_iterations=1, num_epoch=0, eval_score_higher_is_better=True, tensorboard_formatter=None,
-                 skip_train_validation=False, resume=None, pre_trained=None, **kwargs):
+                 skip_train_validation=False, resume=None, pre_trained=None, rank=1, **kwargs):
 
         self.model = model
         self.optimizer = optimizer
