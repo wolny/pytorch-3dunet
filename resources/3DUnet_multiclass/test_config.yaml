@@ -22,6 +22,8 @@ model:
 predictor:
   # standard in memory predictor
   name: 'StandardPredictor'
+  # save the output segmentation instead of probability maps, i.e. apply argmax to the output
+  save_segmentation: true
 # specify the test datasets
 loaders:
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
