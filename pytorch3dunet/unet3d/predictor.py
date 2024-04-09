@@ -83,8 +83,15 @@ class StandardPredictor(_AbstractPredictor):
 
         logger.info(f'Running inference on {len(test_loader)} batches')
 
+        # evey patch will be padded with the following halo
+        patch_halo = self.predictor_config.get('patch_halo')
+        if _is_2d_model(self.model):
+            patch_halo = list(patch_halo)
+            patch_halo[0] = 0
+
         # dimensionality of the output predictions
         volume_shape = self.volume_shape(test_loader.dataset)
+        # volume_shape = tuple([a + b * 2 for a, b in zip(volume_shape, patch_halo)])
         out_channels = self.config['model'].get('out_channels')
         if prediction_channel is None:
             prediction_maps_shape = (out_channels,) + volume_shape
@@ -94,18 +101,12 @@ class StandardPredictor(_AbstractPredictor):
 
         logger.info(f'The shape of the output prediction maps (CDHW): {prediction_maps_shape}')
 
-        # evey patch will be mirror-padded with the following halo
-        patch_halo = self.predictor_config.get('patch_halo', (4, 4, 4))
-        if _is_2d_model(self.model):
-            patch_halo = list(patch_halo)
-            patch_halo[0] = 0
-
         # create destination H5 file
         output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
         h5_output_file = h5py.File(output_file, 'w')
         # allocate prediction and normalization arrays
         logger.info('Allocating prediction and normalization arrays...')
-        prediction_map, normalization_mask = self._allocate_prediction_maps(prediction_maps_shape, h5_output_file)
+        prediction_map, normalization_mask = self._allocate_prediction_maps(prediction_maps_shape)
 
         # Sets the module in evaluation mode explicitly
         # It is necessary for batchnorm/dropout layers if present as well as final Sigmoid/Softmax to be applied
@@ -113,11 +114,13 @@ class StandardPredictor(_AbstractPredictor):
         # Run predictions on the entire input dataset
         with torch.no_grad():
             for input, indices in tqdm(test_loader):
+                print(f"input.shape: {input.shape}")
+
                 # send batch to gpu
                 if torch.cuda.is_available():
                     input = input.cuda(non_blocking=True)
 
-                input = _pad(input, patch_halo)
+                # input = _pad(input, patch_halo)
 
                 if _is_2d_model(self.model):
                     # remove the singleton z-dimension from the input
@@ -144,9 +147,14 @@ class StandardPredictor(_AbstractPredictor):
                         channel_slice = slice(0, 1)
                         pred = np.expand_dims(pred[prediction_channel], axis=0)
 
+                    # change back to uppaded index
+                    # index = [slice(this_index.start, this_index.stop - 2 * this_halo, None) for this_index, this_halo in zip(index, patch_halo)]
                     # add channel dimension to the index
                     index = (channel_slice,) + tuple(index)
                     # accumulate probabilities into the output prediction array
+                    print(f"index: {index}")
+                    print(f"prediction_map[index].shape: {prediction_map[index].shape}")
+                    print(f"pred: {pred.shape}")
                     prediction_map[index] += pred
                     # count voxel visits for normalization
                     normalization_mask[index] += 1
@@ -154,18 +162,18 @@ class StandardPredictor(_AbstractPredictor):
         logger.info(f'Finished inference in {time.time() - start:.2f} seconds')
         # save results
         logger.info(f'Saving predictions to: {output_file}')
-        self._save_results(prediction_map, normalization_mask, h5_output_file, test_loader.dataset)
+        self._save_results(prediction_map, normalization_mask, h5_output_file)
         # close the output H5 file
         h5_output_file.close()
 
-    def _allocate_prediction_maps(self, output_shape, output_file):
+    def _allocate_prediction_maps(self, output_shape):
         # initialize the output prediction arrays
         prediction_map = np.zeros(output_shape, dtype='float32')
         # initialize normalization mask in order to average out probabilities of overlapping patches
         normalization_mask = np.zeros(output_shape, dtype='uint8')
         return prediction_map, normalization_mask
 
-    def _save_results(self, prediction_map, normalization_mask, output_file, dataset):
+    def _save_results(self, prediction_map, normalization_mask, output_file):
         dataset_name = _get_dataset_name(self.config)
         prediction_map = prediction_map / normalization_mask
         output_file.create_dataset(dataset_name, data=prediction_map, compression="gzip")
@@ -217,7 +225,7 @@ class LazyPredictor(StandardPredictor):
                                                         compression='gzip')
         return prediction_map, normalization_mask
 
-    def _save_results(self, prediction_map, normalization_mask, output_file, dataset):
+    def _save_results(self, prediction_map, normalization_mask, output_file):
         z, y, x = prediction_map.shape[1:]
         # take slices which are 1/27 of the original volume
         patch_shape = (z // 3, y // 3, x // 3)

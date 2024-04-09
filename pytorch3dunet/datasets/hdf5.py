@@ -5,7 +5,7 @@ from itertools import chain
 import h5py
 
 import pytorch3dunet.augment.transforms as transforms
-from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calculate_stats
+from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calculate_stats, mirror_pad
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('HDF5Dataset')
@@ -37,6 +37,8 @@ class AbstractHDF5Dataset(ConfigDataset):
         input_file = h5py.File(file_path, 'r')
 
         self.raw = self._load_dataset(input_file, raw_internal_path)
+        self.halo_shape = slice_builder_config.get('halo_shape', [0, 0, 0])
+        self.raw_padded = mirror_pad(self.raw, self.halo_shape)
 
         stats = calculate_stats(self.raw, global_normalization)
 
@@ -84,14 +86,16 @@ class AbstractHDF5Dataset(ConfigDataset):
         if idx >= len(self):
             raise StopIteration
 
-        # get the slice for a given index 'idx'
         raw_idx = self.raw_slices[idx]
-        # get the raw data patch for a given slice
-        raw_patch_transformed = self.raw_transform(self.raw[raw_idx])
+        # print(f'raw_idx: {raw_idx}')
+        raw_idx_padded = tuple(slice(this_index.start, this_index.stop + 2 * this_halo, None) for this_index, this_halo in zip(raw_idx, self.halo_shape))
+        # print(f'raw_idx_padded: {raw_idx_padded}')
+        raw_patch = self.raw_padded[raw_idx_padded]
+        raw_patch_transformed = self.raw_transform(raw_patch)
 
         if self.phase == 'test':
             # discard the channel dimension in the slices: predictor requires only the spatial dimensions of the volume
-            if len(raw_idx) == 4:
+            if len(raw_idx) == 4:  # TODO: Check if any other places need or produce the channel dimension
                 raw_idx = raw_idx[1:]
             return raw_patch_transformed, raw_idx
         else:
