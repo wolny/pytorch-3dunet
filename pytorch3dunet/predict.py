@@ -12,14 +12,20 @@ from pytorch3dunet.unet3d.model import get_model
 logger = utils.get_logger('UNet3DPredict')
 
 
-def get_predictor(model, output_dir, config):
+def get_predictor(model, config):
+    output_dir = config['loaders'].get('output_dir', None)
+    # override output_dir if provided in the 'predictor' section of the config
+    output_dir = config.get('predictor', {}).get('output_dir', output_dir)
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
+
     predictor_config = config.get('predictor', {})
     class_name = predictor_config.get('name', 'StandardPredictor')
 
     m = importlib.import_module('pytorch3dunet.unet3d.predictor')
     predictor_class = getattr(m, class_name)
-
-    return predictor_class(model, output_dir, config, **predictor_config)
+    out_channels = config['model'].get('out_channels')
+    return predictor_class(model, output_dir, out_channels, **predictor_config)
 
 
 def main():
@@ -41,13 +47,8 @@ def main():
     if torch.cuda.is_available() and not config['device'] == 'cpu':
         model = model.cuda()
 
-    output_dir = config['loaders'].get('output_dir', None)
-    if output_dir is not None:
-        os.makedirs(output_dir, exist_ok=True)
-        logger.info(f'Saving predictions to: {output_dir}')
-
     # create predictor instance
-    predictor = get_predictor(model, output_dir, config)
+    predictor = get_predictor(model, config)
 
     for test_loader in get_test_loaders(config):
         # run the model prediction on the test_loader and save the results in the output_dir
