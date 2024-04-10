@@ -40,7 +40,6 @@ class _AbstractPredictor:
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
                  prediction_channel: int = None,
-                 patch_halo: tuple[int, int, int] = (4, 4, 4),
                  **kwargs):
         """
         Base class for predictors.
@@ -58,10 +57,6 @@ class _AbstractPredictor:
         self.output_dataset = output_dataset
         self.save_segmentation = save_segmentation
         self.prediction_channel = prediction_channel
-        # evey patch will be mirror-padded with the following halo
-        self.patch_halo = list(patch_halo)
-        if _is_2d_model(self.model):
-            self.patch_halo[0] = 0
 
     @staticmethod
     def volume_shape(dataset):
@@ -116,6 +111,9 @@ class StandardPredictor(_AbstractPredictor):
         logger.info('Allocating prediction and normalization arrays...')
         prediction_map, normalization_mask = self._allocate_prediction_maps(prediction_maps_shape, h5_output_file)
 
+        # determine halo used for padding
+        patch_halo = test_loader.dataset.halo_shape
+
         # Sets the module in evaluation mode explicitly
         # It is necessary for batchnorm/dropout layers if present as well as final Sigmoid/Softmax to be applied
         self.model.eval()
@@ -138,7 +136,7 @@ class StandardPredictor(_AbstractPredictor):
                     prediction = self.model(input)
 
                 # unpad the predicted patch
-                prediction = remove_padding(prediction, self.patch_halo)
+                prediction = remove_padding(prediction, patch_halo)
                 # convert to numpy array
                 prediction = prediction.cpu().numpy()
                 # for each batch sample
