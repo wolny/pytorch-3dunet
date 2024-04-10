@@ -87,9 +87,7 @@ class AbstractHDF5Dataset(ConfigDataset):
             raise StopIteration
 
         raw_idx = self.raw_slices[idx]
-        # print(f'raw_idx: {raw_idx}')
         raw_idx_padded = tuple(slice(this_index.start, this_index.stop + 2 * this_halo, None) for this_index, this_halo in zip(raw_idx, self.halo_shape))
-        # print(f'raw_idx_padded: {raw_idx_padded}')
         raw_patch = self.raw_padded[raw_idx_padded]
         raw_patch_transformed = self.raw_transform(raw_patch)
 

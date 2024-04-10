@@ -46,33 +46,16 @@ class SliceBuilder:
         weight_dataset (ndarray): weights for the labels
         patch_shape (tuple): the shape of the patch DxHxW
         stride_shape (tuple): the shape of the stride DxHxW
-        halo_shape (tuple): the shape of the halo DxHxW
         kwargs: additional metadata
     """
 
     def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, **kwargs):
-    # def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, halo_shape=None, **kwargs):
         patch_shape = tuple(patch_shape)
         stride_shape = tuple(stride_shape)
         skip_shape_check = kwargs.get('skip_shape_check', False)
         if not skip_shape_check:
             self._check_patch_shape(patch_shape)
 
-        # if halo_shape is not None:
-        #     # then it has to be inference mode and should have no labels
-        #     if label_dataset is not None:
-        #         raise ValueError('Halo shape can only be used with raw data only, in testing/inference')
-
-        #     # and the raw dataset has to be padded with the halo_shape
-        #     halo_shape = tuple(halo_shape)
-        #     halo_x, halo_y, halo_z = halo_shape
-        #     raw_dataset = np.pad(
-        #         raw_dataset,
-        #         ((halo_x, halo_x), (halo_y, halo_y), (halo_z, halo_z)),
-        #         mode='reflect',
-        #     )
-
-        # self._raw_slices = self._build_slices(raw_dataset, patch_shape, stride_shape, halo_shape)
         self._raw_slices = self._build_slices(raw_dataset, patch_shape, stride_shape)
         if label_dataset is None:
             self._label_slices = None
@@ -100,7 +83,6 @@ class SliceBuilder:
 
     @staticmethod
     def _build_slices(dataset, patch_shape, stride_shape):
-    # def _build_slices(dataset, patch_shape, stride_shape, halo_shape=None):
         """Iterates over a given n-dim dataset patch-by-patch with a given stride
         and builds an array of slice positions.
 
@@ -117,9 +99,6 @@ class SliceBuilder:
 
         k_z, k_y, k_x = patch_shape
         s_z, s_y, s_x = stride_shape
-        # if halo_shape is None:
-        #     halo_shape = (0, 0, 0)
-        # h_z, h_y, h_x = halo_shape
         z_steps = SliceBuilder._gen_indices(i_z, k_z, s_z)
         for z in z_steps:
             y_steps = SliceBuilder._gen_indices(i_y, k_y, s_y)
@@ -127,9 +106,6 @@ class SliceBuilder:
                 x_steps = SliceBuilder._gen_indices(i_x, k_x, s_x)
                 for x in x_steps:
                     slice_idx = (
-                        # slice(z, z + k_z + 2*h_z),
-                        # slice(y, y + k_y + 2*h_y),
-                        # slice(x, x + k_x + 2*h_x),
                         slice(z, z + k_z),
                         slice(y, y + k_y),
                         slice(x, x + k_x),
@@ -331,15 +307,43 @@ def calculate_stats(images, global_normalization=True):
     }
 
 
-def mirror_pad(image, halo_shape):
+def mirror_pad(image, padding_shape):
     """
-    Pad the image with a mirror reflection of the image
+    Pad the image with a mirror reflection of itself.
+
+    This function is used on data in its original shape, before it is split into patches.
+
+    Parameters:
+    - image (np.ndarray): The input image array to be padded.
+    - padding_shape (tuple of ints): Specifies the amount of padding for each dimension, should be YX or ZYX.
+
+    Returns:
+    - np.ndarray: The mirror-padded image.
     """
-    halo_shape = np.array(halo_shape)
-    if halo_shape.min() < 0:
-        raise ValueError(f"halo_shape must be non-negative, got {halo_shape}")
-    if halo_shape.max() == 0:
+    if any(p < 0 for p in padding_shape):
+        raise ValueError("padding_shape must be non-negative")
+
+    if all(p == 0 for p in padding_shape):
         return image
 
-    pad_width = [(h, h) for h in halo_shape]
+    pad_width = [(p, p) for p in padding_shape]
     return np.pad(image, pad_width, mode='reflect')
+
+
+def remove_padding(m, padding_shape):
+    """
+    Removes padding from the margins of a multi-dimensional array.
+
+    Parameters:
+    - m (np.array): The input array to be unpadded.
+    - padding_shape (tuple of ints, optional): The amount of padding to remove from each dimension.
+      Assumes the tuple length matches the array dimensions.
+
+    Returns:
+    - np.array: The unpadded array.
+    """
+    if padding_shape is None:
+        return m
+
+    # Correctly construct slice objects for each dimension in padding_shape and apply them to m.
+    return m[(..., *(slice(p, -p or None) for p in padding_shape))]

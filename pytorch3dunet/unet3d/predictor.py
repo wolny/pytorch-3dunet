@@ -10,7 +10,7 @@ from torch import nn
 from tqdm import tqdm
 
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
-from pytorch3dunet.datasets.utils import SliceBuilder
+from pytorch3dunet.datasets.utils import SliceBuilder, remove_padding
 from pytorch3dunet.unet3d.model import UNet2D
 from pytorch3dunet.unet3d.utils import get_logger
 
@@ -83,15 +83,8 @@ class StandardPredictor(_AbstractPredictor):
 
         logger.info(f'Running inference on {len(test_loader)} batches')
 
-        # evey patch will be padded with the following halo
-        patch_halo = self.predictor_config.get('patch_halo')
-        if _is_2d_model(self.model):
-            patch_halo = list(patch_halo)
-            patch_halo[0] = 0
-
         # dimensionality of the output predictions
         volume_shape = self.volume_shape(test_loader.dataset)
-        # volume_shape = tuple([a + b * 2 for a, b in zip(volume_shape, patch_halo)])
         out_channels = self.config['model'].get('out_channels')
         if prediction_channel is None:
             prediction_maps_shape = (out_channels,) + volume_shape
@@ -100,6 +93,12 @@ class StandardPredictor(_AbstractPredictor):
             prediction_maps_shape = (1,) + volume_shape
 
         logger.info(f'The shape of the output prediction maps (CDHW): {prediction_maps_shape}')
+
+        # evey patch will be padded with the following halo
+        patch_halo = self.predictor_config.get('patch_halo')
+        if _is_2d_model(self.model):
+            patch_halo = list(patch_halo)
+            patch_halo[0] = 0
 
         # create destination H5 file
         output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
@@ -120,8 +119,6 @@ class StandardPredictor(_AbstractPredictor):
                 if torch.cuda.is_available():
                     input = input.cuda(non_blocking=True)
 
-                # input = _pad(input, patch_halo)
-
                 if _is_2d_model(self.model):
                     # remove the singleton z-dimension from the input
                     input = torch.squeeze(input, dim=-3)
@@ -134,7 +131,7 @@ class StandardPredictor(_AbstractPredictor):
                     prediction = self.model(input)
 
                 # unpad
-                prediction = _unpad(prediction, patch_halo)
+                prediction = remove_padding(prediction, patch_halo)
                 # convert to numpy array
                 prediction = prediction.cpu().numpy()
                 # for each batch sample
@@ -147,14 +144,9 @@ class StandardPredictor(_AbstractPredictor):
                         channel_slice = slice(0, 1)
                         pred = np.expand_dims(pred[prediction_channel], axis=0)
 
-                    # change back to uppaded index
-                    # index = [slice(this_index.start, this_index.stop - 2 * this_halo, None) for this_index, this_halo in zip(index, patch_halo)]
                     # add channel dimension to the index
                     index = (channel_slice,) + tuple(index)
                     # accumulate probabilities into the output prediction array
-                    print(f"index: {index}")
-                    print(f"prediction_map[index].shape: {prediction_map[index].shape}")
-                    print(f"pred: {pred.shape}")
                     prediction_map[index] += pred
                     # count voxel visits for normalization
                     normalization_mask[index] += 1
@@ -177,23 +169,6 @@ class StandardPredictor(_AbstractPredictor):
         dataset_name = _get_dataset_name(self.config)
         prediction_map = prediction_map / normalization_mask
         output_file.create_dataset(dataset_name, data=prediction_map, compression="gzip")
-
-
-def _pad(m, patch_halo):
-    if patch_halo is not None:
-        z, y, x = patch_halo
-        return nn.functional.pad(m, (x, x, y, y, z, z), mode='reflect')
-    return m
-
-
-def _unpad(m, patch_halo):
-    if patch_halo is not None:
-        z, y, x = patch_halo
-        if z == 0:
-            return m[..., y:-y, x:-x]
-        else:
-            return m[..., z:-z, y:-y, x:-x]
-    return m
 
 
 class LazyPredictor(StandardPredictor):
