@@ -567,22 +567,22 @@ class Normalize:
             # get min/max channelwise
             axes = list(range(m.ndim))
             axes = tuple(axes[1:])
-            if self.min_value is None:
+            if self.min_value is None or 'None' in self.min_value:
                 min_value = np.min(m, axis=axes, keepdims=True)
 
-            if self.max_value is None:
+            if self.max_value is None or 'None' in self.max_value:
                 max_value = np.max(m, axis=axes, keepdims=True)
 
             # check if non None in self.min_value/self.max_value
             # if present and if so copy value to min_value
             if self.min_value is not None:
                 for i,v in enumerate(self.min_value):
-                    if v is not None:
+                    if v != 'None':
                         min_value[i] = v
 
             if self.max_value is not None:
                 for i,v in enumerate(self.max_value):
-                    if v is not None:
+                    if v != 'None':
                         max_value[i] = v
         else:
             if self.min_value is None:
