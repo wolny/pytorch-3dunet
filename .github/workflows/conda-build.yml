@@ -1,6 +1,12 @@
 name: Conda Build
 
-on: [push]
+on:
+  push:
+    branches:
+      - 'main'
+
+  pull_request:
+    branches: [main]
 
 jobs:
   build-linux:
