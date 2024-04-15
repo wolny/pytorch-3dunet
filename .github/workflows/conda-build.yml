@@ -9,7 +9,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Set pytorch-3dunet version
-      run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+      run: echo "RELEASE_VERSION=$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
     - name: Print pytorch-3dunet version
       run: echo $RELEASE_VERSION
     - uses: conda-incubator/setup-miniconda@v2
