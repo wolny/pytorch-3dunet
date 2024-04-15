@@ -1,8 +1,7 @@
-# Download test data from: https://osf.io/tn4xj/
-
+# Download test data from: https://osf.io/8jz7e/
 model_path: PATH_TO_BEST_CHECKPOINT
 model:
-  name: ResidualUNet3D
+  name: UNet3D
   # number of input channels to the model
   in_channels: 1
   # number of output channels
@@ -16,8 +15,11 @@ model:
   # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
   final_sigmoid: true
 predictor:
-  name: 'StandardPredictor'
+  # use LazyPredictor for large datasets
+  name: 'LazyPredictor'
 loaders:
+  # use LazyHDF5Dataset for large datasets
+  dataset: LazyHDF5Dataset
   # save predictions to output_dir
   output_dir: PATH_TO_OUTPUT_DIR
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
@@ -35,6 +37,7 @@ loaders:
       stride_shape: [ 80, 170, 170 ]
       # halo around each patch
       halo_shape: [ 16, 32, 32 ]
+
 
     transformer:
       raw:

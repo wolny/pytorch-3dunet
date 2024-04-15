@@ -46,9 +46,9 @@ loaders:
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
       patch_shape: [ 80, 170, 170 ]
       # train stride between patches
-      stride_shape: [ 40, 80, 80 ]
-      # raw image halo around each patch
-      halo_shape: [16, 32, 32]
+      stride_shape: [ 80, 170, 170 ]
+      # halo around each patch
+      halo_shape: [ 16, 32, 32 ]
 
     transformer:
       raw:

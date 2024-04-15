@@ -1,4 +1,5 @@
 import collections
+from typing import Any
 
 import numpy as np
 import torch
@@ -286,16 +287,19 @@ def default_prediction_collate(batch):
     raise TypeError((error_msg.format(type(batch[0]))))
 
 
-def calculate_stats(images, global_normalization=True):
+def calculate_stats(img: np.array, skip: bool = False) -> dict[str, Any]:
     """
-    Calculates min, max, mean, std given a list of nd-arrays
+    Calculates the minimum percentile, maximum percentile, mean, and standard deviation of the image.
+
+    Args:
+        img: The input image array.
+        skip: if True, skip the calculation and return None for all values.
+
+    Returns:
+        tuple[float, float, float, float]: The minimum percentile, maximum percentile, mean, and std dev
     """
-    if global_normalization:
-        # flatten first since the images might not be the same size
-        flat = np.concatenate(
-            [img.ravel() for img in images]
-        )
-        pmin, pmax, mean, std = np.percentile(flat, 1), np.percentile(flat, 99.6), np.mean(flat), np.std(flat)
+    if not skip:
+        pmin, pmax, mean, std = np.percentile(img, 1), np.percentile(img, 99.6), np.mean(img), np.std(img)
     else:
         pmin, pmax, mean, std = None, None, None, None
 
@@ -323,6 +327,8 @@ def mirror_pad(image, padding_shape):
     Raises:
         ValueError: If any element of padding_shape is negative.
     """
+    assert len(padding_shape) == 3, "Padding shape must be specified for each dimension: ZYX"
+
     if any(p < 0 for p in padding_shape):
         raise ValueError("padding_shape must be non-negative")
 
@@ -330,6 +336,9 @@ def mirror_pad(image, padding_shape):
         return image
 
     pad_width = [(p, p) for p in padding_shape]
+
+    if image.ndim == 4:
+        pad_width = [(0, 0)] + pad_width
     return np.pad(image, pad_width, mode='reflect')
 
 

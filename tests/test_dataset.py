@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 from torch.utils.data import DataLoader
 
-from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, AbstractHDF5Dataset
+from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, traverse_h5_paths, LazyHDF5Dataset
 from pytorch3dunet.datasets.utils import remove_padding, default_prediction_collate
 
 
@@ -14,7 +14,7 @@ class TestHDF5Dataset:
         path = create_random_dataset((128, 128, 128))
 
         patch_shapes = [(127, 127, 127), (69, 70, 70), (32, 64, 64)]
-        stride_shapes = [(1, 1, 1), (17, 23, 23), (32, 64, 64)]
+        stride_shapes = [(127, 127, 127), (69, 69, 69), (32, 64, 64)]
 
         phase = 'test'
 
@@ -41,6 +41,39 @@ class TestHDF5Dataset:
                 # verify that every element was visited at least once
                 assert np.all(visit_raw)
                 assert np.all(visit_label)
+
+    def test_lazy_hdf5_dataset(self, transformer_config):
+        path = create_random_dataset((128, 128, 128))
+
+        patch_shapes = [(127, 127, 127), (69, 70, 70), (32, 64, 64)]
+        stride_shapes = [(127, 127, 127), (69, 69, 69), (32, 64, 64)]
+        halo_shape = (16, 32, 32)
+        phase = 'test'
+
+        for patch_shape, stride_shape in zip(patch_shapes, stride_shapes):
+            with h5py.File(path, 'r') as f:
+                raw_shape = f['raw'].shape
+                label_shape = f['label'].shape
+
+            dataset = LazyHDF5Dataset(path, phase=phase,
+                                      slice_builder_config=_slice_builder_conf(patch_shape, stride_shape,
+                                                                               halo_shape),
+                                      transformer_config=transformer_config[phase]['transformer'],
+                                      raw_internal_path='raw',
+                                      label_internal_path='label')
+
+            # create zero-arrays of the same shape as the original dataset in order to verify if every element
+            # was visited during the iteration
+            visit_raw = np.zeros(raw_shape)
+            visit_label = np.zeros(label_shape)
+
+            for (_, idx) in dataset:
+                visit_raw[idx] = 1
+                visit_label[idx] = 1
+
+            # verify that every element was visited at least once
+            assert np.all(visit_raw)
+            assert np.all(visit_label)
 
     def test_augmentation(self, transformer_config):
         raw = np.random.rand(32, 96, 96)
@@ -83,7 +116,7 @@ class TestHDF5Dataset:
 
         # make sure that traverse_file_paths runs correctly
         file_paths = [os.path.join(tmpdir, 'f1.h5'), test_tmp_dir]
-        actual_files = AbstractHDF5Dataset.traverse_h5_paths(file_paths)
+        actual_files = traverse_h5_paths(file_paths)
 
         assert expected_files == actual_files
 
@@ -102,7 +135,8 @@ class TestHDF5Dataset:
         dataset = StandardHDF5Dataset(tmp_path, phase=phase,
                                       slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32), halo_shape),
                                       transformer_config=_transformer_test_conf())
-        data_loader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=True, collate_fn=default_prediction_collate)
+        data_loader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=True,
+                                 collate_fn=default_prediction_collate)
 
         # verify all patches have the correct halo added and removed
         for (input_batch, indices_batch) in data_loader:  # input_batch has NCDHW shape, indices_batch has length N

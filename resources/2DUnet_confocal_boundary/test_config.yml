@@ -16,7 +16,6 @@ model:
   final_sigmoid: true
 predictor:
   name: 'StandardPredictor'
-  patch_halo: [0, 16, 16]
 loaders:
   # save predictions to output_dir
   output_dir: PATH_TO_OUTPUT_DIR
@@ -31,8 +30,11 @@ loaders:
 
     slice_builder:
       name: SliceBuilder
-      patch_shape: [80, 170, 170]
-      stride_shape: [40, 90, 90]
+      patch_shape: [ 80, 170, 170 ]
+      stride_shape: [ 80, 170, 170 ]
+      # halo around each patch
+      halo_shape: [ 0, 32, 32 ]
+
 
     transformer:
       raw:

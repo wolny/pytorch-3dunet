@@ -11,7 +11,7 @@ model:
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
   layer_order: gcr
   # feature maps scale factor
-  f_maps: [32, 64, 128, 256]
+  f_maps: [ 32, 64, 128, 256 ]
   # number of groups in the groupnorm
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
@@ -42,12 +42,14 @@ loaders:
       # SliceBuilder class
       name: SliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [80, 170, 170]
+      patch_shape: [ 80, 170, 170 ]
       # train stride between patches
-      stride_shape: [40, 80, 80]
+      stride_shape: [ 80, 170, 170 ]
+      # halo around each patch
+      halo_shape: [ 16, 32, 32 ]
 
     transformer:
-        raw:
-          - name: Standardize
-          - name: ToTensor
-            expand_dims: true
+      raw:
+        - name: Standardize
+        - name: ToTensor
+          expand_dims: true
