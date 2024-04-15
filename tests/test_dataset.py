@@ -6,6 +6,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 
 from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, AbstractHDF5Dataset
+from pytorch3dunet.datasets.utils import remove_padding, default_prediction_collate
 
 
 class TestHDF5Dataset:
@@ -86,6 +87,29 @@ class TestHDF5Dataset:
 
         assert expected_files == actual_files
 
+    def test_halo(self):
+        halo_shape = (1, 2, 3)
+
+        # create temporary h5 file
+        raw = np.random.rand(32, 96, 96)
+        tmp_file = NamedTemporaryFile()
+        tmp_path = tmp_file.name
+        with h5py.File(tmp_path, 'w') as f:
+            f.create_dataset('raw', data=raw)
+
+        # halo only implemented with test phase
+        phase = 'test'
+        dataset = StandardHDF5Dataset(tmp_path, phase=phase,
+                                      slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32), halo_shape),
+                                      transformer_config=_transformer_test_conf())
+        data_loader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=True, collate_fn=default_prediction_collate)
+
+        # verify all patches have the correct halo added and removed
+        for (input_batch, indices_batch) in data_loader:  # input_batch has NCDHW shape, indices_batch has length N
+            for input_, indices in zip(input_batch, indices_batch):  # input_ has CDHW shape, indices is for DHW
+                input_ = remove_padding(input_, halo_shape)
+                assert np.allclose(input_[0], raw[indices])
+
 
 def create_random_dataset(shape, ignore_index=False, raw_datasets=None, label_datasets=None):
     if label_datasets is None:
@@ -108,9 +132,17 @@ def create_random_dataset(shape, ignore_index=False, raw_datasets=None, label_da
     return tmp_file.name
 
 
-def _slice_builder_conf(patch_shape, stride_shape):
+def _slice_builder_conf(patch_shape, stride_shape, halo_shape=(0, 0, 0)):
     return {
         'name': 'SliceBuilder',
         'patch_shape': patch_shape,
-        'stride_shape': stride_shape
+        'stride_shape': stride_shape,
+        'halo_shape': halo_shape,
+    }
+
+
+def _transformer_test_conf():
+    return {
+        'raw': [{'name': 'ToTensor', 'expand_dims': True}],
+        # 'label': [{'name': 'ToTensor', 'expand_dims': True}],
     }

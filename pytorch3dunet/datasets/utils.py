@@ -108,7 +108,7 @@ class SliceBuilder:
                     slice_idx = (
                         slice(z, z + k_z),
                         slice(y, y + k_y),
-                        slice(x, x + k_x)
+                        slice(x, x + k_x),
                     )
                     if dataset.ndim == 4:
                         slice_idx = (slice(0, in_channels),) + slice_idx
@@ -305,3 +305,48 @@ def calculate_stats(images, global_normalization=True):
         'mean': mean,
         'std': std
     }
+
+
+def mirror_pad(image, padding_shape):
+    """
+    Pad the image with a mirror reflection of itself.
+
+    This function is used on data in its original shape before it is split into patches.
+
+    Args:
+        image (np.ndarray): The input image array to be padded.
+        padding_shape (tuple of int): Specifies the amount of padding for each dimension, should be YX or ZYX.
+
+    Returns:
+        np.ndarray: The mirror-padded image.
+
+    Raises:
+        ValueError: If any element of padding_shape is negative.
+    """
+    if any(p < 0 for p in padding_shape):
+        raise ValueError("padding_shape must be non-negative")
+
+    if all(p == 0 for p in padding_shape):
+        return image
+
+    pad_width = [(p, p) for p in padding_shape]
+    return np.pad(image, pad_width, mode='reflect')
+
+
+def remove_padding(m, padding_shape):
+    """
+    Removes padding from the margins of a multi-dimensional array.
+
+    Args:
+        m (np.ndarray): The input array to be unpadded.
+        padding_shape (tuple of int, optional): The amount of padding to remove from each dimension.
+            Assumes the tuple length matches the array dimensions.
+
+    Returns:
+        np.ndarray: The unpadded array.
+    """
+    if padding_shape is None:
+        return m
+
+    # Correctly construct slice objects for each dimension in padding_shape and apply them to m.
+    return m[(..., *(slice(p, -p or None) for p in padding_shape))]

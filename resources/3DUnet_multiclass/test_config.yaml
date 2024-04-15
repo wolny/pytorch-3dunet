@@ -47,6 +47,8 @@ loaders:
       patch_shape: [ 80, 170, 170 ]
       # train stride between patches
       stride_shape: [ 40, 80, 80 ]
+      # raw image halo around each patch
+      halo_shape: [16, 32, 32]
 
     transformer:
       raw:

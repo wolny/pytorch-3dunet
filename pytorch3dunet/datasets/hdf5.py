@@ -5,7 +5,7 @@ from itertools import chain
 import h5py
 
 import pytorch3dunet.augment.transforms as transforms
-from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calculate_stats
+from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calculate_stats, mirror_pad
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('HDF5Dataset')
@@ -37,6 +37,8 @@ class AbstractHDF5Dataset(ConfigDataset):
         input_file = h5py.File(file_path, 'r')
 
         self.raw = self._load_dataset(input_file, raw_internal_path)
+        self.halo_shape = slice_builder_config.get('halo_shape', [0, 0, 0])
+        self.raw_padded = mirror_pad(self.raw, self.halo_shape)
 
         stats = calculate_stats(self.raw, global_normalization)
 
@@ -80,21 +82,28 @@ class AbstractHDF5Dataset(ConfigDataset):
             f"Invalid dataset dimension: {ds.ndim}. Supported dataset formats: (C, Z, Y, X) or (Z, Y, X)"
         return ds
 
+    def _create_padded_indexes(self, indexes, halo_shape):
+        return tuple(slice(index.start, index.stop + 2 * halo) for index, halo in zip(indexes, halo_shape))
+
     def __getitem__(self, idx):
         if idx >= len(self):
             raise StopIteration
 
-        # get the slice for a given index 'idx'
         raw_idx = self.raw_slices[idx]
-        # get the raw data patch for a given slice
-        raw_patch_transformed = self.raw_transform(self.raw[raw_idx])
 
         if self.phase == 'test':
-            # discard the channel dimension in the slices: predictor requires only the spatial dimensions of the volume
             if len(raw_idx) == 4:
-                raw_idx = raw_idx[1:]
+                # discard the channel dimension in the slices: predictor requires only the spatial dimensions of the volume
+                raw_idx = raw_idx[1:]  # Remove the first element if raw_idx has 4 elements
+                raw_idx_padded = (slice(None),) + self._create_padded_indexes(raw_idx, self.halo_shape)
+            else:
+                raw_idx_padded = self._create_padded_indexes(raw_idx, self.halo_shape)
+
+            raw_patch_transformed = self.raw_transform(self.raw_padded[raw_idx_padded])
             return raw_patch_transformed, raw_idx
         else:
+            raw_patch_transformed = self.raw_transform(self.raw[raw_idx])
+
             # get the slice for a given index 'idx'
             label_idx = self.label_slices[idx]
             label_patch_transformed = self.label_transform(self.label[label_idx])

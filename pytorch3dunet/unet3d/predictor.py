@@ -11,7 +11,7 @@ from torch import nn
 from tqdm import tqdm
 
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
-from pytorch3dunet.datasets.utils import SliceBuilder
+from pytorch3dunet.datasets.utils import SliceBuilder, remove_padding
 from pytorch3dunet.unet3d.model import UNet2D
 from pytorch3dunet.unet3d.utils import get_logger
 
@@ -40,7 +40,6 @@ class _AbstractPredictor:
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
                  prediction_channel: int = None,
-                 patch_halo: tuple[int, int, int] = (4, 4, 4),
                  **kwargs):
         """
         Base class for predictors.
@@ -58,10 +57,6 @@ class _AbstractPredictor:
         self.output_dataset = output_dataset
         self.save_segmentation = save_segmentation
         self.prediction_channel = prediction_channel
-        # evey patch will be mirror-padded with the following halo
-        self.patch_halo = list(patch_halo)
-        if _is_2d_model(self.model):
-            self.patch_halo[0] = 0
 
     @staticmethod
     def volume_shape(dataset):
@@ -116,6 +111,9 @@ class StandardPredictor(_AbstractPredictor):
         logger.info('Allocating prediction and normalization arrays...')
         prediction_map, normalization_mask = self._allocate_prediction_maps(prediction_maps_shape, h5_output_file)
 
+        # determine halo used for padding
+        patch_halo = test_loader.dataset.halo_shape
+
         # Sets the module in evaluation mode explicitly
         # It is necessary for batchnorm/dropout layers if present as well as final Sigmoid/Softmax to be applied
         self.model.eval()
@@ -125,9 +123,6 @@ class StandardPredictor(_AbstractPredictor):
                 # send batch to gpu
                 if torch.cuda.is_available():
                     input = input.pin_memory().cuda(non_blocking=True)
-
-                # pad the input patch
-                input = _pad(input, self.patch_halo)
 
                 if _is_2d_model(self.model):
                     # remove the singleton z-dimension from the input
@@ -140,8 +135,8 @@ class StandardPredictor(_AbstractPredictor):
                     # forward pass
                     prediction = self.model(input)
 
-                # unpad the input patch
-                prediction = _unpad(prediction, self.patch_halo)
+                # unpad the predicted patch
+                prediction = remove_padding(prediction, patch_halo)
                 # convert to numpy array
                 prediction = prediction.cpu().numpy()
                 # for each batch sample
@@ -181,23 +176,6 @@ class StandardPredictor(_AbstractPredictor):
         if self.save_segmentation:
             result = np.argmax(result, axis=0).astype('uint16')
         output_file.create_dataset(self.output_dataset, data=result, compression="gzip")
-
-
-def _pad(m, patch_halo):
-    if patch_halo is not None:
-        z, y, x = patch_halo
-        return nn.functional.pad(m, (x, x, y, y, z, z), mode='reflect')
-    return m
-
-
-def _unpad(m, patch_halo):
-    if patch_halo is not None:
-        z, y, x = patch_halo
-        if z == 0:
-            return m[..., y:-y, x:-x]
-        else:
-            return m[..., z:-z, y:-y, x:-x]
-    return m
 
 
 class LazyPredictor(StandardPredictor):
