@@ -205,16 +205,16 @@ class BoundaryAdaptedRandError(AdaptedRandError):
         for predictions in input:
             for th in self.thresholds:
                 # threshold probability maps
-                predictions = predictions > th
+                predictions_th = predictions > th
 
                 if self.invert_pmaps:
                     # for connected component analysis we need to treat boundary signal as background
                     # assign 0-label to boundary mask
-                    predictions = np.logical_not(predictions)
+                    predictions_th = np.logical_not(predictions_th)
 
-                predictions = predictions.astype(np.uint8)
+                predictions_th = predictions_th.astype(np.uint8)
                 # run connected components on the predicted mask; consider only 1-connectivity
-                seg = measure.label(predictions, background=0, connectivity=1)
+                seg = measure.label(predictions_th, background=0, connectivity=1)
                 segs.append(seg)
 
         return np.stack(segs)
