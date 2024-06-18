@@ -310,6 +310,7 @@ class UNetTrainer:
         else:
             # forward pass
             output = self.model(input)
+            # print()
 
         # compute the loss
         if weight is None:

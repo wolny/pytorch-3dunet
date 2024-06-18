@@ -2,7 +2,7 @@ import glob
 import os
 from abc import abstractmethod
 from itertools import chain
-
+import numpy as np
 import h5py
 
 import pytorch3dunet.augment.transforms as transforms
@@ -10,7 +10,14 @@ from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calcu
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('HDF5Dataset')
-
+# _FEAUTRE_ID_MAP = {
+#     'SEG': 0,
+#     'HTM': 1,
+#     'PIB': 2, 
+#     'PIB_N': 3,
+#     'FDG': 4, 
+#     'FDG_N': 5
+# }
 
 def _create_padded_indexes(indexes, halo_shape):
     return tuple(slice(index.start, index.stop + 2 * halo) for index, halo in zip(indexes, halo_shape))
@@ -51,6 +58,7 @@ class AbstractHDF5Dataset(ConfigDataset):
         assert phase in ['train', 'val', 'test']
 
         self.phase = phase
+        # self.feature_idx = _FEAUTRE_ID_MAP[feature_key]
         self.file_path = file_path
         self.raw_internal_path = raw_internal_path
         self.label_internal_path = label_internal_path
@@ -61,7 +69,7 @@ class AbstractHDF5Dataset(ConfigDataset):
         if global_normalization:
             logger.info('Calculating mean and std of the raw data...')
             with h5py.File(file_path, 'r') as f:
-                raw = f[raw_internal_path][:]
+                raw = f[raw_internal_path][()].transpose((0, 3, 2, 1))
                 stats = calculate_stats(raw)
         else:
             stats = calculate_stats(None, True)
@@ -71,8 +79,7 @@ class AbstractHDF5Dataset(ConfigDataset):
 
         if phase != 'test':
             # create label/weight transform only in train/val phase
-            self.label_transform = self.transformer.label_transform()
-
+            # self.label_transform = self.transformer.label_transform()
             if weight_internal_path is not None:
                 self.weight_transform = self.transformer.weight_transform()
             else:
@@ -81,7 +88,6 @@ class AbstractHDF5Dataset(ConfigDataset):
             self._check_volume_sizes()
         else:
             # 'test' phase used only for predictions so ignore the label dataset
-            self.label = None
             self.weight_map = None
 
             # compare patch and stride configuration
@@ -93,25 +99,32 @@ class AbstractHDF5Dataset(ConfigDataset):
                                f'performance, but found patch_shape: {patch_shape} and stride_shape: {stride_shape}!')
 
         with h5py.File(file_path, 'r') as f:
-            raw = f[raw_internal_path]
-            label = f[label_internal_path] if phase != 'test' else None
+            raw = f[raw_internal_path][()].transpose((0,3,2,1))
+            self.label = np.array([f[label_internal_path][()]], dtype=np.int32) if phase != 'test' else None
             weight_map = f[weight_internal_path] if weight_internal_path is not None else None
             # build slice indices for raw and label data sets
-            slice_builder = get_slice_builder(raw, label, weight_map, slice_builder_config)
-            self.raw_slices = slice_builder.raw_slices
-            self.label_slices = slice_builder.label_slices
-            self.weight_slices = slice_builder.weight_slices
+            # No need to slice labels
 
-        self.patch_count = len(self.raw_slices)
-        logger.info(f'Number of patches: {self.patch_count}')
+            # Disable all slicing at the moment because we don't need CNMLGB
+            """
+            slice_builder = get_slice_builder(raw, None, weight_map, slice_builder_config)
+            self.raw_slices = slice_builder.raw_slices
+            # self.label_slices = slice_builder.label_slices
+            self.weight_slices = slice_builder.weight_slices
+            """
+
+        self.patch_count = 1  # len(raw)    # since no slices, just 1 patch for 1 data point!
+        logger.info(f'Dataset Length: {self.patch_count}')
+        # self.patch_count = len(self.raw_slices)
+        # logger.info(f'Number of patches: {self.patch_count}')
 
     @abstractmethod
     def get_raw_patch(self, idx):
         raise NotImplementedError
 
-    @abstractmethod
-    def get_label_patch(self, idx):
-        raise NotImplementedError
+    # @abstractmethod
+    # def get_label_patch(self, idx):
+    #     raise NotImplementedError
 
     @abstractmethod
     def get_weight_patch(self, idx):
@@ -123,7 +136,7 @@ class AbstractHDF5Dataset(ConfigDataset):
 
     def volume_shape(self):
         with h5py.File(self.file_path, 'r') as f:
-            raw = f[self.raw_internal_path]
+            raw = f[self.raw_internal_path][()].transpose((0, 3, 2, 1))
             if raw.ndim == 3:
                 return raw.shape
             else:
@@ -133,7 +146,10 @@ class AbstractHDF5Dataset(ConfigDataset):
         if idx >= len(self):
             raise StopIteration
 
-        raw_idx = self.raw_slices[idx]
+        # NO SLICING 
+        # raw_idx = self.raw_slices[idx]
+
+        raw_idx = idx
 
         if self.phase == 'test':
             if len(raw_idx) == 4:
@@ -149,14 +165,14 @@ class AbstractHDF5Dataset(ConfigDataset):
             raw_patch_transformed = self.raw_transform(self.get_raw_patch(raw_idx))
 
             # get the slice for a given index 'idx'
-            label_idx = self.label_slices[idx]
-            label_patch_transformed = self.label_transform(self.get_label_patch(label_idx))
+            # label_idx = self.labels[idx]
+            # label_patch_transformed = self.label_transform(self.get_label_patch(label_idx))
             if self.weight_internal_path is not None:
                 weight_idx = self.weight_slices[idx]
                 weight_patch_transformed = self.weight_transform(self.get_weight_patch(weight_idx))
-                return raw_patch_transformed, label_patch_transformed, weight_patch_transformed
+                return raw_patch_transformed, self.label, weight_patch_transformed
             # return the transformed raw and label patches
-            return raw_patch_transformed, label_patch_transformed
+            return raw_patch_transformed, self.label
 
     def __len__(self):
         return self.patch_count
@@ -168,11 +184,12 @@ class AbstractHDF5Dataset(ConfigDataset):
             return volume.shape[1:]
 
         with h5py.File(self.file_path, 'r') as f:
-            raw = f[self.raw_internal_path]
-            label = f[self.label_internal_path]
+            raw = f[self.raw_internal_path][()].transpose((0, 3, 2, 1))
+            label = np.array([f[self.label_internal_path][()]], dtype=np.int32)
             assert raw.ndim in [3, 4], 'Raw dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
-            assert label.ndim in [3, 4], 'Label dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
-            assert _volume_shape(raw) == _volume_shape(label), 'Raw and labels have to be of the same size'
+            assert label.ndim in [1, 3, 4], 'Label dataset must be 1D (classification) or 3D (DxHxW) or 4D (CxDxHxW)'
+            if label.ndim != 1:
+                assert _volume_shape(raw) == _volume_shape(label), 'Raw and labels have to be of the same size'
             if self.weight_internal_path is not None:
                 weight_map = f[self.weight_internal_path]
                 assert weight_map.ndim in [3, 4], 'Weight map dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
@@ -220,7 +237,8 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
                  raw_internal_path='raw', label_internal_path='label', weight_internal_path=None,
                  global_normalization=True):
         super().__init__(file_path=file_path, phase=phase, slice_builder_config=slice_builder_config,
-                         transformer_config=transformer_config, raw_internal_path=raw_internal_path,
+                         transformer_config=transformer_config, 
+                         raw_internal_path=raw_internal_path,
                          label_internal_path=label_internal_path, weight_internal_path=weight_internal_path,
                          global_normalization=global_normalization)
         self._raw = None
@@ -232,15 +250,16 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
         if self._raw is None:
             with h5py.File(self.file_path, 'r') as f:
                 assert self.raw_internal_path in f, f'Dataset {self.raw_internal_path} not found in {self.file_path}'
-                self._raw = f[self.raw_internal_path][:]
-        return self._raw[idx]
+                self._raw = f[self.raw_internal_path][()].transpose((0,3,2,1))
+        # print(self._raw.shape)
+        return self._raw
 
-    def get_label_patch(self, idx):
-        if self._label is None:
-            with h5py.File(self.file_path, 'r') as f:
-                assert self.label_internal_path in f, f'Dataset {self.label_internal_path} not found in {self.file_path}'
-                self._label = f[self.label_internal_path][:]
-        return self._label[idx]
+    # def get_label_patch(self, idx):
+    #     if self._label is None:
+    #         with h5py.File(self.file_path, 'r') as f:
+    #             assert self.label_internal_path in f, f'Dataset {self.label_internal_path} not found in {self.file_path}'
+    #             self._label = f[self.label_internal_path][:]
+    #     return self._label[idx]
 
     def get_weight_patch(self, idx):
         if self._weight_map is None:
@@ -274,9 +293,9 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
         with h5py.File(self.file_path, 'r') as f:
             return f[self.raw_internal_path][idx]
 
-    def get_label_patch(self, idx):
-        with h5py.File(self.file_path, 'r') as f:
-            return f[self.label_internal_path][idx]
+    # def get_label_patch(self, idx):
+    #     with h5py.File(self.file_path, 'r') as f:
+    #         return f[self.label_internal_path][idx]
 
     def get_weight_patch(self, idx):
         with h5py.File(self.file_path, 'r') as f:
@@ -287,7 +306,7 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
             if 'raw_padded' in f:
                 return f['raw_padded'][idx]
 
-            raw = f[self.raw_internal_path][:]
+            raw = f[self.raw_internal_path][()].transpose((0,3,2,1))
             raw_padded = mirror_pad(raw, self.halo_shape)
             f.create_dataset('raw_padded', data=raw_padded, compression='gzip')
             return raw_padded[idx]

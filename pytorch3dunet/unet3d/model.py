@@ -43,7 +43,7 @@ class AbstractUNet(nn.Module):
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
-                 num_groups=8, num_levels=4, is_segmentation=True, conv_kernel_size=3, pool_kernel_size=2,
+                 num_groups=8, num_levels=4, is_segmentation=False, conv_kernel_size=3, pool_kernel_size=2,
                  conv_padding=1, conv_upscale=2, upsample='default', dropout_prob=0.1, is3d=True):
         super(AbstractUNet, self).__init__()
 
@@ -78,7 +78,7 @@ class AbstractUNet(nn.Module):
             else:
                 self.final_activation = nn.Softmax(dim=1)
         else:
-            # regression problem
+            # regression or classification problem
             self.final_activation = None
 
     def forward(self, x):

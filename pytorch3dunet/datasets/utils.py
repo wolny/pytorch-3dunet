@@ -100,6 +100,9 @@ class SliceBuilder:
 
         k_z, k_y, k_x = patch_shape
         s_z, s_y, s_x = stride_shape
+        print('dataset shape:', dataset.shape)
+        print('stride shape:', stride_shape)
+        print('patch shape:', patch_shape)
         z_steps = SliceBuilder._gen_indices(i_z, k_z, s_z)
         for z in z_steps:
             y_steps = SliceBuilder._gen_indices(i_y, k_y, s_y)
@@ -205,7 +208,6 @@ def get_train_loaders(config):
         "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
 
     train_datasets = dataset_class.create_datasets(loaders_config, phase='train')
-
     val_datasets = dataset_class.create_datasets(loaders_config, phase='val')
 
     num_workers = loaders_config.get('num_workers', 1)

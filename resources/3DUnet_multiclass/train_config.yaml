@@ -5,7 +5,7 @@ model:
   # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
-  in_channels: 1
+  in_channels: 6
   # number of classes
   out_channels: 3
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
@@ -21,7 +21,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: CHECKPOINT_DIR
+  checkpoint_dir: /model/ckpt/
   # path to the latest checkpoint; if provided the training will be resumed from that checkpoint
   resume: null
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
@@ -76,19 +76,20 @@ loaders:
   label_internal_path: label
   # path to the pixel-wise weight map withing the H5 if present
   weight_internal_path: null
+  # feature_key: SEG
   # configuration of the train loader
   train:
     # paths to the training datasets
     file_paths:
-      - TRAIN_DIR
+      - /data/processed/train
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [ 80, 170, 170 ]
+      patch_shape: [ 140, 160, 160 ]
       # train stride between patches
-      stride_shape: [ 20, 40, 40 ]
+      stride_shape: [ 30, 40, 40 ]
       # minimum volume of the labels in the patch
       threshold: 0.01
       # probability of accepting patches which do not fulfil the threshold criterion
@@ -99,47 +100,47 @@ loaders:
         # subtract mean and divide by std dev
         - name: Standardize
         # randomly flips the volume in one of the axis
-        - name: RandomFlip
-        # randomly rotates the volume with 90 deg across a randomly chosen plane
-        - name: RandomRotate90
-        - name: RandomRotate
-          # rotate only in ZY plane due to anisotropy
-          axes: [ [ 2, 1 ] ]
-          # rotates by choosing random angle from [-30, 30] deg
-          angle_spectrum: 30
-          mode: reflect
-        - name: ElasticDeformation
-          spline_order: 3
+        # - name: RandomFlip
+        # # randomly rotates the volume with 90 deg across a randomly chosen plane
+        # - name: RandomRotate90
+        # - name: RandomRotate
+        #   # rotate only in ZY plane due to anisotropy
+        #   axes: [ [ 2, 1 ] ]
+        #   # rotates by choosing random angle from [-30, 30] deg
+        #   angle_spectrum: 30
+        #   mode: reflect
+        # - name: ElasticDeformation
+        #   spline_order: 3
         - name: ToTensor
           expand_dims: true
-      label:
-        - name: RandomFlip
-        - name: RandomRotate90
-        - name: RandomRotate
-          # rotate only in ZY plane due to anisotropy
-          axes: [ [ 2, 1 ] ]
-          angle_spectrum: 30
-          mode: reflect
-        - name: ElasticDeformation
-          spline_order: 0
-          # convert target volume to binary mask
-        - name: ToTensor
-          expand_dims: false
-          dtype: long
+      # label:
+      #   - name: RandomFlip
+      #   - name: RandomRotate90
+      #   - name: RandomRotate
+      #     # rotate only in ZY plane due to anisotropy
+      #     axes: [ [ 2, 1 ] ]
+      #     angle_spectrum: 30
+      #     mode: reflect
+      #   - name: ElasticDeformation
+      #     spline_order: 0
+      #     # convert target volume to binary mask
+      #   - name: ToTensor
+      #     expand_dims: false
+      #     dtype: long
 
   # configuration of the val loader
   val:
     # paths to the val datasets
     file_paths:
-      - VAL_DIR
+      - /data/processed/validation
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [ 80, 170, 170 ]
+      patch_shape: [ 140, 160, 160 ]
       # train stride between patches
-      stride_shape: [ 80, 170, 170 ]
+      stride_shape: [ 30, 40, 40 ]
       # minimum volume of the labels in the patch
       threshold: 0.01
       # probability of accepting patches which do not fulfil the threshold criterion
@@ -151,7 +152,7 @@ loaders:
         - name: Standardize
         - name: ToTensor
           expand_dims: true
-      label:
-        - name: ToTensor
-          expand_dims: false
-          dtype: long
+      # label:
+      #   - name: ToTensor
+      #     expand_dims: false
+      #     dtype: long
