@@ -5,7 +5,7 @@ model:
   # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
-  in_channels: 6
+  in_channels: 1
   # number of classes
   out_channels: 3
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
@@ -76,12 +76,12 @@ loaders:
   label_internal_path: label
   # path to the pixel-wise weight map withing the H5 if present
   weight_internal_path: null
-  # feature_key: SEG
+  feature_key: HTM
   # configuration of the train loader
   train:
     # paths to the training datasets
     file_paths:
-      - /data/processed/train
+      - /data/processed/train.hdf5
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -132,7 +132,7 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - /data/processed/validation
+      - /data/processed/validation.hdf5
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
