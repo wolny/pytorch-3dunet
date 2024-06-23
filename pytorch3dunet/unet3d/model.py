@@ -116,10 +116,6 @@ class AbstractUNet(nn.Module):
         # x = self.final_pooling(x)
         """
         # remove the last encoder's output from the list
-        # !!remember: it's the 1st in the list
-        encoders_features = encoders_features[1:]
-        # print('size of encoder:', len(encoders_features))
-        # for f in encoders_features:
         #     print(f.shape)
 
         print('before decoding', x.shape)
