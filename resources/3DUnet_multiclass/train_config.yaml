@@ -80,7 +80,7 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - /data/processed/train.hdf5
+      - /data/processed_new/train.hdf5
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -131,7 +131,7 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - /data/processed/validation.hdf5
+      - /data/processed_new/validation.hdf5
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
