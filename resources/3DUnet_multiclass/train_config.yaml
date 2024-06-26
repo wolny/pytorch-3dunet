@@ -29,7 +29,7 @@ trainer:
   # how many iterations between validations
   validate_after_iters: 500
   # how many iterations between tensorboard logging
-  log_after_iters: 10
+  log_after_iters: 5
   # max number of epochs
   max_num_epochs: 500
   # max number of iterations
@@ -43,7 +43,7 @@ loss:
 # optimizer configuration
 optimizer:
   # initial learning rate
-  learning_rate: 0.0002
+  learning_rate: 0.00003
   # weight decay
   weight_decay: 0.01
 # evaluation metric
@@ -80,7 +80,7 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - /data/processed_new/train.hdf5
+      - /data/processed/train.hdf5
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -131,7 +131,7 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - /data/processed_new/validation.hdf5
+      - /data/processed/validation.hdf5
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
