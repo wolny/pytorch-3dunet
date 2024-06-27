@@ -102,6 +102,19 @@ class AbstractUNet(nn.Module):
         else:
             self.final_activation = nn.Softmax(dim=1)
 
+<<<<<<< HEAD
+=======
+        # self.final_pooling = nn.MaxPool3d(1, stride=1)
+
+        self.final_mlp = MLP(
+            out_channels * 24 * 28 * 24, hidden_channels=[1024,256,128], 
+            # norm_layer=nn.BatchNorm1d, 
+            dropout=0.2)
+        
+        self.final_fc = nn.Linear(128, _NUM_CLASSES)
+        # self.parameters()
+
+>>>>>>> e83a0fd (fix: proper training with last fc layer)
     def forward(self, x):
         # encoder part
         # encoders_features = []

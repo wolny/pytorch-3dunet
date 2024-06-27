@@ -29,7 +29,7 @@ trainer:
   # how many iterations between validations
   validate_after_iters: 500
   # how many iterations between tensorboard logging
-  log_after_iters: 5
+  log_after_iters: 10
   # max number of epochs
   max_num_epochs: 500
   # max number of iterations
@@ -43,7 +43,7 @@ loss:
 # optimizer configuration
 optimizer:
   # initial learning rate
-  learning_rate: 0.00003
+  learning_rate: 0.0002
   # weight decay
   weight_decay: 0.01
 # evaluation metric
