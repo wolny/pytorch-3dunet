@@ -6,18 +6,17 @@ model:
   name: UNet3D
   # number of input channels to the model
   in_channels: 1
-  # number of classes
-  out_channels: 3
+  out_channels: 1
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
-  layer_order: gcr
+  layer_order: bcr
   # number of features at each level of the U-Net
-  f_maps: [ 32, 64, 128, 256 ]
+  f_maps: [ 16, 32, 64, 128 ]
   # number of groups in the groupnorm
-  num_groups: 8
+  # num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax (in this case softmax)
   final_sigmoid: false
   # if True applies the final normalization layer (sigmoid or softmax), otherwise the networks returns the output from the final convolution layer; use False for regression problems, e.g. de-noising
-  is_segmentation: true
+  is_segmentation: false
 # trainer configuration
 trainer:
   # path to the checkpoint directory
@@ -28,15 +27,15 @@ trainer:
   # make sure to decrease the learning rate in the optimizer config accordingly
   pre_trained: null
   # how many iterations between validations
-  validate_after_iters: 1000
+  validate_after_iters: 500
   # how many iterations between tensorboard logging
-  log_after_iters: 500
+  log_after_iters: 10
   # max number of epochs
-  max_num_epochs: 200
+  max_num_epochs: 500
   # max number of iterations
   max_num_iterations: 60000
   # model with higher eval score is considered better
-  eval_score_higher_is_better: True
+  eval_score_higher_is_better: False
 # loss function configuration
 loss:
   # use BCE loss for training
@@ -46,30 +45,30 @@ optimizer:
   # initial learning rate
   learning_rate: 0.0002
   # weight decay
-  weight_decay: 0.00001
+  weight_decay: 0.01
 # evaluation metric
 eval_metric:
   # use average precision metric
-  name: MeanIoU
+  name: MSE # AUC
 # learning rate scheduler configuration
 lr_scheduler:
   # reduce learning rate when evaluation metric plateaus
   name: ReduceLROnPlateau
   # use 'max' if eval_score_higher_is_better=True, 'min' otherwise
-  mode: max
+  mode: min
   # factor by which learning rate will be reduced
   factor: 0.2
   # number of *validation runs* with no improvement after which learning rate will be reduced
-  patience: 8
+  patience: 5
 
 # data loaders configuration
 loaders:
   # class of the HDF5 dataset, currently StandardHDF5Dataset and LazyHDF5Dataset are supported.
   dataset: StandardHDF5Dataset
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
-  batch_size: 1
+  batch_size: 4
   # how many subprocesses to use for data loading
-  num_workers: 8
+  num_workers: 16
   # path to the raw data within the H5
   raw_internal_path: raw
   # path to the label data within the H5
@@ -87,9 +86,9 @@ loaders:
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [ 140, 160, 160 ]
-      # train stride between patches
-      stride_shape: [ 30, 40, 40 ]
+      # patch_shape: [ 140, 160, 160 ]
+      # # train stride between patches
+      # stride_shape: [ 30, 40, 40 ]
       # minimum volume of the labels in the patch
       threshold: 0.01
       # probability of accepting patches which do not fulfil the threshold criterion
@@ -100,8 +99,8 @@ loaders:
         # subtract mean and divide by std dev
         - name: Standardize
         # randomly flips the volume in one of the axis
-        # - name: RandomFlip
-        # # randomly rotates the volume with 90 deg across a randomly chosen plane
+        - name: RandomFlip
+        # randomly rotates the volume with 90 deg across a randomly chosen plane
         # - name: RandomRotate90
         # - name: RandomRotate
         #   # rotate only in ZY plane due to anisotropy
@@ -109,8 +108,8 @@ loaders:
         #   # rotates by choosing random angle from [-30, 30] deg
         #   angle_spectrum: 30
         #   mode: reflect
-        # - name: ElasticDeformation
-        #   spline_order: 3
+        - name: ElasticDeformation
+          spline_order: 3
         - name: ToTensor
           expand_dims: true
       # label:
@@ -138,9 +137,9 @@ loaders:
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [ 140, 160, 160 ]
-      # train stride between patches
-      stride_shape: [ 30, 40, 40 ]
+      # patch_shape: [ 140, 160, 160 ]
+      # # train stride between patches
+      # stride_shape: [ 30, 40, 40 ]
       # minimum volume of the labels in the patch
       threshold: 0.01
       # probability of accepting patches which do not fulfil the threshold criterion
