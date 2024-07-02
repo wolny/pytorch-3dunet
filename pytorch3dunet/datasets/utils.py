@@ -100,6 +100,9 @@ class SliceBuilder:
 
         k_z, k_y, k_x = patch_shape
         s_z, s_y, s_x = stride_shape
+        print('dataset shape:', dataset.shape)
+        print('stride shape:', stride_shape)
+        print('patch shape:', patch_shape)
         z_steps = SliceBuilder._gen_indices(i_z, k_z, s_z)
         for z in z_steps:
             y_steps = SliceBuilder._gen_indices(i_y, k_y, s_y)
@@ -205,7 +208,6 @@ def get_train_loaders(config):
         "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
 
     train_datasets = dataset_class.create_datasets(loaders_config, phase='train')
-
     val_datasets = dataset_class.create_datasets(loaders_config, phase='val')
 
     num_workers = loaders_config.get('num_workers', 1)
@@ -299,11 +301,13 @@ def calculate_stats(img: np.array, skip: bool = False) -> dict[str, Any]:
         tuple[float, float, float, float]: The minimum percentile, maximum percentile, mean, and std dev
     """
     if not skip:
-        pmin, pmax, mean, std = np.percentile(img, 1), np.percentile(img, 99.6), np.mean(img), np.std(img)
+        min_v, max_v, pmin, pmax, mean, std = np.min(img), np.max(img), np.percentile(img, 1), np.percentile(img, 99.6), np.mean(img), np.std(img)
     else:
-        pmin, pmax, mean, std = None, None, None, None
+        min_v, max_v, pmin, pmax, mean, std = None, None, None, None, None, None
 
     return {
+        'minv': min_v,
+        'maxv': max_v,
         'pmin': pmin,
         'pmax': pmax,
         'mean': mean,

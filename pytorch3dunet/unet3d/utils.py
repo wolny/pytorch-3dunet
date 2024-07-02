@@ -9,6 +9,12 @@ import numpy as np
 import torch
 from torch import optim
 
+_LABELS = {
+    0 : 'MCI',
+    1 : 'AD',
+    2 : 'NML'
+}
+
 
 def save_checkpoint(state, is_best, checkpoint_dir):
     """Saves model and training parameters at '{checkpoint_dir}/last_checkpoint.pytorch'.
@@ -185,6 +191,28 @@ class DefaultTensorboardFormatter(_TensorboardFormatter):
     @staticmethod
     def _normalize_img(img):
         return np.nan_to_num((img - np.min(img)) / np.ptp(img))
+
+
+class ClassificationTensorboardFormatter:
+
+    def __init__(self, skip_last_target=False, **kwargs):
+        super().__init__(**kwargs)
+        self.skip_last_target = skip_last_target
+
+    def __call__(self, name, batch):
+        return self.process_batch(name, batch)
+
+    def process_batch(self, name, batch):
+        tag_template = '{}/batch_{}/class_{}'
+        
+        label_tags = []
+
+        for batch_idx in range(batch.shape[0]):
+            label = _LABELS[np.argmax(batch[batch_idx, :])]
+            tag = tag_template.format(name, batch_idx, label)
+            label_tags.append(tag)
+        
+        return label_tags
 
 
 def _find_masks(batch, min_size=10):

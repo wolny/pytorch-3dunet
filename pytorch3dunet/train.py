@@ -27,6 +27,7 @@ def main():
     trainer = create_trainer(config)
     # Copy config file
     copy_config(config, config_path)
+    torch.cuda.empty_cache()
     # Start training
     trainer.fit()
 

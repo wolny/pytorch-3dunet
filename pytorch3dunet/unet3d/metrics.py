@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from skimage import measure
 from skimage.metrics import adapted_rand_error, peak_signal_noise_ratio, mean_squared_error
-
+from sklearn.metrics import roc_auc_score
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
 from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy
 from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, convert_to_numpy
@@ -29,6 +29,21 @@ class DiceCoefficient:
         return torch.mean(compute_per_channel_dice(input, target, epsilon=self.epsilon))
 
 
+class AUC:
+    """
+    Computes AUC of the ROC curve for multi-classification task 
+    """
+
+    def __init__(self, **kwargs):
+        pass
+
+    def __call__(self, input, target):
+        target = target.cpu().data.numpy().argmax(1)
+        predicted_prob = input.cpu().data.numpy()
+        return torch.tensor(roc_auc_score(y_true=target, y_score=predicted_prob, average=None, 
+            multi_class='ovr', labels=np.array([0, 1, 2])))
+
+
 class MeanIoU:
     """
     Computes IoU for each class separately and then averages over all classes.
@@ -48,7 +63,7 @@ class MeanIoU:
         :param target: 4D or 5D ground truth torch tensor. 4D (NxDxHxW) tensor will be expanded to 5D as one-hot
         :return: intersection over union averaged over all channels
         """
-        assert input.dim() == 5
+        assert input.dim() == 5 or input.dim() == 2
 
         n_classes = input.size()[1]
 

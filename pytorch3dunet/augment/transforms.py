@@ -492,7 +492,7 @@ class LabelToMaskAndAffinities:
         return np.concatenate((mask, affinities), axis=0)
 
 
-class Standardize:
+class ZNorm:
     """
     Apply Z-score normalization to a given input tensor, i.e. re-scaling the values to be 0-mean and 1-std.
     """
