@@ -301,11 +301,13 @@ def calculate_stats(img: np.array, skip: bool = False) -> dict[str, Any]:
         tuple[float, float, float, float]: The minimum percentile, maximum percentile, mean, and std dev
     """
     if not skip:
-        pmin, pmax, mean, std = np.percentile(img, 1), np.percentile(img, 99.6), np.mean(img), np.std(img)
+        min_v, max_v, pmin, pmax, mean, std = np.min(img), np.max(img), np.percentile(img, 1), np.percentile(img, 99.6), np.mean(img), np.std(img)
     else:
-        pmin, pmax, mean, std = None, None, None, None
+        min_v, max_v, pmin, pmax, mean, std = None, None, None, None, None, None
 
     return {
+        'minv': min_v,
+        'maxv': max_v,
         'pmin': pmin,
         'pmax': pmax,
         'mean': mean,

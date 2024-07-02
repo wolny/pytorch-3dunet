@@ -10,7 +10,7 @@ model:
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
   layer_order: bcr
   # number of features at each level of the U-Net
-  f_maps: [ 16, 32, 64, 128 ]
+  f_maps: [ 32, 64, 128, 256 ]
   # number of groups in the groupnorm
   # num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax (in this case softmax)
@@ -66,7 +66,7 @@ loaders:
   # class of the HDF5 dataset, currently StandardHDF5Dataset and LazyHDF5Dataset are supported.
   dataset: StandardHDF5Dataset
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
-  batch_size: 4
+  batch_size: 5
   # how many subprocesses to use for data loading
   num_workers: 16
   # path to the raw data within the H5
@@ -96,8 +96,10 @@ loaders:
 
     transformer:
       raw:
-        # subtract mean and divide by std dev
-        - name: Standardize
+        # Z-norm to standardize: subtract mean and divide by std dev
+        # - name: ZNorm
+        # Minmax to standardize: subtract min and divide by (max - min)
+        - name: Normalize
         # randomly flips the volume in one of the axis
         - name: RandomFlip
         # randomly rotates the volume with 90 deg across a randomly chosen plane
@@ -108,8 +110,8 @@ loaders:
         #   # rotates by choosing random angle from [-30, 30] deg
         #   angle_spectrum: 30
         #   mode: reflect
-        - name: ElasticDeformation
-          spline_order: 3
+        # - name: ElasticDeformation
+        #   spline_order: 3
         - name: ToTensor
           expand_dims: true
       # label:
@@ -148,7 +150,7 @@ loaders:
     # data augmentation
     transformer:
       raw:
-        - name: Standardize
+        - name: Normalize
         - name: ToTensor
           expand_dims: true
       # label:
