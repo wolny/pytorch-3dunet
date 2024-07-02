@@ -190,6 +190,7 @@ class UNetTrainer:
                 # evaluate on validation set
                 eval_score = self.validate()
                 # set the model back to training mode
+
                 self.model.train()
 
                 # adjust learning rate if necessary

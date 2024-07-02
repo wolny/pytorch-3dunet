@@ -100,7 +100,7 @@ class AbstractHDF5Dataset(ConfigDataset):
         with h5py.File(file_path, 'r') as f:
             raw = f[raw_internal_path][:, self.feature_idx, :].transpose((0, 2, 3, 1))
             self.label = f[label_internal_path][:] if phase != 'test' else None
-            weight_map = f[weight_internal_path] if weight_internal_path is not None else None
+            # weight_map = f[weight_internal_path] if weight_internal_path is not None else None
             # build slice indices for raw and label data sets
             # No need to slice labels
 
@@ -222,6 +222,7 @@ class AbstractHDF5Dataset(ConfigDataset):
                               weight_internal_path=dataset_config.get('weight_internal_path', None),
                               global_normalization=dataset_config.get('global_normalization', None))
                 datasets.append(dataset)
+
             except Exception:
                 logger.error(f'Skipping {phase} set: {file_path}', exc_info=True)
         return datasets
@@ -252,6 +253,7 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
             with h5py.File(self.file_path, 'r') as f:
                 assert self.raw_internal_path in f, f'Dataset {self.raw_internal_path} not found in {self.file_path}'
                 self._raw = f[self.raw_internal_path][idx, self.feature_idx, :]
+        # return self.raw_normalized[idx]
         return self._raw.transpose((1,2,0))
 
     # def get_label_patch(self, idx):
