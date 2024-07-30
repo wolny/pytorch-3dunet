@@ -49,7 +49,7 @@ def load_config():
     if device == 'cpu':
         logger.warning('CPU mode forced in config, this will likely result in slow training/prediction')
         config['device'] = 'cpu'
-        return config
+        return config, config_path
 
     if torch.cuda.is_available():
         config['device'] = 'cuda'
