@@ -29,7 +29,7 @@ def _iou_matrix(gt, seg):
     seg = _relabel(seg)
 
     # get number of overlapping pixels between GT and SEG
-    n_inter = contingency_table(gt, seg).A
+    n_inter = contingency_table(gt, seg).toarray()
 
     # number of pixels for GT instances
     n_gt = n_inter.sum(axis=1, keepdims=True)
