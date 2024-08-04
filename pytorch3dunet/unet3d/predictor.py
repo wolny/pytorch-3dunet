@@ -81,6 +81,8 @@ class StandardPredictor(_AbstractPredictor):
                  **kwargs):
         super().__init__(model, output_dir, out_channels, output_dataset, save_segmentation, prediction_channel,
                          **kwargs)
+        self.ground_truth = []
+        self.predicted_label = []
 
     def __call__(self, test_loader):
         assert isinstance(test_loader.dataset, AbstractHDF5Dataset)
@@ -89,29 +91,29 @@ class StandardPredictor(_AbstractPredictor):
 
         logger.info(f'Running inference on {len(test_loader)} batches')
         # dimensionality of the output predictions
-        volume_shape = test_loader.dataset.volume_shape()
-        if self.prediction_channel is not None:
-            # single channel prediction map
-            prediction_maps_shape = (1,) + volume_shape
-        else:
-            prediction_maps_shape = (self.out_channels,) + volume_shape
-
+        # volume_shape = test_loader.dataset.volume_shape()
+        # if self.prediction_channel is not None:
+        #     # single channel prediction map
+        #     prediction_maps_shape = (1,) + volume_shape
+        # else:
+        #     prediction_maps_shape = (self.out_channels,) + volume_shape
+        prediction_maps_shape = (3,)    # just a class index vector
         # create destination H5 file
         output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
         with h5py.File(output_file, 'w') as h5_output_file:
             # allocate prediction and normalization arrays
             logger.info('Allocating prediction and normalization arrays...')
-            prediction_map, normalization_mask = self._allocate_prediction_maps(prediction_maps_shape, h5_output_file)
+            # prediction_map, normalization_mask = self._allocate_prediction_maps(prediction_maps_shape, h5_output_file)
 
             # determine halo used for padding
-            patch_halo = test_loader.dataset.halo_shape
+            # patch_halo = test_loader.dataset.halo_shape
 
             # Sets the module in evaluation mode explicitly
             # It is necessary for batchnorm/dropout layers if present as well as final Sigmoid/Softmax to be applied
             self.model.eval()
             # Run predictions on the entire input dataset
             with torch.no_grad():
-                for input, indices in tqdm(test_loader):
+                for input, ground_truth in tqdm(test_loader):                  
                     # send batch to gpu
                     if torch.cuda.is_available():
                         input = input.pin_memory().cuda(non_blocking=True)
@@ -128,31 +130,34 @@ class StandardPredictor(_AbstractPredictor):
                         prediction = self.model(input)
 
                     # unpad the predicted patch
-                    prediction = remove_padding(prediction, patch_halo)
+                    # prediction = remove_padding(prediction, patch_halo)
                     # convert to numpy array
                     prediction = prediction.cpu().numpy()
                     # for each batch sample
-                    for pred, index in zip(prediction, indices):
-                        # save patch index: (C,D,H,W)
-                        if self.prediction_channel is None:
-                            channel_slice = slice(0, self.out_channels)
-                        else:
-                            # use only the specified channel
-                            channel_slice = slice(0, 1)
-                            pred = np.expand_dims(pred[self.prediction_channel], axis=0)
-
+                    for pred, index in zip(prediction, ground_truth):
+                        # # save patch index: (C,D,H,W)
+                        # if self.prediction_channel is None:
+                        #     channel_slice = slice(0, self.out_channels)
+                        # else:
+                        #     # use only the specified channel
+                        #     channel_slice = slice(0, 1)
+                        #     pred = np.expand_dims(pred[self.prediction_channel], axis=0)
+                        # print(channel_slice)
                         # add channel dimension to the index
-                        index = (channel_slice,) + tuple(index)
+                        # index = (channel_slice,) + tuple(index)
                         # accumulate probabilities into the output prediction array
-                        prediction_map[index] += pred
+                        # prediction_map[index] += pred
+                        self.ground_truth.append(index)
+                        self.predicted_label.append(pred)
+                        # prediction_map[index] = np.argmax(pred)
                         # count voxel visits for normalization
-                        normalization_mask[index] += 1
+                        # normalization_mask[index] += 1
 
             logger.info(f'Finished inference in {time.perf_counter() - start:.2f} seconds')
             # save results
-            output_type = 'segmentation' if self.save_segmentation else 'probability maps'
-            logger.info(f'Saving {output_type} to: {output_file}')
-            self._save_results(prediction_map, normalization_mask, h5_output_file, test_loader.dataset)
+            # output_type = 'segmentation' if self.save_segmentation else 'probability maps'
+            # logger.info(f'Saving {output_type} to: {output_file}')
+            # self._save_results(prediction_map, normalization_mask, h5_output_file, test_loader.dataset)
 
     def _allocate_prediction_maps(self, output_shape, output_file):
         # initialize the output prediction arrays

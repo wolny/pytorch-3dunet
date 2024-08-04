@@ -77,15 +77,15 @@ class AbstractUNet(nn.Module):
         else:
             self.conv_after_encoder = nn.Conv2d(f_maps[-1], out_channels, 1)
 
-        if is_segmentation:
-            # semantic segmentation problem
-            if final_sigmoid:
-                self.final_activation = nn.Sigmoid()
-            else:
-                self.final_activation = nn.Softmax(dim=1)
-        else:
-            # regression or classification problem
-            self.final_activation = None
+        # if is_segmentation:
+        #     # semantic segmentation problem
+        #     if final_sigmoid:
+        #         self.final_activation = nn.Sigmoid()
+        #     else:
+        #         self.final_activation = nn.Softmax(dim=1)
+        # else:
+        #     # regression or classification problem
+        #     self.final_activation = None
 
         self.conv_activation = nn.ReLU(inplace=True)
 
@@ -96,6 +96,11 @@ class AbstractUNet(nn.Module):
             dropout=0.2)
         
         self.final_fc = nn.Linear(128, _NUM_CLASSES)
+
+        if final_sigmoid:
+            self.final_activation = nn.Sigmoid()
+        else:
+            self.final_activation = nn.Softmax(dim=1)
 
     def forward(self, x):
         # encoder part
@@ -132,8 +137,8 @@ class AbstractUNet(nn.Module):
         # x = torch.unsqueeze(x, dim=1)
         # x = torch.t(x)
         x = self.final_fc(x)
-        if self.final_activation is not None:
-            x = self.final_activation(x)
+        # if self.final_activation is not None:
+        x = self.final_activation(x)
         return x
 
 

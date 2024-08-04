@@ -4,6 +4,7 @@ import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
+from tqdm import tqdm
 
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
@@ -170,13 +171,20 @@ class UNetTrainer:
         # sets the model in training mode
         self.model.train()
 
+        pbar = tqdm(total = len(self.loaders['train']))
+
         for t in self.loaders['train']:
-            logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
-                        f'Epoch [{self.num_epochs}/{self.max_num_epochs - 1}]')
+            pbar.update(1)
+            # logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
+            #             f'Epoch [{self.num_epochs}/{self.max_num_epochs - 1}]')
 
             input, target, weight = self._split_training_batch(t)
             output, loss = self._forward_pass(input, target, weight)
             train_losses.update(loss.item(), self._batch_size(input))
+            pbar.set_postfix(it=f'[{self.num_iterations}/{self.max_num_iterations}]',
+                             epoch=f'[{self.num_epochs}/{self.max_num_epochs - 1}]',
+                             train_loss=train_losses.avg, 
+                             lr=self.optimizer.param_groups[0]['lr'])
 
             # compute gradients and update parameters
             self.optimizer.zero_grad()
@@ -261,9 +269,10 @@ class UNetTrainer:
         val_scores = utils.RunningAverage()
 
         with torch.no_grad():
+            pbar = tqdm(total = len(self.loaders['val']))
+            logger.info(f'Validation size {len(self.loaders['val'])}')
             for i, t in enumerate(self.loaders['val']):
-                logger.info(f'Validation iteration {i}')
-
+                pbar.update(1)
                 input, target, weight = self._split_training_batch(t)
 
                 output, loss = self._forward_pass(input, target, weight)
