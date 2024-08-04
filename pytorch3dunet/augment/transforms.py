@@ -552,7 +552,7 @@ class Normalize:
     list/tuple channelwise if enabled.
     """
 
-    def __init__(self, min_value=None, max_value=None, norm01=False, channelwise=False,
+    def __init__(self, min_value=None, max_value=None, norm01=True, channelwise=False,
                  eps=1e-10, **kwargs):
         if min_value is not None and max_value is not None:
             assert max_value > min_value

@@ -99,7 +99,7 @@ class AbstractHDF5Dataset(ConfigDataset):
 
         with h5py.File(file_path, 'r') as f:
             raw = f[raw_internal_path][:, self.feature_idx, :].transpose((0, 2, 3, 1))
-            self.label = f[label_internal_path][:] if phase != 'test' else None
+            self.label = f[label_internal_path][:] # if phase != 'test' else None
             # weight_map = f[weight_internal_path] if weight_internal_path is not None else None
             # build slice indices for raw and label data sets
             # No need to slice labels
@@ -149,17 +149,17 @@ class AbstractHDF5Dataset(ConfigDataset):
         # raw_idx = self.raw_slices[idx]
 
         raw_idx = idx
-
         if self.phase == 'test':
-            if len(raw_idx) == 4:
-                # discard the channel dimension in the slices: predictor requires only the spatial dimensions of the volume
-                raw_idx = raw_idx[1:]  # Remove the first element if raw_idx has 4 elements
-                raw_idx_padded = (slice(None),) + _create_padded_indexes(raw_idx, self.halo_shape)
-            else:
-                raw_idx_padded = _create_padded_indexes(raw_idx, self.halo_shape)
+            # if len(raw_idx) == 4:
+            #     # discard the channel dimension in the slices: predictor requires only the spatial dimensions of the volume
+            #     raw_idx = raw_idx[1:]  # Remove the first element if raw_idx has 4 elements
+            #     raw_idx_padded = (slice(None),) + _create_padded_indexes(raw_idx, self.halo_shape)
+            # else:
+            #     raw_idx_padded = _create_padded_indexes(raw_idx, self.halo_shape)
 
-            raw_patch_transformed = self.raw_transform(self.get_raw_padded_patch(raw_idx_padded))
-            return raw_patch_transformed, raw_idx
+            # raw_patch_transformed = self.raw_transform(self.get_raw_padded_patch(raw_idx_padded))
+            raw_patch_transformed = self.raw_transform(self.get_raw_patch(raw_idx))
+            return raw_patch_transformed, self.label[raw_idx, :]
         else:
             raw_patch_transformed = self.raw_transform(self.get_raw_patch(raw_idx))
 

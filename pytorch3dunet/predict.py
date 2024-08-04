@@ -1,5 +1,6 @@
 import importlib
 import os
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -54,6 +55,11 @@ def main():
         # run the model prediction on the test_loader and save the results in the output_dir
         predictor(test_loader)
 
+    truth = np.array(predictor.ground_truth)
+    pred = np.array(predictor.predicted_label)
+
+    print('ground truth', np.argmax(truth, 1))
+    print('predicted', np.argmax(pred, 1))
 
 if __name__ == '__main__':
     main()

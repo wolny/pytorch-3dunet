@@ -2,11 +2,11 @@
 
 # model configuration
 model:
-  # model class, e.g. UNet3D, ResidualUNet3D
-  name: UNet3D
+  # model class, e.g. UNet3D, ResidualUNet3D, M3T
+  name: ResidualUNet3D # M3T  # UNet3D
   # number of input channels to the model
   in_channels: 1
-  out_channels: 1
+  out_channels: 16
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
   layer_order: bcr
   # number of features at each level of the U-Net
@@ -26,36 +26,38 @@ trainer:
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
   # make sure to decrease the learning rate in the optimizer config accordingly
   pre_trained: null
+  
   # how many iterations between validations
   validate_after_iters: 500
   # how many iterations between tensorboard logging
-  log_after_iters: 10
+  log_after_iters: 200
   # max number of epochs
-  max_num_epochs: 500
+  max_num_epochs: 1500
   # max number of iterations
-  max_num_iterations: 60000
+  max_num_iterations: 100000
   # model with higher eval score is considered better
-  eval_score_higher_is_better: False
+  eval_score_higher_is_better: True
 # loss function configuration
 loss:
   # use BCE loss for training
   name: CrossEntropyLoss
 # optimizer configuration
 optimizer:
+  name: SGD
   # initial learning rate
-  learning_rate: 0.0002
+  learning_rate: 0.001
   # weight decay
   weight_decay: 0.01
 # evaluation metric
 eval_metric:
   # use average precision metric
-  name: MSE # AUC
+  name: ACC
 # learning rate scheduler configuration
 lr_scheduler:
   # reduce learning rate when evaluation metric plateaus
   name: ReduceLROnPlateau
   # use 'max' if eval_score_higher_is_better=True, 'min' otherwise
-  mode: min
+  mode: max
   # factor by which learning rate will be reduced
   factor: 0.2
   # number of *validation runs* with no improvement after which learning rate will be reduced
@@ -101,7 +103,7 @@ loaders:
         # Minmax to standardize: subtract min and divide by (max - min)
         - name: Normalize
         # randomly flips the volume in one of the axis
-        - name: RandomFlip
+        # - name: RandomFlip
         # randomly rotates the volume with 90 deg across a randomly chosen plane
         # - name: RandomRotate90
         # - name: RandomRotate
