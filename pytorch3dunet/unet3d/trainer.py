@@ -1,9 +1,11 @@
 import os
+from datetime import datetime
+
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.tensorboard import SummaryWriter
-from datetime import datetime
 
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
@@ -82,15 +84,19 @@ class UNetTrainer:
         num_epoch (int): useful when loading the model from the checkpoint
         tensorboard_formatter (callable): converts a given batch of input/output/target image to a series of images
             that can be displayed in tensorboard
-        skip_train_validation (bool): if True eval_criterion is not evaluated on the training set (used mostly when
+        skip_train_validation (bool): if True eval_criterion is not evaluated on the training set (used when
             evaluation is expensive)
+        resume (string): path to the checkpoint to be resumed
+        pre_trained (string): path to the pre-trained model
+        max_val_images (int): maximum number of images to log during validation
     """
 
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders, checkpoint_dir,
                  max_num_epochs, max_num_iterations, validate_after_iters=200, log_after_iters=100, validate_iters=None,
                  num_iterations=1, num_epoch=0, eval_score_higher_is_better=True, tensorboard_formatter=None,
-                 skip_train_validation=False, resume=None, pre_trained=None, **kwargs):
+                 skip_train_validation=False, resume=None, pre_trained=None, max_val_images=100, **kwargs):
 
+        self.max_val_images = max_val_images
         self.model = model
         self.optimizer = optimizer
         self.scheduler = lr_scheduler
@@ -116,10 +122,10 @@ class UNetTrainer:
 
         self.writer = SummaryWriter(
             log_dir=os.path.join(
-                checkpoint_dir, 'logs', 
+                checkpoint_dir, 'logs',
                 datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                )
             )
+        )
 
         assert tensorboard_formatter is not None, 'TensorboardFormatter must be provided'
         self.tensorboard_formatter = tensorboard_formatter
@@ -207,26 +213,19 @@ class UNetTrainer:
                 self._save_checkpoint(is_best)
 
             if self.num_iterations % self.log_after_iters == 0:
+                # network returns logits in train mode, apply final activation to the output
+                if isinstance(self.model, nn.DataParallel):
+                    output = self.model.module.final_activation(output)
+                else:
+                    output = self.model.final_activation(output)
                 # compute eval criterion
                 if not self.skip_train_validation:
-                    # apply final activation before calculating eval score
-                    if isinstance(self.model, nn.DataParallel):
-                        final_activation = self.model.module.final_activation
-                    else:
-                        final_activation = self.model.final_activation
-
-                    if final_activation is not None:
-                        act_output = final_activation(output)
-                    else:
-                        act_output = output
-                    eval_score = self.eval_criterion(act_output, target)
+                    eval_score = self.eval_criterion(output, target)
                     train_eval_scores.update(eval_score.item(), self._batch_size(input))
 
-                # log stats, params and images
                 logger.info(
                     f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
                 self._log_stats('train', train_losses.avg, train_eval_scores.avg)
-                # self._log_params()
                 self._log_images(input, target, output, 'train_')
 
             if self.should_stop():
@@ -260,6 +259,12 @@ class UNetTrainer:
         val_scores = utils.RunningAverage()
 
         with torch.no_grad():
+            # select indices of validation samples to log
+            rs = np.random.RandomState(42)
+            if len(self.loaders['val']) <= self.max_val_images:
+                indices = list(range(len(self.loaders['val'])))
+            else:
+                indices = rs.choice(len(self.loaders['val']), size=self.max_val_images, replace=False)
             for i, t in enumerate(self.loaders['val']):
                 logger.info(f'Validation iteration {i}')
 
@@ -268,8 +273,9 @@ class UNetTrainer:
                 output, loss = self._forward_pass(input, target, weight)
                 val_losses.update(loss.item(), self._batch_size(input))
 
-                if i % 100 == 0:
-                    self._log_images(input, target, output, 'val_')
+                # save val images for logging
+                if i in indices:
+                    self._log_images(input, target, output, f'val_{i}_')
 
                 eval_score = self.eval_criterion(output, target)
                 val_scores.update(eval_score.item(), self._batch_size(input))
@@ -278,8 +284,8 @@ class UNetTrainer:
                     # stop validation
                     break
 
-            self._log_stats('val', val_losses.avg, val_scores.avg)
             logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
+            self._log_stats('val', val_losses.avg, val_scores.avg)
             return val_scores.avg
 
     def _split_training_batch(self, t):
@@ -369,16 +375,7 @@ class UNetTrainer:
             self.writer.add_histogram(name, value.data.cpu().numpy(), self.num_iterations)
             self.writer.add_histogram(name + '/grad', value.grad.data.cpu().numpy(), self.num_iterations)
 
-    def _log_images(self, input, target, prediction, prefix=''):
-
-        if isinstance(self.model, nn.DataParallel):
-            net = self.model.module
-        else:
-            net = self.model
-
-        if net.final_activation is not None:
-            prediction = net.final_activation(prediction)
-
+    def _log_images(self, input, target, prediction, prefix):
         inputs_map = {
             'inputs': input,
             'targets': target,

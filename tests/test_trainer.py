@@ -10,7 +10,7 @@ from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.trainer import UNetTrainer
-from pytorch3dunet.unet3d.utils import DefaultTensorboardFormatter, create_optimizer, create_lr_scheduler
+from pytorch3dunet.unet3d.utils import TensorboardFormatter, create_optimizer, create_lr_scheduler
 
 
 class TestUNet3DTrainer:
@@ -97,7 +97,7 @@ def _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, 
     optimizer = create_optimizer(train_config['optimizer'], model)
     lr_scheduler = create_lr_scheduler(train_config.get('lr_scheduler', None), optimizer)
 
-    formatter = DefaultTensorboardFormatter()
+    formatter = TensorboardFormatter()
     trainer = UNetTrainer(model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders, tmpdir,
                           max_num_epochs=train_config['trainer']['max_num_epochs'],
                           max_num_iterations=train_config['trainer']['max_num_iterations'],

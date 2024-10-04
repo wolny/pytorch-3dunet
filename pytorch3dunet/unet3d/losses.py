@@ -167,15 +167,14 @@ class GeneralizedDiceLoss(_AbstractDiceLoss):
 class BCEDiceLoss(nn.Module):
     """Linear combination of BCE and Dice losses"""
 
-    def __init__(self, alpha, beta):
+    def __init__(self, alpha, ):
         super(BCEDiceLoss, self).__init__()
         self.alpha = alpha
         self.bce = nn.BCEWithLogitsLoss()
-        self.beta = beta
         self.dice = DiceLoss()
 
     def forward(self, input, target):
-        return self.alpha * self.bce(input, target) + self.beta * self.dice(input, target)
+        return self.bce(input, target) + self.alpha * self.dice(input, target)
 
 
 class WeightedCrossEntropyLoss(nn.Module):
@@ -313,8 +312,7 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
         return nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     elif name == 'BCEDiceLoss':
         alpha = loss_config.get('alpha', 1.)
-        beta = loss_config.get('beta', 1.)
-        return BCEDiceLoss(alpha, beta)
+        return BCEDiceLoss(alpha)
     elif name == 'CrossEntropyLoss':
         if ignore_index is None:
             ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss
