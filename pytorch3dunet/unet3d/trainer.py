@@ -142,7 +142,7 @@ class UNetTrainer:
         elif pre_trained is not None:
             logger.info(f"Logging pre-trained model from '{pre_trained}'...")
             utils.load_checkpoint(pre_trained, self.model, None)
-            if 'checkpoint_dir' not in kwargs:
+            if not self.checkpoint_dir:
                 self.checkpoint_dir = os.path.split(pre_trained)[0]
 
     def fit(self):
