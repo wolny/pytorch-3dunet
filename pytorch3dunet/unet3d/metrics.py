@@ -34,11 +34,11 @@ class MeanIoU:
     Computes IoU for each class separately and then averages over all classes.
 
     Args:
-        skip_channels (tuple): list of channels to skip when computing the metric
+        skip_background (bool): if True, background class (i.e. 0-label) will be skipped when computing IoU
     """
 
-    def __init__(self, skip_channels=(), **kwargs):
-        self.skip_channels = skip_channels
+    def __init__(self, skip_background=True, **kwargs):
+        self.skip_background = skip_background
 
     def __call__(self, input, target):
         """
@@ -58,13 +58,15 @@ class MeanIoU:
 
         per_batch_iou = []
         for _input, _target in zip(input, target):
-            # convert target to uint8
+            # convert target to byte
             _target = _target.byte()
             per_channel_iou = []
-            for c in range(n_classes):
-                if c in self.skip_channels:
-                    continue
+            start_idx = 0
+            # skip background only if target is 4D; for channel-wise computation (i.e. if target is 5D) we need to include it
+            if self.skip_background and target.dim() == 4:
+                start_idx = 1
 
+            for c in range(start_idx, n_classes):
                 if target.dim() == 5:
                     iou = self._jaccard_index(_input[c] > 0.5, _target[c])
                     per_channel_iou.append(iou)
@@ -82,7 +84,10 @@ class MeanIoU:
         """
         Computes IoU for a given target and prediction tensors
         """
-        return torch.sum(prediction & target).float() / torch.clamp(torch.sum(prediction | target).float(), min=1e-8)
+        epsilon = 1e-8
+        intersection = torch.logical_and(target, prediction).sum()
+        union = torch.logical_or(target, prediction).sum()
+        return (intersection + epsilon) / (union + epsilon)
 
 
 class AdaptedRandError:

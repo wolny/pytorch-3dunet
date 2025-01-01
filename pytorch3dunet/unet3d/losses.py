@@ -167,7 +167,7 @@ class GeneralizedDiceLoss(_AbstractDiceLoss):
 class BCEDiceLoss(nn.Module):
     """Linear combination of BCE and Dice losses"""
 
-    def __init__(self, alpha, ):
+    def __init__(self, alpha=1.0):
         super(BCEDiceLoss, self).__init__()
         self.alpha = alpha
         self.bce = nn.BCEWithLogitsLoss()
