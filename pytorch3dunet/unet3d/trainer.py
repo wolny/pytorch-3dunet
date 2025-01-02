@@ -1,4 +1,5 @@
 import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 import numpy as np
@@ -6,6 +7,7 @@ import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
@@ -260,9 +262,9 @@ class UNetTrainer:
                 indices = list(range(len(self.loaders['val'])))
             else:
                 indices = rs.choice(len(self.loaders['val']), size=self.max_val_images, replace=False)
-            for i, t in enumerate(self.loaders['val']):
-                logger.info(f'Validation iteration {i}')
 
+            images_for_logging = []
+            for i, t in enumerate(tqdm(self.loaders['val'])):
                 input, target, weight = self._split_training_batch(t)
 
                 output, loss = self._forward_pass(input, target, weight)
@@ -270,7 +272,7 @@ class UNetTrainer:
 
                 # save val images for logging
                 if i in indices:
-                    self._log_images(input, target, output, f'val_{i}_')
+                    images_for_logging.append((input, target, output, i))
 
                 eval_score = self.eval_criterion(output, target)
                 val_scores.update(eval_score.item(), self._batch_size(input))
@@ -278,6 +280,11 @@ class UNetTrainer:
                 if self.validate_iters is not None and self.validate_iters <= i:
                     # stop validation
                     break
+
+            # log images in a separate thread
+            with ThreadPoolExecutor() as executor:
+                for input, target, output, i in images_for_logging:
+                    executor.submit(self._log_images, input, target, output, f'val_{i}_')
 
             logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
             self._log_stats('val', val_losses.avg, val_scores.avg)
