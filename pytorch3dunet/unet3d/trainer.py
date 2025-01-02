@@ -264,7 +264,7 @@ class UNetTrainer:
                 indices = rs.choice(len(self.loaders['val']), size=self.max_val_images, replace=False)
 
             images_for_logging = []
-            for i, t in tqdm(enumerate(self.loaders['val'])):
+            for i, t in enumerate(tqdm(self.loaders['val'])):
                 input, target, weight = self._split_training_batch(t)
 
                 output, loss = self._forward_pass(input, target, weight)
