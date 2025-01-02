@@ -1,4 +1,4 @@
-import torch.nn as nn
+from torch import nn
 
 from pytorch3dunet.unet3d.buildingblocks import DoubleConv, ResNetBlock, ResNetBlockSE, \
     create_decoders, create_encoders
@@ -268,3 +268,9 @@ def get_model(model_config):
         'pytorch3dunet.unet3d.model'
     ])
     return model_class(**model_config)
+
+
+def is_model_2d(model):
+    if isinstance(model, nn.DataParallel):
+        model = model.module
+    return isinstance(model, UNet2D)
