@@ -1,4 +1,4 @@
-import torch.nn as nn
+from torch import nn
 
 from pytorch3dunet.unet3d.buildingblocks import DoubleConv, ResNetBlock, ResNetBlockSE, \
     create_decoders, create_encoders
@@ -81,7 +81,27 @@ class AbstractUNet(nn.Module):
             # regression problem
             self.final_activation = None
 
-    def forward(self, x):
+    def forward(self, x, return_logits=False):
+        """
+        Forward pass through the network.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (N, C, D, H, W) for 3D or (N, C, H, W) for 2D,
+                              where N is the batch size, C is the number of channels,
+                              D is the depth, H is the height, and W is the width.
+            return_logits (bool): If True, returns both the output and the logits.
+                                  If False, returns only the output. Default is False.
+
+        Returns:
+            torch.Tensor: The output tensor after passing through the network.
+                          If return_logits is True, returns a tuple of (output, logits).
+        """
+        output, logits = self._forward_logits(x)
+        if return_logits:
+            return output, logits
+        return output
+
+    def _forward_logits(self, x):
         # encoder part
         encoders_features = []
         for encoder in self.encoders:
@@ -101,12 +121,13 @@ class AbstractUNet(nn.Module):
 
         x = self.final_conv(x)
 
-        # apply final_activation (i.e. Sigmoid or Softmax) only during prediction.
-        # During training the network outputs logits
-        if not self.training and self.final_activation is not None:
-            x = self.final_activation(x)
+        if self.final_activation is not None:
+            # compute final activation
+            out = self.final_activation(x)
+            # return both probabilities and logits
+            return out, x
 
-        return x
+        return x, x
 
 
 class UNet3D(AbstractUNet):
@@ -247,3 +268,9 @@ def get_model(model_config):
         'pytorch3dunet.unet3d.model'
     ])
     return model_class(**model_config)
+
+
+def is_model_2d(model):
+    if isinstance(model, nn.DataParallel):
+        model = model.module
+    return isinstance(model, UNet2D)

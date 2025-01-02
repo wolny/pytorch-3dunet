@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
 from pytorch3dunet.datasets.utils import SliceBuilder, remove_padding
-from pytorch3dunet.unet3d.model import UNet2D
 from pytorch3dunet.unet3d.utils import get_logger
+from pytorch3dunet.unet3d.model import is_model_2d
 
 logger = get_logger('UNetPredictor')
 
@@ -38,12 +38,6 @@ def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions',
 
     output_filename = file_path.stem + suffix + '.h5'
     return Path(output_dir) / output_filename
-
-
-def _is_2d_model(model):
-    if isinstance(model, nn.DataParallel):
-        model = model.module
-    return isinstance(model, UNet2D)
 
 
 class _AbstractPredictor:
@@ -135,7 +129,7 @@ class StandardPredictor(_AbstractPredictor):
                     if torch.cuda.is_available():
                         input = input.pin_memory().cuda(non_blocking=True)
 
-                    if _is_2d_model(self.model):
+                    if is_model_2d(self.model):
                         # remove the singleton z-dimension from the input
                         input = torch.squeeze(input, dim=-3)
                         # forward pass

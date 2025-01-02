@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
-from pytorch3dunet.unet3d.model import get_model, UNet2D
+from pytorch3dunet.unet3d.model import get_model, is_model_2d
 from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, create_optimizer, \
     create_lr_scheduler, get_number_of_learnable_parameters
 from . import utils
@@ -213,11 +213,6 @@ class UNetTrainer:
                 self._save_checkpoint(is_best)
 
             if self.num_iterations % self.log_after_iters == 0:
-                # network returns logits in train mode, apply final activation to the output
-                if isinstance(self.model, nn.DataParallel):
-                    output = self.model.module.final_activation(output)
-                else:
-                    output = self.model.final_activation(output)
                 # compute eval criterion
                 if not self.skip_train_validation:
                     eval_score = self.eval_criterion(output, target)
@@ -305,24 +300,26 @@ class UNetTrainer:
             input, target, weight = t
         return input, target, weight
 
-    def _forward_pass(self, input, target, weight=None):
-        if isinstance(self.model, UNet2D):
+    def _forward_pass(self, x, y, weight=None):
+        if is_model_2d(self.model):
             # remove the singleton z-dimension from the input
-            input = torch.squeeze(input, dim=-3)
+            x = torch.squeeze(x, dim=-3)
             # forward pass
-            output = self.model(input)
+            output, logits = self.model(x, return_logits=True)
             # add the singleton z-dimension to the output
             output = torch.unsqueeze(output, dim=-3)
+            logits = torch.unsqueeze(logits, dim=-3)
         else:
             # forward pass
-            output = self.model(input)
+            output, logits = self.model(x, return_logits=True)
 
-        # compute the loss
+        # always compute the loss using logits
         if weight is None:
-            loss = self.loss_criterion(output, target)
+            loss = self.loss_criterion(logits, y)
         else:
-            loss = self.loss_criterion(output, target, weight)
+            loss = self.loss_criterion(logits, y, weight)
 
+        # return probabilities and loss
         return output, loss
 
     def _is_best_eval_score(self, eval_score):
