@@ -17,6 +17,7 @@ requirements:
   build:
     - python >=3.9
     - pip
+    - setuptools
 
   run:
     - python >=3.9
