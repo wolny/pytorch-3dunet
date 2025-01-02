@@ -1,6 +1,7 @@
 import glob
 import os
 from abc import abstractmethod
+from concurrent.futures.process import ProcessPoolExecutor
 from itertools import chain
 
 import h5py
@@ -192,22 +193,29 @@ class AbstractHDF5Dataset(ConfigDataset):
         # are going to be included in the final file_paths
         file_paths = traverse_h5_paths(file_paths)
 
-        datasets = []
-        for file_path in file_paths:
-            try:
+        # create datasets concurrently
+        with ProcessPoolExecutor() as executor:
+            futures = []
+            for file_path in file_paths:
                 logger.info(f'Loading {phase} set from: {file_path}...')
-                dataset = cls(file_path=file_path,
-                              phase=phase,
-                              slice_builder_config=slice_builder_config,
-                              transformer_config=transformer_config,
-                              raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
-                              label_internal_path=dataset_config.get('label_internal_path', 'label'),
-                              weight_internal_path=dataset_config.get('weight_internal_path', None),
-                              global_normalization=dataset_config.get('global_normalization', None))
-                datasets.append(dataset)
-            except Exception:
-                logger.error(f'Skipping {phase} set: {file_path}', exc_info=True)
-        return datasets
+                future = executor.submit(cls, file_path=file_path,
+                                         phase=phase,
+                                         slice_builder_config=slice_builder_config,
+                                         transformer_config=transformer_config,
+                                         raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
+                                         label_internal_path=dataset_config.get('label_internal_path', 'label'),
+                                         weight_internal_path=dataset_config.get('weight_internal_path', None),
+                                         global_normalization=dataset_config.get('global_normalization', None))
+                futures.append(future)
+
+            datasets = []
+            for future in futures:
+                try:
+                    dataset = future.result()
+                    datasets.append(dataset)
+                except Exception as e:
+                    logger.error(f'Failed to load dataset: {e}')
+            return datasets
 
 
 class StandardHDF5Dataset(AbstractHDF5Dataset):
