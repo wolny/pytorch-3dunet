@@ -81,14 +81,27 @@ class AbstractUNet(nn.Module):
             # regression problem
             self.final_activation = None
 
-    def forward(self, x):
-        # Return probabilities computed by Sigmoid/Softmax only during prediction.
-        # In training mode always return logits.
-        return_probabilities = not self.training and self.final_activation is not None
-        output, _ = self.forward_logits(x, return_probabilities)
+    def forward(self, x, return_logits=False):
+        """
+        Forward pass through the network.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (N, C, D, H, W) for 3D or (N, C, H, W) for 2D,
+                              where N is the batch size, C is the number of channels,
+                              D is the depth, H is the height, and W is the width.
+            return_logits (bool): If True, returns both the output and the logits.
+                                  If False, returns only the output. Default is False.
+
+        Returns:
+            torch.Tensor: The output tensor after passing through the network.
+                          If return_logits is True, returns a tuple of (output, logits).
+        """
+        output, logits = self._forward_logits(x)
+        if return_logits:
+            return output, logits
         return output
 
-    def forward_logits(self, x, return_probabilities=False):
+    def _forward_logits(self, x):
         # encoder part
         encoders_features = []
         for encoder in self.encoders:
@@ -108,7 +121,7 @@ class AbstractUNet(nn.Module):
 
         x = self.final_conv(x)
 
-        if return_probabilities and self.final_activation is not None:
+        if self.final_activation is not None:
             # compute final activation
             out = self.final_activation(x)
             # return both probabilities and logits

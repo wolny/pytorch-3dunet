@@ -305,13 +305,13 @@ class UNetTrainer:
             # remove the singleton z-dimension from the input
             input = torch.squeeze(input, dim=-3)
             # forward pass
-            output, logits = self.model.forward_logits(input, return_probabilities=True)
+            output, logits = self.model(input, return_logits=True)
             # add the singleton z-dimension to the output
             output = torch.unsqueeze(output, dim=-3)
             logits = torch.unsqueeze(logits, dim=-3)
         else:
             # forward pass
-            output, logits = self.model.forward_logits(input, return_probabilities=True)
+            output, logits = self.model(input, return_logits=True)
 
         # always compute the loss using logits
         if weight is None:
