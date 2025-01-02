@@ -82,6 +82,13 @@ class AbstractUNet(nn.Module):
             self.final_activation = None
 
     def forward(self, x):
+        # Return probabilities computed by Sigmoid/Softmax only during prediction.
+        # In training mode always return logits.
+        return_probabilities = not self.training and self.final_activation is not None
+        output, _ = self.forward_logits(x, return_probabilities)
+        return output
+
+    def forward_logits(self, x, return_probabilities=False):
         # encoder part
         encoders_features = []
         for encoder in self.encoders:
@@ -101,12 +108,13 @@ class AbstractUNet(nn.Module):
 
         x = self.final_conv(x)
 
-        # apply final_activation (i.e. Sigmoid or Softmax) only during prediction.
-        # During training the network outputs logits
-        if not self.training and self.final_activation is not None:
-            x = self.final_activation(x)
+        if return_probabilities and self.final_activation is not None:
+            # compute final activation
+            out = self.final_activation(x)
+            # return both probabilities and logits
+            return out, x
 
-        return x
+        return x, x
 
 
 class UNet3D(AbstractUNet):

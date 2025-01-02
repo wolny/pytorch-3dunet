@@ -213,11 +213,6 @@ class UNetTrainer:
                 self._save_checkpoint(is_best)
 
             if self.num_iterations % self.log_after_iters == 0:
-                # network returns logits in train mode, apply final activation to the output
-                if isinstance(self.model, nn.DataParallel):
-                    output = self.model.module.final_activation(output)
-                else:
-                    output = self.model.final_activation(output)
                 # compute eval criterion
                 if not self.skip_train_validation:
                     eval_score = self.eval_criterion(output, target)
@@ -310,19 +305,21 @@ class UNetTrainer:
             # remove the singleton z-dimension from the input
             input = torch.squeeze(input, dim=-3)
             # forward pass
-            output = self.model(input)
+            output, logits = self.model.forward_logits(input, return_probabilities=True)
             # add the singleton z-dimension to the output
             output = torch.unsqueeze(output, dim=-3)
+            logits = torch.unsqueeze(logits, dim=-3)
         else:
             # forward pass
-            output = self.model(input)
+            output, logits = self.model.forward_logits(input, return_probabilities=True)
 
-        # compute the loss
+        # always compute the loss using logits
         if weight is None:
-            loss = self.loss_criterion(output, target)
+            loss = self.loss_criterion(logits, target)
         else:
-            loss = self.loss_criterion(output, target, weight)
+            loss = self.loss_criterion(logits, target, weight)
 
+        # return probabilities and loss
         return output, loss
 
     def _is_best_eval_score(self, eval_score):
