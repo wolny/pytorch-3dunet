@@ -155,8 +155,12 @@ class FilterSliceBuilder(SliceBuilder):
 
         zipped_slices = zip(self.raw_slices, self.label_slices)
         # ignore slices containing too much ignore_index
-        logger.info(f'Filtering slices...')
         filtered_slices = list(filter(ignore_predicate, zipped_slices))
+        # log number of filtered patches
+        logger.info(
+            f"Loading {len(filtered_slices)} out of {len(self.raw_slices)} patches: "
+            f"{int(100 * len(filtered_slices) / len(self.raw_slices))}%"
+        )
         # unzip and save slices
         raw_slices, label_slices = zip(*filtered_slices)
         self._raw_slices = list(raw_slices)
