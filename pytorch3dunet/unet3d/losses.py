@@ -3,6 +3,9 @@ import torch.nn.functional as F
 from torch import nn as nn
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss
 
+from pytorch3dunet.unet3d.utils import get_logger
+
+logger = get_logger('Loss')
 
 def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
     """
@@ -278,6 +281,7 @@ def get_loss_criterion(config):
     assert 'loss' in config, 'Could not find loss function configuration'
     loss_config = config['loss']
     name = loss_config.pop('name')
+    logger.info(f"Creating loss function: {name}")
 
     ignore_index = loss_config.pop('ignore_index', None)
     skip_last_target = loss_config.pop('skip_last_target', False)
@@ -285,6 +289,7 @@ def get_loss_criterion(config):
 
     if weight is not None:
         weight = torch.tensor(weight)
+        logger.info(f"Using class weights: {weight}")
 
     pos_weight = loss_config.pop('pos_weight', None)
     if pos_weight is not None:
