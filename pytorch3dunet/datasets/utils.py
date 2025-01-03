@@ -155,8 +155,12 @@ class FilterSliceBuilder(SliceBuilder):
 
         zipped_slices = zip(self.raw_slices, self.label_slices)
         # ignore slices containing too much ignore_index
-        logger.info(f'Filtering slices...')
         filtered_slices = list(filter(ignore_predicate, zipped_slices))
+        # log number of filtered patches
+        logger.info(
+            f"Loading {len(filtered_slices)} out of {len(self.raw_slices)} patches: "
+            f"{int(100 * len(filtered_slices) / len(self.raw_slices))}%"
+        )
         # unzip and save slices
         raw_slices, label_slices = zip(*filtered_slices)
         self._raw_slices = list(raw_slices)
@@ -220,10 +224,10 @@ def get_train_loaders(config):
     # when training with volumetric data use batch_size of 1 due to GPU memory constraints
     return {
         'train': DataLoader(ConcatDataset(train_datasets), batch_size=batch_size, shuffle=True, pin_memory=True,
-                            num_workers=num_workers),
+                            num_workers=num_workers, drop_last=True),
         # don't shuffle during validation: useful when showing how predictions for a given batch get better over time
         'val': DataLoader(ConcatDataset(val_datasets), batch_size=batch_size, shuffle=False, pin_memory=True,
-                          num_workers=num_workers)
+                          num_workers=num_workers, drop_last=True)
     }
 
 

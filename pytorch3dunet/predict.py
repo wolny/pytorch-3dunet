@@ -14,8 +14,6 @@ logger = utils.get_logger('UNet3DPredict')
 
 def get_predictor(model, config):
     output_dir = config['loaders'].get('output_dir', None)
-    # override output_dir if provided in the 'predictor' section of the config
-    output_dir = config.get('predictor', {}).get('output_dir', output_dir)
     if output_dir is not None:
         os.makedirs(output_dir, exist_ok=True)
 

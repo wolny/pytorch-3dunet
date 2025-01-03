@@ -706,7 +706,7 @@ class LabelToTensor:
 
 
 class GaussianBlur3D:
-    def __init__(self, sigma=[.1, 2.], execution_probability=0.5, **kwargs):
+    def __init__(self, sigma=(.1, 2.), execution_probability=0.5, **kwargs):
         self.sigma = sigma
         self.execution_probability = execution_probability
 

@@ -7,6 +7,7 @@ import sys
 import h5py
 import numpy as np
 import torch
+from skimage.color import label2rgb
 from torch import optim
 
 
@@ -110,15 +111,16 @@ def number_of_features_per_level(init_channel_number, num_levels):
     return [init_channel_number * 2 ** k for k in range(num_levels)]
 
 
-class _TensorboardFormatter:
+class TensorboardFormatter:
     """
     Tensorboard formatters converts a given batch of images (be it input/output to the network or the target segmentation
     image) to a series of images that can be displayed in tensorboard. This is the parent class for all tensorboard
     formatters which ensures that returned images are in the 'CHW' format.
     """
 
-    def __init__(self, **kwargs):
-        pass
+    def __init__(self, skip_last_target=False, log_channelwise=False):
+        self.skip_last_target = skip_last_target
+        self.log_channelwise = log_channelwise
 
     def __call__(self, name, batch):
         """
@@ -128,6 +130,9 @@ class _TensorboardFormatter:
         Args:
              name (str): one of 'inputs'/'targets'/'predictions'
              batch (torch.tensor): 4D or 5D torch tensor
+
+        Returns:
+            list[(str, np.ndarray)]: list of tuples of the form (tag, img)
         """
 
         def _check_img(tag_img):
@@ -143,24 +148,15 @@ class _TensorboardFormatter:
 
             return tag, img
 
-        tagged_images = self.process_batch(name, batch)
+        tagged_images = self._process_batch(name, batch)
 
         return list(map(_check_img, tagged_images))
 
-    def process_batch(self, name, batch):
-        raise NotImplementedError
-
-
-class DefaultTensorboardFormatter(_TensorboardFormatter):
-    def __init__(self, skip_last_target=False, **kwargs):
-        super().__init__(**kwargs)
-        self.skip_last_target = skip_last_target
-
-    def process_batch(self, name, batch):
+    def _process_batch(self, name, batch):
         if name == 'targets' and self.skip_last_target:
             batch = batch[:, :-1, ...]
 
-        tag_template = '{}/batch_{}/channel_{}/slice_{}'
+        tag_template = '{}/batch_{}/slice_{}'
 
         tagged_images = []
 
@@ -168,17 +164,52 @@ class DefaultTensorboardFormatter(_TensorboardFormatter):
             # NCDHW
             slice_idx = batch.shape[2] // 2  # get the middle slice
             for batch_idx in range(batch.shape[0]):
-                for channel_idx in range(batch.shape[1]):
-                    tag = tag_template.format(name, batch_idx, channel_idx, slice_idx)
-                    img = batch[batch_idx, channel_idx, slice_idx, ...]
-                    tagged_images.append((tag, self._normalize_img(img)))
+                if self.log_channelwise and name == 'predictions':
+                    tag_template = '{}/batch_{}/channel_{}/slice_{}'
+                    for channel_idx in range(batch.shape[1]):
+                        tag = tag_template.format(name, batch_idx, channel_idx, slice_idx)
+                        img = batch[batch_idx, channel_idx, slice_idx, ...]
+                        tagged_images.append((tag, self._normalize_img(img)))
+                else:
+                    tag = tag_template.format(name, batch_idx, slice_idx)
+                    if name in ['predictions', 'targets']:
+                        # for single channel predictions, just log the image
+                        if batch.shape[1] == 1:
+                            img = batch[batch_idx, :, slice_idx, ...]
+                            tagged_images.append((tag, self._normalize_img(img)))
+                        else:
+                            # predictions are probabilities so convert to label image
+                            img = batch[batch_idx].argmax(axis=0)
+                            # take the middle slice
+                            img = img[slice_idx, ...]
+                            # convert to label image
+                            img = label2rgb(img)
+                            img = img.transpose(2, 0, 1)
+                            tagged_images.append((tag, img))
+                    else:
+                        # handle input images
+                        if batch.shape[1] in [1, 3]:
+                            # if single channel or RGB image, log directly
+                            img = batch[batch_idx, :, slice_idx, ...]
+                            tagged_images.append((tag, self._normalize_img(img)))
+                        else:
+                            # log channelwise
+                            tag_template = '{}/batch_{}/channel_{}/slice_{}'
+                            for channel_idx in range(batch.shape[1]):
+                                tag = tag_template.format(name, batch_idx, channel_idx, slice_idx)
+                                img = batch[batch_idx, channel_idx, slice_idx, ...]
+                                tagged_images.append((tag, self._normalize_img(img)))
+
         else:
             # batch has no channel dim: NDHW
             slice_idx = batch.shape[1] // 2  # get the middle slice
             for batch_idx in range(batch.shape[0]):
-                tag = tag_template.format(name, batch_idx, 0, slice_idx)
+                tag = tag_template.format(name, batch_idx, slice_idx)
                 img = batch[batch_idx, slice_idx, ...]
-                tagged_images.append((tag, self._normalize_img(img)))
+                # this is target segmentation so convert to label image
+                lbl = label2rgb(img)
+                lbl = lbl.transpose(2, 0, 1)
+                tagged_images.append((tag, lbl))
 
         return tagged_images
 
@@ -211,12 +242,8 @@ def _find_masks(batch, min_size=10):
 
 def get_tensorboard_formatter(formatter_config):
     if formatter_config is None:
-        return DefaultTensorboardFormatter()
-
-    class_name = formatter_config['name']
-    m = importlib.import_module('pytorch3dunet.unet3d.utils')
-    clazz = getattr(m, class_name)
-    return clazz(**formatter_config)
+        return TensorboardFormatter()
+    return TensorboardFormatter(**formatter_config)
 
 
 def expand_as_one_hot(input, C, ignore_index=None):

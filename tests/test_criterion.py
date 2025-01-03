@@ -51,27 +51,21 @@ class TestCriterion:
         assert np.all(results > 0)
         assert np.all(results < 1)
 
-    def test_mean_iou(self):
+    def test_mean_iou_multi_channel(self):
         criterion = MeanIoU()
-        x = torch.randn(3, 3, 3, 3)
-        _, index = torch.max(x, dim=0, keepdim=True)
-        # create target tensor
-        target = torch.zeros_like(x, dtype=torch.long).scatter_(0, index, 1)
-        pred = torch.zeros_like(target, dtype=torch.float)
-        mask = target == 1
-        # create prediction tensor
-        pred[mask] = torch.rand(1)
-        # make sure the dimensions are right
-        target = torch.unsqueeze(target, dim=0)
-        pred = torch.unsqueeze(pred, dim=0)
-        assert criterion(pred, target) == 1
-
-    def test_mean_iou_one_channel(self):
-        criterion = MeanIoU()
-        pred = torch.rand(1, 1, 3, 3, 3)
+        pred = torch.rand(10, 3, 10, 10, 10)
         target = pred > 0.5
         target = target.long()
         assert criterion(pred, target) == 1
+
+    def test_mean_iou_multi_class(self):
+        criterion = MeanIoU()
+        n_classes = 5
+        n_batch = 10
+        pred = torch.rand(n_batch, n_classes, 10, 10, 10)
+        target = torch.randint(0, n_classes, (n_batch, 10, 10, 10))
+        mean_iou = criterion(pred, target)
+        assert mean_iou >= 0
 
     def test_average_precision_synthethic_data(self):
         input = np.zeros((64, 200, 200), dtype=np.int32)
@@ -129,7 +123,7 @@ class TestCriterion:
         assert np.all(results < 1)
 
     def test_bce_dice_loss(self):
-        results = _compute_criterion(BCEDiceLoss(1., 1.))
+        results = _compute_criterion(BCEDiceLoss(1.))
         results = np.array(results)
         assert np.all(results > 0)
 
