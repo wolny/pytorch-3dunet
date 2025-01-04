@@ -4,7 +4,7 @@ import random
 import numpy as np
 import torch
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter, convolve
-from skimage import measure
+from skimage import measure, exposure
 from skimage.filters import gaussian
 from skimage.segmentation import find_boundaries
 
@@ -129,6 +129,25 @@ class RandomContrast:
             alpha = self.random_state.uniform(self.alpha[0], self.alpha[1])
             result = self.mean + alpha * (m - self.mean)
             return np.clip(result, -1, 1)
+
+        return m
+
+
+class RandomGammaCorrection:
+    """
+    Adjust contrast by scaling each voxel to `v ** gamma`.
+    """
+
+    def __init__(self, random_state, gamma=(0.5, 1.5), execution_probability=0.1, **kwargs):
+        self.random_state = random_state
+        assert len(gamma) == 2
+        self.gamma = gamma
+        self.execution_probability = execution_probability
+
+    def __call__(self, m):
+        if self.random_state.uniform() < self.execution_probability:
+            gamma = self.random_state.uniform(self.gamma[0], self.gamma[1])
+            return exposure.adjust_gamma(m, gamma)
 
         return m
 
@@ -576,12 +595,12 @@ class Normalize:
             # check if non None in self.min_value/self.max_value
             # if present and if so copy value to min_value
             if self.min_value is not None:
-                for i,v in enumerate(self.min_value):
+                for i, v in enumerate(self.min_value):
                     if v != 'None':
                         min_value[i] = v
 
             if self.max_value is not None:
-                for i,v in enumerate(self.max_value):
+                for i, v in enumerate(self.max_value):
                     if v != 'None':
                         max_value[i] = v
         else:
@@ -600,9 +619,9 @@ class Normalize:
         norm_0_1 = (m - min_value) / (max_value - min_value + self.eps)
 
         if self.norm01 is True:
-          return np.clip(norm_0_1, 0, 1)
+            return np.clip(norm_0_1, 0, 1)
         else:
-          return np.clip(2 * norm_0_1 - 1, -1, 1)
+            return np.clip(2 * norm_0_1 - 1, -1, 1)
 
 
 class AdditiveGaussianNoise:
