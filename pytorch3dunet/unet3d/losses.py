@@ -288,7 +288,7 @@ def get_loss_criterion(config):
     weight = loss_config.pop('weight', None)
 
     if weight is not None:
-        weight = torch.tensor(weight)
+        weight = torch.tensor(weight).float()
         logger.info(f"Using class weights: {weight}")
 
     pos_weight = loss_config.pop('pos_weight', None)
