@@ -144,6 +144,30 @@ class TestHDF5Dataset:
                 input_ = remove_padding(input_, halo_shape)
                 assert np.allclose(input_[0], raw[indices])
 
+    def test_random_scale(self, transformer_config):
+        path = create_random_dataset((200, 200, 172))
+
+        patch_shapes = [(172, 172, 172)]
+        stride_shapes = [(28, 28, 28)]
+
+        phase = 'train'
+
+        for patch_shape, stride_shape in zip(patch_shapes, stride_shapes):
+            dataset = StandardHDF5Dataset(path, phase=phase,
+                                          slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
+                                          transformer_config=transformer_config[phase]['transformer'],
+                                          raw_internal_path='raw',
+                                          label_internal_path='label',
+                                          random_scale=20)
+
+            for raw, label in dataset:
+                if raw.ndim == 3:
+                    assert raw.shape == patch_shape
+                    assert label.shape == patch_shape
+                else:
+                    assert raw.shape[1:] == patch_shape
+                    assert label.shape[1:] == patch_shape
+
 
 def create_random_dataset(shape, ignore_index=False, raw_datasets=None, label_datasets=None):
     if label_datasets is None:

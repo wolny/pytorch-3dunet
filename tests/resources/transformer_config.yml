@@ -5,28 +5,20 @@ train:
       - name: Standardize
       - name: RandomFlip
       - name: RandomRotate90
-      - name: RandomRotate
-        axes: [[2, 1]]
-        angle_spectrum: 30
-        mode: reflect
       - name: ElasticDeformation
         execution_probability: 1.0
         spline_order: 0
       - name: ToTensor
         expand_dims: true
     label:
-      - name: Standardize
       - name: RandomFlip
       - name: RandomRotate90
-      - name: RandomRotate
-        axes: [[2, 1]]
-        angle_spectrum: 30
-        mode: reflect
       - name: ElasticDeformation
         execution_probability: 1.0
         spline_order: 0
       - name: ToTensor
         expand_dims: true
+        dtype: int64
 
 test:
   transformer:
@@ -37,3 +29,4 @@ test:
     label:
       - name: ToTensor
         expand_dims: true
+        dtype: int64

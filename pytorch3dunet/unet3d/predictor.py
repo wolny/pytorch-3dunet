@@ -97,7 +97,7 @@ class StandardPredictor(_AbstractPredictor):
 
         logger.info(f'Running inference on {len(test_loader)} batches')
         # dimensionality of the output predictions
-        volume_shape = test_loader.dataset.volume_shape()
+        volume_shape = test_loader.dataset.volume_shape
 
         if self.save_segmentation:
             # single channel segmentation map

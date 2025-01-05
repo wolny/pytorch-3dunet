@@ -7,7 +7,7 @@ from itertools import chain
 import h5py
 
 import pytorch3dunet.augment.transforms as transforms
-from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calculate_stats, mirror_pad
+from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calculate_stats, mirror_pad, RandomScaler
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('HDF5Dataset')
@@ -45,10 +45,14 @@ class AbstractHDF5Dataset(ConfigDataset):
         label_internal_path (str or list): H5 internal path to the label dataset
         weight_internal_path (str or list): H5 internal path to the per pixel weights (optional)
         global_normalization (bool): if True, the mean and std of the raw data will be calculated over the whole dataset
+        random_scale (int): if not None, the raw data will be randomly shifted by a value in the range
+            [-random_scale, random_scale] in each dimension and then scaled to the original patch shape
+
     """
 
     def __init__(self, file_path, phase, slice_builder_config, transformer_config, raw_internal_path='raw',
-                 label_internal_path='label', weight_internal_path=None, global_normalization=True):
+                 label_internal_path='label', weight_internal_path=None, global_normalization=True,
+                 random_scale=None):
         assert phase in ['train', 'val', 'test']
 
         self.phase = phase
@@ -95,6 +99,10 @@ class AbstractHDF5Dataset(ConfigDataset):
 
         with h5py.File(file_path, 'r') as f:
             raw = f[raw_internal_path]
+            if raw.ndim == 3:
+                self.volume_shape = raw.shape
+            else:
+                self.volume_shape = raw.shape[1:]
             label = f[label_internal_path] if phase != 'test' else None
             weight_map = f[weight_internal_path] if weight_internal_path is not None else None
             # build slice indices for raw and label data sets
@@ -102,6 +110,17 @@ class AbstractHDF5Dataset(ConfigDataset):
             self.raw_slices = slice_builder.raw_slices
             self.label_slices = slice_builder.label_slices
             self.weight_slices = slice_builder.weight_slices
+
+        if random_scale is not None:
+            assert isinstance(random_scale, int), 'random_scale must be an integer'
+            stride_shape = slice_builder_config.get('stride_shape')
+            assert all(random_scale < stride for stride in stride_shape), \
+                f"random_scale {random_scale} must be smaller than each of the strides {stride_shape}"
+            patch_shape = slice_builder_config.get('patch_shape')
+            self.random_scaler = RandomScaler(random_scale, patch_shape, self.volume_shape)
+            logger.info(f"Using RandomScaler with offset range {random_scale}")
+        else:
+            self.random_scaler = None
 
         self.patch_count = len(self.raw_slices)
 
@@ -121,14 +140,6 @@ class AbstractHDF5Dataset(ConfigDataset):
     def get_raw_padded_patch(self, idx):
         raise NotImplementedError
 
-    def volume_shape(self):
-        with h5py.File(self.file_path, 'r') as f:
-            raw = f[self.raw_internal_path]
-            if raw.ndim == 3:
-                return raw.shape
-            else:
-                return raw.shape[1:]
-
     def __getitem__(self, idx):
         if idx >= len(self):
             raise StopIteration
@@ -146,15 +157,24 @@ class AbstractHDF5Dataset(ConfigDataset):
             raw_patch_transformed = self.raw_transform(self.get_raw_padded_patch(raw_idx_padded))
             return raw_patch_transformed, raw_idx
         else:
-            raw_patch_transformed = self.raw_transform(self.get_raw_patch(raw_idx))
-
-            # get the slice for a given index 'idx'
             label_idx = self.label_slices[idx]
+
+            if self.random_scaler is not None:
+                # randomize the indices
+                raw_idx, label_idx = self.random_scaler.randomize_indices(raw_idx, label_idx)
+
+            raw_patch_transformed = self.raw_transform(self.get_raw_patch(raw_idx))
             label_patch_transformed = self.label_transform(self.get_label_patch(label_idx))
             if self.weight_internal_path is not None:
                 weight_idx = self.weight_slices[idx]
                 weight_patch_transformed = self.weight_transform(self.get_weight_patch(weight_idx))
                 return raw_patch_transformed, label_patch_transformed, weight_patch_transformed
+
+            if self.random_scaler is not None:
+                # scale patches back to the original patch size
+                raw_patch_transformed, label_patch_transformed = self.random_scaler.rescale_patches(
+                    raw_patch_transformed, label_patch_transformed
+                )
             # return the transformed raw and label patches
             return raw_patch_transformed, label_patch_transformed
 
@@ -204,7 +224,8 @@ class AbstractHDF5Dataset(ConfigDataset):
                                          raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
                                          label_internal_path=dataset_config.get('label_internal_path', 'label'),
                                          weight_internal_path=dataset_config.get('weight_internal_path', None),
-                                         global_normalization=dataset_config.get('global_normalization', None))
+                                         global_normalization=dataset_config.get('global_normalization', None),
+                                         random_scale=dataset_config.get('random_scale', None))
                 futures.append(future)
 
             datasets = []
@@ -225,11 +246,11 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
 
     def __init__(self, file_path, phase, slice_builder_config, transformer_config,
                  raw_internal_path='raw', label_internal_path='label', weight_internal_path=None,
-                 global_normalization=True):
+                 global_normalization=True, random_scale=None):
         super().__init__(file_path=file_path, phase=phase, slice_builder_config=slice_builder_config,
                          transformer_config=transformer_config, raw_internal_path=raw_internal_path,
                          label_internal_path=label_internal_path, weight_internal_path=weight_internal_path,
-                         global_normalization=global_normalization)
+                         global_normalization=global_normalization, random_scale=random_scale)
         self._raw = None
         self._raw_padded = None
         self._label = None
@@ -269,11 +290,11 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
 
     def __init__(self, file_path, phase, slice_builder_config, transformer_config,
                  raw_internal_path='raw', label_internal_path='label', weight_internal_path=None,
-                 global_normalization=False):
+                 global_normalization=False, random_scale=None):
         super().__init__(file_path=file_path, phase=phase, slice_builder_config=slice_builder_config,
                          transformer_config=transformer_config, raw_internal_path=raw_internal_path,
                          label_internal_path=label_internal_path, weight_internal_path=weight_internal_path,
-                         global_normalization=global_normalization)
+                         global_normalization=global_normalization, random_scale=random_scale)
 
         logger.info("Using LazyHDF5Dataset")
 
