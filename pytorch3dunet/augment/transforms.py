@@ -146,6 +146,8 @@ class RandomGammaCorrection:
 
     def __call__(self, m):
         if self.random_state.uniform() < self.execution_probability:
+            # rescale intensity values to [0, 1]
+            m = exposure.rescale_intensity(m, out_range=(0, 1))
             gamma = self.random_state.uniform(self.gamma[0], self.gamma[1])
             return exposure.adjust_gamma(m, gamma)
 

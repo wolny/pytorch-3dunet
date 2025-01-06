@@ -47,12 +47,12 @@ class AbstractHDF5Dataset(ConfigDataset):
         global_normalization (bool): if True, the mean and std of the raw data will be calculated over the whole dataset
         random_scale (int): if not None, the raw data will be randomly shifted by a value in the range
             [-random_scale, random_scale] in each dimension and then scaled to the original patch shape
-
+        random_scale_probability (float): probability of executing the random scale on a patch
     """
 
     def __init__(self, file_path, phase, slice_builder_config, transformer_config, raw_internal_path='raw',
                  label_internal_path='label', weight_internal_path=None, global_normalization=True,
-                 random_scale=None):
+                 random_scale=None, random_scale_probability=0.5):
         assert phase in ['train', 'val', 'test']
 
         self.phase = phase
@@ -117,7 +117,7 @@ class AbstractHDF5Dataset(ConfigDataset):
             assert all(random_scale < stride for stride in stride_shape), \
                 f"random_scale {random_scale} must be smaller than each of the strides {stride_shape}"
             patch_shape = slice_builder_config.get('patch_shape')
-            self.random_scaler = RandomScaler(random_scale, patch_shape, self.volume_shape)
+            self.random_scaler = RandomScaler(random_scale, patch_shape, self.volume_shape, random_scale_probability)
             logger.info(f"Using RandomScaler with offset range {random_scale}")
         else:
             self.random_scaler = None
@@ -225,7 +225,8 @@ class AbstractHDF5Dataset(ConfigDataset):
                                          label_internal_path=dataset_config.get('label_internal_path', 'label'),
                                          weight_internal_path=dataset_config.get('weight_internal_path', None),
                                          global_normalization=dataset_config.get('global_normalization', None),
-                                         random_scale=dataset_config.get('random_scale', None))
+                                         random_scale=dataset_config.get('random_scale', None),
+                                         random_scale_probability=dataset_config.get('random_scale_probability', 0.5))
                 futures.append(future)
 
             datasets = []
@@ -246,11 +247,12 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
 
     def __init__(self, file_path, phase, slice_builder_config, transformer_config,
                  raw_internal_path='raw', label_internal_path='label', weight_internal_path=None,
-                 global_normalization=True, random_scale=None):
+                 global_normalization=True, random_scale=None, random_scale_probability=0.5):
         super().__init__(file_path=file_path, phase=phase, slice_builder_config=slice_builder_config,
                          transformer_config=transformer_config, raw_internal_path=raw_internal_path,
                          label_internal_path=label_internal_path, weight_internal_path=weight_internal_path,
-                         global_normalization=global_normalization, random_scale=random_scale)
+                         global_normalization=global_normalization, random_scale=random_scale,
+                         random_scale_probability=random_scale_probability)
         self._raw = None
         self._raw_padded = None
         self._label = None
@@ -290,11 +292,12 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
 
     def __init__(self, file_path, phase, slice_builder_config, transformer_config,
                  raw_internal_path='raw', label_internal_path='label', weight_internal_path=None,
-                 global_normalization=False, random_scale=None):
+                 global_normalization=False, random_scale=None, random_scale_probability=0.5):
         super().__init__(file_path=file_path, phase=phase, slice_builder_config=slice_builder_config,
                          transformer_config=transformer_config, raw_internal_path=raw_internal_path,
                          label_internal_path=label_internal_path, weight_internal_path=weight_internal_path,
-                         global_normalization=global_normalization, random_scale=random_scale)
+                         global_normalization=global_normalization, random_scale=random_scale,
+                         random_scale_probability=random_scale_probability)
 
         logger.info("Using LazyHDF5Dataset")
 

@@ -1,7 +1,7 @@
 import numpy as np
 
 from pytorch3dunet.augment.transforms import RandomLabelToAffinities, LabelToAffinities, Transformer, Relabel, \
-    CropToFixed
+    CropToFixed, RandomGammaCorrection
 
 
 class TestTransforms:
@@ -213,6 +213,12 @@ class TestTransforms:
         m_crop = m[:, y_start:y_start + 128, x_start:x_start + 128]
 
         assert np.array_equal(m_crop, t(m))
+
+    def test_random_gamma_correction(self):
+        m = np.random.rand(200, 200, 200)
+        t = RandomGammaCorrection(np.random.RandomState(), gamma=(1.1, 2.0), execution_probability=1.0)
+        # Output is darker for gamma > 1
+        assert np.mean(m) > np.mean(t(m))
 
 
 def _diagonal_label_volume(size, init=1):

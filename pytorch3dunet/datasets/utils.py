@@ -16,13 +16,19 @@ class RandomScaler:
     Randomly scales the raw and label patches.
     """
 
-    def __init__(self, scale_range: int, patch_shape: tuple, volume_shape: tuple, seed: int = 47):
+    def __init__(self, scale_range: int, patch_shape: tuple, volume_shape: tuple, execution_probability: bool = 0.5,
+                 seed: int = 47):
         self.scale_range = scale_range
         self.patch_shape = patch_shape
         self.volume_shape = volume_shape
+        self.execution_probability = execution_probability
         self.rs = np.random.RandomState(seed)
 
     def randomize_indices(self, raw_idx: tuple, label_idx: tuple) -> tuple[tuple, tuple]:
+        # execute scaling with a given probability
+        if self.rs.uniform() < self.execution_probability:
+            return raw_idx, label_idx
+
         # select random offsets for scaling
         offsets = [self.rs.randint(self.scale_range) for _ in range(3)]
         # change offset sign at random
