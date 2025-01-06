@@ -2,7 +2,6 @@
 train:
   transformer:
     raw:
-      - name: Standardize
       - name: RandomFlip
       - name: RandomRotate90
       - name: ElasticDeformation
@@ -18,7 +17,6 @@ train:
         spline_order: 0
       - name: ToTensor
         expand_dims: true
-        dtype: int64
 
 test:
   transformer:
@@ -29,4 +27,3 @@ test:
     label:
       - name: ToTensor
         expand_dims: true
-        dtype: int64

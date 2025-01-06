@@ -32,6 +32,18 @@ class RandomScaler:
         is_start = self.rs.rand() > 0.5
         raw_idx = self._apply_offsets(raw_idx, offsets, is_start)
         label_idx = self._apply_offsets(label_idx, offsets, is_start)
+
+        # assert spatial dimensions are the same
+        if len(raw_idx) == 4:
+            raw_idx_spacial = raw_idx[1:]
+        else:
+            raw_idx_spacial = raw_idx
+        if len(label_idx) == 4:
+            label_idx_spacial = label_idx[1:]
+        else:
+            label_idx_spacial = label_idx
+        assert raw_idx_spacial == label_idx_spacial, f"Raw and label indices are different: {raw_idx_spacial} != {label_idx_spacial}"
+
         return raw_idx, label_idx
 
     def rescale_patches(self, raw_patch: torch.Tensor, label_patch: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -55,6 +67,7 @@ class RandomScaler:
             raw_patch = raw_patch.unsqueeze(0).unsqueeze(0)
             remove_dims = 2
 
+        # interpolate raw patch
         raw_patch = interpolate(raw_patch, self.patch_shape, mode='trilinear')
         # remove additional dimensions
         for _ in range(remove_dims):
@@ -73,13 +86,14 @@ class RandomScaler:
             # convert to float for interpolation
             label_patch = label_patch.float()
 
+        # interpolate label patch
         label_patch = interpolate(label_patch, self.patch_shape, mode='nearest')
 
         # remove additional dimensions
         for _ in range(remove_dims):
             label_patch = label_patch.squeeze(0)
 
-        # conver back to int if necessary
+        # convert back to int if necessary
         if label_dtype in [torch.int, torch.int8, torch.int16, torch.int32, torch.int64]:
             if label_dtype == torch.int64:
                 label_patch = label_patch.long()
@@ -90,21 +104,26 @@ class RandomScaler:
 
     def _apply_offsets(self, idx: tuple, offsets: list, is_start: bool) -> tuple:
         if len(idx) == 4:
-            offsets = [0] + offsets
-            volume_shape = (idx[0].stop,) + self.volume_shape
+            spatial_idx = idx[1:]
         else:
-            volume_shape = self.volume_shape
+            spatial_idx = idx
 
         new_idx = []
-        for i, o, s in zip(idx, offsets, volume_shape):
+        for i, o, s in zip(spatial_idx, offsets, self.volume_shape):
             if is_start:
+                # prevent negative start
                 start = max(0, i.start + o)
                 stop = i.stop
             else:
                 start = i.start
+                # prevent stop exceeding the volume shape
                 stop = min(s, i.stop + o)
 
             new_idx.append(slice(start, stop))
+
+        if len(idx) == 4:
+            return (idx[0],) + tuple(new_idx)
+
         return tuple(new_idx)
 
 
