@@ -3,6 +3,9 @@ import torch.nn.functional as F
 from torch import nn as nn
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss
 
+from pytorch3dunet.unet3d.utils import get_logger
+
+logger = get_logger('Loss')
 
 def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
     """
@@ -167,15 +170,14 @@ class GeneralizedDiceLoss(_AbstractDiceLoss):
 class BCEDiceLoss(nn.Module):
     """Linear combination of BCE and Dice losses"""
 
-    def __init__(self, alpha, beta):
+    def __init__(self, alpha=1.0):
         super(BCEDiceLoss, self).__init__()
         self.alpha = alpha
         self.bce = nn.BCEWithLogitsLoss()
-        self.beta = beta
         self.dice = DiceLoss()
 
     def forward(self, input, target):
-        return self.alpha * self.bce(input, target) + self.beta * self.dice(input, target)
+        return self.bce(input, target) + self.alpha * self.dice(input, target)
 
 
 class WeightedCrossEntropyLoss(nn.Module):
@@ -279,13 +281,15 @@ def get_loss_criterion(config):
     assert 'loss' in config, 'Could not find loss function configuration'
     loss_config = config['loss']
     name = loss_config.pop('name')
+    logger.info(f"Creating loss function: {name}")
 
     ignore_index = loss_config.pop('ignore_index', None)
     skip_last_target = loss_config.pop('skip_last_target', False)
     weight = loss_config.pop('weight', None)
 
     if weight is not None:
-        weight = torch.tensor(weight)
+        weight = torch.tensor(weight).float()
+        logger.info(f"Using class weights: {weight}")
 
     pos_weight = loss_config.pop('pos_weight', None)
     if pos_weight is not None:
@@ -313,8 +317,7 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
         return nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     elif name == 'BCEDiceLoss':
         alpha = loss_config.get('alpha', 1.)
-        beta = loss_config.get('beta', 1.)
-        return BCEDiceLoss(alpha, beta)
+        return BCEDiceLoss(alpha)
     elif name == 'CrossEntropyLoss':
         if ignore_index is None:
             ignore_index = -100  # use the default 'ignore_index' as defined in the CrossEntropyLoss

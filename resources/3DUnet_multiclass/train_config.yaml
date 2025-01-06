@@ -74,6 +74,10 @@ loaders:
   raw_internal_path: raw
   # path to the label data within the H5
   label_internal_path: label
+  # apply random shifting and scaling of the patches; value of 20 mean that patches may shrink/stretch by 20px in each dimension
+  random_scale: 20
+  # random scale execution probability; since random scale is quite slow for 3D data, we set it to 0.1
+  random_scale_probability: 0.1
   # path to the pixel-wise weight map withing the H5 if present
   weight_internal_path: null
   # configuration of the train loader

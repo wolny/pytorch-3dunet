@@ -3,6 +3,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from torch.nn.functional import interpolate
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
 
 from pytorch3dunet.unet3d.utils import get_logger, get_class
@@ -10,7 +11,133 @@ from pytorch3dunet.unet3d.utils import get_logger, get_class
 logger = get_logger('Dataset')
 
 
+class RandomScaler:
+    """
+    Randomly scales the raw and label patches.
+    """
+
+    def __init__(self, scale_range: int, patch_shape: tuple, volume_shape: tuple, execution_probability: bool = 0.5,
+                 seed: int = 47):
+        self.scale_range = scale_range
+        self.patch_shape = patch_shape
+        self.volume_shape = volume_shape
+        self.execution_probability = execution_probability
+        self.rs = np.random.RandomState(seed)
+
+    def randomize_indices(self, raw_idx: tuple, label_idx: tuple) -> tuple[tuple, tuple]:
+        # execute scaling with a given probability
+        if self.rs.uniform() < self.execution_probability:
+            return raw_idx, label_idx
+
+        # select random offsets for scaling
+        offsets = [self.rs.randint(self.scale_range) for _ in range(3)]
+        # change offset sign at random
+        if self.rs.rand() > 0.5:
+            offsets = [-o for o in offsets]
+        # apply offsets to the start or end of the slice at random
+        is_start = self.rs.rand() > 0.5
+        raw_idx = self._apply_offsets(raw_idx, offsets, is_start)
+        label_idx = self._apply_offsets(label_idx, offsets, is_start)
+
+        # assert spatial dimensions are the same
+        if len(raw_idx) == 4:
+            raw_idx_spacial = raw_idx[1:]
+        else:
+            raw_idx_spacial = raw_idx
+        if len(label_idx) == 4:
+            label_idx_spacial = label_idx[1:]
+        else:
+            label_idx_spacial = label_idx
+        assert raw_idx_spacial == label_idx_spacial, f"Raw and label indices are different: {raw_idx_spacial} != {label_idx_spacial}"
+
+        return raw_idx, label_idx
+
+    def rescale_patches(self, raw_patch: torch.Tensor, label_patch: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        # compute zoom factors
+        if raw_patch.ndim == 4:
+            raw_shape = raw_patch.shape[1:]
+        else:
+            raw_shape = raw_patch.shape
+
+        # if raw_shape equal to self.patch_shape just return the patches
+        if raw_shape == self.patch_shape:
+            return raw_patch, label_patch
+
+        # rescale patches back to the original shape
+        if raw_patch.ndim == 4:
+            # add batch dimension
+            raw_patch = raw_patch.unsqueeze(0)
+            remove_dims = 1
+        else:
+            # add batch and channels dimensions
+            raw_patch = raw_patch.unsqueeze(0).unsqueeze(0)
+            remove_dims = 2
+
+        # interpolate raw patch
+        raw_patch = interpolate(raw_patch, self.patch_shape, mode='trilinear')
+        # remove additional dimensions
+        for _ in range(remove_dims):
+            raw_patch = raw_patch.squeeze(0)
+
+        if label_patch.ndim == 4:
+            label_patch = label_patch.unsqueeze(0)
+            remove_dims = 1
+        else:
+            label_patch = label_patch.unsqueeze(0).unsqueeze(0)
+            remove_dims = 2
+
+        label_dtype = label_patch.dtype
+        # check if label patch is of torch int type
+        if label_dtype in [torch.int, torch.int8, torch.int16, torch.int32, torch.int64]:
+            # convert to float for interpolation
+            label_patch = label_patch.float()
+
+        # interpolate label patch
+        label_patch = interpolate(label_patch, self.patch_shape, mode='nearest')
+
+        # remove additional dimensions
+        for _ in range(remove_dims):
+            label_patch = label_patch.squeeze(0)
+
+        # convert back to int if necessary
+        if label_dtype in [torch.int, torch.int8, torch.int16, torch.int32, torch.int64]:
+            if label_dtype == torch.int64:
+                label_patch = label_patch.long()
+            else:
+                label_patch = label_patch.int()
+
+        return raw_patch, label_patch
+
+    def _apply_offsets(self, idx: tuple, offsets: list, is_start: bool) -> tuple:
+        if len(idx) == 4:
+            spatial_idx = idx[1:]
+        else:
+            spatial_idx = idx
+
+        new_idx = []
+        for i, o, s in zip(spatial_idx, offsets, self.volume_shape):
+            if is_start:
+                # prevent negative start
+                start = max(0, i.start + o)
+                stop = i.stop
+            else:
+                start = i.start
+                # prevent stop exceeding the volume shape
+                stop = min(s, i.stop + o)
+
+            new_idx.append(slice(start, stop))
+
+        if len(idx) == 4:
+            return (idx[0],) + tuple(new_idx)
+
+        return tuple(new_idx)
+
+
 class ConfigDataset(Dataset):
+    """
+    Abstract class for datasets that are configured via a dictionary.
+    """
+
     def __getitem__(self, index):
         raise NotImplementedError
 
@@ -155,8 +282,12 @@ class FilterSliceBuilder(SliceBuilder):
 
         zipped_slices = zip(self.raw_slices, self.label_slices)
         # ignore slices containing too much ignore_index
-        logger.info(f'Filtering slices...')
         filtered_slices = list(filter(ignore_predicate, zipped_slices))
+        # log number of filtered patches
+        logger.info(
+            f"Loading {len(filtered_slices)} out of {len(self.raw_slices)} patches: "
+            f"{int(100 * len(filtered_slices) / len(self.raw_slices))}%"
+        )
         # unzip and save slices
         raw_slices, label_slices = zip(*filtered_slices)
         self._raw_slices = list(raw_slices)
@@ -220,10 +351,10 @@ def get_train_loaders(config):
     # when training with volumetric data use batch_size of 1 due to GPU memory constraints
     return {
         'train': DataLoader(ConcatDataset(train_datasets), batch_size=batch_size, shuffle=True, pin_memory=True,
-                            num_workers=num_workers),
+                            num_workers=num_workers, drop_last=True),
         # don't shuffle during validation: useful when showing how predictions for a given batch get better over time
         'val': DataLoader(ConcatDataset(val_datasets), batch_size=batch_size, shuffle=False, pin_memory=True,
-                          num_workers=num_workers)
+                          num_workers=num_workers, drop_last=True)
     }
 
 

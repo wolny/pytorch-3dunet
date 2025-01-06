@@ -12,24 +12,32 @@ from tqdm import tqdm
 
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
 from pytorch3dunet.datasets.utils import SliceBuilder, remove_padding
-from pytorch3dunet.unet3d.model import UNet2D
 from pytorch3dunet.unet3d.utils import get_logger
+from pytorch3dunet.unet3d.model import is_model_2d
 
 logger = get_logger('UNetPredictor')
 
 
-def _get_output_file(dataset, suffix='_predictions', output_dir=None):
-    input_dir, file_name = os.path.split(dataset.file_path)
+def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions', output_dir: str = None) -> Path:
+    """
+    Get the output file path for the predictions.
+    Args:
+        dataset: input dataset
+        suffix: file name suffix
+        output_dir: directory where the output file will be saved
+
+    Returns:
+        path to the output file
+    """
+    file_path = Path(dataset.file_path)
+    input_dir = file_path.parent
     if output_dir is None:
         output_dir = input_dir
-    output_filename = os.path.splitext(file_name)[0] + suffix + '.h5'
+    else:
+        output_dir = Path(output_dir)
+
+    output_filename = file_path.stem + suffix + '.h5'
     return Path(output_dir) / output_filename
-
-
-def _is_2d_model(model):
-    if isinstance(model, nn.DataParallel):
-        model = model.module
-    return isinstance(model, UNet2D)
 
 
 class _AbstractPredictor:
@@ -89,19 +97,24 @@ class StandardPredictor(_AbstractPredictor):
 
         logger.info(f'Running inference on {len(test_loader)} batches')
         # dimensionality of the output predictions
-        volume_shape = test_loader.dataset.volume_shape()
-        if self.prediction_channel is not None:
-            # single channel prediction map
-            prediction_maps_shape = (1,) + volume_shape
+        volume_shape = test_loader.dataset.volume_shape
+
+        if self.save_segmentation:
+            # single channel segmentation map
+            prediction_shape = volume_shape
         else:
-            prediction_maps_shape = (self.out_channels,) + volume_shape
+            if self.prediction_channel is not None:
+                # single channel prediction map
+                prediction_shape = (1,) + volume_shape
+            else:
+                prediction_shape = (self.out_channels,) + volume_shape
 
         # create destination H5 file
         output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
         with h5py.File(output_file, 'w') as h5_output_file:
             # allocate prediction and normalization arrays
             logger.info('Allocating prediction and normalization arrays...')
-            prediction_map, normalization_mask = self._allocate_prediction_maps(prediction_maps_shape, h5_output_file)
+            prediction_array = self._allocate_prediction_array(prediction_shape, h5_output_file)
 
             # determine halo used for padding
             patch_halo = test_loader.dataset.halo_shape
@@ -116,7 +129,7 @@ class StandardPredictor(_AbstractPredictor):
                     if torch.cuda.is_available():
                         input = input.pin_memory().cuda(non_blocking=True)
 
-                    if _is_2d_model(self.model):
+                    if is_model_2d(self.model):
                         # remove the singleton z-dimension from the input
                         input = torch.squeeze(input, dim=-3)
                         # forward pass
@@ -133,39 +146,43 @@ class StandardPredictor(_AbstractPredictor):
                     prediction = prediction.cpu().numpy()
                     # for each batch sample
                     for pred, index in zip(prediction, indices):
-                        # save patch index: (C,D,H,W)
-                        if self.prediction_channel is None:
-                            channel_slice = slice(0, self.out_channels)
-                        else:
-                            # use only the specified channel
-                            channel_slice = slice(0, 1)
-                            pred = np.expand_dims(pred[self.prediction_channel], axis=0)
 
-                        # add channel dimension to the index
-                        index = (channel_slice,) + tuple(index)
+                        if self.save_segmentation:
+                            # if single channel, binarize
+                            if pred.shape[0] == 1:
+                                pred = pred[0] > 0.5
+                            else:
+                                # use the argmax of the prediction
+                                pred = np.argmax(pred, axis=0)
+                            pred = pred.astype('uint16')
+                            index = tuple(index)
+                        else:
+                            # save patch index: (C,D,H,W)
+                            if self.prediction_channel is None:
+                                channel_slice = slice(0, self.out_channels)
+                            else:
+                                # use only the specified channel
+                                channel_slice = slice(0, 1)
+                                pred = np.expand_dims(pred[self.prediction_channel], axis=0)
+                            # add channel dimension to the index
+                            index = (channel_slice,) + tuple(index)
+
                         # accumulate probabilities into the output prediction array
-                        prediction_map[index] += pred
-                        # count voxel visits for normalization
-                        normalization_mask[index] += 1
+                        prediction_array[index] = pred
 
             logger.info(f'Finished inference in {time.perf_counter() - start:.2f} seconds')
             # save results
             output_type = 'segmentation' if self.save_segmentation else 'probability maps'
             logger.info(f'Saving {output_type} to: {output_file}')
-            self._save_results(prediction_map, normalization_mask, h5_output_file, test_loader.dataset)
+            h5_output_file.create_dataset(self.output_dataset, data=prediction_array, compression="gzip")
 
-    def _allocate_prediction_maps(self, output_shape, output_file):
-        # initialize the output prediction arrays
-        prediction_map = np.zeros(output_shape, dtype='float32')
-        # initialize normalization mask in order to average out probabilities of overlapping patches
-        normalization_mask = np.zeros(output_shape, dtype='uint8')
-        return prediction_map, normalization_mask
-
-    def _save_results(self, prediction_map, normalization_mask, output_file, dataset):
-        result = prediction_map / normalization_mask
+    def _allocate_prediction_array(self, output_shape, output_file):
         if self.save_segmentation:
-            result = np.argmax(result, axis=0).astype('uint16')
-        output_file.create_dataset(self.output_dataset, data=result, compression="gzip")
+            dtype = 'uint16'
+        else:
+            dtype = 'float32'
+        # initialize the output prediction arrays
+        return np.zeros(output_shape, dtype=dtype)
 
 
 class LazyPredictor(StandardPredictor):
@@ -186,7 +203,7 @@ class LazyPredictor(StandardPredictor):
         super().__init__(model, output_dir, out_channels, output_dataset, save_segmentation, prediction_channel,
                          **kwargs)
 
-    def _allocate_prediction_maps(self, output_shape, output_file):
+    def _allocate_prediction_array(self, output_shape, output_file):
         # allocate datasets for probability maps
         prediction_map = output_file.create_dataset(self.output_dataset,
                                                     shape=output_shape,
@@ -201,22 +218,22 @@ class LazyPredictor(StandardPredictor):
                                                         compression='gzip')
         return prediction_map, normalization_mask
 
-    def _save_results(self, prediction_map, normalization_mask, output_file, dataset):
-        z, y, x = prediction_map.shape[1:]
+    def _save_results(self, prediction_array, normalization_mask, output_file, dataset):
+        z, y, x = prediction_array.shape[1:]
         # take slices which are 1/27 of the original volume
         patch_shape = (z // 3, y // 3, x // 3)
         if self.save_segmentation:
             output_file.create_dataset('segmentation', shape=(z, y, x), dtype='uint16', chunks=True, compression='gzip')
 
-        for index in SliceBuilder._build_slices(prediction_map, patch_shape=patch_shape, stride_shape=patch_shape):
+        for index in SliceBuilder._build_slices(prediction_array, patch_shape=patch_shape, stride_shape=patch_shape):
             logger.info(f'Normalizing slice: {index}')
-            prediction_map[index] /= normalization_mask[index]
+            prediction_array[index] /= normalization_mask[index]
             # make sure to reset the slice that has been visited already in order to avoid 'double' normalization
             # when the patches overlap with each other
             normalization_mask[index] = 1
             # save segmentation
             if self.save_segmentation:
-                output_file['segmentation'][index[1:]] = np.argmax(prediction_map[index], axis=0).astype('uint16')
+                output_file['segmentation'][index[1:]] = np.argmax(prediction_array[index], axis=0).astype('uint16')
 
         del output_file['normalization']
         if self.save_segmentation:
