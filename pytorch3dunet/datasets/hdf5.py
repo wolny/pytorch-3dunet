@@ -61,7 +61,7 @@ class AbstractHDF5Dataset(ConfigDataset):
         self.label_internal_path = label_internal_path
         self.weight_internal_path = weight_internal_path
 
-        self.halo_shape = slice_builder_config.get('halo_shape', [0, 0, 0])
+        self.halo_shape = tuple(slice_builder_config.get('halo_shape', [0, 0, 0]))
 
         if global_normalization:
             logger.info('Calculating mean and std of the raw data...')
@@ -89,13 +89,10 @@ class AbstractHDF5Dataset(ConfigDataset):
             self.label = None
             self.weight_map = None
 
-            # compare patch and stride configuration
-            patch_shape = slice_builder_config.get('patch_shape')
-            stride_shape = slice_builder_config.get('stride_shape')
-            if sum(self.halo_shape) != 0 and patch_shape != stride_shape:
-                logger.warning(f'Found non-zero halo shape {self.halo_shape}. '
-                               f'In this case: patch shape and stride shape should be equal for optimal prediction '
-                               f'performance, but found patch_shape: {patch_shape} and stride_shape: {stride_shape}!')
+            if self.halo_shape == (0, 0, 0):
+                logger.warning("Found halo shape to be (0, 0, 0). This might lead to checkerboard artifacts in the "
+                               "prediction. Consider using a non-zero halo shape, e.g. 'halo_shape: [8, 8, 8]' in "
+                               "the slice_builder configuration.")
 
         with h5py.File(file_path, 'r') as f:
             raw = f[raw_internal_path]
