@@ -18,16 +18,22 @@ def _run_prediction(test_config, tmpdir, shape):
     tmp = NamedTemporaryFile(delete=False)
     with h5py.File(tmp.name, 'w') as f:
         f.create_dataset('raw', data=np.random.rand(*shape))
+        f.create_dataset('label', data=np.random.randint(0, 2, shape).astype('uint8'))
     # Add input file
     test_config['loaders']['test']['file_paths'] = [tmp.name]
     # Create the model with random weights
     model = get_model(test_config['model'])
     if torch.cuda.is_available():
         model.cuda()
+    results = []
     for test_loader in get_test_loaders(test_config):
         predictor = get_predictor(model, test_config)
         # run the model prediction on the entire dataset and save to the 'output_file' H5
-        predictor(test_loader)
+        result = predictor(test_loader)
+        if result is not None:
+            results.append(result)
+    if results:
+        return tmp, results
     return tmp
 
 
@@ -59,3 +65,44 @@ class TestPredictor:
         assert output_path.exists()
         # check that the output segmentation is saved, with the channel dimension reduced via argmax operation
         assert _get_result_shape(output_path) == (32, 64, 64)
+
+    def test_performance_metric(self, tmpdir, test_config):
+        test_config['predictor']['save_segmentation'] = True
+        test_config['predictor']['performance_metric'] = 'mean_iou'
+        test_config['predictor']['gt_internal_path'] = 'label'
+        tmp, results = _run_prediction(test_config, tmpdir, shape=(32, 64, 64))
+
+        output_filename = os.path.split(tmp.name)[1] + '_predictions.h5'
+        output_path = Path(tmpdir) / output_filename
+        assert output_path.exists()
+        # check that the output segmentation is saved, with the channel dimension reduced via argmax operation
+        assert _get_result_shape(output_path) == (32, 64, 64)
+        # assert results array is non-zero
+        assert np.mean(results) > 0
+
+    def test_lazy_predictor(self, tmpdir, test_config):
+        test_config['predictor']['name'] = 'LazyPredictor'
+        tmp = _run_prediction(test_config, tmpdir, shape=(32, 64, 64))
+        output_filename = os.path.split(tmp.name)[1] + '_predictions.h5'
+        output_path = Path(tmpdir) / output_filename
+        assert output_path.exists()
+        # check that the output segmentation is saved, with the channel dimension reduced via argmax operation
+        assert _get_result_shape(output_path) == (2, 32, 64, 64)
+        # assert results array is non-zero
+        with h5py.File(output_path, 'r') as f:
+            assert np.count_nonzero(f['predictions'][...]) > 0
+
+    def test_performance_metric_lazy_predictor(self, tmpdir, test_config):
+        test_config['predictor']['name'] = 'LazyPredictor'
+        test_config['predictor']['save_segmentation'] = True
+        test_config['predictor']['performance_metric'] = 'mean_iou'
+        test_config['predictor']['gt_internal_path'] = 'label'
+        tmp, results = _run_prediction(test_config, tmpdir, shape=(32, 64, 64))
+
+        output_filename = os.path.split(tmp.name)[1] + '_predictions.h5'
+        output_path = Path(tmpdir) / output_filename
+        assert output_path.exists()
+        # check that the output segmentation is saved, with the channel dimension reduced via argmax operation
+        assert _get_result_shape(output_path) == (32, 64, 64)
+        # assert results array is non-zero
+        assert np.mean(results) > 0

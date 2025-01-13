@@ -48,9 +48,20 @@ def main():
     # create predictor instance
     predictor = get_predictor(model, config)
 
+    metrics = []
     for test_loader in get_test_loaders(config):
         # run the model prediction on the test_loader and save the results in the output_dir
-        predictor(test_loader)
+        metric = predictor(test_loader)
+        if metric is not None:
+            metrics.append(metric)
+
+    if metrics:
+        # average across loaders
+        metrics = torch.Tensor(metrics)
+        per_class_metrics = metrics.mean(dim=0)
+        avg_metric = metrics.mean()
+        logger.info(f'Per-class average metric: {per_class_metrics}')
+        logger.info(f'Average metric: {avg_metric}')
 
 
 if __name__ == '__main__':
