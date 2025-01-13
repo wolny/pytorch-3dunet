@@ -22,8 +22,6 @@ model:
 predictor:
   # standard in memory predictor
   name: 'StandardPredictor'
-  # halo around each input patch, created with mirror reflectiion
-  patch_halo: [ 4, 8, 8 ]
 # specify the test datasets
 loaders:
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
@@ -47,6 +45,8 @@ loaders:
       patch_shape: [ 32, 64, 64 ]
       # train stride between patches
       stride_shape: [ 16, 32, 32 ]
+      # halo around each patch
+      halo_shape: [ 4, 8, 8 ]
 
     transformer:
       raw:

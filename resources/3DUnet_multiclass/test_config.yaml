@@ -24,6 +24,10 @@ predictor:
   name: 'StandardPredictor'
   # save the output segmentation instead of probability maps, i.e. apply argmax to the output
   save_segmentation: true
+  # compute performance scores
+  performance_metric: mean_iou
+  # internal path to the ground truth in the H5
+  gt_internal_path: label
 # specify the test datasets
 loaders:
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
