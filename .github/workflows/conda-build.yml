@@ -10,8 +10,11 @@ on:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
     - name: Set pytorch-3dunet version
@@ -22,7 +25,7 @@ jobs:
       with:
         auto-activate-base: true
         activate-environment: ""
-        channels: local,conda-forge,defaults
+        channels: local,conda-forge
         channel-priority: false
     - shell: bash -l {0}
       run: conda info --envs
@@ -41,7 +44,7 @@ jobs:
         pytest
         conda deactivate
     - name: Deploy on conda
-      if: ${{ startsWith( github.ref, 'refs/tags/') && success() }}
+      if: ${{ matrix.os == 'ubuntu-latest' && startsWith( github.ref, 'refs/tags/') && success() }}
       env:
         ANACONDA_SECRET: ${{ secrets.ANACONDA_TOKEN }}
       shell: bash -l {0}
