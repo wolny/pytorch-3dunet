@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import h5py
@@ -75,20 +76,19 @@ class TestHDF5Dataset:
             assert np.all(visit_raw)
             assert np.all(visit_label)
 
-    def test_augmentation(self, transformer_config):
+    def test_augmentation(self, transformer_config, tmpdir):
         raw = np.random.rand(32, 96, 96)
         # assign raw to label's channels for ease of comparison
         label = np.stack([raw for _ in range(3)])
         # create temporary h5 file
-        tmp_file = NamedTemporaryFile()
-        tmp_path = tmp_file.name
-        with h5py.File(tmp_path, 'w') as f:
+        tmp_file = tmpdir / "test.h5"
+        with h5py.File(tmp_file, 'w') as f:
             f.create_dataset('raw', data=raw)
             f.create_dataset('label', data=label)
 
         # set phase='train' in order to execute the train transformers
         phase = 'train'
-        dataset = StandardHDF5Dataset(tmp_path, phase=phase,
+        dataset = StandardHDF5Dataset(tmp_file, phase=phase,
                                       slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32)),
                                       transformer_config=transformer_config[phase]['transformer'])
 
@@ -120,19 +120,19 @@ class TestHDF5Dataset:
 
         assert expected_files == actual_files
 
-    def test_halo(self):
+    def test_halo(self, tmpdir: Path):
         halo_shape = (1, 2, 3)
 
         # create temporary h5 file
         raw = np.random.rand(32, 96, 96)
-        tmp_file = NamedTemporaryFile()
-        tmp_path = tmp_file.name
-        with h5py.File(tmp_path, 'w') as f:
+        tmp_file = tmpdir / "test.h5"
+
+        with h5py.File(tmp_file, 'w') as f:
             f.create_dataset('raw', data=raw)
 
         # halo only implemented with test phase
         phase = 'test'
-        dataset = StandardHDF5Dataset(tmp_path, phase=phase,
+        dataset = StandardHDF5Dataset(tmp_file, phase=phase,
                                       slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32), halo_shape),
                                       transformer_config=_transformer_test_conf())
         data_loader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=True,
