@@ -5,7 +5,7 @@ from pytorch3dunet.augment.transforms import RandomLabelToAffinities, LabelToAff
 
 
 class TestTransforms:
-    config = {'dtype': 'long'}
+    config = {'dtype': 'int64'}
 
     def test_random_label_to_boundary(self):
         size = 20
@@ -62,7 +62,7 @@ class TestTransforms:
     def test_BaseTransformer(self):
         config = {
             'raw': [{'name': 'Standardize'}, {'name': 'ToTensor', 'expand_dims': True}],
-            'label': [{'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}],
+            'label': [{'name': 'ToTensor', 'expand_dims': False, 'dtype': 'int64'}],
             'weight': [{'name': 'ToTensor', 'expand_dims': False}]
         }
         base_config = {'mean': 0, 'std': 1}
@@ -73,7 +73,7 @@ class TestTransforms:
         assert raw_transforms[1].expand_dims
         label_transforms = transformer.label_transform().transforms
         assert not label_transforms[0].expand_dims
-        assert label_transforms[0].dtype == 'long'
+        assert label_transforms[0].dtype == 'int64'
         weight_transforms = transformer.weight_transform().transforms
         assert not weight_transforms[0].expand_dims
 
@@ -89,7 +89,7 @@ class TestTransforms:
             'label': [
                 {'name': 'RandomFlip'},
                 {'name': 'RandomRotate90'},
-                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
+                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'int64'}
             ]
         }
         base_config = {'mean': 0, 'std': 1}
@@ -116,7 +116,7 @@ class TestTransforms:
                 {'name': 'RandomFlip'},
                 {'name': 'RandomRotate90'},
                 {'name': 'RandomRotate', 'angle_spectrum': 17, 'axes': [[2, 1]]},
-                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
+                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'int64'}
             ]
         }
         base_config = {'mean': 0, 'std': 1}
@@ -145,7 +145,7 @@ class TestTransforms:
                 {'name': 'RandomRotate90'},
                 {'name': 'RandomRotate', 'angle_spectrum': 17, 'axes': [[2, 1]], 'mode': 'reflect'},
                 {'name': 'LabelToAffinities', 'offsets': [2, 4, 6, 8]},
-                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
+                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'int64'}
             ]
         }
         base_config = {'mean': 0, 'std': 1}
@@ -179,7 +179,7 @@ class TestTransforms:
                 {'name': 'RandomRotate90'},
                 {'name': 'RandomRotate', 'angle_spectrum': 17, 'axes': [[2, 1]], 'mode': 'reflect'},
                 {'name': 'RandomLabelToAffinities', 'max_offset': 4},
-                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'long'}
+                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'int64'}
             ]
         }
         base_config = {'mean': 0, 'std': 1}

@@ -129,7 +129,7 @@ loaders:
           # convert target volume to binary mask
         - name: ToTensor
           expand_dims: false
-          dtype: long
+          dtype: int64
 
   # configuration of the val loader
   val:
@@ -158,4 +158,4 @@ loaders:
       label:
         - name: ToTensor
           expand_dims: false
-          dtype: long
+          dtype: int64
