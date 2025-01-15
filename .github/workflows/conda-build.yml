@@ -17,16 +17,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
-    - name: Set pytorch-3dunet version
-      run: echo "RELEASE_VERSION=$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
-    - name: Print pytorch-3dunet version
-      run: echo $RELEASE_VERSION
     - uses: conda-incubator/setup-miniconda@v2
       with:
         auto-activate-base: true
         activate-environment: ""
         channels: local,conda-forge
         channel-priority: false
+        miniconda-version: "latest"
     - shell: bash -l {0}
       run: conda info --envs
     - name: Build pytorch-3dunet

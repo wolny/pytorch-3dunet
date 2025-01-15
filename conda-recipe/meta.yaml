@@ -1,6 +1,8 @@
+{% set setup_py_data = load_setup_py_data() %}
+
 package:
   name: pytorch-3dunet
-  version: {{ RELEASE_VERSION }}
+  version: {{ setup_py_data['version'] }}
 
 source:
   path: ..
