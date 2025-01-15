@@ -21,7 +21,7 @@ jobs:
       with:
         auto-activate-base: true
         activate-environment: ""
-        channel-priority: strict
+        channel-priority: flexible
         miniforge-variant: Miniforge3
     - shell: bash -l {0}
       run: conda info --envs
