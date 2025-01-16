@@ -9,21 +9,20 @@ on:
     branches: [master]
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
-
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
-    - name: Set pytorch-3dunet version
-      run: echo "RELEASE_VERSION=$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
-    - name: Print pytorch-3dunet version
-      run: echo $RELEASE_VERSION
     - uses: conda-incubator/setup-miniconda@v2
       with:
         auto-activate-base: true
         activate-environment: ""
-        channels: local,conda-forge,defaults
-        channel-priority: false
+        channel-priority: flexible
+        miniforge-variant: Miniforge3
     - shell: bash -l {0}
       run: conda info --envs
     - name: Build pytorch-3dunet
@@ -33,7 +32,7 @@ jobs:
         conda build -c pytorch -c nvidia -c conda-forge conda-recipe
     - name: Create pytorch3dunet env
       run: |
-        conda create -n pytorch3dunet -c pytorch -c nvidia -c conda-forge pytorch-3dunet pytest
+        conda create -n pytorch3dunet -c local -c pytorch -c nvidia -c conda-forge pytorch-3dunet pytest
     - name: Run pytest
       shell: bash -l {0}
       run: |
@@ -41,7 +40,7 @@ jobs:
         pytest
         conda deactivate
     - name: Deploy on conda
-      if: ${{ startsWith( github.ref, 'refs/tags/') && success() }}
+      if: ${{ matrix.os == 'ubuntu-latest' && startsWith( github.ref, 'refs/tags/') && success() }}
       env:
         ANACONDA_SECRET: ${{ secrets.ANACONDA_TOKEN }}
       shell: bash -l {0}
