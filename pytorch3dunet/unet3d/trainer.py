@@ -20,7 +20,7 @@ from . import utils
 logger = get_logger('UNetTrainer')
 
 
-def create_trainer(config):
+def create_trainer(config: dict) -> 'UNetTrainer':
     # Create the model
     model = get_model(config['model'])
 
@@ -57,6 +57,19 @@ def create_trainer(config):
     return UNetTrainer(model=model, optimizer=optimizer, lr_scheduler=lr_scheduler, loss_criterion=loss_criterion,
                        eval_criterion=eval_criterion, loaders=loaders, tensorboard_formatter=tensorboard_formatter,
                        resume=resume, pre_trained=pre_trained, **trainer_config)
+
+
+def _split_and_move_to_gpu(t):
+    def _move_to_gpu(input):
+        if isinstance(input, (tuple, list)):
+            return tuple([_move_to_gpu(x) for x in input])
+        else:
+            if torch.cuda.is_available():
+                input = input.cuda(non_blocking=True)
+            return input
+
+    input, target = _move_to_gpu(t)
+    return input, target
 
 
 class UNetTrainer:
@@ -181,9 +194,9 @@ class UNetTrainer:
             logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
                         f'Epoch [{self.num_epochs}/{self.max_num_epochs - 1}]')
 
-            input, target, weight = self._split_training_batch(t)
+            input, target = _split_and_move_to_gpu(t)
 
-            output, loss = self._forward_pass(input, target, weight)
+            output, loss = self._forward_pass(input, target)
 
             train_losses.update(loss.item(), self._batch_size(input))
 
@@ -208,7 +221,7 @@ class UNetTrainer:
 
                 # log current learning rate in tensorboard
                 self._log_lr()
-                # remember best validation metric
+                # remember the best validation metric
                 is_best = self._is_best_eval_score(eval_score)
 
                 # save checkpoint
@@ -223,7 +236,12 @@ class UNetTrainer:
                 logger.info(
                     f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
                 self._log_stats('train', train_losses.avg, train_eval_scores.avg)
-                self._log_images(input, target, output, 'train_')
+                self._log_images(
+                    input.detach().cpu().numpy(),
+                    target.detach().cpu().numpy(),
+                    output.detach().cpu().numpy(),
+                    'train_'
+                )
 
             if self.should_stop():
                 return True
@@ -265,17 +283,17 @@ class UNetTrainer:
 
             images_for_logging = []
             for i, t in enumerate(tqdm(self.loaders['val'])):
-                input, target, weight = self._split_training_batch(t)
+                input, target = _split_and_move_to_gpu(t)
 
-                output, loss = self._forward_pass(input, target, weight)
+                output, loss = self._forward_pass(input, target)
                 val_losses.update(loss.item(), self._batch_size(input))
+                eval_score = self.eval_criterion(output, target)
+                val_scores.update(eval_score.item(), self._batch_size(input))
 
                 # save val images for logging
                 if i in indices:
-                    images_for_logging.append((input, target, output, i))
-
-                eval_score = self.eval_criterion(output, target)
-                val_scores.update(eval_score.item(), self._batch_size(input))
+                    imgs = (input.cpu().numpy(), target.cpu().numpy(), output.cpu().numpy())
+                    images_for_logging.append(imgs + (i,))
 
                 if self.validate_iters is not None and self.validate_iters <= i:
                     # stop validation
@@ -290,46 +308,26 @@ class UNetTrainer:
             self._log_stats('val', val_losses.avg, val_scores.avg)
             return val_scores.avg
 
-    def _split_training_batch(self, t):
-        def _move_to_gpu(input):
-            if isinstance(input, tuple) or isinstance(input, list):
-                return tuple([_move_to_gpu(x) for x in input])
-            else:
-                if torch.cuda.is_available():
-                    input = input.cuda(non_blocking=True)
-                return input
-
-        t = _move_to_gpu(t)
-        weight = None
-        if len(t) == 2:
-            input, target = t
-        else:
-            input, target, weight = t
-        return input, target, weight
-
-    def _forward_pass(self, x, y, weight=None):
+    def _forward_pass(self, inp: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if is_model_2d(self.model):
             # remove the singleton z-dimension from the input
-            x = torch.squeeze(x, dim=-3)
+            inp = torch.squeeze(inp, dim=-3)
             # forward pass
-            output, logits = self.model(x, return_logits=True)
+            output, logits = self.model(inp, return_logits=True)
             # add the singleton z-dimension to the output
             output = torch.unsqueeze(output, dim=-3)
             logits = torch.unsqueeze(logits, dim=-3)
         else:
             # forward pass
-            output, logits = self.model(x, return_logits=True)
+            output, logits = self.model(inp, return_logits=True)
 
         # always compute the loss using logits
-        if weight is None:
-            loss = self.loss_criterion(logits, y)
-        else:
-            loss = self.loss_criterion(logits, y, weight)
+        loss = self.loss_criterion(logits, target)
 
         # return probabilities and loss
         return output, loss
 
-    def _is_best_eval_score(self, eval_score):
+    def _is_best_eval_score(self, eval_score: float) -> bool:
         if self.eval_score_higher_is_better:
             is_best = eval_score > self.best_eval_score
         else:
@@ -341,7 +339,7 @@ class UNetTrainer:
 
         return is_best
 
-    def _save_checkpoint(self, is_best):
+    def _save_checkpoint(self, is_best: bool):
         # remove `module` prefix from layer names when using `nn.DataParallel`
         # see: https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/20
         if isinstance(self.model, nn.DataParallel):
@@ -364,7 +362,7 @@ class UNetTrainer:
         lr = self.optimizer.param_groups[0]['lr']
         self.writer.add_scalar('learning_rate', lr, self.num_iterations)
 
-    def _log_stats(self, phase, loss_avg, eval_score_avg):
+    def _log_stats(self, phase: str, loss_avg: float, eval_score_avg: float):
         tag_value = {
             f'{phase}_loss_avg': loss_avg,
             f'{phase}_eval_score_avg': eval_score_avg
@@ -379,7 +377,12 @@ class UNetTrainer:
             self.writer.add_histogram(name, value.data.cpu().numpy(), self.num_iterations)
             self.writer.add_histogram(name + '/grad', value.grad.data.cpu().numpy(), self.num_iterations)
 
-    def _log_images(self, input, target, prediction, prefix):
+    def _log_images(
+            self,
+            input: np.ndarray,
+            target: np.ndarray,
+            prediction: np.ndarray,
+            prefix: str):
         inputs_map = {
             'inputs': input,
             'targets': target,
@@ -387,18 +390,18 @@ class UNetTrainer:
         }
         img_sources = {}
         for name, batch in inputs_map.items():
-            if isinstance(batch, list) or isinstance(batch, tuple):
+            if isinstance(batch, (list, tuple)):
                 for i, b in enumerate(batch):
-                    img_sources[f'{name}{i}'] = b.data.cpu().numpy()
+                    img_sources[f'{name}{i}'] = b
             else:
-                img_sources[name] = batch.data.cpu().numpy()
+                img_sources[name] = batch
 
         for name, batch in img_sources.items():
             for tag, image in self.tensorboard_formatter(name, batch):
                 self.writer.add_image(prefix + tag, image, self.num_iterations)
 
     @staticmethod
-    def _batch_size(input):
+    def _batch_size(input: torch.Tensor) -> int:
         if isinstance(input, list) or isinstance(input, tuple):
             return input[0].size(0)
         else:

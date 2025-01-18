@@ -30,11 +30,6 @@ class TestUNet3DTrainer:
         with capsys.disabled():
             assert_train_save_load(tmpdir, train_config, 'DiceLoss', 'MeanIoU', 'UNet3D')
 
-    def test_pce_loss(self, tmpdir, capsys, train_config):
-        with capsys.disabled():
-            assert_train_save_load(tmpdir, train_config, 'PixelWiseCrossEntropyLoss', 'MeanIoU', 'UNet3D',
-                                   weight_map=True)
-
     def test_residual_unet(self, tmpdir, capsys, train_config):
         with capsys.disabled():
             assert_train_save_load(tmpdir, train_config, 'CrossEntropyLoss', 'MeanIoU', 'ResidualUNet3D')

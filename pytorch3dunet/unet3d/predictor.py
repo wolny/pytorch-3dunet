@@ -2,29 +2,34 @@ import os
 import time
 from concurrent import futures
 from pathlib import Path
+from typing import Any
 
 import h5py
 import numpy as np
 import torch
 from skimage import measure
 from torch import nn
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
-from pytorch3dunet.datasets.utils import SliceBuilder, remove_padding
-from pytorch3dunet.unet3d.utils import get_logger
+from pytorch3dunet.datasets.utils import remove_padding
 from pytorch3dunet.unet3d.model import is_model_2d
+from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('UNetPredictor')
 
 
 def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions', output_dir: str = None) -> Path:
     """
-    Get the output file path for the predictions.
+    Get the output file path for the predictions. If `output_dir` is not None the output file will be saved in
+    the original dataset directory.
+
     Args:
         dataset: input dataset
         suffix: file name suffix
-        output_dir: directory where the output file will be saved
+        output_dir: directory where the output file will be saved, if None the output file will be saved in the
+            same directory as the input dataset
 
     Returns:
         path to the output file
@@ -40,6 +45,62 @@ def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions',
     return Path(output_dir) / output_filename
 
 
+def _load_dataset(dataset: AbstractHDF5Dataset, internal_path: str) -> np.ndarray:
+    file_path = dataset.file_path
+    with h5py.File(file_path, 'r') as f:
+        return f[internal_path][...]
+
+
+def mean_iou(pred: np.ndarray, gt: np.ndarray, n_classes: int, avg: bool = False) -> list[float] | float:
+    """
+    Compute the mean Intersection over Union (IoU) for the given predictions and ground truth.
+    Args:
+        pred: predicted segmentation
+        gt: ground truth segmentation
+        n_classes: number of classes
+        avg: if True, return the mean IoU, otherwise return the IoU for each class
+    Returns:
+        mean IoU
+    """
+    # convert to numpy arrays
+    pred = pred.astype('uint16')
+    gt = gt.astype('uint16')
+    assert pred.shape == gt.shape, f'Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}'
+
+    # compute IoU, skip 0: background
+    per_class_iou = []
+    for c in range(1, n_classes):
+        intersection = np.logical_and(gt == c, pred == c).sum()
+        union = np.logical_or(gt == c, pred == c).sum()
+        iou = intersection / union
+        per_class_iou.append(iou)
+
+    if avg:
+        return np.mean(per_class_iou)
+    return per_class_iou
+
+
+def dice_score(pred: np.ndarray, gt: np.ndarray, avg: bool = False) -> list[float] | float:
+    """
+    Compute the Dice score for the given predictions and ground truth.
+    If avg is True, return the mean Dice score, otherwise return the Dice score for each channel/class.
+    """
+    # convert to numpy arrays
+    pred = pred.astype('uint16')
+    gt = gt.astype('uint16')
+    assert pred.shape == gt.shape, f'Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}'
+    # compute Dice score
+    per_class_dice = []
+    for c_pred, c_gt in zip(pred, gt):
+        intersection = np.logical_and(c_gt, c_pred).sum()
+        union = c_gt.sum() + c_pred.sum()
+        dice = 2 * intersection / union
+        per_class_dice.append(dice)
+    if avg:
+        return np.mean(per_class_dice)
+    return per_class_dice
+
+
 class _AbstractPredictor:
     def __init__(self,
                  model: nn.Module,
@@ -48,6 +109,8 @@ class _AbstractPredictor:
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
                  prediction_channel: int = None,
+                 performance_metric: str = None,
+                 gt_internal_path: str = None,
                  **kwargs):
         """
         Base class for predictors.
@@ -58,6 +121,8 @@ class _AbstractPredictor:
             output_dataset: name of the dataset in the H5 file where the predictions will be saved
             save_segmentation: if true the segmentation will be saved instead of the probability maps
             prediction_channel: save only the specified channel from the network output
+            performance_metric: performance metric to be used for evaluation
+            gt_internal_path: internal path to the ground truth dataset in the H5 file
         """
         self.model = model
         self.output_dir = output_dir
@@ -65,8 +130,16 @@ class _AbstractPredictor:
         self.output_dataset = output_dataset
         self.save_segmentation = save_segmentation
         self.prediction_channel = prediction_channel
+        self.performance_metric = performance_metric
+        self.gt_internal_path = gt_internal_path
 
-    def __call__(self, test_loader):
+    def __call__(self, test_loader: DataLoader) -> Any:
+        """
+        Run the model prediction on the test_loader and save the results in the output_dir.
+
+        If the performance_metric is provided, the predictions will be evaluated against the ground truth
+        and returned as a tensor.
+        """
         raise NotImplementedError
 
 
@@ -75,8 +148,6 @@ class StandardPredictor(_AbstractPredictor):
     Applies the model on the given dataset and saves the result as H5 file.
     Predictions from the network are kept in memory. If the results from the network don't fit in into RAM
     use `LazyPredictor` instead.
-
-    The output dataset names inside the H5 is given by `output_dataset` config argument.
     """
 
     def __init__(self,
@@ -86,9 +157,11 @@ class StandardPredictor(_AbstractPredictor):
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
                  prediction_channel: int = None,
+                 performance_metric: str = None,
+                 gt_internal_path: str = None,
                  **kwargs):
         super().__init__(model, output_dir, out_channels, output_dataset, save_segmentation, prediction_channel,
-                         **kwargs)
+                         performance_metric, gt_internal_path, **kwargs)
 
     def __call__(self, test_loader):
         assert isinstance(test_loader.dataset, AbstractHDF5Dataset)
@@ -112,8 +185,8 @@ class StandardPredictor(_AbstractPredictor):
         # create destination H5 file
         output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
         with h5py.File(output_file, 'w') as h5_output_file:
-            # allocate prediction and normalization arrays
-            logger.info('Allocating prediction and normalization arrays...')
+            # allocate prediction arrays
+            logger.info('Allocating prediction arrays...')
             prediction_array = self._allocate_prediction_array(prediction_shape, h5_output_file)
 
             # determine halo used for padding
@@ -174,7 +247,25 @@ class StandardPredictor(_AbstractPredictor):
             # save results
             output_type = 'segmentation' if self.save_segmentation else 'probability maps'
             logger.info(f'Saving {output_type} to: {output_file}')
-            h5_output_file.create_dataset(self.output_dataset, data=prediction_array, compression="gzip")
+            self._create_prediction_dataset(h5_output_file, prediction_array)
+
+            if self.performance_metric is not None:
+                # load gt from the dataset
+                assert self.gt_internal_path is not None
+                gt = _load_dataset(test_loader.dataset, self.gt_internal_path)
+                prediction_array = prediction_array[...]
+                # create metric
+                assert self.performance_metric in ['dice', 'mean_iou'], \
+                    f'Unsupported performance metric: {self.performance_metric}, ' \
+                    f'only "dice" and "mean_iou" are supported'
+                if self.performance_metric == 'dice':
+                    result = dice_score(prediction_array, gt)
+                else:
+                    result = mean_iou(prediction_array, gt, n_classes=self.out_channels)
+                return result
+
+    def _create_prediction_dataset(self, h5_output_file, prediction_array):
+        h5_output_file.create_dataset(self.output_dataset, data=prediction_array, compression="gzip")
 
     def _allocate_prediction_array(self, output_shape, output_file):
         if self.save_segmentation:
@@ -187,10 +278,10 @@ class StandardPredictor(_AbstractPredictor):
 
 class LazyPredictor(StandardPredictor):
     """
-        Applies the model on the given dataset and saves the result in the `output_file` in the H5 format.
-        Predicted patches are directly saved into the H5 and they won't be stored in memory. Since this predictor
-        is slower than the `StandardPredictor` it should only be used when the predicted volume does not fit into RAM.
-        """
+    Applies the model on the given dataset and saves the result in the `output_file` in the H5 format.
+    Predicted patches are directly saved into the H5 and they won't be stored in memory. Since this predictor
+    is slower than the `StandardPredictor` it should only be used when the predicted volume does not fit into RAM.
+    """
 
     def __init__(self,
                  model: nn.Module,
@@ -199,45 +290,28 @@ class LazyPredictor(StandardPredictor):
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
                  prediction_channel: int = None,
+                 performance_metric: str = None,
+                 gt_internal_path: str = None,
                  **kwargs):
         super().__init__(model, output_dir, out_channels, output_dataset, save_segmentation, prediction_channel,
-                         **kwargs)
+                         performance_metric, gt_internal_path, **kwargs)
 
     def _allocate_prediction_array(self, output_shape, output_file):
+        if self.save_segmentation:
+            dtype = 'uint16'
+        else:
+            dtype = 'float32'
         # allocate datasets for probability maps
-        prediction_map = output_file.create_dataset(self.output_dataset,
-                                                    shape=output_shape,
-                                                    dtype='float32',
-                                                    chunks=True,
-                                                    compression='gzip')
-        # allocate datasets for normalization masks
-        normalization_mask = output_file.create_dataset('normalization',
-                                                        shape=output_shape,
-                                                        dtype='uint8',
-                                                        chunks=True,
-                                                        compression='gzip')
-        return prediction_map, normalization_mask
+        prediction_array = output_file.create_dataset(self.output_dataset,
+                                                      shape=output_shape,
+                                                      dtype=dtype,
+                                                      chunks=True,
+                                                      compression='gzip')
+        return prediction_array
 
-    def _save_results(self, prediction_array, normalization_mask, output_file, dataset):
-        z, y, x = prediction_array.shape[1:]
-        # take slices which are 1/27 of the original volume
-        patch_shape = (z // 3, y // 3, x // 3)
-        if self.save_segmentation:
-            output_file.create_dataset('segmentation', shape=(z, y, x), dtype='uint16', chunks=True, compression='gzip')
-
-        for index in SliceBuilder._build_slices(prediction_array, patch_shape=patch_shape, stride_shape=patch_shape):
-            logger.info(f'Normalizing slice: {index}')
-            prediction_array[index] /= normalization_mask[index]
-            # make sure to reset the slice that has been visited already in order to avoid 'double' normalization
-            # when the patches overlap with each other
-            normalization_mask[index] = 1
-            # save segmentation
-            if self.save_segmentation:
-                output_file['segmentation'][index[1:]] = np.argmax(prediction_array[index], axis=0).astype('uint16')
-
-        del output_file['normalization']
-        if self.save_segmentation:
-            del output_file[self.output_dataset]
+    def _create_prediction_dataset(self, h5_output_file, prediction_array):
+        # no need to save the prediction array, it is already saved in the H5 file
+        pass
 
 
 class DSB2018Predictor(_AbstractPredictor):

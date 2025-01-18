@@ -4,8 +4,8 @@ import torch.nn as nn
 from skimage import measure
 
 from pytorch3dunet.augment.transforms import LabelToAffinities, StandardLabelToBoundary
-from pytorch3dunet.unet3d.losses import GeneralizedDiceLoss, DiceLoss, WeightedSmoothL1Loss, _MaskingLossWrapper, \
-    SkipLastTargetChannelWrapper, BCEDiceLoss, PixelWiseCrossEntropyLoss
+from pytorch3dunet.unet3d.losses import GeneralizedDiceLoss, DiceLoss, WeightedSmoothL1Loss, MaskingLossWrapper, \
+    SkipLastTargetChannelWrapper, BCEDiceLoss
 from pytorch3dunet.unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
     BoundaryAdaptedRandError
 
@@ -127,24 +127,8 @@ class TestCriterion:
         results = np.array(results)
         assert np.all(results > 0)
 
-    def test_pixel_wise_cross_entropy_3d(self):
-        loss = PixelWiseCrossEntropyLoss()
-        input = torch.randn(3, 2, 30, 30, 30)
-        target = torch.empty(3, 30, 30, 30, dtype=torch.long).random_(2)
-        weight = torch.rand(3, 30, 30, 30)
-        output = loss(input, target, weight)
-        assert output.item() > 0
-
-    def test_pixel_wise_cross_entropy_2d(self):
-        loss = PixelWiseCrossEntropyLoss()
-        input = torch.randn(3, 2, 30, 30)
-        target = torch.empty(3, 30, 30, dtype=torch.long).random_(2)
-        weight = torch.rand(3, 30, 30)
-        output = loss(input, target, weight)
-        assert output.item() > 0
-
     def test_ignore_index_loss(self):
-        loss = _MaskingLossWrapper(nn.BCEWithLogitsLoss(), ignore_index=-1)
+        loss = MaskingLossWrapper(nn.BCEWithLogitsLoss(), ignore_index=-1)
         input = torch.rand((3, 3))
         input[1, 1] = 1.
         input.requires_grad = True

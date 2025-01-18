@@ -757,9 +757,6 @@ class Transformer:
     def label_transform(self):
         return self._create_transform('label')
 
-    def weight_transform(self):
-        return self._create_transform('weight')
-
     @staticmethod
     def _transformer_class(class_name):
         m = importlib.import_module('pytorch3dunet.augment.transforms')
