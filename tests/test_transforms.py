@@ -74,8 +74,6 @@ class TestTransforms:
         label_transforms = transformer.label_transform().transforms
         assert not label_transforms[0].expand_dims
         assert label_transforms[0].dtype == 'int64'
-        weight_transforms = transformer.weight_transform().transforms
-        assert not weight_transforms[0].expand_dims
 
     def test_StandardTransformer(self):
         config = {

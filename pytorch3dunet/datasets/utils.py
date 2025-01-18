@@ -1,5 +1,5 @@
 import collections
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -14,10 +14,24 @@ logger = get_logger('Dataset')
 class RandomScaler:
     """
     Randomly scales the raw and label patches.
+
+    Args:
+        scale_range (int): the maximum absolute value of the scaling factor,
+            i.e. patches coordinates will be randomly shifted in the range [-scale_range, scale_range]
+        patch_shape (tuple): the shape of the patch DxHxW
+        volume_shape (tuple): the shape of the volume DxHxW
+        execution_probability (float): the probability of executing the scaling
+        seed (int): random seed
     """
 
-    def __init__(self, scale_range: int, patch_shape: tuple, volume_shape: tuple, execution_probability: bool = 0.5,
-                 seed: int = 47):
+    def __init__(
+            self,
+            scale_range: int,
+            patch_shape: tuple,
+            volume_shape: tuple,
+            execution_probability: float = 0.5,
+            seed: int = 47
+    ):
         self.scale_range = scale_range
         self.patch_shape = patch_shape
         self.volume_shape = volume_shape
@@ -166,18 +180,24 @@ class ConfigDataset(Dataset):
 
 class SliceBuilder:
     """
-    Builds the position of the patches in a given raw/label/weight ndarray based on the patch and stride shape.
+    Builds the position of the patches in a given raw/label ndarray based on the patch and stride shape.
 
     Args:
         raw_dataset (ndarray): raw data
         label_dataset (ndarray): ground truth labels
-        weight_dataset (ndarray): weights for the labels
         patch_shape (tuple): the shape of the patch DxHxW
         stride_shape (tuple): the shape of the stride DxHxW
         kwargs: additional metadata
     """
 
-    def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, **kwargs):
+    def __init__(
+            self,
+            raw_dataset: np.ndarray,
+            label_dataset: np.ndarray,
+            patch_shape: tuple,
+            stride_shape: tuple,
+            **kwargs
+    ):
         patch_shape = tuple(patch_shape)
         stride_shape = tuple(stride_shape)
         skip_shape_check = kwargs.get('skip_shape_check', False)
@@ -191,11 +211,6 @@ class SliceBuilder:
             # take the first element in the label_dataset to build slices
             self._label_slices = self._build_slices(label_dataset, patch_shape, stride_shape)
             assert len(self._raw_slices) == len(self._label_slices)
-        if weight_dataset is None:
-            self._weight_slices = None
-        else:
-            self._weight_slices = self._build_slices(weight_dataset, patch_shape, stride_shape)
-            assert len(self.raw_slices) == len(self._weight_slices)
 
     @property
     def raw_slices(self):
@@ -204,10 +219,6 @@ class SliceBuilder:
     @property
     def label_slices(self):
         return self._label_slices
-
-    @property
-    def weight_slices(self):
-        return self._weight_slices
 
     @staticmethod
     def _build_slices(dataset, patch_shape, stride_shape):
@@ -259,12 +270,31 @@ class SliceBuilder:
 
 class FilterSliceBuilder(SliceBuilder):
     """
-    Filter patches containing more than `1 - threshold` of ignore_index label
+    Filter patches containing less than the `threshold` of non-zero values.
+
+    Args:
+        raw_dataset (ndarray): raw data
+        label_dataset (ndarray): ground truth labels
+        patch_shape (tuple): the shape of the patch DxHxW
+        stride_shape (tuple): the shape of the stride DxHxW
+        ignore_index (int): ignore index in the label dataset; this label will be matched to 0 before filtering
+        threshold (float): the threshold of non-zero values in the label patch
+        slack_acceptance (float): the probability of accepting a patch that does not meet the threshold criteria
+        kwargs: additional metadata
     """
 
-    def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, ignore_index=None,
-                 threshold=0.6, slack_acceptance=0.01, **kwargs):
-        super().__init__(raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, **kwargs)
+    def __init__(
+            self,
+            raw_dataset: np.ndarray,
+            label_dataset: np.ndarray,
+            patch_shape: tuple,
+            stride_shape: tuple,
+            ignore_index: Optional[int] = None,
+            threshold: float = 0.6,
+            slack_acceptance: float = 0.01,
+            **kwargs
+    ):
+        super().__init__(raw_dataset, label_dataset, patch_shape, stride_shape, **kwargs)
         if label_dataset is None:
             return
 
@@ -303,22 +333,23 @@ def _loader_classes(class_name):
     return get_class(class_name, modules)
 
 
-def get_slice_builder(raws, labels, weight_maps, config):
+def get_slice_builder(raw: np.ndarray, label: np.ndarray, config: dict) -> SliceBuilder:
     assert 'name' in config
     logger.info(f"Slice builder config: {config}")
     slice_builder_cls = _loader_classes(config['name'])
-    return slice_builder_cls(raws, labels, weight_maps, **config)
+    return slice_builder_cls(raw, label, **config)
 
 
-def get_train_loaders(config):
+def get_train_loaders(config: dict) -> dict[str, DataLoader]:
     """
     Returns dictionary containing the training and validation loaders (torch.utils.data.DataLoader).
-
-    :param config: a top level configuration object containing the 'loaders' key
-    :return: dict {
-        'train': <train_loader>
-        'val': <val_loader>
-    }
+    Args:
+        config:  a top level configuration object containing the 'loaders' key
+    Returns:
+        dict {
+            'train': <train_loader>
+            'val': <val_loader>
+        }
     """
     assert 'loaders' in config, 'Could not find data loaders configuration'
     loaders_config = config['loaders']
@@ -344,7 +375,8 @@ def get_train_loaders(config):
     batch_size = loaders_config.get('batch_size', 1)
     if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
         logger.info(
-            f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}')
+            f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}'
+        )
         batch_size = batch_size * torch.cuda.device_count()
 
     logger.info(f'Batch size for train/val loader: {batch_size}')
@@ -358,7 +390,7 @@ def get_train_loaders(config):
     }
 
 
-def get_test_loaders(config):
+def get_test_loaders(config: dict) -> DataLoader:
     """
     Returns test DataLoader.
 
@@ -385,7 +417,8 @@ def get_test_loaders(config):
     batch_size = loaders_config.get('batch_size', 1)
     if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
         logger.info(
-            f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}')
+            f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}'
+        )
         batch_size = batch_size * torch.cuda.device_count()
 
     logger.info(f'Batch size for dataloader: {batch_size}')

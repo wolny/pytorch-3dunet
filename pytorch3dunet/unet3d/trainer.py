@@ -20,7 +20,7 @@ from . import utils
 logger = get_logger('UNetTrainer')
 
 
-def create_trainer(config):
+def create_trainer(config: dict) -> 'UNetTrainer':
     # Create the model
     model = get_model(config['model'])
 
@@ -57,6 +57,19 @@ def create_trainer(config):
     return UNetTrainer(model=model, optimizer=optimizer, lr_scheduler=lr_scheduler, loss_criterion=loss_criterion,
                        eval_criterion=eval_criterion, loaders=loaders, tensorboard_formatter=tensorboard_formatter,
                        resume=resume, pre_trained=pre_trained, **trainer_config)
+
+
+def _split_and_move_to_gpu(t):
+    def _move_to_gpu(input):
+        if isinstance(input, (tuple, list)):
+            return tuple([_move_to_gpu(x) for x in input])
+        else:
+            if torch.cuda.is_available():
+                input = input.cuda(non_blocking=True)
+            return input
+
+    input, target = _move_to_gpu(t)
+    return input, target
 
 
 class UNetTrainer:
@@ -181,9 +194,9 @@ class UNetTrainer:
             logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
                         f'Epoch [{self.num_epochs}/{self.max_num_epochs - 1}]')
 
-            input, target, weight = self._split_training_batch(t)
+            input, target = _split_and_move_to_gpu(t)
 
-            output, loss = self._forward_pass(input, target, weight)
+            output, loss = self._forward_pass(input, target)
 
             train_losses.update(loss.item(), self._batch_size(input))
 
@@ -223,7 +236,12 @@ class UNetTrainer:
                 logger.info(
                     f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
                 self._log_stats('train', train_losses.avg, train_eval_scores.avg)
-                self._log_images(input.cpu().numpy(), target.cpu().numpy(), output.cpu().numpy(), 'train_')
+                self._log_images(
+                    input.detach().cpu().numpy(),
+                    target.detach().cpu().numpy(),
+                    output.detach().cpu().numpy(),
+                    'train_'
+                )
 
             if self.should_stop():
                 return True
@@ -265,9 +283,9 @@ class UNetTrainer:
 
             images_for_logging = []
             for i, t in enumerate(tqdm(self.loaders['val'])):
-                input, target, weight = self._split_training_batch(t)
+                input, target = _split_and_move_to_gpu(t)
 
-                output, loss = self._forward_pass(input, target, weight)
+                output, loss = self._forward_pass(input, target)
                 val_losses.update(loss.item(), self._batch_size(input))
                 eval_score = self.eval_criterion(output, target)
                 val_scores.update(eval_score.item(), self._batch_size(input))
@@ -290,41 +308,21 @@ class UNetTrainer:
             self._log_stats('val', val_losses.avg, val_scores.avg)
             return val_scores.avg
 
-    def _split_training_batch(self, t):
-        def _move_to_gpu(input):
-            if isinstance(input, (tuple, list)):
-                return tuple([_move_to_gpu(x) for x in input])
-            else:
-                if torch.cuda.is_available():
-                    input = input.cuda(non_blocking=True)
-                return input
-
-        t = _move_to_gpu(t)
-        weight = None
-        if len(t) == 2:
-            input, target = t
-        else:
-            input, target, weight = t
-        return input, target, weight
-
-    def _forward_pass(self, x: torch.Tensor, y: torch.Tensor, weight: torch.Tensor = None):
+    def _forward_pass(self, inp: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if is_model_2d(self.model):
             # remove the singleton z-dimension from the input
-            x = torch.squeeze(x, dim=-3)
+            inp = torch.squeeze(inp, dim=-3)
             # forward pass
-            output, logits = self.model(x, return_logits=True)
+            output, logits = self.model(inp, return_logits=True)
             # add the singleton z-dimension to the output
             output = torch.unsqueeze(output, dim=-3)
             logits = torch.unsqueeze(logits, dim=-3)
         else:
             # forward pass
-            output, logits = self.model(x, return_logits=True)
+            output, logits = self.model(inp, return_logits=True)
 
         # always compute the loss using logits
-        if weight is None:
-            loss = self.loss_criterion(logits, y)
-        else:
-            loss = self.loss_criterion(logits, y, weight)
+        loss = self.loss_criterion(logits, target)
 
         # return probabilities and loss
         return output, loss
