@@ -2,7 +2,7 @@ import os
 import time
 from concurrent import futures
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 import h5py
 import numpy as np
@@ -51,7 +51,7 @@ def _load_dataset(dataset: AbstractHDF5Dataset, internal_path: str) -> np.ndarra
         return f[internal_path][...]
 
 
-def mean_iou(pred, gt, n_classes, avg=False):
+def mean_iou(pred: np.ndarray, gt: np.ndarray, n_classes: int, avg: bool = False) -> list[float] | float:
     """
     Compute the mean Intersection over Union (IoU) for the given predictions and ground truth.
     Args:
@@ -79,7 +79,8 @@ def mean_iou(pred, gt, n_classes, avg=False):
         return np.mean(per_class_iou)
     return per_class_iou
 
-def dice_score(pred, gt, avg=False):
+
+def dice_score(pred: np.ndarray, gt: np.ndarray, avg: bool = False) -> list[float] | float:
     """
     Compute the Dice score for the given predictions and ground truth.
     If avg is True, return the mean Dice score, otherwise return the Dice score for each channel/class.
@@ -98,7 +99,6 @@ def dice_score(pred, gt, avg=False):
     if avg:
         return np.mean(per_class_dice)
     return per_class_dice
-
 
 
 class _AbstractPredictor:
@@ -133,7 +133,7 @@ class _AbstractPredictor:
         self.performance_metric = performance_metric
         self.gt_internal_path = gt_internal_path
 
-    def __call__(self, test_loader: DataLoader) -> Optional[torch.Tensor]:
+    def __call__(self, test_loader: DataLoader) -> Any:
         """
         Run the model prediction on the test_loader and save the results in the output_dir.
 
