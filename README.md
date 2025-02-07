@@ -25,9 +25,9 @@ The 2D U-Net itself uses the standard 2D convolutional layers instead of 3D conv
 
 ## Input Data Format
 
-The input data should be stored in HDF5 files. The HDF5 files for training should contain two datasets: `raw` and `label`. Optionally, when training with `PixelWiseCrossEntropyLoss` one should provide `weight` dataset.
-The `raw` dataset should contain the input data, while the `label` dataset the ground truth labels. The optional `weight` dataset should contain the values for weighting the loss function in different regions of the input and should be of the same size as `label` dataset.
-The format of the `raw`/`label` datasets depends on whether the problem is 2D or 3D and whether the data is single-channel or multi-channel, see the table below:
+The input data should be stored in HDF5 files. The HDF5 files for training should contain two datasets: `raw` and `label`.
+The `raw` dataset contains the input data, while the `label` dataset contains the ground truth labels. 
+The format of the raw and label datasets depends on whether the problem is 2D or 3D, as well as whether the data is single-channel or multi-channel. Please refer to the table below:
 
 |                | 2D           | 3D           |
 |----------------|--------------|--------------|
@@ -57,7 +57,7 @@ To ensure that the GPU-ready version of PyTorch is installed:
 conda install -c pytorch -c nvidia -c conda-forge pytorch pytorch-cuda=12.1 pytorch-3dunet
 ```
 
-After installation the following commands are accessible within the conda environment:
+After installation the following commands will be accessible within the conda environment:
 `train3dunet` for training the network and `predict3dunet` for prediction (see below).
 
 - One can also install directly from source, i.e. go to the checkout directory and run:
@@ -76,12 +76,12 @@ python setup.py install
 Make sure that the installed `pytorch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. 
 
 ## Train
-Given that `pytorch-3dunet` package was installed via conda as described above, one can train the network by simply invoking:
+Given that `pytorch-3dunet` package was installed via conda as described above, you can train the network by simply invoking:
 ```
 train3dunet --config <CONFIG>
 ```
 
-where `CONFIG` is the path to a YAML configuration file, which specifies all aspects of the training procedure.
+where `CONFIG` is the path to a YAML configuration file that specifies all aspects of the training process.
 
 In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the config.
 
