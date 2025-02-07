@@ -45,12 +45,16 @@ The format of the `raw`/`label` datasets depends on whether the problem is 2D or
 
 ## Installation
 
-- The easiest way to install `pytorch-3dunet` package is via conda/mamba:
+- The easiest way to install `pytorch-3dunet` package is via conda:
 
 ```
-conda install -c conda-forge mamba
-mamba create -n pytorch-3dunet -c pytorch -c nvidia -c conda-forge pytorch pytorch-cuda=12.1 pytorch-3dunet
-conda activate pytorch-3dunet
+conda install -c conda-forge pytorch-3dunet
+```
+
+To ensure that the GPU-ready version of PyTorch is installed:
+
+```
+conda install -c pytorch -c nvidia -c conda-forge pytorch pytorch-cuda=12.1 pytorch-3dunet
 ```
 
 After installation the following commands are accessible within the conda environment:
