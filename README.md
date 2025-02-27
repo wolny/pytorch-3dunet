@@ -2,7 +2,9 @@
 
 [![DOI](https://zenodo.org/badge/149826542.svg)](https://doi.org/10.7554/eLife.57613)
 [![Build Status](https://github.com/wolny/pytorch-3dunet/actions/workflows/conda-build.yml/badge.svg)](https://github.com/wolny/pytorch-3dunet/actions/)
+[![Anaconda-Server Badge](https://anaconda.org/conda-forge/pytorch-3dunet/badges/version.svg)](https://anaconda.org/conda-forge/pytorch-3dunet)
 [![Anaconda-Server Badge](https://anaconda.org/conda-forge/pytorch-3dunet/badges/latest_release_date.svg)](https://anaconda.org/conda-forge/pytorch-3dunet)
+[![Anaconda-Server Badge](https://anaconda.org/conda-forge/pytorch-3dunet/badges/downloads.svg)](https://anaconda.org/conda-forge/pytorch-3dunet)
 [![Anaconda-Server Badge](https://anaconda.org/conda-forge/pytorch-3dunet/badges/license.svg)](https://anaconda.org/conda-forge/pytorch-3dunet)
 
 # pytorch-3dunet
