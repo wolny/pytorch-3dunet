@@ -53,12 +53,6 @@ The format of the raw and label datasets depends on whether the problem is 2D or
 conda install -c conda-forge pytorch-3dunet
 ```
 
-To ensure that the GPU-ready version of PyTorch is installed:
-
-```
-conda install -c pytorch -c nvidia -c conda-forge pytorch pytorch-cuda=12.1 pytorch-3dunet
-```
-
 After installation the following commands will be accessible within the conda environment:
 `train3dunet` for training the network and `predict3dunet` for prediction (see below).
 
