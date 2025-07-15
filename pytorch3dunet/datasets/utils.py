@@ -383,12 +383,13 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
 
     logger.info(f'Batch size for train/val loader: {batch_size}')
     # when training with volumetric data use batch_size of 1 due to GPU memory constraints
+    os_depenent_kwargs = os_dependent_dataloader_kwargs()
     return {
-        'train': DataLoader(ConcatDataset(train_datasets), batch_size=batch_size, shuffle=True, pin_memory=True,
-                            num_workers=num_workers, drop_last=True),
+        'train': DataLoader(ConcatDataset(train_datasets), batch_size=batch_size, shuffle=True,
+                            num_workers=num_workers, drop_last=True, **os_depenent_kwargs),
         # don't shuffle during validation: useful when showing how predictions for a given batch get better over time
-        'val': DataLoader(ConcatDataset(val_datasets), batch_size=batch_size, shuffle=False, pin_memory=True,
-                          num_workers=num_workers, drop_last=True)
+        'val': DataLoader(ConcatDataset(val_datasets), batch_size=batch_size, shuffle=False,
+                          num_workers=num_workers, drop_last=True, **os_depenent_kwargs)
     }
 
 
@@ -434,8 +435,10 @@ def get_test_loaders(config: dict) -> DataLoader:
         else:
             collate_fn = default_prediction_collate
 
-        yield DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True,
-                         collate_fn=collate_fn)
+        os_depenent_kwargs = os_dependent_dataloader_kwargs()
+
+        yield DataLoader(
+            test_dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn, **os_depenent_kwargs)
 
 
 def default_prediction_collate(batch):

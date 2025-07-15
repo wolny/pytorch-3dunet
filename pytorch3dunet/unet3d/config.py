@@ -1,5 +1,6 @@
 import argparse
 import os
+import platform
 import shutil
 from enum import Enum
 
@@ -43,6 +44,15 @@ def default_device() -> TorchDevice:
         device = TorchDevice.MPS
 
     return device
+
+
+def os_dependent_dataloader_kwargs() -> dict:
+    kwargs = dict(pin_memory=True)
+    if platform.system() == "Darwin":
+        # Considerable performance improvement avoiding spawn for dataloaders and persisting loaders on MacOSX
+        kwargs = dict(multiprocessing_context="forkserver", persistent_workers=True)
+
+    return kwargs
 
 
 def _override_config(args, config):
