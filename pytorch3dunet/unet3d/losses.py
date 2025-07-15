@@ -4,6 +4,7 @@ from torch import nn as nn
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss
 
 from pytorch3dunet.unet3d.utils import get_logger
+from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device
 
 logger = get_logger('Loss')
 
@@ -244,6 +245,13 @@ def get_loss_criterion(config):
     :return: an instance of the loss function
     """
     assert 'loss' in config, 'Could not find loss function configuration'
+
+    if "device" not in config:
+        logger.warning("No device specified in config - legacy mode will try to choose a sensible device")
+        device = legacy_default_device()
+    else:
+        device: TorchDevice = config["device"]
+
     loss_config = config['loss']
     name = loss_config.pop('name')
     logger.info(f"Creating loss function: {name}")
@@ -269,8 +277,7 @@ def get_loss_criterion(config):
     if skip_last_target:
         loss = SkipLastTargetChannelWrapper(loss, loss_config.get('squeeze_channel', False))
 
-    if torch.cuda.is_available():
-        loss = loss.cuda()
+    loss.to(device)
 
     return loss
 

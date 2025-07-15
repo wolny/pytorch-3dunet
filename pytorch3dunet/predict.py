@@ -6,7 +6,7 @@ import torch.nn as nn
 
 from pytorch3dunet.datasets.utils import get_test_loaders
 from pytorch3dunet.unet3d import utils
-from pytorch3dunet.unet3d.config import load_config
+from pytorch3dunet.unet3d.config import TorchDevice, load_config
 from pytorch3dunet.unet3d.model import get_model
 
 logger = utils.get_logger('UNet3DPredict')
@@ -23,7 +23,7 @@ def get_predictor(model, config):
     m = importlib.import_module('pytorch3dunet.unet3d.predictor')
     predictor_class = getattr(m, class_name)
     out_channels = config['model'].get('out_channels')
-    return predictor_class(model, output_dir, out_channels, **predictor_config)
+    return predictor_class(model, output_dir, out_channels, **predictor_config, device=config["device"])
 
 
 def main():
@@ -32,6 +32,7 @@ def main():
 
     # Create the model
     model = get_model(config['model'])
+    device = config["device"]
 
     # Load model state
     model_path = config['model_path']
@@ -39,11 +40,10 @@ def main():
     utils.load_checkpoint(model_path, model)
     # use DataParallel if more than 1 GPU available
 
-    if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
+    if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
         logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')
-    if torch.cuda.is_available() and not config['device'] == 'cpu':
-        model = model.cuda()
+    model = model.to(device)
 
     # create predictor instance
     predictor = get_predictor(model, config)

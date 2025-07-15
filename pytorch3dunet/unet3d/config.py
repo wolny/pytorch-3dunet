@@ -23,6 +23,17 @@ class TorchDevice(str, Enum):
             yield x
 
 
+def legacy_default_device() -> TorchDevice:
+    """Emulate legacy implementation where cuda was used if available
+
+    which was to use CUDA for certain things if available.
+    """
+    if torch.cuda.is_available():
+        return TorchDevice.CUDA
+
+    return TorchDevice.CPU
+
+
 def default_device() -> TorchDevice:
     logger.info("No device specified in config - determining best device automatically")
     device = TorchDevice.CPU
