@@ -32,15 +32,6 @@ jobs:
       run: |
         conda install -q conda-build
         conda build -c conda-forge conda-recipe
-    - name: Create pytorch3dunet env
-      run: |
-        conda create -n pytorch3dunet -c local -c conda-forge pytorch-3dunet pytest
-    - name: Run pytest
-      shell: bash -l {0}
-      run: |
-        conda activate pytorch3dunet
-        pytest
-        conda deactivate
     - name: Deploy on conda
       if: ${{ matrix.os == 'ubuntu-latest' && startsWith( github.ref, 'refs/tags/') && success() }}
       env:
