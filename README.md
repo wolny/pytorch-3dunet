@@ -287,4 +287,15 @@ publisher = {eLife Sciences Publications, Ltd},
 }
 ```
 
+## Development
 
+A development environment can be created via conda:
+
+```
+conda env create --file environment.yaml
+conda activate 3dunet
+pip install -e .
+```
+
+Tests can be run via `pytest`.
+The device the tests should be run on can be specified with the `--device` argument (`cpu`, `mps`, or `cuda` - default: `cpu`).

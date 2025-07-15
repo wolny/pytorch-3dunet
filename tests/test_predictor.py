@@ -23,8 +23,8 @@ def _run_prediction(test_config, tmpdir, shape):
     test_config['loaders']['test']['file_paths'] = [tmp.name]
     # Create the model with random weights
     model = get_model(test_config['model'])
-    if torch.cuda.is_available():
-        model.cuda()
+
+    model = model.to(test_config["device"])
     results = []
     for test_loader in get_test_loaders(test_config):
         predictor = get_predictor(model, test_config)
