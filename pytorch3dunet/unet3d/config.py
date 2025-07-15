@@ -88,7 +88,7 @@ def load_config():
 
     args = parser.parse_args()
     config_path = args.config
-    config = yaml.safe_load(open(config_path, 'r'))
+    config = _load_config_yaml(config_path)
     _override_config(args, config)
 
     config_device = config.get('device', None)
@@ -121,4 +121,5 @@ def copy_config(config, config_path):
 
 
 def _load_config_yaml(config_file):
-    return yaml.safe_load(open(config_file, 'r'))
+    with open(config_file, "r") as f:
+        return yaml.safe_load(f)

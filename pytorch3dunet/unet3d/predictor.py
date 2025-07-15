@@ -21,7 +21,7 @@ from pytorch3dunet.unet3d.utils import get_logger
 logger = get_logger('UNetPredictor')
 
 
-def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions', output_dir: str = None) -> Path:
+def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions', output_dir: Optional[Union[str, Path]] = None) -> Path:
     """
     Get the output file path for the predictions. If `output_dir` is not None the output file will be saved in
     the original dataset directory.
@@ -43,7 +43,7 @@ def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions',
         output_dir = Path(output_dir)
 
     output_filename = file_path.stem + suffix + '.h5'
-    return Path(output_dir) / output_filename
+    return output_dir / output_filename
 
 
 def _load_dataset(dataset: AbstractHDF5Dataset, internal_path: str) -> np.ndarray:
@@ -109,9 +109,9 @@ class _AbstractPredictor:
                  out_channels: int,
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
-                 prediction_channel: int = None,
-                 performance_metric: str = None,
-                 gt_internal_path: str = None,
+                 prediction_channel: Optional[int] = None,
+                 performance_metric: Optional[str] = None,
+                 gt_internal_path: Optional[str] = None,
                  device: Optional[TorchDevice] = None,
                  **kwargs):
         """
@@ -160,9 +160,9 @@ class StandardPredictor(_AbstractPredictor):
                  out_channels: int,
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
-                 prediction_channel: int = None,
-                 performance_metric: str = None,
-                 gt_internal_path: str = None,
+                 prediction_channel: Optional[int] = None,
+                 performance_metric: Optional[str] = None,
+                 gt_internal_path: Optional[str] = None,
                  device: Optional[TorchDevice] = None,
                  **kwargs):
         super().__init__(model, output_dir, out_channels, output_dataset, save_segmentation, prediction_channel,
@@ -296,9 +296,9 @@ class LazyPredictor(StandardPredictor):
                  out_channels: int,
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
-                 prediction_channel: int = None,
-                 performance_metric: str = None,
-                 gt_internal_path: str = None,
+                 prediction_channel: Optional[int] = None,
+                 performance_metric: Optional[str] = None,
+                 gt_internal_path: Optional[str] = None,
                  device: Optional[TorchDevice] = None,
                  **kwargs):
         super().__init__(model, output_dir, out_channels, output_dataset, save_segmentation, prediction_channel,
