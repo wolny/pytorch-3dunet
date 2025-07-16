@@ -42,7 +42,7 @@ test:
   source_files:
     - tests
   commands:
-    - pytest tests
+    - pytest -v
 
 about:
   home: https://github.com/wolny/pytorch-3dunet
