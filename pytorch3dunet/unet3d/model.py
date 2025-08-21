@@ -155,7 +155,9 @@ class UNet3D(AbstractUNet):
                                      conv_upscale=conv_upscale,
                                      upsample=upsample,
                                      dropout_prob=dropout_prob,
-                                     is3d=True)
+                                     is3d=True,
+                                     **kwargs)
+        self.num_classes = out_channels
 
 
 class ResidualUNet3D(AbstractUNet):
@@ -182,7 +184,8 @@ class ResidualUNet3D(AbstractUNet):
                                              conv_upscale=conv_upscale,
                                              upsample=upsample,
                                              dropout_prob=dropout_prob,
-                                             is3d=True)
+                                             is3d=True,
+                                            **kwargs)
 
 
 class ResidualUNetSE3D(AbstractUNet):
@@ -211,7 +214,8 @@ class ResidualUNetSE3D(AbstractUNet):
                                                conv_upscale=conv_upscale,
                                                upsample=upsample,
                                                dropout_prob=dropout_prob,
-                                               is3d=True)
+                                               is3d=True,
+                                               **kwargs)
 
 
 class UNet2D(AbstractUNet):
@@ -236,7 +240,8 @@ class UNet2D(AbstractUNet):
                                      conv_upscale=conv_upscale,
                                      upsample=upsample,
                                      dropout_prob=dropout_prob,
-                                     is3d=False)
+                                     is3d=False,
+                                     **kwargs)
 
 
 class ResidualUNet2D(AbstractUNet):
@@ -260,7 +265,8 @@ class ResidualUNet2D(AbstractUNet):
                                              conv_upscale=conv_upscale,
                                              upsample=upsample,
                                              dropout_prob=dropout_prob,
-                                             is3d=False)
+                                             is3d=False,
+                                             **kwargs)
 
 
 def get_model(model_config):
