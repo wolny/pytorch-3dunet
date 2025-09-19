@@ -1,11 +1,10 @@
 name: 3dunet
 
 channels:
-  - pytorch
   - conda-forge
 
 dependencies:
-  - python 3.9
+  - python 3.11
   - pytorch
   - tensorboard
   - tqdm

@@ -1,8 +1,10 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from typing import Optional, Union
 
 import numpy as np
+from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -24,11 +26,15 @@ def create_trainer(config: dict) -> 'UNetTrainer':
     # Create the model
     model = get_model(config['model'])
 
-    if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
+    device: Union[TorchDevice, None] = config["device"]
+    if device is None:
+        logger.warning("Creating trainer in legacy mode: device unspecified and will be automatically determined")
+        device = legacy_default_device()
+
+    if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
         logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')
-    if torch.cuda.is_available() and not config['device'] == 'cpu':
-        model = model.cuda()
+    model.to(device)
 
     # Log the number of learnable parameters
     logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
@@ -56,19 +62,22 @@ def create_trainer(config: dict) -> 'UNetTrainer':
 
     return UNetTrainer(model=model, optimizer=optimizer, lr_scheduler=lr_scheduler, loss_criterion=loss_criterion,
                        eval_criterion=eval_criterion, loaders=loaders, tensorboard_formatter=tensorboard_formatter,
-                       resume=resume, pre_trained=pre_trained, **trainer_config)
+                       resume=resume, pre_trained=pre_trained, device=device, **trainer_config)
 
 
-def _split_and_move_to_gpu(t):
-    def _move_to_gpu(input):
+def _split_and_move_to_gpu(t, device: TorchDevice):
+    def _move_to_gpu(input, device):
         if isinstance(input, (tuple, list)):
-            return tuple([_move_to_gpu(x) for x in input])
+            return tuple([_move_to_gpu(x, device) for x in input])
         else:
-            if torch.cuda.is_available():
+            if device == TorchDevice.CUDA:
                 input = input.cuda(non_blocking=True)
+            else:
+                input = input.to(device)
+
             return input
 
-    input, target = _move_to_gpu(t)
+    input, target = _move_to_gpu(t, device)
     return input, target
 
 
@@ -109,7 +118,7 @@ class UNetTrainer:
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders, checkpoint_dir,
                  max_num_epochs, max_num_iterations, validate_after_iters=200, log_after_iters=100, validate_iters=None,
                  num_iterations=1, num_epoch=0, eval_score_higher_is_better=True, tensorboard_formatter=None,
-                 skip_train_validation=False, resume=None, pre_trained=None, max_val_images=100, **kwargs):
+                 skip_train_validation=False, resume=None, pre_trained=None, max_val_images=100, device: Optional[TorchDevice]=None,**kwargs):
 
         self.max_val_images = max_val_images
         self.model = model
@@ -125,6 +134,7 @@ class UNetTrainer:
         self.log_after_iters = log_after_iters
         self.validate_iters = validate_iters
         self.eval_score_higher_is_better = eval_score_higher_is_better
+        self._device = legacy_default_device() if device is None else device
 
         logger.info(model)
         logger.info(f'eval_score_higher_is_better: {eval_score_higher_is_better}')
@@ -194,7 +204,7 @@ class UNetTrainer:
             logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
                         f'Epoch [{self.num_epochs}/{self.max_num_epochs - 1}]')
 
-            input, target = _split_and_move_to_gpu(t)
+            input, target = _split_and_move_to_gpu(t, self._device)
 
             output, loss = self._forward_pass(input, target)
 
@@ -283,7 +293,7 @@ class UNetTrainer:
 
             images_for_logging = []
             for i, t in enumerate(tqdm(self.loaders['val'])):
-                input, target = _split_and_move_to_gpu(t)
+                input, target = _split_and_move_to_gpu(t, self._device)
 
                 output, loss = self._forward_pass(input, target)
                 val_losses.update(loss.item(), self._batch_size(input))

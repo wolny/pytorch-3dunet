@@ -53,12 +53,6 @@ The format of the raw and label datasets depends on whether the problem is 2D or
 conda install -c conda-forge pytorch-3dunet
 ```
 
-To ensure that the GPU-ready version of PyTorch is installed:
-
-```
-conda install -c pytorch -c nvidia -c conda-forge pytorch pytorch-cuda=12.1 pytorch-3dunet
-```
-
 After installation the following commands will be accessible within the conda environment:
 `train3dunet` for training the network and `predict3dunet` for prediction (see below).
 
@@ -293,4 +287,15 @@ publisher = {eLife Sciences Publications, Ltd},
 }
 ```
 
+## Development
 
+A development environment can be created via conda:
+
+```
+conda env create --file environment.yaml
+conda activate 3dunet
+pip install -e .
+```
+
+Tests can be run via `pytest`.
+The device the tests should be run on can be specified with the `--device` argument (`cpu`, `mps`, or `cuda` - default: `cpu`).

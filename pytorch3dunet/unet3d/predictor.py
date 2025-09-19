@@ -2,10 +2,11 @@ import os
 import time
 from concurrent import futures
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Union
 
 import h5py
 import numpy as np
+from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device
 import torch
 from skimage import measure
 from torch import nn
@@ -20,7 +21,7 @@ from pytorch3dunet.unet3d.utils import get_logger
 logger = get_logger('UNetPredictor')
 
 
-def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions', output_dir: str = None) -> Path:
+def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions', output_dir: Optional[Union[str, Path]] = None) -> Path:
     """
     Get the output file path for the predictions. If `output_dir` is not None the output file will be saved in
     the original dataset directory.
@@ -42,7 +43,7 @@ def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions',
         output_dir = Path(output_dir)
 
     output_filename = file_path.stem + suffix + '.h5'
-    return Path(output_dir) / output_filename
+    return output_dir / output_filename
 
 
 def _load_dataset(dataset: AbstractHDF5Dataset, internal_path: str) -> np.ndarray:
@@ -108,9 +109,10 @@ class _AbstractPredictor:
                  out_channels: int,
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
-                 prediction_channel: int = None,
-                 performance_metric: str = None,
-                 gt_internal_path: str = None,
+                 prediction_channel: Optional[int] = None,
+                 performance_metric: Optional[str] = None,
+                 gt_internal_path: Optional[str] = None,
+                 device: Optional[TorchDevice] = None,
                  **kwargs):
         """
         Base class for predictors.
@@ -132,6 +134,8 @@ class _AbstractPredictor:
         self.prediction_channel = prediction_channel
         self.performance_metric = performance_metric
         self.gt_internal_path = gt_internal_path
+        self._device = legacy_default_device() if device is None else device
+
 
     def __call__(self, test_loader: DataLoader) -> Any:
         """
@@ -156,12 +160,13 @@ class StandardPredictor(_AbstractPredictor):
                  out_channels: int,
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
-                 prediction_channel: int = None,
-                 performance_metric: str = None,
-                 gt_internal_path: str = None,
+                 prediction_channel: Optional[int] = None,
+                 performance_metric: Optional[str] = None,
+                 gt_internal_path: Optional[str] = None,
+                 device: Optional[TorchDevice] = None,
                  **kwargs):
         super().__init__(model, output_dir, out_channels, output_dataset, save_segmentation, prediction_channel,
-                         performance_metric, gt_internal_path, **kwargs)
+                         performance_metric, gt_internal_path, device=device, **kwargs)
 
     def __call__(self, test_loader):
         assert isinstance(test_loader.dataset, AbstractHDF5Dataset)
@@ -199,8 +204,10 @@ class StandardPredictor(_AbstractPredictor):
             with torch.no_grad():
                 for input, indices in tqdm(test_loader):
                     # send batch to gpu
-                    if torch.cuda.is_available():
+                    if self._device == TorchDevice.CUDA:
                         input = input.pin_memory().cuda(non_blocking=True)
+                    else:
+                        input = input.to(self._device)
 
                     if is_model_2d(self.model):
                         # remove the singleton z-dimension from the input
@@ -289,12 +296,13 @@ class LazyPredictor(StandardPredictor):
                  out_channels: int,
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
-                 prediction_channel: int = None,
-                 performance_metric: str = None,
-                 gt_internal_path: str = None,
+                 prediction_channel: Optional[int] = None,
+                 performance_metric: Optional[str] = None,
+                 gt_internal_path: Optional[str] = None,
+                 device: Optional[TorchDevice] = None,
                  **kwargs):
         super().__init__(model, output_dir, out_channels, output_dataset, save_segmentation, prediction_channel,
-                         performance_metric, gt_internal_path, **kwargs)
+                         performance_metric, gt_internal_path, device, **kwargs)
 
     def _allocate_prediction_array(self, output_shape, output_file):
         if self.save_segmentation:
@@ -335,8 +343,10 @@ class DSB2018Predictor(_AbstractPredictor):
         with torch.no_grad():
             for img, path in test_loader:
                 # send batch to gpu
-                if torch.cuda.is_available():
+                if self._device == TorchDevice.CUDA:
                     img = img.cuda(non_blocking=True)
+                else:
+                    img = img.to(self._device)
                 # forward pass
                 pred = self.model(img)
 

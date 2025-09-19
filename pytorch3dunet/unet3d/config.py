@@ -1,13 +1,58 @@
 import argparse
 import os
+import platform
 import shutil
+from enum import Enum
 
 import torch
 import yaml
 
 from pytorch3dunet.unet3d import utils
 
+
 logger = utils.get_logger('ConfigLoader')
+
+
+class TorchDevice(str, Enum):
+    CUDA = 'cuda'
+    MPS = 'mps'
+    CPU = "cpu"
+
+    @classmethod
+    def values(cls):
+        for x in map(lambda c: c.value, cls):
+            yield x
+
+
+def legacy_default_device() -> TorchDevice:
+    """Emulate legacy implementation where cuda was used if available
+
+    which was to use CUDA for certain things if available.
+    """
+    if torch.cuda.is_available():
+        return TorchDevice.CUDA
+
+    return TorchDevice.CPU
+
+
+def default_device() -> TorchDevice:
+    logger.info("No device specified in config - determining best device automatically")
+    device = TorchDevice.CPU
+    if torch.cuda.is_available():
+        device = TorchDevice.CUDA
+    elif torch.mps.is_available():
+        device = TorchDevice.MPS
+
+    return device
+
+
+def os_dependent_dataloader_kwargs() -> dict:
+    kwargs = dict(pin_memory=True)
+    if platform.system() == "Darwin":
+        # Considerable performance improvement avoiding spawn for dataloaders and persisting loaders on MacOSX
+        kwargs = dict(multiprocessing_context="forkserver", persistent_workers=True)
+
+    return kwargs
 
 
 def _override_config(args, config):
@@ -30,6 +75,7 @@ def _override_config(args, config):
                 c[k] = value
 
 
+
 def load_config():
     parser = argparse.ArgumentParser(description='UNet3D')
     parser.add_argument('--config', type=str, help='Path to the YAML config file', required=True)
@@ -42,20 +88,19 @@ def load_config():
 
     args = parser.parse_args()
     config_path = args.config
-    config = yaml.safe_load(open(config_path, 'r'))
+    config = _load_config_yaml(config_path)
     _override_config(args, config)
 
-    device = config.get('device', None)
-    if device == 'cpu':
-        logger.warning('CPU mode forced in config, this will likely result in slow training/prediction')
-        config['device'] = 'cpu'
-        return config, config_path
+    config_device = config.get('device', None)
 
-    if torch.cuda.is_available():
-        config['device'] = 'cuda'
-    else:
-        logger.warning('CUDA not available, using CPU')
-        config['device'] = 'cpu'
+    try:
+        config['device'] = TorchDevice(config_device) if config_device is not None else default_device()
+    except ValueError as e:
+        raise ValueError(f"Config key device: {config_device} not understood -- supported values: {', '.join(TorchDevice.values())}") from e
+
+    if config['device'] == TorchDevice.CPU:
+        logger.warning('CPU mode will likely result in slow training/prediction')
+
     return config, config_path
 
 
@@ -76,4 +121,5 @@ def copy_config(config, config_path):
 
 
 def _load_config_yaml(config_file):
-    return yaml.safe_load(open(config_file, 'r'))
+    with open(config_file, "r") as f:
+        return yaml.safe_load(f)

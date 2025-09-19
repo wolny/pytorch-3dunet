@@ -2,6 +2,7 @@ import collections
 from typing import Any, Optional
 
 import numpy as np
+from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device, os_dependent_dataloader_kwargs
 import torch
 from torch.nn.functional import interpolate
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
@@ -373,7 +374,8 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
     num_workers = loaders_config.get('num_workers', 1)
     logger.info(f'Number of workers for train/val dataloader: {num_workers}')
     batch_size = loaders_config.get('batch_size', 1)
-    if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
+    device = config["device"] if config["device"] is not None else legacy_default_device()
+    if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         logger.info(
             f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}'
         )
@@ -381,12 +383,13 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
 
     logger.info(f'Batch size for train/val loader: {batch_size}')
     # when training with volumetric data use batch_size of 1 due to GPU memory constraints
+    os_depenent_kwargs = os_dependent_dataloader_kwargs()
     return {
-        'train': DataLoader(ConcatDataset(train_datasets), batch_size=batch_size, shuffle=True, pin_memory=True,
-                            num_workers=num_workers, drop_last=True),
+        'train': DataLoader(ConcatDataset(train_datasets), batch_size=batch_size, shuffle=True,
+                            num_workers=num_workers, drop_last=True, **os_depenent_kwargs),
         # don't shuffle during validation: useful when showing how predictions for a given batch get better over time
-        'val': DataLoader(ConcatDataset(val_datasets), batch_size=batch_size, shuffle=False, pin_memory=True,
-                          num_workers=num_workers, drop_last=True)
+        'val': DataLoader(ConcatDataset(val_datasets), batch_size=batch_size, shuffle=False,
+                          num_workers=num_workers, drop_last=True, **os_depenent_kwargs)
     }
 
 
@@ -415,7 +418,8 @@ def get_test_loaders(config: dict) -> DataLoader:
     logger.info(f'Number of workers for the dataloader: {num_workers}')
 
     batch_size = loaders_config.get('batch_size', 1)
-    if torch.cuda.device_count() > 1 and not config['device'] == 'cpu':
+    device = config["device"] if config["device"] is not None else legacy_default_device()
+    if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         logger.info(
             f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}'
         )
@@ -431,8 +435,10 @@ def get_test_loaders(config: dict) -> DataLoader:
         else:
             collate_fn = default_prediction_collate
 
-        yield DataLoader(test_dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True,
-                         collate_fn=collate_fn)
+        os_depenent_kwargs = os_dependent_dataloader_kwargs()
+
+        yield DataLoader(
+            test_dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn, **os_depenent_kwargs)
 
 
 def default_prediction_collate(batch):
