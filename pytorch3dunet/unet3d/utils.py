@@ -356,8 +356,10 @@ def create_optimizer(optimizer_config, model):
         optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, alpha=alpha,
                                   weight_decay=weight_decay)
     elif optim_name == 'Rprop':
-        momentum = optimizer_config.get('momentum', 0)
-        optimizer = optim.RMSprop(model.parameters(), lr=learning_rate, weight_decay=weight_decay, momentum=momentum)
+        etas = optimizer_config.get('etas', (0.5, 1.2))
+        step_sizes = optimizer_config.get('step_sizes', (1e-6, 50))
+        optimizer = optim.Rprop(model.parameters(), lr=learning_rate, etas=etas,
+                                step_sizes=step_sizes)
     elif optim_name == 'SGD':
         momentum = optimizer_config.get('momentum', 0)
         dampening = optimizer_config.get('dampening', 0)
