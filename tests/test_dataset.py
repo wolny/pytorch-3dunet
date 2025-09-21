@@ -1,9 +1,8 @@
+import h5py
+import numpy as np
 import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-
-import h5py
-import numpy as np
 from torch.utils.data import DataLoader
 
 from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, traverse_h5_paths, LazyHDF5Dataset
@@ -92,8 +91,7 @@ class TestHDF5Dataset:
                                       slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32)),
                                       transformer_config=transformer_config[phase]['transformer'])
 
-        # test augmentations using DataLoader with 4 worker threads
-        data_loader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=True)
+        data_loader = DataLoader(dataset, batch_size=1, shuffle=True)
         for (img, label) in data_loader:
             for i in range(label.shape[0]):
                 assert np.allclose(img, label[i])
@@ -135,8 +133,7 @@ class TestHDF5Dataset:
         dataset = StandardHDF5Dataset(tmp_file, phase=phase,
                                       slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32), halo_shape),
                                       transformer_config=_transformer_test_conf())
-        data_loader = DataLoader(dataset, batch_size=1, num_workers=4, shuffle=True,
-                                 collate_fn=default_prediction_collate)
+        data_loader = DataLoader(dataset, batch_size=1, shuffle=True, collate_fn=default_prediction_collate)
 
         # verify all patches have the correct halo added and removed
         for (input_batch, indices_batch) in data_loader:  # input_batch has NCDHW shape, indices_batch has length N

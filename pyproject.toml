@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytorch3dunet"
+dynamic = ["version"]
+description = "Versatile U-Net implementation for volumetric semantic segmentation written in PyTorch"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Adrian Wolny"},
+    {name = "Lorenzo Cerrone"}
+]
+requires-python = ">=3.11"
+dependencies = [
+    "torch",
+    "torchvision",
+    "numpy",
+    "tensorboard",
+    "tqdm",
+    "h5py",
+    "scipy",
+    "scikit-image",
+    "pyyaml"
+]
+
+[project.urls]
+Homepage = "https://github.com/wolny/pytorch-3dunet"
+
+[project.scripts]
+train3dunet = "pytorch3dunet.train:main"
+predict3dunet = "pytorch3dunet.predict:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "pytorch3dunet.__version__.__version__"}
+
+[tool.setuptools.packages.find]
+exclude = ["tests*"]

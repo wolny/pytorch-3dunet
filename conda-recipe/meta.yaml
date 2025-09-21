@@ -1,8 +1,8 @@
-{% set setup_py_data = load_setup_py_data() %}
+{% set version = load_file_regex(load_file="pytorch3dunet/__version__.py", regex_pattern="__version__ = ['\"]([^'\"]+)['\"]")[1] %}
 
 package:
   name: pytorch-3dunet
-  version: {{ setup_py_data['version'] }}
+  version: {{ version }}
 
 source:
   path: ..
@@ -17,19 +17,20 @@ build:
 
 requirements:
   build:
-    - python >=3.9
+    - python >=3.11
     - pip
     - setuptools
 
   run:
-    - python >=3.9
-    - pytorch
+    - python >=3.11
+    - numpy
     - tensorboard
     - tqdm
     - h5py
     - scipy
     - scikit-image
     - pyyaml
+    - pip
 
 test:
   imports:
@@ -39,16 +40,27 @@ test:
     - pytorch3dunet.datasets
   requires:
     - pytest
+    - pip
   source_files:
     - tests
   commands:
+    - pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
     - pytest -v
 
 about:
   home: https://github.com/wolny/pytorch-3dunet
   summary: 'Versatile U-Net implementation for volumetric semantic segmentation written in PyTorch'
   description: |
-    PyTorch implementation of 3D U-Net and its variants (ResidualUNet3D, ResidualUNetSE3D).
-    The code allows for training the U-Net for both: semantic segmentation (binary and multi-class) 
-    and regression problems (e.g. de-noising, learning deconvolutions).
+    PyTorch implementation of 3D U-Net and its variants for volumetric semantic segmentation and regression tasks.
+
+    Features:
+    - Multiple U-Net architectures: UNet3D, ResidualUNet3D, ResidualUNetSE3D
+    - Support for both semantic segmentation (binary and multi-class) and regression problems
+    - 3D data augmentation pipeline with elastic deformations, rotations, and intensity transforms
+    - HDF5-based data loading with configurable preprocessing
+    - Multi-GPU training support with automatic DataParallel
+    - Comprehensive loss functions: BCE, Dice, Cross-entropy, MSE, and combinations
+    - Evaluation metrics: IoU, Dice coefficient, boundary AP, adapted Rand error
+    - YAML-based configuration system for reproducible experiments
+    - Command-line tools for training and prediction
   license: MIT

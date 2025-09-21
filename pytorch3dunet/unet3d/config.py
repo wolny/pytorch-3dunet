@@ -2,13 +2,11 @@ import argparse
 import os
 import platform
 import shutil
-from enum import Enum
-
 import torch
 import yaml
+from enum import Enum
 
 from pytorch3dunet.unet3d import utils
-
 
 logger = utils.get_logger('ConfigLoader')
 

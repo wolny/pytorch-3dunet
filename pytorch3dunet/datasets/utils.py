@@ -1,12 +1,11 @@
 import collections
-from typing import Any, Optional
-
 import numpy as np
-from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device, os_dependent_dataloader_kwargs
 import torch
 from torch.nn.functional import interpolate
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
+from typing import Any, Optional
 
+from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device, os_dependent_dataloader_kwargs
 from pytorch3dunet.unet3d.utils import get_logger, get_class
 
 logger = get_logger('Dataset')
@@ -382,14 +381,13 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
         batch_size = batch_size * torch.cuda.device_count()
 
     logger.info(f'Batch size for train/val loader: {batch_size}')
-    # when training with volumetric data use batch_size of 1 due to GPU memory constraints
-    os_depenent_kwargs = os_dependent_dataloader_kwargs()
+    loader_kwargs = os_dependent_dataloader_kwargs()
     return {
         'train': DataLoader(ConcatDataset(train_datasets), batch_size=batch_size, shuffle=True,
-                            num_workers=num_workers, drop_last=True, **os_depenent_kwargs),
+                            num_workers=num_workers, drop_last=True, **loader_kwargs),
         # don't shuffle during validation: useful when showing how predictions for a given batch get better over time
         'val': DataLoader(ConcatDataset(val_datasets), batch_size=batch_size, shuffle=False,
-                          num_workers=num_workers, drop_last=True, **os_depenent_kwargs)
+                          num_workers=num_workers, drop_last=True, **loader_kwargs)
     }
 
 
@@ -435,10 +433,10 @@ def get_test_loaders(config: dict) -> DataLoader:
         else:
             collate_fn = default_prediction_collate
 
-        os_depenent_kwargs = os_dependent_dataloader_kwargs()
+        dataloader_kwargs = os_dependent_dataloader_kwargs()
 
         yield DataLoader(
-            test_dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn, **os_depenent_kwargs)
+            test_dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn, **dataloader_kwargs)
 
 
 def default_prediction_collate(batch):
