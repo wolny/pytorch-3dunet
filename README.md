@@ -49,8 +49,18 @@ The format of the raw and label datasets depends on whether the problem is 2D or
 
 - The easiest way to install `pytorch-3dunet` package is via conda:
 
-```
+```bash
 conda install -c conda-forge pytorch-3dunet
+```
+
+**Note:** The conda package does not include PyTorch dependencies. You need to install them separately in your conda environemt:
+
+```bash
+# Install PyTorch with CUDA support (adjust for your CUDA version, below it's CUDA 11.8)
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# Or install CPU-only version
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 ```
 
 After installation the following commands will be accessible within the conda environment:
@@ -62,14 +72,8 @@ After installation the following commands will be accessible within the conda en
 pip install -e .
 ```
 
-or
-
-```
-python setup.py install
-```
-
 ### Installation tips
-Make sure that the installed `pytorch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. 
+Make sure that the installed `torch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. 
 
 ## Train
 Given that `pytorch-3dunet` package was installed via conda as described above, you can train the network by simply invoking:
@@ -299,3 +303,16 @@ pip install -e .
 
 Tests can be run via `pytest`.
 The device the tests should be run on can be specified with the `--device` argument (`cpu`, `mps`, or `cuda` - default: `cpu`).
+
+## Release new version on `conda-forge` channel
+To release a new version of `pytorch-3dunet` on the `conda-forge` channel, follow these steps:
+1. In the `main` branch: run `bumpversion patch` (or `major` or `minor`) - this will bump the version in `.bumpversion.cfg` and `__version__.py` add create a new tag
+2. Run `git push && git push --tags` to push the changes to GitHub 
+3. Make a new release on GitHub
+4. (Optional) Make sure that the new release version is in sync with the version in `.bumpversion.cfg` and `__version__.py`
+5. Generate the checksums for the new release using: `curl -sL https://github.com/wolny/pytorch-3dunet/archive/refs/tags/VERSION.tar.gz | openssl sha256`. Replace `VERSION` with the new release version
+6. Fork the `conda-forge` feedstock  repository (https://github.com/conda-forge/pytorch-3dunet-feedstock)
+7. Clone the forked repository and create a new PR with the following changes:
+    - Update the `version` in `recipe/meta.yaml` to the new release version
+    - Update the `sha256` in `recipe/meta.yaml` to the new checksum
+8. Wait for the checks to pass. Once the PR is merged, the new version will be available on the `conda-forge` channel

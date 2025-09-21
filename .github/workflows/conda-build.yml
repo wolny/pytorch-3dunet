@@ -32,11 +32,3 @@ jobs:
       run: |
         conda install -q conda-build
         conda build -c conda-forge conda-recipe
-    - name: Deploy on conda
-      if: ${{ matrix.os == 'ubuntu-latest' && startsWith( github.ref, 'refs/tags/') && success() }}
-      env:
-        ANACONDA_SECRET: ${{ secrets.ANACONDA_TOKEN }}
-      shell: bash -l {0}
-      run: |
-        conda install -q anaconda-client
-        anaconda -t $ANACONDA_SECRET upload $CONDA/conda-bld/**/pytorch-3dunet-*.tar.bz2
