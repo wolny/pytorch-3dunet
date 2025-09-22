@@ -37,9 +37,9 @@ The format of the raw and label datasets depends on whether the problem is 2D or
 | multi-channel  | (C, 1, Y, X) | (C, Z, Y, X) |
 
 ## Prerequisites
-
-- NVIDIA GPU
-- CUDA CuDNN
+- [Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/install)
+- Python 3.11+
+- NVIDIA GPU (optional but recommended for training/prediction speedup)
 
 ### Running on Windows/OSX
 
@@ -47,20 +47,24 @@ The format of the raw and label datasets depends on whether the problem is 2D or
 
 ## Installation
 
-- The easiest way to install `pytorch-3dunet` package is via conda:
+The easiest way to install `pytorch-3dunet` package is via conda:
 
 ```bash
+# Created new conda environment "3dunet" with the latest python version from the conda-forge channel
+conda create -n 3dunet python -c conda-forge -y
+
+# Activate the conda environment
+conda activate 3dunet
+
+# pytorch-3dunet does not include PyTorch dependencies, so that one can install the desired PyTorch version (with/without CUDA support) separately
+pip install torch torchvision
+# you may need to adjust the command above depending on your GPU and the CUDA version you want to use, e.g. for CUDA 11.8:
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# or for CPU-only version:
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+# Install the latest pytorch-3dunet package from conda-forge channel
 conda install -c conda-forge pytorch-3dunet
-```
-
-**Note:** The conda package does not include PyTorch dependencies. You need to install them separately in your conda environemt:
-
-```bash
-# Install PyTorch with CUDA support (adjust for your CUDA version, below it's CUDA 11.8)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-
-# Or install CPU-only version
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 ```
 
 After installation the following commands will be accessible within the conda environment:
@@ -73,7 +77,9 @@ pip install -e .
 ```
 
 ### Installation tips
-Make sure that the installed `torch` is compatible with your CUDA version, otherwise the training/prediction will fail to run on GPU. 
+PyTorch package comes with their own CUDA runtime libraries, so you don't need to install CUDA separately on your system.
+However, you must ensure that the PyTorch/CUDA version you choose is compatible with your GPU’s compute capability. 
+See [PyTorch installation guide](https://pytorch.org/get-started/locally/) for more details. 
 
 ## Train
 Given that `pytorch-3dunet` package was installed via conda as described above, you can train the network by simply invoking:

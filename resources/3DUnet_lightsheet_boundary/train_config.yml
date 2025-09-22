@@ -46,6 +46,9 @@ lr_scheduler:
   factor: 0.2
   patience: 20
 trainer:
+  # skip last channel during tensorboard logging
+  tensorboard_formatter:
+    skip_last_target: true
   # model with lower eval score is considered better
   eval_score_higher_is_better: False
   # path to the checkpoint directory
