@@ -2,9 +2,10 @@ import argparse
 import os
 import platform
 import shutil
+from enum import Enum
+
 import torch
 import yaml
-from enum import Enum
 
 from pytorch3dunet.unet3d import utils
 
@@ -41,6 +42,7 @@ def default_device() -> TorchDevice:
     elif torch.mps.is_available():
         device = TorchDevice.MPS
 
+    logger.info(f"Using device: {device}")
     return device
 
 

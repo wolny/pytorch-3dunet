@@ -24,6 +24,9 @@ model:
   is_segmentation: true
 # trainer configuration
 trainer:
+  # skip last channel during tensorboard logging
+  tensorboard_formatter:
+    skip_last_target: true
   # path to the checkpoint directory
   checkpoint_dir: CHECKPOINT_DIR
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint

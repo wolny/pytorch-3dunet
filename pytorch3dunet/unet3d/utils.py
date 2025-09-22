@@ -113,9 +113,15 @@ def number_of_features_per_level(init_channel_number, num_levels):
 
 class TensorboardFormatter:
     """
-    Tensorboard formatters converts a given batch of images (be it input/output to the network or the target segmentation
-    image) to a series of images that can be displayed in tensorboard. This is the parent class for all tensorboard
-    formatters which ensures that returned images are in the 'CHW' format.
+    Tensorboard formatter converts a given batch of images (input/prediction/target)
+    to a series of images that can be displayed in tensorboard.
+
+    Args:
+        skip_last_target (bool): if True, the last channel of the target image is skipped. This is useful for boundary
+            based segmentation where the first channel is the boundary map and the second channel is the actual
+            segmentation not used for training.
+        log_channelwise (bool): if True, logs each channel of a multi-channel prediction, if False, takes the argmax
+            over the channel dimension and logs a single label image.
     """
 
     def __init__(self, skip_last_target=False, log_channelwise=False):
@@ -238,12 +244,6 @@ def _find_masks(batch, min_size=10):
             result.append(b[:, ind:ind + 1, ...])
 
     return np.stack(result, axis=0)
-
-
-def get_tensorboard_formatter(formatter_config):
-    if formatter_config is None:
-        return TensorboardFormatter()
-    return TensorboardFormatter(**formatter_config)
 
 
 def expand_as_one_hot(input, C, ignore_index=None):
