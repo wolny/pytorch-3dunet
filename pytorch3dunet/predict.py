@@ -1,6 +1,9 @@
 import importlib
 import os
 
+# Fix for OpenMP library conflict on Windows
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+
 import torch
 import torch.nn as nn
 
