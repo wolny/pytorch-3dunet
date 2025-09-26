@@ -6,6 +6,7 @@ channels:
 dependencies:
   - python >=3.11
   - numpy
+  - nomkl
   - tensorboard
   - tqdm
   - setuptools

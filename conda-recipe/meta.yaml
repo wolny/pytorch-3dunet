@@ -24,6 +24,7 @@ requirements:
   run:
     - python >=3.11
     - numpy
+    - nomkl
     - tensorboard
     - tqdm
     - h5py
