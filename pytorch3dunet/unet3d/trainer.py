@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import Optional, Union
 
 import numpy as np
-from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -12,11 +11,12 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from pytorch3dunet.datasets.utils import get_train_loaders
+from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model, is_model_2d
-from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, create_optimizer, \
-    create_lr_scheduler, get_number_of_learnable_parameters
+from pytorch3dunet.unet3d.utils import get_logger, create_optimizer, \
+    create_lr_scheduler, get_number_of_learnable_parameters, TensorboardFormatter
 from . import utils
 
 logger = get_logger('UNetTrainer')
@@ -55,7 +55,8 @@ def create_trainer(config: dict) -> 'UNetTrainer':
 
     trainer_config = config['trainer']
     # Create tensorboard formatter
-    tensorboard_formatter = get_tensorboard_formatter(trainer_config.pop('tensorboard_formatter', None))
+    tensorboard_formatter_config = trainer_config.pop('tensorboard_formatter', {})
+    tensorboard_formatter = TensorboardFormatter(**tensorboard_formatter_config)
     # Create trainer
     resume = trainer_config.pop('resume', None)
     pre_trained = trainer_config.pop('pre_trained', None)
