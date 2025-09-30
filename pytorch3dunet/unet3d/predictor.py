@@ -130,6 +130,7 @@ class StandardPredictor(AbstractPredictor):
 
             # determine halo used for padding
             patch_halo = test_loader.dataset.halo_shape
+            logger.info(f'Using patch halo: {patch_halo}')
 
             # Sets the module in evaluation mode explicitly
             # It is necessary for batchnorm/dropout layers if present as well as final Sigmoid/Softmax to be applied
@@ -155,7 +156,8 @@ class StandardPredictor(AbstractPredictor):
                         prediction = self.model(input)
 
                     # unpad the predicted patch
-                    prediction = remove_padding(prediction, patch_halo)
+                    if sum(patch_halo) > 0:
+                        prediction = remove_padding(prediction, patch_halo)
                     # convert to numpy array
                     prediction = prediction.cpu().numpy()
                     # for each batch sample

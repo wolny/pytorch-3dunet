@@ -28,6 +28,7 @@ def create_trainer(config: dict) -> 'UNetTrainer':
 
     device = config.get("device", None)
     assert device, "Device not specified in the config file and could not be inferred automatically"
+    logger.info(f'Using device: {device}')
 
     # use DataParallel if more than 1 GPU available
     if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:

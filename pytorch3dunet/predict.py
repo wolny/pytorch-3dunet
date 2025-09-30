@@ -37,6 +37,7 @@ def main():
     model = get_model(config['model'])
     device = config.get("device", None)
     assert device, "Device not specified in the config file and could not be inferred automatically"
+    logger.info(f'Using device: {device}')
 
     # Load model state
     model_path = config['model_path']
