@@ -15,6 +15,7 @@ TEST_FILES = os.path.join(
     'resources',
 )
 
+
 def pytest_addoption(parser):
     parser.addoption("--device", type=TorchDevice, help="torch device to run on (cpu, cuda, mps)", default="cpu")
 

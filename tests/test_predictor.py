@@ -4,7 +4,6 @@ from tempfile import NamedTemporaryFile
 
 import h5py
 import numpy as np
-import torch
 
 from pytorch3dunet.datasets.utils import get_test_loaders
 from pytorch3dunet.predict import get_predictor

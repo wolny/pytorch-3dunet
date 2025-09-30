@@ -23,17 +23,6 @@ class TorchDevice(str, Enum):
             yield x
 
 
-def legacy_default_device() -> TorchDevice:
-    """Emulate legacy implementation where cuda was used if available
-
-    which was to use CUDA for certain things if available.
-    """
-    if torch.cuda.is_available():
-        return TorchDevice.CUDA
-
-    return TorchDevice.CPU
-
-
 def default_device() -> TorchDevice:
     logger.info("No device specified in config - determining best device automatically")
     device = TorchDevice.CPU
@@ -55,7 +44,7 @@ def os_dependent_dataloader_kwargs() -> dict:
     return kwargs
 
 
-def _override_config(args, config):
+def override_config(args, config):
     """Overrides config params with the ones given in command line."""
 
     args_dict = vars(args)
@@ -75,7 +64,6 @@ def _override_config(args, config):
                 c[k] = value
 
 
-
 def load_config():
     parser = argparse.ArgumentParser(description='UNet3D')
     parser.add_argument('--config', type=str, help='Path to the YAML config file', required=True)
@@ -89,17 +77,19 @@ def load_config():
     args = parser.parse_args()
     config_path = args.config
     config = _load_config_yaml(config_path)
-    _override_config(args, config)
+    override_config(args, config)
 
-    config_device = config.get('device', None)
+    config_device = config.get("device", None)
 
     try:
-        config['device'] = TorchDevice(config_device) if config_device is not None else default_device()
+        config["device"] = TorchDevice(config_device) if config_device is not None else default_device()
     except ValueError as e:
-        raise ValueError(f"Config key device: {config_device} not understood -- supported values: {', '.join(TorchDevice.values())}") from e
+        raise ValueError(
+            f"Config key device: {config_device} not understood -- supported values: {', '.join(TorchDevice.values())}"
+        ) from e
 
-    if config['device'] == TorchDevice.CPU:
-        logger.warning('CPU mode will likely result in slow training/prediction')
+    if config["device"] == TorchDevice.CPU:
+        logger.warning("CPU mode will likely result in slow training/prediction")
 
     return config, config_path
 
