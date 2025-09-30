@@ -4,7 +4,6 @@ from torch import nn as nn
 from torch.nn import MSELoss, SmoothL1Loss, L1Loss
 
 from pytorch3dunet.unet3d.utils import get_logger
-from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device
 
 logger = get_logger('Loss')
 
@@ -239,18 +238,10 @@ def flatten(tensor):
 
 
 def get_loss_criterion(config):
-    """
-    Returns the loss function based on provided configuration
-    :param config: (dict) a top level configuration object containing the 'loss' key
-    :return: an instance of the loss function
-    """
-    assert 'loss' in config, 'Could not find loss function configuration'
-
-    if "device" not in config:
-        logger.warning("No device specified in config - legacy mode will try to choose a sensible device")
-        device = legacy_default_device()
-    else:
-        device: TorchDevice = config["device"]
+    """Returns the loss function based on provided configuration"""
+    assert "loss" in config, "Could not find loss function configuration"
+    device = config.get("device", None)
+    assert device, "Device not specified in the config file and could not be inferred automatically"
 
     loss_config = config['loss']
     name = loss_config.pop('name')
@@ -281,8 +272,6 @@ def get_loss_criterion(config):
 
     return loss
 
-
-#######################################################################################################################
 
 def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
     if name == 'BCEWithLogitsLoss':

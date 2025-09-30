@@ -35,14 +35,15 @@ def main():
 
     # Create the model
     model = get_model(config['model'])
-    device = config["device"]
+    device = config.get("device", None)
+    assert device, "Device not specified in the config file and could not be inferred automatically"
 
     # Load model state
     model_path = config['model_path']
     logger.info(f'Loading model from {model_path}...')
     utils.load_checkpoint(model_path, model)
-    # use DataParallel if more than 1 GPU available
 
+    # use DataParallel if more than 1 GPU available
     if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
         logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')

@@ -1,11 +1,12 @@
 import collections
+from typing import Any, Optional
+
 import numpy as np
 import torch
 from torch.nn.functional import interpolate
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
-from typing import Any, Optional
 
-from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device, os_dependent_dataloader_kwargs
+from pytorch3dunet.unet3d.config import TorchDevice, os_dependent_dataloader_kwargs
 from pytorch3dunet.unet3d.utils import get_logger, get_class
 
 logger = get_logger('Dataset')
@@ -373,7 +374,8 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
     num_workers = loaders_config.get('num_workers', 1)
     logger.info(f'Number of workers for train/val dataloader: {num_workers}')
     batch_size = loaders_config.get('batch_size', 1)
-    device = config["device"] if config["device"] is not None else legacy_default_device()
+    device = config.get("device", None)
+    assert device, "Device not specified in the config file and could not be inferred automatically"
     if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         logger.info(
             f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}'
@@ -416,7 +418,8 @@ def get_test_loaders(config: dict) -> DataLoader:
     logger.info(f'Number of workers for the dataloader: {num_workers}')
 
     batch_size = loaders_config.get('batch_size', 1)
-    device = config["device"] if config["device"] is not None else legacy_default_device()
+    device = config.get("device", None)
+    assert device, "Device not specified in the config file and could not be inferred automatically"
     if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         logger.info(
             f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}'

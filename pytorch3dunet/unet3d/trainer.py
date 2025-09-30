@@ -1,7 +1,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
 import torch
@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from pytorch3dunet.datasets.utils import get_train_loaders
-from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device
+from pytorch3dunet.unet3d.config import TorchDevice
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model, is_model_2d
@@ -26,14 +26,13 @@ def create_trainer(config: dict) -> 'UNetTrainer':
     # Create the model
     model = get_model(config['model'])
 
-    device: Union[TorchDevice, None] = config["device"]
-    if device is None:
-        logger.warning("Creating trainer in legacy mode: device unspecified and will be automatically determined")
-        device = legacy_default_device()
+    device = config.get("device", None)
+    assert device, "Device not specified in the config file and could not be inferred automatically"
 
+    # use DataParallel if more than 1 GPU available
     if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
-        logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')
+        logger.info(f'Using {torch.cuda.device_count()} GPUs for training')
     model.to(device)
 
     # Log the number of learnable parameters
@@ -96,7 +95,7 @@ class UNetTrainer:
         eval_criterion (callable): used to compute training/validation metric (such as Dice, IoU, AP or Rand score)
             saving the best checkpoint is based on the result of this function on the validation set
         loaders (dict): 'train' and 'val' loaders
-        checkpoint_dir (string): dir for saving checkpoints and tensorboard logs
+        checkpoint_dir (str): dir for saving checkpoints and tensorboard logs
         max_num_epochs (int): maximum number of epochs
         max_num_iterations (int): maximum number of iterations
         validate_after_iters (int): validate after that many iterations
@@ -104,22 +103,42 @@ class UNetTrainer:
         validate_iters (int): number of validation iterations, if None validate
             on the whole validation set
         eval_score_higher_is_better (bool): if True higher eval scores are considered better
-        best_eval_score (float): best validation score so far (higher better)
         num_iterations (int): useful when loading the model from the checkpoint
         num_epoch (int): useful when loading the model from the checkpoint
         tensorboard_formatter (callable): converts a given batch of input/output/target image to a series of images
             that can be displayed in tensorboard
         skip_train_validation (bool): if True eval_criterion is not evaluated on the training set (used when
             evaluation is expensive)
-        resume (string): path to the checkpoint to be resumed
-        pre_trained (string): path to the pre-trained model
+        resume (str): path to the checkpoint to be resumed
+        pre_trained (str): path to the pre-trained model
         max_val_images (int): maximum number of images to log during validation
+        device (TorchDevice): device to use for training (CPU, CUDA, MPS)
     """
 
-    def __init__(self, model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders, checkpoint_dir,
-                 max_num_epochs, max_num_iterations, validate_after_iters=200, log_after_iters=100, validate_iters=None,
-                 num_iterations=1, num_epoch=0, eval_score_higher_is_better=True, tensorboard_formatter=None,
-                 skip_train_validation=False, resume=None, pre_trained=None, max_val_images=100, device: Optional[TorchDevice]=None,**kwargs):
+    def __init__(
+            self,
+            model,
+            optimizer,
+            lr_scheduler,
+            loss_criterion,
+            eval_criterion,
+            loaders,
+            checkpoint_dir,
+            max_num_epochs,
+            max_num_iterations,
+            validate_after_iters=200,
+            log_after_iters=100,
+            validate_iters=None,
+            num_iterations=1,
+            num_epoch=0,
+            eval_score_higher_is_better=True,
+            tensorboard_formatter=None,
+            skip_train_validation=False,
+            resume=None,
+            pre_trained=None,
+            max_val_images=100,
+            device: Optional[TorchDevice] = None
+    ):
 
         self.max_val_images = max_val_images
         self.model = model
@@ -135,11 +154,11 @@ class UNetTrainer:
         self.log_after_iters = log_after_iters
         self.validate_iters = validate_iters
         self.eval_score_higher_is_better = eval_score_higher_is_better
-        self._device = legacy_default_device() if device is None else device
+        assert device, "Device must be specified"
+        self.device = device
 
         logger.info(model)
         logger.info(f'eval_score_higher_is_better: {eval_score_higher_is_better}')
-
         # initialize the best_eval_score
         if eval_score_higher_is_better:
             self.best_eval_score = float('-inf')
@@ -205,7 +224,7 @@ class UNetTrainer:
             logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
                         f'Epoch [{self.num_epochs}/{self.max_num_epochs - 1}]')
 
-            input, target = _split_and_move_to_gpu(t, self._device)
+            input, target = _split_and_move_to_gpu(t, self.device)
 
             output, loss = self._forward_pass(input, target)
 
@@ -294,7 +313,7 @@ class UNetTrainer:
 
             images_for_logging = []
             for i, t in enumerate(tqdm(self.loaders['val'])):
-                input, target = _split_and_move_to_gpu(t, self._device)
+                input, target = _split_and_move_to_gpu(t, self.device)
 
                 output, loss = self._forward_pass(input, target)
                 val_losses.update(loss.item(), self._batch_size(input))

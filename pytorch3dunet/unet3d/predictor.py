@@ -6,7 +6,6 @@ from typing import Any, Optional, Union
 
 import h5py
 import numpy as np
-from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device
 import torch
 from skimage import measure
 from torch import nn
@@ -15,111 +14,35 @@ from tqdm import tqdm
 
 from pytorch3dunet.datasets.hdf5 import AbstractHDF5Dataset
 from pytorch3dunet.datasets.utils import remove_padding
+from pytorch3dunet.unet3d.config import TorchDevice
 from pytorch3dunet.unet3d.model import is_model_2d
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger('UNetPredictor')
 
 
-def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions', output_dir: Optional[Union[str, Path]] = None) -> Path:
-    """
-    Get the output file path for the predictions. If `output_dir` is not None the output file will be saved in
-    the original dataset directory.
+class AbstractPredictor:
+    """Base class for predictors."""
 
-    Args:
-        dataset: input dataset
-        suffix: file name suffix
-        output_dir: directory where the output file will be saved, if None the output file will be saved in the
-            same directory as the input dataset
-
-    Returns:
-        path to the output file
-    """
-    file_path = Path(dataset.file_path)
-    input_dir = file_path.parent
-    if output_dir is None:
-        output_dir = input_dir
-    else:
-        output_dir = Path(output_dir)
-
-    output_filename = file_path.stem + suffix + '.h5'
-    return output_dir / output_filename
-
-
-def _load_dataset(dataset: AbstractHDF5Dataset, internal_path: str) -> np.ndarray:
-    file_path = dataset.file_path
-    with h5py.File(file_path, 'r') as f:
-        return f[internal_path][...]
-
-
-def mean_iou(pred: np.ndarray, gt: np.ndarray, n_classes: int, avg: bool = False) -> list[float] | float:
-    """
-    Compute the mean Intersection over Union (IoU) for the given predictions and ground truth.
-    Args:
-        pred: predicted segmentation
-        gt: ground truth segmentation
-        n_classes: number of classes
-        avg: if True, return the mean IoU, otherwise return the IoU for each class
-    Returns:
-        mean IoU
-    """
-    # convert to numpy arrays
-    pred = pred.astype('uint16')
-    gt = gt.astype('uint16')
-    assert pred.shape == gt.shape, f'Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}'
-
-    # compute IoU, skip 0: background
-    per_class_iou = []
-    for c in range(1, n_classes):
-        intersection = np.logical_and(gt == c, pred == c).sum()
-        union = np.logical_or(gt == c, pred == c).sum()
-        iou = intersection / union
-        per_class_iou.append(iou)
-
-    if avg:
-        return np.mean(per_class_iou)
-    return per_class_iou
-
-
-def dice_score(pred: np.ndarray, gt: np.ndarray, avg: bool = False) -> list[float] | float:
-    """
-    Compute the Dice score for the given predictions and ground truth.
-    If avg is True, return the mean Dice score, otherwise return the Dice score for each channel/class.
-    """
-    # convert to numpy arrays
-    pred = pred.astype('uint16')
-    gt = gt.astype('uint16')
-    assert pred.shape == gt.shape, f'Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}'
-    # compute Dice score
-    per_class_dice = []
-    for c_pred, c_gt in zip(pred, gt):
-        intersection = np.logical_and(c_gt, c_pred).sum()
-        union = c_gt.sum() + c_pred.sum()
-        dice = 2 * intersection / union
-        per_class_dice.append(dice)
-    if avg:
-        return np.mean(per_class_dice)
-    return per_class_dice
-
-
-class _AbstractPredictor:
     def __init__(self,
                  model: nn.Module,
                  output_dir: str,
                  out_channels: int,
+                 device: TorchDevice,
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
                  prediction_channel: Optional[int] = None,
                  performance_metric: Optional[str] = None,
                  gt_internal_path: Optional[str] = None,
-                 device: Optional[TorchDevice] = None,
                  **kwargs):
         """
         Base class for predictors.
+
         Args:
             model: segmentation model
             output_dir: directory where the predictions will be saved
             out_channels: number of output channels of the model
+            device: device to run the model on (CPU, CUDA, MPS)
             output_dataset: name of the dataset in the H5 file where the predictions will be saved
             save_segmentation: if true the segmentation will be saved instead of the probability maps
             prediction_channel: save only the specified channel from the network output
@@ -128,14 +51,15 @@ class _AbstractPredictor:
         """
         self.model = model
         self.output_dir = output_dir
+        assert out_channels > 0, f"Invalid number of output channels: {out_channels}"
         self.out_channels = out_channels
+        assert device in [TorchDevice.CPU, TorchDevice.CUDA, TorchDevice.MPS], f"Unsupported device: {device}"
+        self.device = device
         self.output_dataset = output_dataset
         self.save_segmentation = save_segmentation
         self.prediction_channel = prediction_channel
         self.performance_metric = performance_metric
         self.gt_internal_path = gt_internal_path
-        self._device = legacy_default_device() if device is None else device
-
 
     def __call__(self, test_loader: DataLoader) -> Any:
         """
@@ -147,7 +71,7 @@ class _AbstractPredictor:
         raise NotImplementedError
 
 
-class StandardPredictor(_AbstractPredictor):
+class StandardPredictor(AbstractPredictor):
     """
     Applies the model on the given dataset and saves the result as H5 file.
     Predictions from the network are kept in memory. If the results from the network don't fit in into RAM
@@ -158,15 +82,25 @@ class StandardPredictor(_AbstractPredictor):
                  model: nn.Module,
                  output_dir: str,
                  out_channels: int,
+                 device: TorchDevice,
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
                  prediction_channel: Optional[int] = None,
                  performance_metric: Optional[str] = None,
                  gt_internal_path: Optional[str] = None,
-                 device: Optional[TorchDevice] = None,
                  **kwargs):
-        super().__init__(model, output_dir, out_channels, output_dataset, save_segmentation, prediction_channel,
-                         performance_metric, gt_internal_path, device=device, **kwargs)
+        super().__init__(
+            model,
+            output_dir,
+            out_channels,
+            device,
+            output_dataset,
+            save_segmentation,
+            prediction_channel,
+            performance_metric,
+            gt_internal_path,
+            **kwargs
+        )
 
     def __call__(self, test_loader):
         assert isinstance(test_loader.dataset, AbstractHDF5Dataset)
@@ -204,10 +138,10 @@ class StandardPredictor(_AbstractPredictor):
             with torch.no_grad():
                 for input, indices in tqdm(test_loader):
                     # send batch to gpu
-                    if self._device == TorchDevice.CUDA:
+                    if self.device == TorchDevice.CUDA:
                         input = input.pin_memory().cuda(non_blocking=True)
                     else:
-                        input = input.to(self._device)
+                        input = input.to(self.device)
 
                     if is_model_2d(self.model):
                         # remove the singleton z-dimension from the input
@@ -294,15 +228,25 @@ class LazyPredictor(StandardPredictor):
                  model: nn.Module,
                  output_dir: str,
                  out_channels: int,
+                 device: TorchDevice,
                  output_dataset: str = 'predictions',
                  save_segmentation: bool = False,
                  prediction_channel: Optional[int] = None,
                  performance_metric: Optional[str] = None,
                  gt_internal_path: Optional[str] = None,
-                 device: Optional[TorchDevice] = None,
                  **kwargs):
-        super().__init__(model, output_dir, out_channels, output_dataset, save_segmentation, prediction_channel,
-                         performance_metric, gt_internal_path, device, **kwargs)
+        super().__init__(
+            model,
+            output_dir,
+            out_channels,
+            device,
+            output_dataset,
+            save_segmentation,
+            prediction_channel,
+            performance_metric,
+            gt_internal_path,
+            **kwargs
+        )
 
     def _allocate_prediction_array(self, output_shape, output_file):
         if self.save_segmentation:
@@ -322,9 +266,9 @@ class LazyPredictor(StandardPredictor):
         pass
 
 
-class DSB2018Predictor(_AbstractPredictor):
+class DSB2018Predictor(AbstractPredictor):
     def __init__(self, model, output_dir, config, save_segmentation=True, pmaps_thershold=0.5, **kwargs):
-        super().__init__(model, output_dir, config, **kwargs)
+        super().__init__(model, output_dir, out_channels=1, device=config["device"], **kwargs)
         self.pmaps_threshold = pmaps_thershold
         self.save_segmentation = save_segmentation
 
@@ -343,17 +287,18 @@ class DSB2018Predictor(_AbstractPredictor):
         with torch.no_grad():
             for img, path in test_loader:
                 # send batch to gpu
-                if self._device == TorchDevice.CUDA:
+                if self.device == TorchDevice.CUDA:
                     img = img.cuda(non_blocking=True)
                 else:
-                    img = img.to(self._device)
+                    img = img.to(self.device)
                 # forward pass
                 pred = self.model(img)
 
                 executor.submit(
                     dsb_save_batch,
                     self.output_dir,
-                    path
+                    path,
+                    pred
                 )
 
         print('Waiting for all predictions to be saved to disk...')
@@ -380,3 +325,85 @@ def dsb_save_batch(output_dir, path, pred, save_segmentation=True, pmaps_thersho
             f.create_dataset('predictions', data=single_pred, compression='gzip')
             if save_segmentation:
                 f.create_dataset('segmentation', data=_pmaps_to_seg(single_pred), compression='gzip')
+
+
+def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions',
+                     output_dir: Optional[Union[str, Path]] = None) -> Path:
+    """
+    Get the output file path for the predictions. If `output_dir` is not None the output file will be saved in
+    the original dataset directory.
+
+    Args:
+        dataset: input dataset
+        suffix: file name suffix
+        output_dir: directory where the output file will be saved, if None the output file will be saved in the
+            same directory as the input dataset
+
+    Returns:
+        path to the output file
+    """
+    file_path = Path(dataset.file_path)
+
+    if output_dir is None:
+        output_dir = file_path.parent
+    else:
+        output_dir = Path(output_dir)
+
+    output_filename = file_path.stem + suffix + '.h5'
+    return output_dir / output_filename
+
+
+def _load_dataset(dataset: AbstractHDF5Dataset, internal_path: str) -> np.ndarray:
+    file_path = dataset.file_path
+    with h5py.File(file_path, 'r') as f:
+        return f[internal_path][...]
+
+
+def mean_iou(pred: np.ndarray, gt: np.ndarray, n_classes: int, avg: bool = False) -> list[float] | float:
+    """
+    Compute the mean Intersection over Union (IoU) for the given predictions and ground truth.
+    Args:
+        pred: predicted segmentation
+        gt: ground truth segmentation
+        n_classes: number of classes
+        avg: if True, return the mean IoU, otherwise return the IoU for each class
+    Returns:
+        mean IoU
+    """
+    # convert to numpy arrays
+    pred = pred.astype('uint16')
+    gt = gt.astype('uint16')
+    assert pred.shape == gt.shape, f'Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}'
+
+    # compute IoU, skip 0: background
+    per_class_iou = []
+    for c in range(1, n_classes):
+        intersection = np.logical_and(gt == c, pred == c).sum()
+        union = np.logical_or(gt == c, pred == c).sum()
+        iou = intersection / union
+        per_class_iou.append(iou)
+
+    if avg:
+        return np.mean(per_class_iou)
+    return per_class_iou
+
+
+def dice_score(pred: np.ndarray, gt: np.ndarray, avg: bool = False) -> list[float] | float:
+    """
+    Compute the Dice score for the given predictions and ground truth.
+    If avg is True, return the mean Dice score, otherwise return the Dice score for each channel/class.
+    """
+    # convert to numpy arrays
+    pred = pred.astype('uint16')
+    gt = gt.astype('uint16')
+    assert pred.shape == gt.shape, f'Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}'
+    # compute Dice score
+    per_class_dice = []
+    for c_pred, c_gt in zip(pred, gt):
+        intersection = np.logical_and(c_gt, c_pred).sum()
+        union = c_gt.sum() + c_pred.sum()
+        dice = 2 * intersection / union
+        per_class_dice.append(dice)
+    if avg:
+        return np.mean(per_class_dice)
+    return per_class_dice
