@@ -68,7 +68,7 @@ def override_config(args, config):
                 c[k] = value
 
 
-def load_config():
+def load_config() -> tuple[dict, str]:
     parser = argparse.ArgumentParser(description="UNet3D")
     parser.add_argument("--config", type=str, help="Path to the YAML config file", required=True)
     # add additional command line arguments for the prediction that override the ones in the config file
@@ -98,7 +98,7 @@ def load_config():
     return config, config_path
 
 
-def copy_config(config, config_path):
+def copy_config(config: dict, config_path: str):
     """Copies the config file to the checkpoint folder."""
 
     def _get_last_subfolder_path(path):

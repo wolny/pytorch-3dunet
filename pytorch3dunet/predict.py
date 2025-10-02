@@ -1,6 +1,8 @@
 import importlib
 import os
 
+from pytorch3dunet.unet3d.predictor import AbstractPredictor
+
 # Fix for OpenMP library conflict on Windows
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -15,7 +17,7 @@ from pytorch3dunet.unet3d.model import get_model
 logger = utils.get_logger("UNet3DPredict")
 
 
-def get_predictor(model, config):
+def get_predictor(model: nn.Module, config: dict) -> AbstractPredictor:
     """Create and return a predictor instance based on the configuration.
 
     Args:

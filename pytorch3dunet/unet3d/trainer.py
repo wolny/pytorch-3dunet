@@ -9,18 +9,20 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from pytorch3dunet.datasets import utils
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.config import TorchDevice
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model, is_model_2d
 from pytorch3dunet.unet3d.utils import (
+    RunningAverage,
     TensorboardFormatter,
     create_lr_scheduler,
     create_optimizer,
     get_logger,
     get_number_of_learnable_parameters,
+    load_checkpoint,
+    save_checkpoint,
 )
 
 logger = get_logger("UNetTrainer")
@@ -190,7 +192,7 @@ class UNetTrainer:
 
         if resume is not None:
             logger.info(f"Loading checkpoint '{resume}'...")
-            state = utils.load_checkpoint(resume, self.model, self.optimizer)
+            state = load_checkpoint(resume, self.model, self.optimizer)
             logger.info(
                 f"Checkpoint loaded from '{resume}'. Epoch: {state['num_epochs']}.  Iteration: {state['num_iterations']}. "
                 f"Best val score: {state['best_eval_score']}."
@@ -201,7 +203,7 @@ class UNetTrainer:
             self.checkpoint_dir = os.path.split(resume)[0]
         elif pre_trained is not None:
             logger.info(f"Logging pre-trained model from '{pre_trained}'...")
-            utils.load_checkpoint(pre_trained, self.model, None)
+            load_checkpoint(pre_trained, self.model, None)
             if not self.checkpoint_dir:
                 self.checkpoint_dir = os.path.split(pre_trained)[0]
 
@@ -223,8 +225,8 @@ class UNetTrainer:
         Returns:
             True if the training should be terminated immediately, False otherwise
         """
-        train_losses = utils.RunningAverage()
-        train_eval_scores = utils.RunningAverage()
+        train_losses = RunningAverage()
+        train_eval_scores = RunningAverage()
 
         # sets the model in training mode
         self.model.train()
@@ -311,8 +313,8 @@ class UNetTrainer:
     def validate(self):
         logger.info("Validating...")
 
-        val_losses = utils.RunningAverage()
-        val_scores = utils.RunningAverage()
+        val_losses = RunningAverage()
+        val_scores = RunningAverage()
 
         with torch.no_grad():
             # select indices of validation samples to log
@@ -391,7 +393,7 @@ class UNetTrainer:
         last_file_path = os.path.join(self.checkpoint_dir, "last_checkpoint.pytorch")
         logger.info(f"Saving checkpoint to '{last_file_path}'")
 
-        utils.save_checkpoint(
+        save_checkpoint(
             {
                 "num_epochs": self.num_epochs + 1,
                 "num_iterations": self.num_iterations,
