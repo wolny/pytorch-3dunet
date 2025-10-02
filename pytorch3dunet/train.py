@@ -14,6 +14,11 @@ logger = get_logger('TrainingSetup')
 
 
 def main():
+    """Main entry point for training 3D U-Net models.
+
+    Loads configuration from command line arguments, sets random seeds if specified,
+    creates a trainer instance, and starts the training process.
+    """
     # Load and log experiment configuration
     config, config_path = load_config()
     logger.info(config)

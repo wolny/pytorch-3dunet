@@ -7,30 +7,36 @@ from torch.nn import functional as F
 from pytorch3dunet.unet3d.se import ChannelSELayer3D, ChannelSpatialSELayer3D, SpatialSELayer3D
 
 
-def create_conv(in_channels, out_channels, kernel_size, order, num_groups, padding,
-                dropout_prob, is3d):
+def create_conv(
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int | tuple[int],
+        order: str,
+        num_groups: int,
+        padding: int | tuple[int],
+        dropout_prob: float,
+        is3d: bool
+) -> list[tuple[str, nn.Module]]:
     """
-    Create a list of modules with together constitute a single conv layer with non-linearity
+    Create a list of modules for a given level of UNet network. It consists of a single conv layer with non-linearity
     and optional batchnorm/groupnorm.
 
     Args:
         in_channels (int): number of input channels
         out_channels (int): number of output channels
         kernel_size(int or tuple): size of the convolving kernel
-        order (string): order of things, e.g.
+        order (str): order of things, e.g.
             'cr' -> conv + ReLU
             'gcr' -> groupnorm + conv + ReLU
             'cl' -> conv + LeakyReLU
             'ce' -> conv + ELU
             'bcr' -> batchnorm + conv + ReLU
-            'cbrd' -> conv + batchnorm + ReLU + dropout
-            'cbrD' -> conv + batchnorm + ReLU + dropout2d
         num_groups (int): number of groups for the GroupNorm
         padding (int or tuple): add zero-padding added to all three sides of the input
         dropout_prob (float): dropout probability
         is3d (bool): is3d (bool): if True use Conv3d, otherwise use Conv2d
     Return:
-        list of tuple (name, module)
+        list modules, where each module is a tuple (name, module)
     """
     assert 'c' in order, "Conv layer MUST be present"
     assert order[0] not in 'rle', 'Non-linearity cannot be the first operation in the layer'
@@ -81,7 +87,8 @@ def create_conv(in_channels, out_channels, kernel_size, order, num_groups, paddi
         elif char == 'D':
             modules.append(('dropout2d', nn.Dropout2d(p=dropout_prob)))
         else:
-            raise ValueError(f"Unsupported layer type '{char}'. MUST be one of ['b', 'g', 'r', 'l', 'e', 'c', 'd', 'D']")
+            raise ValueError(
+                f"Unsupported layer type '{char}'. MUST be one of ['b', 'g', 'r', 'l', 'e', 'c', 'd', 'D']")
 
     return modules
 
@@ -117,8 +124,7 @@ class SingleConv(nn.Sequential):
 
 class DoubleConv(nn.Sequential):
     """
-    A module consisting of two consecutive convolution layers (e.g. BatchNorm3d+ReLU+Conv3d).
-    We use (Conv3d+ReLU+GroupNorm3d) by default.
+    A module consisting of two consecutive convolution layers. We use 2x (Conv3d+ReLU+GroupNorm3d) by default.
     This can be changed however by providing the 'order' argument, e.g. in order
     to change to Conv3d+BatchNorm3d+ELU use order='cbe'.
     Use padded convolutions to make sure that the output (H_out, W_out) is the same
@@ -178,11 +184,18 @@ class DoubleConv(nn.Sequential):
 
 
 class ResNetBlock(nn.Module):
-    """
-    Residual block that can be used instead of standard DoubleConv in the Encoder module.
-    Motivated by: https://arxiv.org/pdf/1706.00120.pdf
+    """Residual block that can be used instead of standard DoubleConv in the Encoder module.
 
+    Motivated by: https://arxiv.org/pdf/1706.00120.pdf
     Notice we use ELU instead of ReLU (order='cge') and put non-linearity after the groupnorm.
+
+    Args:
+        in_channels: Number of input channels.
+        out_channels: Number of output channels.
+        kernel_size: Size of the convolving kernel. Default: 3.
+        order: Determines the order of layers. Default: 'cge'.
+        num_groups: Number of groups for the GroupNorm. Default: 8.
+        is3d: If True use Conv3d, otherwise use Conv2d. Default: True.
     """
 
     def __init__(self, in_channels, out_channels, kernel_size=3, order='cge', num_groups=8, is3d=True, **kwargs):
@@ -462,9 +475,13 @@ def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_
 
 
 class AbstractUpsampling(nn.Module):
-    """
-    Abstract class for upsampling. A given implementation should upsample a given 5D input tensor using either
+    """Abstract class for upsampling.
+
+    A given implementation should upsample a given 5D input tensor using either
     interpolation or learned transposed convolution.
+
+    Args:
+        upsample: Upsampling function to be used.
     """
 
     def __init__(self, upsample):
@@ -480,6 +497,8 @@ class AbstractUpsampling(nn.Module):
 
 class InterpolateUpsampling(AbstractUpsampling):
     """
+    Non-learnable upsampling backed by interpolation.
+
     Args:
         mode (str): algorithm used for upsampling:
             'nearest' | 'linear' | 'bilinear' | 'trilinear' | 'area'. Default: 'nearest'
@@ -497,6 +516,8 @@ class InterpolateUpsampling(AbstractUpsampling):
 
 class TransposeConvUpsampling(AbstractUpsampling):
     """
+    Learned upsampling backed by transposed convolution layer followed by interpolation to the correct size if necessary.
+
     Args:
         in_channels (int): number of input channels for transposed conv
             used only if transposed_conv is True
@@ -510,9 +531,14 @@ class TransposeConvUpsampling(AbstractUpsampling):
     """
 
     class Upsample(nn.Module):
-        """
-        Workaround the 'ValueError: requested an output size...' in the `_output_padding` method in
-        transposed convolution. It performs transposed conv followed by the interpolation to the correct size if necessary.
+        """Workaround for ValueError in transposed convolution.
+
+        Performs transposed conv followed by interpolation to the correct size if necessary.
+        This addresses the 'ValueError: requested an output size...' in the `_output_padding` method.
+
+        Args:
+            conv_transposed: Transposed convolution layer.
+            is3d: If True use 3D operations, otherwise use 2D.
         """
 
         def __init__(self, conv_transposed, is3d):
@@ -537,6 +563,8 @@ class TransposeConvUpsampling(AbstractUpsampling):
 
 
 class NoUpsampling(AbstractUpsampling):
+    """ No upsampling, return the input as is. """
+
     def __init__(self):
         super().__init__(self._no_upsampling)
 

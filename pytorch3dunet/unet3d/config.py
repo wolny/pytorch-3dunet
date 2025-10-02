@@ -45,7 +45,12 @@ def os_dependent_dataloader_kwargs() -> dict:
 
 
 def override_config(args, config):
-    """Overrides config params with the ones given in command line."""
+    """Overrides config params with the ones given in command line.
+
+    Args:
+        args: Command line arguments.
+        config: Configuration dictionary to override.
+    """
 
     args_dict = vars(args)
     # remove the first argument which is the config file path

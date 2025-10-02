@@ -23,11 +23,15 @@ class Compose(object):
 
 
 class RandomFlip:
-    """
-    Randomly flips the image across the given axes. Image can be either 3D (DxHxW) or 4D (CxDxHxW).
+    """Randomly flips the image across the given axes.
 
+    Image can be either 3D (DxHxW) or 4D (CxDxHxW).
     When creating make sure that the provided RandomStates are consistent between raw and labeled datasets,
     otherwise the models won't converge.
+
+    Args:
+        random_state: Random state for reproducibility.
+        axis_prob: Probability of flipping along each axis. Default: 0.5.
     """
 
     def __init__(self, random_state, axis_prob=0.5, **kwargs):
@@ -51,13 +55,16 @@ class RandomFlip:
 
 
 class RandomRotate90:
-    """
-    Rotate an array by 90 degrees around a randomly chosen plane. Image can be either 3D (DxHxW) or 4D (CxDxHxW).
+    """Rotate an array by 90 degrees around a randomly chosen plane.
 
+    Image can be either 3D (DxHxW) or 4D (CxDxHxW).
     When creating make sure that the provided RandomStates are consistent between raw and labeled datasets,
     otherwise the models won't converge.
 
-    IMPORTANT: assumes DHW axis order (that's why rotation is performed across (1,2) axis)
+    IMPORTANT: Assumes DHW axis order (that's why rotation is performed across (1,2) axis).
+
+    Args:
+        random_state: Random state for reproducibility.
     """
 
     def __init__(self, random_state, **kwargs):
@@ -81,9 +88,16 @@ class RandomRotate90:
 
 
 class RandomRotate:
-    """
-    Rotate an array by a random degrees from taken from (-angle_spectrum, angle_spectrum) interval.
+    """Rotate an array by a random degrees from (-angle_spectrum, angle_spectrum) interval.
+
     Rotation axis is picked at random from the list of provided axes.
+
+    Args:
+        random_state: Random state for reproducibility.
+        angle_spectrum: Maximum rotation angle. Default: 30.
+        axes: List of rotation axes. Default: [(1, 0), (2, 1), (2, 0)].
+        mode: Interpolation mode. Default: 'reflect'.
+        order: Interpolation order. Default: 0.
     """
 
     def __init__(self, random_state, angle_spectrum=30, axes=None, mode='reflect', order=0, **kwargs):
@@ -113,8 +127,13 @@ class RandomRotate:
 
 
 class RandomContrast:
-    """
-    Adjust contrast by scaling each voxel to `mean + alpha * (v - mean)`.
+    """Adjust contrast by scaling each voxel to `mean + alpha * (v - mean)`.
+
+    Args:
+        random_state: Random state for reproducibility.
+        alpha: Range of contrast adjustment factor. Default: (0.5, 1.5).
+        mean: Mean value for contrast adjustment. Default: 0.0.
+        execution_probability: Probability of applying this transform. Default: 0.1.
     """
 
     def __init__(self, random_state, alpha=(0.5, 1.5), mean=0.0, execution_probability=0.1, **kwargs):
@@ -134,8 +153,12 @@ class RandomContrast:
 
 
 class RandomGammaCorrection:
-    """
-    Adjust contrast by scaling each voxel to `v ** gamma`.
+    """Adjust contrast by scaling each voxel to `v ** gamma`.
+
+    Args:
+        random_state: Random state for reproducibility.
+        gamma: Range of gamma values. Default: (0.5, 1.5).
+        execution_probability: Probability of applying this transform. Default: 0.1.
     """
 
     def __init__(self, random_state, gamma=(0.5, 1.5), execution_probability=0.1, **kwargs):
@@ -157,20 +180,22 @@ class RandomGammaCorrection:
 # it's relatively slow, i.e. ~1s per patch of size 64x200x200, so use multiple workers in the DataLoader
 # remember to use spline_order=0 when transforming the labels
 class ElasticDeformation:
-    """
-    Apply elasitc deformations of 3D patches on a per-voxel mesh. Assumes ZYX axis order (or CZYX if the data is 4D).
+    """Apply elastic deformations of 3D patches on a per-voxel mesh.
+
+    Assumes ZYX axis order (or CZYX if the data is 4D).
     Based on: https://github.com/fcalvet/image_tools/blob/master/image_augmentation.py#L62
+
+    Args:
+        random_state: Random state for reproducibility.
+        spline_order: The order of spline interpolation (use 0 for labeled images).
+        alpha: Scaling factor for deformations. Default: 2000.
+        sigma: Smoothing factor for Gaussian filter. Default: 50.
+        execution_probability: Probability of executing this transform. Default: 0.1.
+        apply_3d: If True apply deformations in each axis. Default: True.
     """
 
     def __init__(self, random_state, spline_order, alpha=2000, sigma=50, execution_probability=0.1, apply_3d=True,
                  **kwargs):
-        """
-        :param spline_order: the order of spline interpolation (use 0 for labeled images)
-        :param alpha: scaling factor for deformations
-        :param sigma: smoothing factor for Gaussian filter
-        :param execution_probability: probability of executing this transform
-        :param apply_3d: if True apply deformations in each axis
-        """
         self.random_state = random_state
         self.spline_order = spline_order
         self.alpha = alpha
@@ -269,6 +294,15 @@ class CropToFixed:
 
 
 class AbstractLabelToBoundary:
+    """Abstract base class for label to boundary conversion.
+
+    Args:
+        ignore_index: Label to be ignored in the output, i.e. after computing the boundary the label
+            ignore_index will be restored where it was in the patch originally.
+        aggregate_affinities: Aggregate affinities with the same offset across Z,Y,X axes. Default: False.
+        append_label: If True append the original ground truth labels to the last channel. Default: False.
+    """
+
     AXES_TRANSPOSE = [
         (0, 1, 2),  # X
         (0, 2, 1),  # Y
@@ -276,23 +310,18 @@ class AbstractLabelToBoundary:
     ]
 
     def __init__(self, ignore_index=None, aggregate_affinities=False, append_label=False, **kwargs):
-        """
-        :param ignore_index: label to be ignored in the output, i.e. after computing the boundary the label ignore_index
-            will be restored where is was in the patch originally
-        :param aggregate_affinities: aggregate affinities with the same offset across Z,Y,X axes
-        :param append_label: if True append the orignal ground truth labels to the last channel
-        :param blur: Gaussian blur the boundaries
-        :param sigma: standard deviation for Gaussian kernel
-        """
         self.ignore_index = ignore_index
         self.aggregate_affinities = aggregate_affinities
         self.append_label = append_label
 
     def __call__(self, m):
-        """
-        Extract boundaries from a given 3D label tensor.
-        :param m: input 3D tensor
-        :return: binary mask, with 1-label corresponding to the boundary and 0-label corresponding to the background
+        """Extract boundaries from a given 3D label tensor.
+
+        Args:
+            m: Input 3D tensor.
+
+        Returns:
+            Binary mask, with 1-label corresponding to the boundary and 0-label corresponding to the background.
         """
         assert m.ndim == 3
 
@@ -361,9 +390,14 @@ class StandardLabelToBoundary:
 
 
 class BlobsToMask:
-    """
-    Returns binary mask from labeled image, i.e. every label greater than 0 is treated as foreground.
+    """Returns binary mask from labeled image.
 
+    Every label greater than 0 is treated as foreground.
+
+    Args:
+        append_label: If True, append original labels. Default: False.
+        boundary: If True, compute boundaries. Default: False.
+        cross_entropy: If True, use cross entropy format. Default: False.
     """
 
     def __init__(self, append_label=False, boundary=False, cross_entropy=False, **kwargs):
@@ -394,12 +428,19 @@ class BlobsToMask:
 
 
 class RandomLabelToAffinities(AbstractLabelToBoundary):
-    """
-    Converts a given volumetric label array to binary mask corresponding to borders between labels.
-    One specify the max_offset (thickness) of the border. Then the offset is picked at random every time you call
-    the transformer (offset is picked form the range 1:max_offset) for each axis and the boundary computed.
-    One may use this scheme in order to make the network more robust against various thickness of borders in the ground
-    truth  (think of it as a boundary denoising scheme).
+    """Converts a given volumetric label array to binary mask corresponding to borders between labels.
+
+    One specifies the max_offset (thickness) of the border. Then the offset is picked at random every time
+    you call the transformer (offset is picked from the range 1:max_offset) for each axis and the boundary computed.
+    One may use this scheme in order to make the network more robust against various thickness of borders in the
+    ground truth (think of it as a boundary denoising scheme).
+
+    Args:
+        random_state: Random state for reproducibility.
+        max_offset: Maximum offset for boundary thickness. Default: 10.
+        ignore_index: Label to ignore in the output.
+        append_label: If True, append original labels. Default: False.
+        z_offset_scale: Scale factor for z-axis offsets. Default: 2.
     """
 
     def __init__(self, random_state, max_offset=10, ignore_index=None, append_label=False, z_offset_scale=2, **kwargs):
@@ -421,10 +462,17 @@ class RandomLabelToAffinities(AbstractLabelToBoundary):
 
 
 class LabelToAffinities(AbstractLabelToBoundary):
-    """
-    Converts a given volumetric label array to binary mask corresponding to borders between labels (which can be seen
-    as an affinity graph: https://arxiv.org/pdf/1706.00120.pdf)
-    One specify the offsets (thickness) of the border. The boundary will be computed via the convolution operator.
+    """Converts a given volumetric label array to binary mask corresponding to borders between labels.
+
+    This can be seen as an affinity graph: https://arxiv.org/pdf/1706.00120.pdf
+    One specifies the offsets (thickness) of the border. The boundary will be computed via the convolution operator.
+
+    Args:
+        offsets: List of offsets for boundary thickness.
+        ignore_index: Label to ignore in the output.
+        append_label: If True, append original labels. Default: False.
+        aggregate_affinities: If True, aggregate affinities. Default: False.
+        z_offsets: Offsets for z-axis, if different from xy offsets.
     """
 
     def __init__(self, offsets, ignore_index=None, append_label=False, aggregate_affinities=False, z_offsets=None,
@@ -457,10 +505,15 @@ class LabelToAffinities(AbstractLabelToBoundary):
 
 
 class LabelToZAffinities(AbstractLabelToBoundary):
-    """
-    Converts a given volumetric label array to binary mask corresponding to borders between labels (which can be seen
-    as an affinity graph: https://arxiv.org/pdf/1706.00120.pdf)
-    One specify the offsets (thickness) of the border. The boundary will be computed via the convolution operator.
+    """Converts a given volumetric label array to binary mask corresponding to borders between labels in Z-axis only.
+
+    This can be seen as an affinity graph: https://arxiv.org/pdf/1706.00120.pdf
+    One specifies the offsets (thickness) of the border. The boundary will be computed via the convolution operator.
+
+    Args:
+        offsets: List of offsets for boundary thickness.
+        ignore_index: Label to ignore in the output.
+        append_label: If True, append original labels. Default: False.
     """
 
     def __init__(self, offsets, ignore_index=None, append_label=False, **kwargs):
@@ -481,9 +534,19 @@ class LabelToZAffinities(AbstractLabelToBoundary):
 
 
 class LabelToBoundaryAndAffinities:
-    """
-    Combines the StandardLabelToBoundary and LabelToAffinities in the hope
-    that that training the network to predict both would improve the main task: boundary prediction.
+    """Combines the StandardLabelToBoundary and LabelToAffinities.
+
+    The hope is that training the network to predict both would improve the main task: boundary prediction.
+
+    Args:
+        xy_offsets: Offsets for XY axes.
+        z_offsets: Offsets for Z axis.
+        append_label: If True, append original labels. Default: False.
+        blur: If True, apply Gaussian blur. Default: False.
+        sigma: Standard deviation for Gaussian kernel. Default: 1.
+        ignore_index: Label to ignore in the output.
+        mode: Boundary detection mode. Default: 'thick'.
+        foreground: If True, include foreground mask. Default: False.
     """
 
     def __init__(self, xy_offsets, z_offsets, append_label=False, blur=False, sigma=1, ignore_index=None, mode='thick',
@@ -514,8 +577,15 @@ class LabelToMaskAndAffinities:
 
 
 class Standardize:
-    """
-    Apply Z-score normalization to a given input tensor, i.e. re-scaling the values to be 0-mean and 1-std.
+    """Apply Z-score normalization to a given input tensor.
+
+    Re-scales the values to be 0-mean and 1-std.
+
+    Args:
+        eps: Small value to prevent division by zero. Default: 1e-10.
+        mean: Pre-computed mean value.
+        std: Pre-computed standard deviation value.
+        channelwise: If True, normalize per-channel. Default: False.
     """
 
     def __init__(self, eps=1e-10, mean=None, std=None, channelwise=False, **kwargs):
@@ -566,11 +636,18 @@ class PercentileNormalizer:
 
 
 class Normalize:
-    """
-    Apply simple min-max scaling to a given input tensor, i.e. shrinks the range of the data
-    in a fixed range of [-1, 1] or in case of norm01==True to [0, 1]. In addition, data can be
-    clipped by specifying min_value/max_value either globally using single values or via a
-    list/tuple channelwise if enabled.
+    """Apply simple min-max scaling to a given input tensor.
+
+    Shrinks the range of the data to a fixed range of [-1, 1] or in case of norm01==True to [0, 1].
+    In addition, data can be clipped by specifying min_value/max_value either globally using single
+    values or via a list/tuple channelwise if enabled.
+
+    Args:
+        min_value: Minimum value for clipping.
+        max_value: Maximum value for clipping.
+        norm01: If True, normalize to [0, 1] instead of [-1, 1]. Default: False.
+        channelwise: If True, normalize per-channel. Default: False.
+        eps: Small value to prevent division by zero. Default: 1e-10.
     """
 
     def __init__(self, min_value=None, max_value=None, norm01=False, channelwise=False,
@@ -683,10 +760,15 @@ class ToTensor:
 
 
 class Relabel:
-    """
-    Relabel a numpy array of labels into a consecutive numbers, e.g.
-    [10, 10, 0, 6, 6] -> [2, 2, 0, 1, 1]. Useful when one has an instance segmentation volume
+    """Relabel a numpy array of labels into consecutive numbers.
+
+    E.g. [10, 10, 0, 6, 6] -> [2, 2, 0, 1, 1]. Useful when one has an instance segmentation volume
     at hand and would like to create a one-hot-encoding for it. Without a consecutive labeling the task would be harder.
+
+    Args:
+        append_original: If True, append original labels. Default: False.
+        run_cc: If True, run connected components. Default: True.
+        ignore_label: Label to ignore.
     """
 
     def __init__(self, append_original=False, run_cc=True, ignore_label=None, **kwargs):

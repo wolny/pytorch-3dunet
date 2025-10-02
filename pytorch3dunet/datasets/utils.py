@@ -175,7 +175,14 @@ class ConfigDataset(Dataset):
 
     @classmethod
     def prediction_collate(cls, batch):
-        """Default collate_fn. Override in child class for non-standard datasets."""
+        """Default collate_fn. Override in child class for non-standard datasets.
+
+        Args:
+            batch: List of samples from the dataset.
+
+        Returns:
+            Collated batch.
+        """
         return default_prediction_collate(batch)
 
 
@@ -223,13 +230,16 @@ class SliceBuilder:
 
     @staticmethod
     def _build_slices(dataset, patch_shape, stride_shape):
-        """Iterates over a given n-dim dataset patch-by-patch with a given stride
-        and builds an array of slice positions.
+        """Iterates over a given n-dim dataset patch-by-patch with a given stride and builds an array of slice positions.
+
+        Args:
+            dataset: The dataset to build slices for.
+            patch_shape: Shape of the patch.
+            stride_shape: Shape of the stride.
 
         Returns:
-            list of slices, i.e.
-            [(slice, slice, slice, slice), ...] if len(shape) == 4
-            [(slice, slice, slice), ...] if len(shape) == 3
+            List of slices, i.e. [(slice, slice, slice, slice), ...] if len(shape) == 4
+            or [(slice, slice, slice), ...] if len(shape) == 3.
         """
         slices = []
         if dataset.ndim == 4:
@@ -394,10 +404,13 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
 
 
 def get_test_loaders(config: dict) -> DataLoader:
-    """
-    Returns test DataLoader.
+    """Returns test DataLoader.
 
-    :return: generator of DataLoader objects
+    Args:
+        config: A top level configuration object containing the 'loaders' key.
+
+    Returns:
+        Generator of DataLoader objects.
     """
 
     assert 'loaders' in config, 'Could not find data loaders configuration'
@@ -443,8 +456,13 @@ def get_test_loaders(config: dict) -> DataLoader:
 
 
 def default_prediction_collate(batch):
-    """
-    Default collate_fn to form a mini-batch of Tensor(s) for HDF5 based datasets
+    """Default collate_fn to form a mini-batch of Tensor(s) for HDF5 based datasets.
+
+    Args:
+        batch: List of samples from the dataset.
+
+    Returns:
+        Collated batch.
     """
     error_msg = "batch must contain tensors or slice; found {}"
     if isinstance(batch[0], torch.Tensor):

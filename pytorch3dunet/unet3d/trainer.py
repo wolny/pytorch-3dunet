@@ -86,34 +86,32 @@ class UNetTrainer:
     """UNet trainer.
 
     Args:
-        model (Unet3D): UNet 3D model to be trained
-        optimizer (nn.optim.Optimizer): optimizer used for training
-        lr_scheduler (torch.optim.lr_scheduler._LRScheduler): learning rate scheduler
-            WARN: bear in mind that lr_scheduler.step() is invoked after every validation step
-            (i.e. validate_after_iters) not after every epoch. So e.g. if one uses StepLR with step_size=30
+        model: UNet 3D model to be trained.
+        optimizer: Optimizer used for training.
+        lr_scheduler: Learning rate scheduler. Note that lr_scheduler.step() is invoked after every validation
+            step (i.e. validate_after_iters) not after every epoch. So e.g. if one uses StepLR with step_size=30
             the learning rate will be adjusted after every 30 * validate_after_iters iterations.
-        loss_criterion (callable): loss function
-        eval_criterion (callable): used to compute training/validation metric (such as Dice, IoU, AP or Rand score)
-            saving the best checkpoint is based on the result of this function on the validation set
-        loaders (dict): 'train' and 'val' loaders
-        checkpoint_dir (str): dir for saving checkpoints and tensorboard logs
-        max_num_epochs (int): maximum number of epochs
-        max_num_iterations (int): maximum number of iterations
-        validate_after_iters (int): validate after that many iterations
-        log_after_iters (int): number of iterations before logging to tensorboard
-        validate_iters (int): number of validation iterations, if None validate
-            on the whole validation set
-        eval_score_higher_is_better (bool): if True higher eval scores are considered better
-        num_iterations (int): useful when loading the model from the checkpoint
-        num_epoch (int): useful when loading the model from the checkpoint
-        tensorboard_formatter (callable): converts a given batch of input/output/target image to a series of images
-            that can be displayed in tensorboard
-        skip_train_validation (bool): if True eval_criterion is not evaluated on the training set (used when
-            evaluation is expensive)
-        resume (str): path to the checkpoint to be resumed
-        pre_trained (str): path to the pre-trained model
-        max_val_images (int): maximum number of images to log during validation
-        device (TorchDevice): device to use for training (CPU, CUDA, MPS)
+        loss_criterion: Loss function.
+        eval_criterion: Used to compute training/validation metric (such as Dice, IoU, AP or Rand score).
+            Saving the best checkpoint is based on the result of this function on the validation set.
+        loaders: Dictionary with 'train' and 'val' data loaders.
+        checkpoint_dir: Directory for saving checkpoints and tensorboard logs.
+        max_num_epochs: Maximum number of epochs.
+        max_num_iterations: Maximum number of iterations.
+        validate_after_iters: Validate after that many iterations. Default: 200.
+        log_after_iters: Number of iterations before logging to tensorboard. Default: 100.
+        validate_iters: Number of validation iterations. If None validate on the whole validation set. Default: None.
+        num_iterations: Useful when loading the model from the checkpoint. Default: 1.
+        num_epoch: Useful when loading the model from the checkpoint. Default: 0.
+        eval_score_higher_is_better: If True higher eval scores are considered better. Default: True.
+        tensorboard_formatter: Converts a given batch of input/output/target image to a series of images
+            that can be displayed in tensorboard. Default: None.
+        skip_train_validation: If True eval_criterion is not evaluated on the training set (used when
+            evaluation is expensive). Default: False.
+        resume: Path to the checkpoint to be resumed. Default: None.
+        pre_trained: Path to the pre-trained model. Default: None.
+        max_val_images: Maximum number of images to log during validation. Default: 100.
+        device: Device to use for training (CPU, CUDA, MPS). Default: None.
     """
 
     def __init__(
@@ -282,9 +280,13 @@ class UNetTrainer:
         return False
 
     def should_stop(self):
-        """
+        """Check if training should be terminated.
+
         Training will terminate if maximum number of iterations is exceeded or the learning rate drops below
-        some predefined threshold (1e-6 in our case)
+        some predefined threshold (1e-6 in our case).
+
+        Returns:
+            True if training should stop, False otherwise.
         """
         if self.max_num_iterations < self.num_iterations:
             logger.info(f'Maximum number of iterations {self.max_num_iterations} exceeded.')

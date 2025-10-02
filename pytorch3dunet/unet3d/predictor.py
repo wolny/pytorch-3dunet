@@ -22,7 +22,19 @@ logger = get_logger('UNetPredictor')
 
 
 class AbstractPredictor:
-    """Base class for predictors."""
+    """Base class for predictors.
+
+    Args:
+        model: Segmentation model.
+        output_dir: Directory where the predictions will be saved.
+        out_channels: Number of output channels of the model.
+        device: Device to run the model on (CPU, CUDA, MPS).
+        output_dataset: Name of the dataset in the H5 file where the predictions will be saved. Default: 'predictions'.
+        save_segmentation: If True the segmentation will be saved instead of the probability maps. Default: False.
+        prediction_channel: Save only the specified channel from the network output. Default: None.
+        performance_metric: Performance metric to be used for evaluation. Default: None.
+        gt_internal_path: Internal path to the ground truth dataset in the H5 file. Default: None.
+    """
 
     def __init__(self,
                  model: nn.Module,
@@ -35,20 +47,6 @@ class AbstractPredictor:
                  performance_metric: Optional[str] = None,
                  gt_internal_path: Optional[str] = None,
                  **kwargs):
-        """
-        Base class for predictors.
-
-        Args:
-            model: segmentation model
-            output_dir: directory where the predictions will be saved
-            out_channels: number of output channels of the model
-            device: device to run the model on (CPU, CUDA, MPS)
-            output_dataset: name of the dataset in the H5 file where the predictions will be saved
-            save_segmentation: if true the segmentation will be saved instead of the probability maps
-            prediction_channel: save only the specified channel from the network output
-            performance_metric: performance metric to be used for evaluation
-            gt_internal_path: internal path to the ground truth dataset in the H5 file
-        """
         self.model = model
         self.output_dir = output_dir
         assert out_channels > 0, f"Invalid number of output channels: {out_channels}"
@@ -62,19 +60,24 @@ class AbstractPredictor:
         self.gt_internal_path = gt_internal_path
 
     def __call__(self, test_loader: DataLoader) -> Any:
-        """
-        Run the model prediction on the test_loader and save the results in the output_dir.
+        """Run the model prediction on the test_loader and save the results in the output_dir.
 
         If the performance_metric is provided, the predictions will be evaluated against the ground truth
         and returned as a tensor.
+
+        Args:
+            test_loader: DataLoader for the test dataset.
+
+        Returns:
+            Evaluation metric result if performance_metric is provided, otherwise None.
         """
         raise NotImplementedError
 
 
 class StandardPredictor(AbstractPredictor):
-    """
-    Applies the model on the given dataset and saves the result as H5 file.
-    Predictions from the network are kept in memory. If the results from the network don't fit in into RAM
+    """Standard predictor that applies the model on the given dataset and saves the result as H5 file.
+
+    Predictions from the network are kept in memory. If the results from the network don't fit into RAM
     use `LazyPredictor` instead.
     """
 
@@ -220,10 +223,10 @@ class StandardPredictor(AbstractPredictor):
 
 
 class LazyPredictor(StandardPredictor):
-    """
-    Applies the model on the given dataset and saves the result in the `output_file` in the H5 format.
-    Predicted patches are directly saved into the H5 and they won't be stored in memory. Since this predictor
-    is slower than the `StandardPredictor` it should only be used when the predicted volume does not fit into RAM.
+    """Lazy predictor that applies the model on the given dataset and saves results in H5 format.
+
+    Predicted patches are directly saved into the H5 file and won't be stored in memory. Since this predictor
+    is slower than `StandardPredictor`, it should only be used when the predicted volume does not fit into RAM.
     """
 
     def __init__(self,

@@ -16,6 +16,15 @@ logger = utils.get_logger('UNet3DPredict')
 
 
 def get_predictor(model, config):
+    """Create and return a predictor instance based on the configuration.
+
+    Args:
+        model: The trained model to use for prediction.
+        config: Configuration dictionary containing predictor settings.
+
+    Returns:
+        A predictor instance (StandardPredictor or LazyPredictor).
+    """
     output_dir = config['loaders'].get('output_dir', None)
     if output_dir is not None:
         os.makedirs(output_dir, exist_ok=True)
@@ -30,6 +39,11 @@ def get_predictor(model, config):
 
 
 def main():
+    """Main entry point for prediction with 3D U-Net models.
+
+    Loads configuration from command line arguments, creates the model, loads trained weights,
+    runs predictions on test datasets, and computes evaluation metrics if specified.
+    """
     # Load configuration
     config, _ = load_config()
 

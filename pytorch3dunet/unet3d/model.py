@@ -6,40 +6,34 @@ from pytorch3dunet.unet3d.utils import get_class, number_of_features_per_level
 
 
 class AbstractUNet(nn.Module):
-    """
-    Base class for standard and residual UNet.
+    """Base class for standard and residual UNet.
 
     Args:
-        in_channels (int): number of input channels
-        out_channels (int): number of output segmentation masks;
-            Note that the of out_channels might correspond to either
-            different semantic classes or to different binary segmentation mask.
-            It's up to the user of the class to interpret the out_channels and
-            use the proper loss criterion during training (i.e. CrossEntropyLoss (multi-class)
-            or BCEWithLogitsLoss (two-class) respectively)
-        f_maps (int, tuple): number of feature maps at each level of the encoder; if it's an integer the number
-            of feature maps is given by the geometric progression: f_maps ^ k, k=1,2,3,4
-        final_sigmoid (bool): if True apply element-wise nn.Sigmoid after the final 1x1 convolution,
-            otherwise apply nn.Softmax. In effect only if `self.training == False`, i.e. during validation/testing
-        basic_module: basic model for the encoder/decoder (DoubleConv, ResNetBlock, ....)
-        layer_order (string): determines the order of layers in `SingleConv` module.
-            E.g. 'crg' stands for GroupNorm3d+Conv3d+ReLU. See `SingleConv` for more info
-        num_groups (int): number of groups for the GroupNorm
-        num_levels (int): number of levels in the encoder/decoder path (applied only if f_maps is an int)
-            default: 4
-        is_segmentation (bool): if True and the model is in eval mode, Sigmoid/Softmax normalization is applied
-            after the final convolution; if False (regression problem) the normalization layer is skipped
-        conv_kernel_size (int or tuple): size of the convolving kernel in the basic_module
-        pool_kernel_size (int or tuple): the size of the window
-        conv_padding (int or tuple): add zero-padding added to all three sides of the input
-        conv_upscale (int): number of the convolution to upscale in encoder if DoubleConv, default: 2
-        upsample (str): algorithm used for decoder upsampling:
-            InterpolateUpsampling:   'nearest' | 'linear' | 'bilinear' | 'trilinear' | 'area'
-            TransposeConvUpsampling: 'deconv'
-            No upsampling:           None
-            Default: 'default' (chooses automatically)
-        dropout_prob (float or tuple): dropout probability, default: 0.1
-        is3d (bool): if True the model is 3D, otherwise 2D, default: True
+        in_channels: Number of input channels.
+        out_channels: Number of output segmentation masks. Note that the number of out_channels might correspond
+            to either different semantic classes or to different binary segmentation mask. It's up to the user
+            of the class to interpret the out_channels and use the proper loss criterion during training
+            (i.e. CrossEntropyLoss for multi-class or BCEWithLogitsLoss for two-class respectively).
+        final_sigmoid: If True apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply
+            nn.Softmax. In effect only if `self.training == False`, i.e. during validation/testing.
+        basic_module: Basic model for the encoder/decoder (DoubleConv, ResNetBlock, etc.).
+        f_maps: Number of feature maps at each level of the encoder. If it's an integer, the number of feature
+            maps is given by the geometric progression: f_maps ^ k, k=1,2,3,4. Default: 64.
+        layer_order: Determines the order of layers in `SingleConv` module. E.g. 'crg' stands for
+            GroupNorm3d+Conv3d+ReLU. See `SingleConv` for more info. Default: 'gcr'.
+        num_groups: Number of groups for the GroupNorm. Default: 8.
+        num_levels: Number of levels in the encoder/decoder path (applied only if f_maps is an int). Default: 4.
+        is_segmentation: If True and the model is in eval mode, Sigmoid/Softmax normalization is applied after
+            the final convolution. If False (regression problem) the normalization layer is skipped. Default: True.
+        conv_kernel_size: Size of the convolving kernel in the basic_module. Default: 3.
+        pool_kernel_size: The size of the pooling window. Default: 2.
+        conv_padding: Zero-padding added to all three sides of the input. Default: 1.
+        conv_upscale: Number of the convolution to upscale in encoder if DoubleConv. Default: 2.
+        upsample: Algorithm used for decoder upsampling. Options are 'nearest', 'linear', 'bilinear', 'trilinear',
+            'area' (InterpolateUpsampling), 'deconv' (TransposeConvUpsampling), or None (no upsampling).
+            Default: 'default' (chooses automatically).
+        dropout_prob: Dropout probability. Default: 0.1.
+        is3d: If True the model is 3D, otherwise 2D. Default: True.
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
@@ -131,12 +125,10 @@ class AbstractUNet(nn.Module):
 
 
 class UNet3D(AbstractUNet):
-    """
-    3DUnet model from
-    `"3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation"
-        <https://arxiv.org/pdf/1606.06650.pdf>`.
+    """3D U-Net model from "3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation".
 
-    Uses `DoubleConv` as a basic_module and nearest neighbor upsampling in the decoder
+    Uses `DoubleConv` as a basic_module and nearest neighbor upsampling in the decoder.
+    Reference: https://arxiv.org/pdf/1606.06650.pdf
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',
@@ -159,11 +151,13 @@ class UNet3D(AbstractUNet):
 
 
 class ResidualUNet3D(AbstractUNet):
-    """
-    Residual 3DUnet model implementation based on https://arxiv.org/pdf/1706.00120.pdf.
-    Uses ResNetBlock as a basic building block, summation joining instead
-    of concatenation joining and transposed convolutions for upsampling (watch out for block artifacts).
-    Since the model effectively becomes a residual net, in theory it allows for deeper UNet.
+    """Residual 3D U-Net model implementation.
+
+    Uses ResNetBlock as a basic building block, summation joining instead of concatenation joining,
+    and transposed convolutions for upsampling (watch out for block artifacts). Since the model
+    effectively becomes a residual net, in theory it allows for deeper UNet.
+
+    Reference: https://arxiv.org/pdf/1706.00120.pdf
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',
@@ -186,13 +180,13 @@ class ResidualUNet3D(AbstractUNet):
 
 
 class ResidualUNetSE3D(AbstractUNet):
-    """_summary_
-    Residual 3DUnet model implementation with squeeze and excitation based on 
-    https://arxiv.org/pdf/1706.00120.pdf.
-    Uses ResNetBlockSE as a basic building block, summation joining instead
-    of concatenation joining and transposed convolutions for upsampling (watch
-    out for block artifacts). Since the model effectively becomes a residual
-    net, in theory it allows for deeper UNet.
+    """Residual 3D U-Net model implementation with Squeeze and Excitation blocks.
+
+    Uses ResNetBlockSE as a basic building block, summation joining instead of concatenation joining,
+    and transposed convolutions for upsampling (watch out for block artifacts). Since the model
+    effectively becomes a residual net, in theory it allows for deeper UNet.
+
+    Reference: https://arxiv.org/pdf/1706.00120.pdf
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',
@@ -215,9 +209,9 @@ class ResidualUNetSE3D(AbstractUNet):
 
 
 class UNet2D(AbstractUNet):
-    """
-    2DUnet model from
-    `"U-Net: Convolutional Networks for Biomedical Image Segmentation" <https://arxiv.org/abs/1505.04597>`
+    """2D U-Net model from "U-Net: Convolutional Networks for Biomedical Image Segmentation".
+
+    Reference: https://arxiv.org/abs/1505.04597
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',
@@ -240,8 +234,9 @@ class UNet2D(AbstractUNet):
 
 
 class ResidualUNet2D(AbstractUNet):
-    """
-    Residual 2DUnet model implementation based on https://arxiv.org/pdf/1706.00120.pdf.
+    """Residual 2D U-Net model implementation.
+
+    Reference: https://arxiv.org/pdf/1706.00120.pdf
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',

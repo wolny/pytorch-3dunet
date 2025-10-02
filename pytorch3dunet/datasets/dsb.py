@@ -13,8 +13,13 @@ logger = get_logger('DSB2018Dataset')
 
 
 def dsb_prediction_collate(batch):
-    """
-    Forms a mini-batch of (images, paths) during test time for the DSB-like datasets.
+    """Forms a mini-batch of (images, paths) during test time for the DSB-like datasets.
+
+    Args:
+        batch: List of samples from the dataset.
+
+    Returns:
+        Collated batch.
     """
     error_msg = "batch must contain tensors or str; found {}"
     if isinstance(batch[0], torch.Tensor):

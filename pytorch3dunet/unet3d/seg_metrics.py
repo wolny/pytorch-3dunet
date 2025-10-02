@@ -3,18 +3,58 @@ from skimage.metrics import contingency_table
 
 
 def precision(tp, fp, fn):
+    """Computes precision from true positives, false positives, and false negatives.
+
+    Args:
+        tp: Number of true positives.
+        fp: Number of false positives.
+        fn: Number of false negatives.
+
+    Returns:
+        Precision score.
+    """
     return tp / (tp + fp) if tp > 0 else 0
 
 
 def recall(tp, fp, fn):
+    """Computes recall from true positives, false positives, and false negatives.
+
+    Args:
+        tp: Number of true positives.
+        fp: Number of false positives.
+        fn: Number of false negatives.
+
+    Returns:
+        Recall score.
+    """
     return tp / (tp + fn) if tp > 0 else 0
 
 
 def accuracy(tp, fp, fn):
+    """Computes accuracy from true positives, false positives, and false negatives.
+
+    Args:
+        tp: Number of true positives.
+        fp: Number of false positives.
+        fn: Number of false negatives.
+
+    Returns:
+        Accuracy score.
+    """
     return tp / (tp + fp + fn) if tp > 0 else 0
 
 
 def f1(tp, fp, fn):
+    """Computes F1 score from true positives, false positives, and false negatives.
+
+    Args:
+        tp: Number of true positives.
+        fp: Number of false positives.
+        fn: Number of false negatives.
+
+    Returns:
+        F1 score.
+    """
     return (2 * tp) / (2 * tp + fp + fn) if tp > 0 else 0
 
 
@@ -61,8 +101,13 @@ class SegmentationMetrics:
         self.iou_matrix = _iou_matrix(gt, seg)
 
     def metrics(self, iou_threshold):
-        """
-        Computes precision, recall, accuracy, f1 score at a given IoU threshold
+        """Computes precision, recall, accuracy, f1 score at a given IoU threshold.
+
+        Args:
+            iou_threshold: IoU threshold for detection.
+
+        Returns:
+            Dictionary containing precision, recall, accuracy, and f1 scores.
         """
         # ignore background
         iou_matrix = self.iou_matrix[1:, 1:]
@@ -90,11 +135,14 @@ class SegmentationMetrics:
 
 
 class Accuracy:
-    """
-    Computes accuracy between ground truth and predicted segmentation a a given threshold value.
+    """Computes accuracy between ground truth and predicted segmentation at a given threshold value.
+
     Defined as: AC = TP / (TP + FP + FN).
     Kaggle DSB2018 calls it Precision, see:
     https://www.kaggle.com/stkbailey/step-by-step-explanation-of-scoring-metric.
+
+    Args:
+        iou_threshold: IoU threshold for detection.
     """
 
     def __init__(self, iou_threshold):
@@ -106,9 +154,9 @@ class Accuracy:
 
 
 class AveragePrecision:
-    """
-    Average precision taken for the IoU range (0.5, 0.95) with a step of 0.05 as defined in:
-    https://www.kaggle.com/stkbailey/step-by-step-explanation-of-scoring-metric
+    """Average precision taken for the IoU range (0.5, 0.95) with a step of 0.05.
+
+    As defined in: https://www.kaggle.com/stkbailey/step-by-step-explanation-of-scoring-metric
     """
 
     def __init__(self):

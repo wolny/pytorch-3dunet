@@ -224,9 +224,20 @@ class AbstractHDF5Dataset(ConfigDataset):
 
 
 class StandardHDF5Dataset(AbstractHDF5Dataset):
-    """
-    Implementation of the HDF5 dataset which loads the data from the H5 files into the memory.
+    """Implementation of the HDF5 dataset which loads the data from the H5 files into the memory.
+
     Fast but might consume a lot of memory.
+
+    Args:
+        file_path: Path to H5 file containing raw data and labels.
+        phase: 'train' for training, 'val' for validation, 'test' for testing.
+        slice_builder_config: Configuration of the SliceBuilder.
+        transformer_config: Data augmentation configuration.
+        raw_internal_path: H5 internal path to the raw dataset. Default: 'raw'.
+        label_internal_path: H5 internal path to the label dataset. Default: 'label'.
+        global_normalization: If True, calculate mean and std over whole dataset. Default: True.
+        random_scale: If not None, randomly scale patches.
+        random_scale_probability: Probability of executing random scale. Default: 0.5.
     """
 
     def __init__(
@@ -273,7 +284,21 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
 
 
 class LazyHDF5Dataset(AbstractHDF5Dataset):
-    """Implementation of the HDF5 dataset which loads the data lazily. It's slower, but has a low memory footprint."""
+    """Implementation of the HDF5 dataset which loads the data lazily.
+
+    It's slower, but has a low memory footprint.
+
+    Args:
+        file_path: Path to H5 file containing raw data and labels.
+        phase: 'train' for training, 'val' for validation, 'test' for testing.
+        slice_builder_config: Configuration of the SliceBuilder.
+        transformer_config: Data augmentation configuration.
+        raw_internal_path: H5 internal path to the raw dataset. Default: 'raw'.
+        label_internal_path: H5 internal path to the label dataset. Default: 'label'.
+        global_normalization: If True, calculate mean and std over whole dataset. Default: False.
+        random_scale: If not None, randomly scale patches.
+        random_scale_probability: Probability of executing random scale. Default: 0.5.
+    """
 
     def __init__(
             self,

@@ -38,8 +38,11 @@ def compute_per_channel_dice(input, target, epsilon=1e-6, weight=None):
 
 
 class MaskingLossWrapper(nn.Module):
-    """
-    Loss wrapper which prevents the gradient of the loss to be computed where target is equal to `ignore_index`.
+    """Loss wrapper which prevents the gradient of the loss to be computed where target is equal to `ignore_index`.
+
+    Args:
+        loss: The loss function to wrap.
+        ignore_index: Index to ignore in the target.
     """
 
     def __init__(self, loss, ignore_index):
@@ -61,8 +64,11 @@ class MaskingLossWrapper(nn.Module):
 
 
 class SkipLastTargetChannelWrapper(nn.Module):
-    """
-    Loss wrapper which removes additional target channel
+    """Loss wrapper which removes additional target channel.
+
+    Args:
+        loss: The loss function to wrap.
+        squeeze_channel: If True, squeeze the channel dimension after removing last channel. Default: False.
     """
 
     def __init__(self, loss, squeeze_channel=False):
@@ -83,8 +89,11 @@ class SkipLastTargetChannelWrapper(nn.Module):
 
 
 class _AbstractDiceLoss(nn.Module):
-    """
-    Base class for different implementations of Dice loss.
+    """Base class for different implementations of Dice loss.
+
+    Args:
+        weight: Weight tensor for per-class weighting.
+        normalization: Type of normalization to apply ('sigmoid', 'softmax', or 'none'). Default: 'sigmoid'.
     """
 
     def __init__(self, weight=None, normalization='sigmoid'):
@@ -120,8 +129,13 @@ class _AbstractDiceLoss(nn.Module):
 
 class DiceLoss(_AbstractDiceLoss):
     """Computes Dice Loss according to https://arxiv.org/abs/1606.04797.
-    For multi-class segmentation `weight` parameter can be used to assign different weights per class.
+
+    For multi-class segmentation, weight parameter can be used to assign different weights per class.
     The input to the loss function is assumed to be a logit and will be normalized by the Sigmoid function.
+
+    Args:
+        weight: Weight tensor for per-class weighting.
+        normalization: Type of normalization to apply. Default: 'sigmoid'.
     """
 
     def __init__(self, weight=None, normalization='sigmoid'):
@@ -133,6 +147,10 @@ class DiceLoss(_AbstractDiceLoss):
 
 class GeneralizedDiceLoss(_AbstractDiceLoss):
     """Computes Generalized Dice Loss (GDL) as described in https://arxiv.org/pdf/1707.03237.pdf.
+
+    Args:
+        normalization: Type of normalization to apply. Default: 'sigmoid'.
+        epsilon: Small value to prevent division by zero. Default: 1e-6.
     """
 
     def __init__(self, normalization='sigmoid', epsilon=1e-6):
@@ -167,7 +185,11 @@ class GeneralizedDiceLoss(_AbstractDiceLoss):
 
 
 class BCEDiceLoss(nn.Module):
-    """Linear combination of BCE and Dice losses"""
+    """Linear combination of BCE and Dice losses.
+
+    Args:
+        alpha: Weight for Dice loss component. Default: 1.0.
+    """
 
     def __init__(self, alpha=1.0):
         super(BCEDiceLoss, self).__init__()
@@ -180,7 +202,10 @@ class BCEDiceLoss(nn.Module):
 
 
 class WeightedCrossEntropyLoss(nn.Module):
-    """WeightedCrossEntropyLoss (WCE) as described in https://arxiv.org/pdf/1707.03237.pdf
+    """WeightedCrossEntropyLoss (WCE) as described in https://arxiv.org/pdf/1707.03237.pdf.
+
+    Args:
+        ignore_index: Index to ignore in the loss computation. Default: -1.
     """
 
     def __init__(self, ignore_index=-1):
@@ -203,6 +228,9 @@ class WeightedCrossEntropyLoss(nn.Module):
 
 
 class WeightedSmoothL1Loss(nn.SmoothL1Loss):
+    """ A variant of SmoothL1Loss where the loss is weighted by a constant factor
+    when the target value is below or above a certain threshold."""
+
     def __init__(self, threshold, initial_weight, apply_below_threshold=True):
         super().__init__(reduction="none")
         self.threshold = threshold
@@ -224,8 +252,14 @@ class WeightedSmoothL1Loss(nn.SmoothL1Loss):
 
 def flatten(tensor):
     """Flattens a given tensor such that the channel axis is first.
-    The shapes are transformed as follows:
-       (N, C, D, H, W) -> (C, N * D * H * W)
+
+    The shapes are transformed as follows: (N, C, D, H, W) -> (C, N * D * H * W)
+
+    Args:
+        tensor: Input tensor to flatten.
+
+    Returns:
+        Flattened tensor with channel axis first.
     """
     # number of channels
     C = tensor.size(1)

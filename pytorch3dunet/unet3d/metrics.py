@@ -39,10 +39,14 @@ class MeanIoU:
         self.skip_background = skip_background
 
     def __call__(self, input, target):
-        """
-        :param input: 5D probability maps torch float tensor (NxCxDxHxW)
-        :param target: 4D or 5D ground truth torch tensor. 4D (NxDxHxW) tensor will be expanded to 5D as one-hot
-        :return: intersection over union averaged over all channels
+        """Compute mean IoU.
+
+        Args:
+            input: 5D probability maps torch float tensor (NxCxDxHxW).
+            target: 4D or 5D ground truth torch tensor. 4D (NxDxHxW) tensor will be expanded to 5D as one-hot.
+
+        Returns:
+            Intersection over union averaged over all channels.
         """
         assert input.dim() == 5
 
@@ -79,8 +83,14 @@ class MeanIoU:
         return torch.tensor(per_batch_iou).mean()
 
     def _jaccard_index(self, prediction, target):
-        """
-        Computes IoU for a given target and prediction tensors
+        """Computes IoU for a given target and prediction tensors.
+
+        Args:
+            prediction: Predicted binary mask.
+            target: Ground truth binary mask.
+
+        Returns:
+            Intersection over union score.
         """
         epsilon = 1e-8
         intersection = torch.logical_and(target, prediction).sum()
@@ -152,12 +162,16 @@ class AdaptedRandError:
         return mean_arand
 
     def input_to_segm(self, input):
-        """
-        Converts input tensor (output from the network) to the segmentation image. E.g. if the input is the boundary
-        pmaps then one option would be to threshold it and run connected components in order to return the segmentation.
+        """Converts input tensor to segmentation image.
 
-        :param input: 4D tensor (CDHW)
-        :return: segmentation volume either 4D (segmentation per channel)
+        If the input is boundary pmaps, one option would be to threshold it and run connected
+        components in order to return the segmentation.
+
+        Args:
+            input: 4D tensor (CDHW).
+
+        Returns:
+            Segmentation volume, 4D (segmentation per channel).
         """
         # by deafult assume that input is a segmentation volume itself
         return input
@@ -296,9 +310,13 @@ class GenericAveragePrecision:
         return torch.tensor(batch_aps).mean()
 
     def _filter_instances(self, input):
-        """
-        Filters instances smaller than 'min_instance_size' by overriding them with 0-index
-        :param input: input instance segmentation
+        """Filters instances smaller than 'min_instance_size' by overriding them with 0-index.
+
+        Args:
+            input: Input instance segmentation.
+
+        Returns:
+            Filtered instance segmentation.
         """
         if self.min_instance_size is not None:
             labels, counts = np.unique(input, return_counts=True)
@@ -315,8 +333,13 @@ class GenericAveragePrecision:
 
 
 class BlobsAveragePrecision(GenericAveragePrecision):
-    """
-    Computes Average Precision given foreground prediction and ground truth instance segmentation.
+    """Computes Average Precision given foreground prediction and ground truth instance segmentation.
+
+    Args:
+        thresholds: List of thresholds for segmentation. Default: [0.4, 0.5, 0.6, 0.7, 0.8].
+        metric: Metric to use ('ap' or 'acc'). Default: 'ap'.
+        min_instance_size: Minimum instance size to consider.
+        input_channel: Channel to use from input. Default: 0.
     """
 
     def __init__(self, thresholds=None, metric='ap', min_instance_size=None, input_channel=0, **kwargs):
@@ -339,9 +362,14 @@ class BlobsAveragePrecision(GenericAveragePrecision):
 
 
 class BlobsBoundaryAveragePrecision(GenericAveragePrecision):
-    """
-    Computes Average Precision given foreground prediction, boundary prediction and ground truth instance segmentation.
-    Segmentation mask is computed as (P_mask - P_boundary) > th followed by a connected component
+    """Computes Average Precision given foreground and boundary predictions.
+
+    Segmentation mask is computed as (P_mask - P_boundary) > th followed by a connected component.
+
+    Args:
+        thresholds: List of thresholds for segmentation. Default: [0.3, 0.4, 0.5, 0.6, 0.7].
+        metric: Metric to use ('ap' or 'acc'). Default: 'ap'.
+        min_instance_size: Minimum instance size to consider.
     """
 
     def __init__(self, thresholds=None, metric='ap', min_instance_size=None, **kwargs):
@@ -364,8 +392,12 @@ class BlobsBoundaryAveragePrecision(GenericAveragePrecision):
 
 
 class BoundaryAveragePrecision(GenericAveragePrecision):
-    """
-    Computes Average Precision given boundary prediction and ground truth instance segmentation.
+    """Computes Average Precision given boundary prediction and ground truth instance segmentation.
+
+    Args:
+        thresholds: List of thresholds for segmentation. Default: [0.3, 0.4, 0.5, 0.6].
+        min_instance_size: Minimum instance size to consider.
+        input_channel: Channel to use from input. Default: 0.
     """
 
     def __init__(self, thresholds=None, min_instance_size=None, input_channel=0, **kwargs):
@@ -386,8 +418,9 @@ class BoundaryAveragePrecision(GenericAveragePrecision):
 
 
 class PSNR:
-    """
-    Computes Peak Signal to Noise Ratio. Use e.g. as an eval metric for denoising task
+    """Computes Peak Signal to Noise Ratio.
+
+    Use e.g. as an eval metric for denoising task.
     """
 
     def __init__(self, **kwargs):
@@ -399,9 +432,7 @@ class PSNR:
 
 
 class MSE:
-    """
-    Computes MSE between input and target
-    """
+    """Computes MSE between input and target."""
 
     def __init__(self, **kwargs):
         pass
@@ -412,10 +443,13 @@ class MSE:
 
 
 def get_evaluation_metric(config):
-    """
-    Returns the evaluation metric function based on provided configuration
-    :param config: (dict) a top level configuration object containing the 'eval_metric' key
-    :return: an instance of the evaluation metric
+    """Returns the evaluation metric function based on provided configuration.
+
+    Args:
+        config: A top level configuration object containing the 'eval_metric' key.
+
+    Returns:
+        An instance of the evaluation metric.
     """
 
     def _metric_class(class_name):
