@@ -25,6 +25,8 @@ loaders:
   batch_size: 1
   # how many subprocesses to use for data loading
   num_workers: 8
+  # compute global dataset statistics (mean, std) for Standardize transformer
+  global_normalization: true
   # test loaders configuration
   test:
     file_paths:

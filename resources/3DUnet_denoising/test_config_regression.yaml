@@ -29,6 +29,8 @@ loaders:
   raw_internal_path: raw
   # how many subprocesses to use for data loading
   num_workers: 4
+  # compute global dataset statistics (mean, std) for Standardize transformer
+  global_normalization: true
   test:
     # paths to the test datasets; if a given path is a directory all H5 files ('*.h5', '*.hdf', '*.hdf5', '*.hd5')
     # inside this this directory will be included as well (non-recursively)

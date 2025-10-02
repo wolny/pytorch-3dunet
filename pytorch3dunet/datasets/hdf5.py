@@ -1,7 +1,7 @@
 from abc import abstractmethod
-from concurrent.futures import ThreadPoolExecutor
 from itertools import chain
 from pathlib import Path
+from typing import Iterable
 
 import h5py
 import numpy as np
@@ -189,7 +189,7 @@ class AbstractHDF5Dataset(ConfigDataset):
             assert _volume_shape(raw) == _volume_shape(label), "Raw and labels have to be of the same size"
 
     @classmethod
-    def create_datasets(cls, dataset_config: dict, phase: str) -> list["AbstractHDF5Dataset"]:
+    def create_datasets(cls, dataset_config: dict, phase: str) -> Iterable["AbstractHDF5Dataset"]:
         phase_config = dataset_config[phase]
 
         # load data augmentation configuration
@@ -202,33 +202,19 @@ class AbstractHDF5Dataset(ConfigDataset):
         # are going to be included in the final file_paths
         file_paths = traverse_h5_paths(file_paths)
 
-        # create datasets concurrently
-        with ThreadPoolExecutor() as executor:
-            futures = []
-            for file_path in file_paths:
-                logger.info(f"Loading {phase} set from: {file_path}...")
-                future = executor.submit(
-                    cls,
-                    file_path=file_path,
-                    phase=phase,
-                    slice_builder_config=slice_builder_config,
-                    transformer_config=transformer_config,
-                    raw_internal_path=dataset_config.get("raw_internal_path", "raw"),
-                    label_internal_path=dataset_config.get("label_internal_path", "label"),
-                    global_normalization=dataset_config.get("global_normalization", True),
-                    random_scale=dataset_config.get("random_scale", None),
-                    random_scale_probability=dataset_config.get("random_scale_probability", 0.5),
-                )
-                futures.append(future)
-
-            datasets = []
-            for future in futures:
-                try:
-                    dataset = future.result()
-                    datasets.append(dataset)
-                except Exception as e:
-                    logger.error(f"Failed to load dataset: {e}")
-            return datasets
+        # create dataset for each file path
+        for file_path in file_paths:
+            yield cls(
+                file_path=file_path,
+                phase=phase,
+                slice_builder_config=slice_builder_config,
+                transformer_config=transformer_config,
+                raw_internal_path=dataset_config.get("raw_internal_path", "raw"),
+                label_internal_path=dataset_config.get("label_internal_path", "label"),
+                global_normalization=dataset_config.get("global_normalization", False),
+                random_scale=dataset_config.get("random_scale", None),
+                random_scale_probability=dataset_config.get("random_scale_probability", 0.5),
+            )
 
 
 class StandardHDF5Dataset(AbstractHDF5Dataset):
@@ -262,7 +248,6 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
         self._raw = None
         self._raw_padded = None
         self._label = None
-        self._weight_map = None
 
     def get_raw_patch(self, idx):
         if self._raw is None:

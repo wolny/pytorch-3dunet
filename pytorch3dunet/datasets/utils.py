@@ -357,6 +357,9 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
     """
     assert "loaders" in config, "Could not find data loaders configuration"
     loaders_config = config["loaders"]
+    assert set(loaders_config["train"]["file_paths"]).isdisjoint(loaders_config["val"]["file_paths"]), (
+        "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
+    )
 
     logger.info("Creating training and validation set loaders...")
 
@@ -367,12 +370,7 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
         logger.warning(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
     dataset_class = _loader_classes(dataset_cls_str)
 
-    assert set(loaders_config["train"]["file_paths"]).isdisjoint(loaders_config["val"]["file_paths"]), (
-        "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
-    )
-
     train_datasets = dataset_class.create_datasets(loaders_config, phase="train")
-
     val_datasets = dataset_class.create_datasets(loaders_config, phase="val")
 
     num_workers = loaders_config.get("num_workers", 1)
@@ -394,7 +392,6 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
             batch_size=batch_size,
             shuffle=True,
             num_workers=num_workers,
-            drop_last=True,
             **loader_kwargs,
         ),
         # don't shuffle during validation: useful when showing how predictions for a given batch get better over time
@@ -403,7 +400,6 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
             batch_size=batch_size,
             shuffle=False,
             num_workers=num_workers,
-            drop_last=True,
             **loader_kwargs,
         ),
     }
