@@ -3,19 +3,18 @@ import os
 from abc import abstractmethod
 from concurrent.futures.process import ProcessPoolExecutor
 from itertools import chain
-from typing import Optional
 
 import h5py
 
 import pytorch3dunet.augment.transforms as transforms
-from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calculate_stats, mirror_pad, RandomScaler
+from pytorch3dunet.datasets.utils import ConfigDataset, RandomScaler, calculate_stats, get_slice_builder, mirror_pad
 from pytorch3dunet.unet3d.utils import get_logger
 
 logger = get_logger("HDF5Dataset")
 
 
 def _create_padded_indexes(indexes, halo_shape):
-    return tuple(slice(index.start, index.stop + 2 * halo) for index, halo in zip(indexes, halo_shape))
+    return tuple(slice(index.start, index.stop + 2 * halo) for index, halo in zip(indexes, halo_shape, strict=False))
 
 
 def traverse_h5_paths(file_paths):
@@ -59,7 +58,7 @@ class AbstractHDF5Dataset(ConfigDataset):
             raw_internal_path: str = "raw",
             label_internal_path: str = "label",
             global_normalization: bool = True,
-            random_scale: Optional[int] = None,
+            random_scale: int | None = None,
             random_scale_probability: float = 0.5
     ):
         assert phase in ["train", "val", "test"]

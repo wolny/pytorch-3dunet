@@ -19,8 +19,7 @@ class TorchDevice(str, Enum):
 
     @classmethod
     def values(cls):
-        for x in map(lambda c: c.value, cls):
-            yield x
+        yield from (c.value for c in cls)
 
 
 def default_device() -> TorchDevice:
@@ -36,10 +35,10 @@ def default_device() -> TorchDevice:
 
 
 def os_dependent_dataloader_kwargs() -> dict:
-    kwargs = dict(pin_memory=True)
+    kwargs = {"pin_memory": True}
     if platform.system() == "Darwin":
         # Considerable performance improvement avoiding spawn for dataloaders and persisting loaders on MacOSX
-        kwargs = dict(multiprocessing_context="forkserver", persistent_workers=True)
+        kwargs = {"multiprocessing_context": "forkserver", "persistent_workers": True}
 
     return kwargs
 
@@ -116,5 +115,5 @@ def copy_config(config, config_path):
 
 
 def _load_config_yaml(config_file):
-    with open(config_file, "r") as f:
+    with open(config_file) as f:
         return yaml.safe_load(f)

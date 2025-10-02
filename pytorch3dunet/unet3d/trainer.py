@@ -1,7 +1,6 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Optional
 
 import numpy as np
 import torch
@@ -15,8 +14,14 @@ from pytorch3dunet.unet3d.config import TorchDevice
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model, is_model_2d
-from pytorch3dunet.unet3d.utils import get_logger, create_optimizer, \
-    create_lr_scheduler, get_number_of_learnable_parameters, TensorboardFormatter
+from pytorch3dunet.unet3d.utils import (
+    TensorboardFormatter,
+    create_lr_scheduler,
+    create_optimizer,
+    get_logger,
+    get_number_of_learnable_parameters,
+)
+
 from . import utils
 
 logger = get_logger("UNetTrainer")
@@ -136,7 +141,7 @@ class UNetTrainer:
             resume=None,
             pre_trained=None,
             max_val_images=100,
-            device: Optional[TorchDevice] = None
+            device: TorchDevice | None = None
     ):
 
         self.max_val_images = max_val_images

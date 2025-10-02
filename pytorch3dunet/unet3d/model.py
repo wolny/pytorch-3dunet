@@ -1,7 +1,6 @@
 from torch import nn
 
-from pytorch3dunet.unet3d.buildingblocks import DoubleConv, ResNetBlock, ResNetBlockSE, \
-    create_decoders, create_encoders
+from pytorch3dunet.unet3d.buildingblocks import DoubleConv, ResNetBlock, ResNetBlockSE, create_decoders, create_encoders
 from pytorch3dunet.unet3d.utils import get_class, number_of_features_per_level
 
 
@@ -39,7 +38,7 @@ class AbstractUNet(nn.Module):
     def __init__(self, in_channels, out_channels, final_sigmoid, basic_module, f_maps=64, layer_order="gcr",
                  num_groups=8, num_levels=4, is_segmentation=True, conv_kernel_size=3, pool_kernel_size=2,
                  conv_padding=1, conv_upscale=2, upsample="default", dropout_prob=0.1, is3d=True):
-        super(AbstractUNet, self).__init__()
+        super().__init__()
 
         if isinstance(f_maps, int):
             f_maps = number_of_features_per_level(f_maps, num_levels=num_levels)
@@ -108,7 +107,7 @@ class AbstractUNet(nn.Module):
         encoders_features = encoders_features[1:]
 
         # decoder part
-        for decoder, encoder_features in zip(self.decoders, encoders_features):
+        for decoder, encoder_features in zip(self.decoders, encoders_features, strict=False):
             # pass the output from the corresponding encoder and the output
             # of the previous decoder
             x = decoder(encoder_features, x)
@@ -134,7 +133,7 @@ class UNet3D(AbstractUNet):
     def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order="gcr",
                  num_groups=8, num_levels=4, is_segmentation=True, conv_padding=1,
                  conv_upscale=2, upsample="default", dropout_prob=0.1, **kwargs):
-        super(UNet3D, self).__init__(in_channels=in_channels,
+        super().__init__(in_channels=in_channels,
                                      out_channels=out_channels,
                                      final_sigmoid=final_sigmoid,
                                      basic_module=DoubleConv,
@@ -163,7 +162,7 @@ class ResidualUNet3D(AbstractUNet):
     def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order="gcr",
                  num_groups=8, num_levels=5, is_segmentation=True, conv_padding=1,
                  conv_upscale=2, upsample="default", dropout_prob=0.1, **kwargs):
-        super(ResidualUNet3D, self).__init__(in_channels=in_channels,
+        super().__init__(in_channels=in_channels,
                                              out_channels=out_channels,
                                              final_sigmoid=final_sigmoid,
                                              basic_module=ResNetBlock,
@@ -192,7 +191,7 @@ class ResidualUNetSE3D(AbstractUNet):
     def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order="gcr",
                  num_groups=8, num_levels=5, is_segmentation=True, conv_padding=1,
                  conv_upscale=2, upsample="default", dropout_prob=0.1, **kwargs):
-        super(ResidualUNetSE3D, self).__init__(in_channels=in_channels,
+        super().__init__(in_channels=in_channels,
                                                out_channels=out_channels,
                                                final_sigmoid=final_sigmoid,
                                                basic_module=ResNetBlockSE,
@@ -217,7 +216,7 @@ class UNet2D(AbstractUNet):
     def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order="gcr",
                  num_groups=8, num_levels=4, is_segmentation=True, conv_padding=1,
                  conv_upscale=2, upsample="default", dropout_prob=0.1, **kwargs):
-        super(UNet2D, self).__init__(in_channels=in_channels,
+        super().__init__(in_channels=in_channels,
                                      out_channels=out_channels,
                                      final_sigmoid=final_sigmoid,
                                      basic_module=DoubleConv,
@@ -242,7 +241,7 @@ class ResidualUNet2D(AbstractUNet):
     def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order="gcr",
                  num_groups=8, num_levels=5, is_segmentation=True, conv_padding=1,
                  conv_upscale=2, upsample="default", dropout_prob=0.1, **kwargs):
-        super(ResidualUNet2D, self).__init__(in_channels=in_channels,
+        super().__init__(in_channels=in_channels,
                                              out_channels=out_channels,
                                              final_sigmoid=final_sigmoid,
                                              basic_module=ResNetBlock,

@@ -115,7 +115,7 @@ class SingleConv(nn.Sequential):
 
     def __init__(self, in_channels, out_channels, kernel_size=3, order="gcr", num_groups=8,
                  padding=1, dropout_prob=0.1, is3d=True):
-        super(SingleConv, self).__init__()
+        super().__init__()
 
         for name, module in create_conv(in_channels, out_channels, kernel_size, order,
                                         num_groups, padding, dropout_prob, is3d):
@@ -149,7 +149,7 @@ class DoubleConv(nn.Sequential):
 
     def __init__(self, in_channels, out_channels, encoder, kernel_size=3, order="gcr",
                  num_groups=8, padding=1, upscale=2, dropout_prob=0.1, is3d=True):
-        super(DoubleConv, self).__init__()
+        super().__init__()
         if encoder:
             # we're in the encoder path
             conv1_in_channels = in_channels
@@ -199,7 +199,7 @@ class ResNetBlock(nn.Module):
     """
 
     def __init__(self, in_channels, out_channels, kernel_size=3, order="cge", num_groups=8, is3d=True, **kwargs):
-        super(ResNetBlock, self).__init__()
+        super().__init__()
 
         if in_channels != out_channels:
             # conv1x1 for increasing the number of channels
@@ -244,7 +244,7 @@ class ResNetBlock(nn.Module):
 
 class ResNetBlockSE(ResNetBlock):
     def __init__(self, in_channels, out_channels, kernel_size=3, order="cge", num_groups=8, se_module="scse", **kwargs):
-        super(ResNetBlockSE, self).__init__(
+        super().__init__(
             in_channels, out_channels, kernel_size=kernel_size, order=order,
             num_groups=num_groups, **kwargs)
         assert se_module in ["scse", "cse", "sse"]
@@ -289,7 +289,7 @@ class Encoder(nn.Module):
     def __init__(self, in_channels, out_channels, conv_kernel_size=3, apply_pooling=True,
                  pool_kernel_size=2, pool_type="max", basic_module=DoubleConv, conv_layer_order="gcr",
                  num_groups=8, padding=1, upscale=2, dropout_prob=0.1, is3d=True):
-        super(Encoder, self).__init__()
+        super().__init__()
         assert pool_type in ["max", "avg"]
         if apply_pooling:
             if pool_type == "max":
@@ -351,7 +351,7 @@ class Decoder(nn.Module):
     def __init__(self, in_channels, out_channels, conv_kernel_size=3, scale_factor=2, basic_module=DoubleConv,
                  conv_layer_order="gcr", num_groups=8, padding=1, upsample="default",
                  dropout_prob=0.1, is3d=True):
-        super(Decoder, self).__init__()
+        super().__init__()
 
         # perform concat joining per default
         concat = True
@@ -485,7 +485,7 @@ class AbstractUpsampling(nn.Module):
     """
 
     def __init__(self, upsample):
-        super(AbstractUpsampling, self).__init__()
+        super().__init__()
         self.upsample = upsample
 
     def forward(self, encoder_features, x):

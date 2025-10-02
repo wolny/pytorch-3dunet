@@ -3,11 +3,11 @@ import importlib
 import numpy as np
 import torch
 from skimage import measure
-from skimage.metrics import adapted_rand_error, peak_signal_noise_ratio, mean_squared_error
+from skimage.metrics import adapted_rand_error, mean_squared_error, peak_signal_noise_ratio
 
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
-from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy
-from pytorch3dunet.unet3d.utils import get_logger, convert_to_numpy
+from pytorch3dunet.unet3d.seg_metrics import Accuracy, AveragePrecision
+from pytorch3dunet.unet3d.utils import convert_to_numpy, get_logger
 
 logger = get_logger("EvalMetric")
 
@@ -59,7 +59,7 @@ class MeanIoU:
         assert input.size() == target.size()
 
         per_batch_iou = []
-        for _input, _target in zip(input, target):
+        for _input, _target in zip(input, target, strict=True):
             # convert target to byte
             _target = _target.byte()
             per_channel_iou = []
@@ -142,7 +142,7 @@ class AdaptedRandError:
             target[target == self.ignore_index] = 0
 
         per_batch_arand = []
-        for _input, _target in zip(input, target):
+        for _input, _target in zip(input, target, strict=True):
             if np.all(_target == _target.flat[0]):  # skip ARand eval if there is only one label in the patch due to zero-division
                 logger.info("Skipping ARandError computation: only 1 label present in the ground truth")
                 per_batch_arand.append(0.)
@@ -285,7 +285,7 @@ class GenericAveragePrecision:
         batch_aps = []
         i_batch = 0
         # iterate over the batch
-        for inp1, inp2, tar in zip(input1, input2, target):
+        for inp1, inp2, tar in zip(input1, input2, target, strict=True):
             if multi_head:
                 inp = (inp1, inp2)
             else:
@@ -320,7 +320,7 @@ class GenericAveragePrecision:
         """
         if self.min_instance_size is not None:
             labels, counts = np.unique(input, return_counts=True)
-            for label, count in zip(labels, counts):
+            for label, count in zip(labels, counts, strict=True):
                 if count < self.min_instance_size:
                     input[input == label] = 0
         return input

@@ -1,13 +1,13 @@
 import collections
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
 from torch.nn.functional import interpolate
-from torch.utils.data import DataLoader, ConcatDataset, Dataset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
 from pytorch3dunet.unet3d.config import TorchDevice, os_dependent_dataloader_kwargs
-from pytorch3dunet.unet3d.utils import get_logger, get_class
+from pytorch3dunet.unet3d.utils import get_class, get_logger
 
 logger = get_logger("Dataset")
 
@@ -130,7 +130,7 @@ class RandomScaler:
             spatial_idx = idx
 
         new_idx = []
-        for i, o, s in zip(spatial_idx, offsets, self.volume_shape):
+        for i, o, s in zip(spatial_idx, offsets, self.volume_shape, strict=True):
             if is_start:
                 # prevent negative start
                 start = max(0, i.start + o)
@@ -300,7 +300,7 @@ class FilterSliceBuilder(SliceBuilder):
             label_dataset: np.ndarray,
             patch_shape: tuple,
             stride_shape: tuple,
-            ignore_index: Optional[int] = None,
+            ignore_index: int | None = None,
             threshold: float = 0.6,
             slack_acceptance: float = 0.01,
             **kwargs
@@ -321,7 +321,7 @@ class FilterSliceBuilder(SliceBuilder):
             non_ignore_counts = non_ignore_counts / patch.size
             return non_ignore_counts > threshold or rand_state.rand() < slack_acceptance
 
-        zipped_slices = zip(self.raw_slices, self.label_slices)
+        zipped_slices = zip(self.raw_slices, self.label_slices, strict=True)
         # ignore slices containing too much ignore_index
         filtered_slices = list(filter(ignore_predicate, zipped_slices))
         # log number of filtered patches
@@ -330,7 +330,7 @@ class FilterSliceBuilder(SliceBuilder):
             f"{int(100 * len(filtered_slices) / len(self.raw_slices))}%"
         )
         # unzip and save slices
-        raw_slices, label_slices = zip(*filtered_slices)
+        raw_slices, label_slices = zip(*filtered_slices, strict=True)
         self._raw_slices = list(raw_slices)
         self._label_slices = list(label_slices)
 
@@ -470,10 +470,10 @@ def default_prediction_collate(batch):
     elif isinstance(batch[0], tuple) and isinstance(batch[0][0], slice):
         return batch
     elif isinstance(batch[0], collections.abc.Sequence):
-        transposed = zip(*batch)
+        transposed = zip(*batch, strict=False)
         return [default_prediction_collate(samples) for samples in transposed]
 
-    raise TypeError((error_msg.format(type(batch[0]))))
+    raise TypeError(error_msg.format(type(batch[0])))
 
 
 def calculate_stats(img: np.array, skip: bool = False) -> dict[str, Any]:

@@ -1,7 +1,7 @@
 import torch
 
 from pytorch3dunet.unet3d.buildingblocks import ResNetBlock
-from pytorch3dunet.unet3d.model import UNet2D, UNet3D, ResidualUNet3D, ResidualUNetSE3D, ResidualUNet2D
+from pytorch3dunet.unet3d.model import ResidualUNet2D, ResidualUNet3D, ResidualUNetSE3D, UNet2D, UNet3D
 
 
 class TestModel:

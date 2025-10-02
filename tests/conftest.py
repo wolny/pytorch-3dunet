@@ -35,7 +35,7 @@ def ovule_label():
 @pytest.fixture
 def transformer_config(device):
     config_path = os.path.join(TEST_FILES, "transformer_config.yml")
-    config = yaml.safe_load(open(config_path, "r"))
+    config = yaml.safe_load(open(config_path))
     config["device"] = device
     return config
 
@@ -43,7 +43,7 @@ def transformer_config(device):
 @pytest.fixture
 def train_config(device):
     config_path = os.path.join(TEST_FILES, "config_train.yml")
-    config = yaml.safe_load(open(config_path, "r"))
+    config = yaml.safe_load(open(config_path))
     config["device"] = device
     return config
 
@@ -51,7 +51,7 @@ def train_config(device):
 @pytest.fixture
 def test_config(device):
     config_path = os.path.join(TEST_FILES, "config_test.yml")
-    config = yaml.safe_load(open(config_path, "r"))
+    config = yaml.safe_load(open(config_path))
     config["device"] = device
     return config
 
@@ -59,7 +59,7 @@ def test_config(device):
 @pytest.fixture
 def test_config_2d(device):
     config_path = os.path.join(TEST_FILES, "config_test_2d.yml")
-    config = yaml.safe_load(open(config_path, "r"))
+    config = yaml.safe_load(open(config_path))
     config["device"] = device
     return config
 
@@ -67,7 +67,7 @@ def test_config_2d(device):
 @pytest.fixture
 def train_config_2d(device):
     config_path = os.path.join(TEST_FILES, "config_train_2d.yml")
-    config = yaml.safe_load(open(config_path, "r"))
+    config = yaml.safe_load(open(config_path))
     config["device"] = device
     return config
 

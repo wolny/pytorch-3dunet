@@ -3,8 +3,8 @@ import random
 
 import numpy as np
 import torch
-from scipy.ndimage import rotate, map_coordinates, gaussian_filter, convolve
-from skimage import measure, exposure
+from scipy.ndimage import convolve, gaussian_filter, map_coordinates, rotate
+from skimage import exposure, measure
 from skimage.filters import gaussian
 from skimage.segmentation import find_boundaries
 
@@ -12,7 +12,7 @@ from skimage.segmentation import find_boundaries
 GLOBAL_RANDOM_STATE = np.random.RandomState(47)
 
 
-class Compose(object):
+class Compose:
     def __init__(self, transforms):
         self.transforms = transforms
 
@@ -492,7 +492,7 @@ class LabelToAffinities(AbstractLabelToBoundary):
 
         self.kernels = []
         # create kernel for every axis-offset pair
-        for xy_offset, z_offset in zip(offsets, z_offsets):
+        for xy_offset, z_offset in zip(offsets, z_offsets, strict=True):
             for axis_ind, axis in enumerate(self.AXES_TRANSPOSE):
                 final_offset = xy_offset
                 if axis_ind == 2:

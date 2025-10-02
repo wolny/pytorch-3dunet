@@ -2,7 +2,7 @@ import os
 import time
 from concurrent import futures
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 import h5py
 import numpy as np
@@ -43,9 +43,9 @@ class AbstractPredictor:
                  device: TorchDevice,
                  output_dataset: str = "predictions",
                  save_segmentation: bool = False,
-                 prediction_channel: Optional[int] = None,
-                 performance_metric: Optional[str] = None,
-                 gt_internal_path: Optional[str] = None,
+                 prediction_channel: int | None = None,
+                 performance_metric: str | None = None,
+                 gt_internal_path: str | None = None,
                  **kwargs):
         self.model = model
         self.output_dir = output_dir
@@ -88,9 +88,9 @@ class StandardPredictor(AbstractPredictor):
                  device: TorchDevice,
                  output_dataset: str = "predictions",
                  save_segmentation: bool = False,
-                 prediction_channel: Optional[int] = None,
-                 performance_metric: Optional[str] = None,
-                 gt_internal_path: Optional[str] = None,
+                 prediction_channel: int | None = None,
+                 performance_metric: str | None = None,
+                 gt_internal_path: str | None = None,
                  **kwargs):
         super().__init__(
             model,
@@ -164,7 +164,7 @@ class StandardPredictor(AbstractPredictor):
                     # convert to numpy array
                     prediction = prediction.cpu().numpy()
                     # for each batch sample
-                    for pred, index in zip(prediction, indices):
+                    for pred, index in zip(prediction, indices, strict=True):
 
                         if self.save_segmentation:
                             # if single channel, binarize
@@ -236,9 +236,9 @@ class LazyPredictor(StandardPredictor):
                  device: TorchDevice,
                  output_dataset: str = "predictions",
                  save_segmentation: bool = False,
-                 prediction_channel: Optional[int] = None,
-                 performance_metric: Optional[str] = None,
-                 gt_internal_path: Optional[str] = None,
+                 prediction_channel: int | None = None,
+                 performance_metric: str | None = None,
+                 gt_internal_path: str | None = None,
                  **kwargs):
         super().__init__(
             model,
@@ -316,7 +316,7 @@ def dsb_save_batch(output_dir, path, pred, save_segmentation=True, pmaps_thersho
         return measure.label(mask).astype("uint16")
 
     # convert to numpy array
-    for single_pred, single_path in zip(pred, path):
+    for single_pred, single_path in zip(pred, path, strict=False):
         logger.info(f'Processing {single_path}')
         single_pred = single_pred.squeeze()
 
@@ -333,7 +333,7 @@ def dsb_save_batch(output_dir, path, pred, save_segmentation=True, pmaps_thersho
 
 
 def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = "_predictions",
-                     output_dir: Optional[Union[str, Path]] = None) -> Path:
+                     output_dir: str | Path | None = None) -> Path:
     """
     Get the output file path for the predictions. If `output_dir` is not None the output file will be saved in
     the original dataset directory.
@@ -404,7 +404,7 @@ def dice_score(pred: np.ndarray, gt: np.ndarray, avg: bool = False) -> list[floa
     assert pred.shape == gt.shape, f'Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}'
     # compute Dice score
     per_class_dice = []
-    for c_pred, c_gt in zip(pred, gt):
+    for c_pred, c_gt in zip(pred, gt, strict=True):
         intersection = np.logical_and(c_gt, c_pred).sum()
         union = c_gt.sum() + c_pred.sum()
         dice = 2 * intersection / union

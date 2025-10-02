@@ -6,7 +6,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 import torch
 
-from pytorch3dunet.unet3d.config import load_config, copy_config
+from pytorch3dunet.unet3d.config import copy_config, load_config
 from pytorch3dunet.unet3d.trainer import create_trainer
 from pytorch3dunet.unet3d.utils import get_logger
 

@@ -1,7 +1,13 @@
 import numpy as np
 
-from pytorch3dunet.augment.transforms import RandomLabelToAffinities, LabelToAffinities, Transformer, Relabel, \
-    CropToFixed, RandomGammaCorrection
+from pytorch3dunet.augment.transforms import (
+    CropToFixed,
+    LabelToAffinities,
+    RandomGammaCorrection,
+    RandomLabelToAffinities,
+    Relabel,
+    Transformer,
+)
 
 
 class TestTransforms:

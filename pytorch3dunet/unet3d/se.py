@@ -28,7 +28,7 @@ class ChannelSELayer3D(nn.Module):
     """
 
     def __init__(self, num_channels, reduction_ratio=2):
-        super(ChannelSELayer3D, self).__init__()
+        super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool3d(1)
         num_channels_reduced = num_channels // reduction_ratio
         self.reduction_ratio = reduction_ratio
@@ -62,7 +62,7 @@ class SpatialSELayer3D(nn.Module):
     """
 
     def __init__(self, num_channels):
-        super(SpatialSELayer3D, self).__init__()
+        super().__init__()
         self.conv = nn.Conv3d(num_channels, 1, 1)
         self.sigmoid = nn.Sigmoid()
 
@@ -105,7 +105,7 @@ class ChannelSpatialSELayer3D(nn.Module):
     """
 
     def __init__(self, num_channels, reduction_ratio=2):
-        super(ChannelSpatialSELayer3D, self).__init__()
+        super().__init__()
         self.cSE = ChannelSELayer3D(num_channels, reduction_ratio)
         self.sSE = SpatialSELayer3D(num_channels)
 

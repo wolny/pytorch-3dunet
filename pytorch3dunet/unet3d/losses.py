@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn as nn
-from torch.nn import MSELoss, SmoothL1Loss, L1Loss
+from torch.nn import L1Loss, MSELoss, SmoothL1Loss
 
 from pytorch3dunet.unet3d.utils import get_logger
 
@@ -46,7 +46,7 @@ class MaskingLossWrapper(nn.Module):
     """
 
     def __init__(self, loss, ignore_index):
-        super(MaskingLossWrapper, self).__init__()
+        super().__init__()
         assert ignore_index is not None, "ignore_index cannot be None"
         self.loss = loss
         self.ignore_index = ignore_index
@@ -72,7 +72,7 @@ class SkipLastTargetChannelWrapper(nn.Module):
     """
 
     def __init__(self, loss, squeeze_channel=False):
-        super(SkipLastTargetChannelWrapper, self).__init__()
+        super().__init__()
         self.loss = loss
         self.squeeze_channel = squeeze_channel
 
@@ -97,7 +97,7 @@ class _AbstractDiceLoss(nn.Module):
     """
 
     def __init__(self, weight=None, normalization="sigmoid"):
-        super(_AbstractDiceLoss, self).__init__()
+        super().__init__()
         self.register_buffer("weight", weight)
         # The output from the network during training is assumed to be un-normalized probabilities and we would
         # like to normalize the logits. Since Dice (or soft Dice in this case) is usually used for binary data,
@@ -192,7 +192,7 @@ class BCEDiceLoss(nn.Module):
     """
 
     def __init__(self, alpha=1.0):
-        super(BCEDiceLoss, self).__init__()
+        super().__init__()
         self.alpha = alpha
         self.bce = nn.BCEWithLogitsLoss()
         self.dice = DiceLoss()
@@ -209,7 +209,7 @@ class WeightedCrossEntropyLoss(nn.Module):
     """
 
     def __init__(self, ignore_index=-1):
-        super(WeightedCrossEntropyLoss, self).__init__()
+        super().__init__()
         self.ignore_index = ignore_index
 
     def forward(self, input, target):

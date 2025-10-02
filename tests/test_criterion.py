@@ -4,10 +4,21 @@ import torch.nn as nn
 from skimage import measure
 
 from pytorch3dunet.augment.transforms import LabelToAffinities, StandardLabelToBoundary
-from pytorch3dunet.unet3d.losses import GeneralizedDiceLoss, DiceLoss, WeightedSmoothL1Loss, MaskingLossWrapper, \
-    SkipLastTargetChannelWrapper, BCEDiceLoss
-from pytorch3dunet.unet3d.metrics import DiceCoefficient, MeanIoU, BoundaryAveragePrecision, AdaptedRandError, \
-    BoundaryAdaptedRandError
+from pytorch3dunet.unet3d.losses import (
+    BCEDiceLoss,
+    DiceLoss,
+    GeneralizedDiceLoss,
+    MaskingLossWrapper,
+    SkipLastTargetChannelWrapper,
+    WeightedSmoothL1Loss,
+)
+from pytorch3dunet.unet3d.metrics import (
+    AdaptedRandError,
+    BoundaryAdaptedRandError,
+    BoundaryAveragePrecision,
+    DiceCoefficient,
+    MeanIoU,
+)
 
 
 def _compute_criterion(criterion, n_times=100):
@@ -27,7 +38,7 @@ def _eval_criterion(criterion, batch_shape, n_times=100):
     with torch.no_grad():
         results = []
         # compute criterion n_times
-        for i in range(n_times):
+        for _ in range(n_times):
             input = torch.rand(batch_shape)
             target = torch.zeros(batch_shape).random_(0, 2)
             output = criterion(input, target)

@@ -3,14 +3,13 @@ from tempfile import NamedTemporaryFile
 
 import h5py
 import numpy as np
-import torch
 
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
 from pytorch3dunet.unet3d.trainer import UNetTrainer
-from pytorch3dunet.unet3d.utils import TensorboardFormatter, create_optimizer, create_lr_scheduler
+from pytorch3dunet.unet3d.utils import TensorboardFormatter, create_lr_scheduler, create_optimizer
 
 
 class TestUNet3DTrainer:

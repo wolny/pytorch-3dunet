@@ -1,12 +1,13 @@
-import h5py
-import numpy as np
 import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+
+import h5py
+import numpy as np
 from torch.utils.data import DataLoader
 
-from pytorch3dunet.datasets.hdf5 import StandardHDF5Dataset, traverse_h5_paths, LazyHDF5Dataset
-from pytorch3dunet.datasets.utils import remove_padding, default_prediction_collate
+from pytorch3dunet.datasets.hdf5 import LazyHDF5Dataset, StandardHDF5Dataset, traverse_h5_paths
+from pytorch3dunet.datasets.utils import default_prediction_collate, remove_padding
 
 
 class TestHDF5Dataset:
@@ -18,7 +19,7 @@ class TestHDF5Dataset:
 
         phase = "test"
 
-        for patch_shape, stride_shape in zip(patch_shapes, stride_shapes):
+        for patch_shape, stride_shape in zip(patch_shapes, stride_shapes, strict=True):
             with h5py.File(path, "r") as f:
                 raw = f["raw"][...]
                 label = f["label"][...]
@@ -50,7 +51,7 @@ class TestHDF5Dataset:
         halo_shape = (16, 32, 32)
         phase = "test"
 
-        for patch_shape, stride_shape in zip(patch_shapes, stride_shapes):
+        for patch_shape, stride_shape in zip(patch_shapes, stride_shapes, strict=True):
             with h5py.File(path, "r") as f:
                 raw_shape = f["raw"].shape
                 label_shape = f["label"].shape
@@ -137,7 +138,7 @@ class TestHDF5Dataset:
 
         # verify all patches have the correct halo added and removed
         for (input_batch, indices_batch) in data_loader:  # input_batch has NCDHW shape, indices_batch has length N
-            for input_, indices in zip(input_batch, indices_batch):  # input_ has CDHW shape, indices is for DHW
+            for input_, indices in zip(input_batch, indices_batch, strict=True):  # input_ has CDHW shape, indices is for DHW
                 input_ = remove_padding(input_, halo_shape)
                 assert np.allclose(input_[0], raw[indices])
 
@@ -149,7 +150,7 @@ class TestHDF5Dataset:
 
         phase = "train"
 
-        for patch_shape, stride_shape in zip(patch_shapes, stride_shapes):
+        for patch_shape, stride_shape in zip(patch_shapes, stride_shapes, strict=True):
             dataset = StandardHDF5Dataset(path, phase=phase,
                                           slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
                                           transformer_config=transformer_config[phase]["transformer"],
