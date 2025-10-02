@@ -67,6 +67,8 @@ trainer:
   max_num_iterations: 150000
 # Configure training and validation loaders
 loaders:
+  # dataset class, currently StandardHDF5Dataset and LazyHDF5Dataset are supported
+  dataset: StandardHDF5Dataset
   # how many subprocesses to use for data loading
   num_workers: 32
   # path to the raw data within the H5

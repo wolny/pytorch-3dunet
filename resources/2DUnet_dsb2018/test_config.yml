@@ -14,7 +14,7 @@ predictor:
   # standard in memory predictor
   name: 'DSB2018Predictor'
 loaders:
-  # dataset class
+  # dataset class, currently StandardHDF5Dataset and LazyHDF5Dataset are supported
   dataset: DSB2018Dataset
   # save predictions to output_dir
   output_dir: '/home/adrian/Datasets/DSB2018/test/predictions'
