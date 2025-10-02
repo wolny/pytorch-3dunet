@@ -26,12 +26,12 @@ class RandomScaler:
     """
 
     def __init__(
-            self,
-            scale_range: int,
-            patch_shape: tuple,
-            volume_shape: tuple,
-            execution_probability: float = 0.5,
-            seed: int = 47,
+        self,
+        scale_range: int,
+        patch_shape: tuple,
+        volume_shape: tuple,
+        execution_probability: float = 0.5,
+        seed: int = 47,
     ):
         self.scale_range = scale_range
         self.patch_shape = patch_shape
@@ -201,7 +201,7 @@ class SliceBuilder:
     """
 
     def __init__(
-            self, raw_dataset: np.ndarray, label_dataset: np.ndarray, patch_shape: tuple, stride_shape: tuple, **kwargs
+        self, raw_dataset: np.ndarray, label_dataset: np.ndarray, patch_shape: tuple, stride_shape: tuple, **kwargs
     ):
         patch_shape = tuple(patch_shape)
         stride_shape = tuple(stride_shape)
@@ -292,15 +292,15 @@ class FilterSliceBuilder(SliceBuilder):
     """
 
     def __init__(
-            self,
-            raw_dataset: np.ndarray,
-            label_dataset: np.ndarray,
-            patch_shape: tuple,
-            stride_shape: tuple,
-            ignore_index: int | None = None,
-            threshold: float = 0.6,
-            slack_acceptance: float = 0.01,
-            **kwargs,
+        self,
+        raw_dataset: np.ndarray,
+        label_dataset: np.ndarray,
+        patch_shape: tuple,
+        stride_shape: tuple,
+        ignore_index: int | None = None,
+        threshold: float = 0.6,
+        slack_acceptance: float = 0.01,
+        **kwargs,
     ):
         super().__init__(raw_dataset, label_dataset, patch_shape, stride_shape, **kwargs)
         if label_dataset is None:

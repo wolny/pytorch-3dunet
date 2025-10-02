@@ -104,13 +104,13 @@ class RandomRotate:
     """
 
     def __init__(
-            self,
-            random_state: np.random.RandomState,
-            angle_spectrum: int = 30,
-            axes: list = None,
-            mode: str = "reflect",
-            order: int = 0,
-            **kwargs
+        self,
+        random_state: np.random.RandomState,
+        angle_spectrum: int = 30,
+        axes: list = None,
+        mode: str = "reflect",
+        order: int = 0,
+        **kwargs,
     ):
         if axes is None:
             axes = [(1, 0), (2, 1), (2, 0)]
@@ -150,12 +150,12 @@ class RandomContrast:
     """
 
     def __init__(
-            self,
-            random_state: np.random.RandomState,
-            alpha: tuple[float, float] = (0.5, 1.5),
-            mean: float = 0.0,
-            execution_probability: float = 0.1,
-            **kwargs
+        self,
+        random_state: np.random.RandomState,
+        alpha: tuple[float, float] = (0.5, 1.5),
+        mean: float = 0.0,
+        execution_probability: float = 0.1,
+        **kwargs,
     ):
         self.random_state = random_state
         assert len(alpha) == 2
@@ -182,11 +182,11 @@ class RandomGammaCorrection:
     """
 
     def __init__(
-            self,
-            random_state: np.random.RandomState,
-            gamma: tuple[float, float] = (0.5, 1.5),
-            execution_probability: float = 0.1,
-            **kwargs
+        self,
+        random_state: np.random.RandomState,
+        gamma: tuple[float, float] = (0.5, 1.5),
+        execution_probability: float = 0.1,
+        **kwargs,
     ):
         self.random_state = random_state
         assert len(gamma) == 2
@@ -221,14 +221,14 @@ class ElasticDeformation:
     """
 
     def __init__(
-            self,
-            random_state: np.random.RandomState,
-            spline_order: int,
-            alpha: int = 2000,
-            sigma: int = 50,
-            execution_probability: float = 0.1,
-            apply_3d: bool = True,
-            **kwargs
+        self,
+        random_state: np.random.RandomState,
+        spline_order: int,
+        alpha: int = 2000,
+        sigma: int = 50,
+        execution_probability: float = 0.1,
+        apply_3d: bool = True,
+        **kwargs,
     ):
         self.random_state = random_state
         self.spline_order = spline_order
@@ -279,11 +279,7 @@ class CropToFixed:
     """
 
     def __init__(
-            self,
-            random_state: np.random.RandomState,
-            size: tuple[int, int] = (256, 256),
-            centered: bool = False,
-            **kwargs
+        self, random_state: np.random.RandomState, size: tuple[int, int] = (256, 256), centered: bool = False, **kwargs
     ):
         self.random_state = random_state
         self.crop_y, self.crop_x = size
@@ -329,12 +325,12 @@ class CropToFixed:
             x_start, x_pad = _start_and_pad(self.crop_x, x)
 
         if m.ndim == 3:
-            result = m[:, y_start: y_start + self.crop_y, x_start: x_start + self.crop_x]
+            result = m[:, y_start : y_start + self.crop_y, x_start : x_start + self.crop_x]
             return np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode="reflect")
         else:
             channels = []
             for c in range(m.shape[0]):
-                result = m[c][:, y_start: y_start + self.crop_y, x_start: x_start + self.crop_x]
+                result = m[c][:, y_start : y_start + self.crop_y, x_start : x_start + self.crop_x]
                 channels.append(np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode="reflect"))
             return np.stack(channels, axis=0)
 
@@ -351,8 +347,12 @@ class StandardLabelToBoundary:
     """
 
     def __init__(
-            self, ignore_index: int = None, append_label: bool = False, mode: str = "thick", foreground: bool = False,
-            **kwargs
+        self,
+        ignore_index: int = None,
+        append_label: bool = False,
+        mode: str = "thick",
+        foreground: bool = False,
+        **kwargs,
     ):
         self.ignore_index = ignore_index
         self.append_label = append_label
@@ -390,9 +390,7 @@ class BlobsToMask:
         cross_entropy: If True, use cross entropy format. Default: False.
     """
 
-    def __init__(
-            self, append_label: bool = False, boundary: bool = False, cross_entropy: bool = False, **kwargs
-    ):
+    def __init__(self, append_label: bool = False, boundary: bool = False, cross_entropy: bool = False, **kwargs):
         self.cross_entropy = cross_entropy
         self.boundary = boundary
         self.append_label = append_label
@@ -436,7 +434,7 @@ class AbstractLabelToBoundary:
     ]
 
     def __init__(
-            self, ignore_index: int = None, aggregate_affinities: bool = False, append_label: bool = False, **kwargs
+        self, ignore_index: int = None, aggregate_affinities: bool = False, append_label: bool = False, **kwargs
     ):
         self.ignore_index = ignore_index
         self.aggregate_affinities = aggregate_affinities
@@ -462,7 +460,7 @@ class AbstractLabelToBoundary:
             # aggregate affinities with the same offset
             for i in range(0, len(kernels), 3):
                 # merge across X,Y,Z axes (logical OR)
-                xyz_aggregated_affinities = np.logical_or.reduce(channels[i: i + 3, ...]).astype(np.int32)
+                xyz_aggregated_affinities = np.logical_or.reduce(channels[i : i + 3, ...]).astype(np.int32)
                 # recover ignore index
                 xyz_aggregated_affinities = _recover_ignore_index(xyz_aggregated_affinities, m, self.ignore_index)
                 results.append(xyz_aggregated_affinities)
@@ -538,7 +536,7 @@ class LabelToAffinities(AbstractLabelToBoundary):
     """
 
     def __init__(
-            self, offsets, ignore_index=None, append_label=False, aggregate_affinities=False, z_offsets=None, **kwargs
+        self, offsets, ignore_index=None, append_label=False, aggregate_affinities=False, z_offsets=None, **kwargs
     ):
         super().__init__(
             ignore_index=ignore_index, append_label=append_label, aggregate_affinities=aggregate_affinities
@@ -612,19 +610,17 @@ class LabelToBoundaryAndAffinities:
     """
 
     def __init__(
-            self,
-            xy_offsets: list,
-            z_offsets: list,
-            append_label: bool = False,
-            ignore_index: int = None,
-            mode: str = "thick",
-            foreground: bool = False,
-            **kwargs,
+        self,
+        xy_offsets: list,
+        z_offsets: list,
+        append_label: bool = False,
+        ignore_index: int = None,
+        mode: str = "thick",
+        foreground: bool = False,
+        **kwargs,
     ):
         # blur only StandardLabelToBoundary results; we don't want to blur the affinities
-        self.l2b = StandardLabelToBoundary(
-            ignore_index=ignore_index, mode=mode, foreground=foreground
-        )
+        self.l2b = StandardLabelToBoundary(ignore_index=ignore_index, mode=mode, foreground=foreground)
         self.l2a = LabelToAffinities(
             offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label, ignore_index=ignore_index
         )
@@ -728,12 +724,7 @@ class Normalize:
     """
 
     def __init__(
-            self,
-            min_value: float = None,
-            max_value: float = None,
-            norm01: bool = False,
-            eps: float = 1e-10,
-            **kwargs
+        self, min_value: float = None, max_value: float = None, norm01: bool = False, eps: float = 1e-10, **kwargs
     ):
         if min_value is not None and max_value is not None:
             assert max_value > min_value
@@ -767,11 +758,11 @@ class AdditiveGaussianNoise:
     """Add Gaussian noise to a given input tensor."""
 
     def __init__(
-            self,
-            random_state: np.random.RandomState,
-            scale: tuple[float, float] = (0.0, 1.0),
-            execution_probability: float = 0.1,
-            **kwargs
+        self,
+        random_state: np.random.RandomState,
+        scale: tuple[float, float] = (0.0, 1.0),
+        execution_probability: float = 0.1,
+        **kwargs,
     ):
         self.execution_probability = execution_probability
         self.random_state = random_state
@@ -789,11 +780,11 @@ class AdditivePoissonNoise:
     """Add Poisson noise to a given input tensor."""
 
     def __init__(
-            self,
-            random_state: np.random.RandomState,
-            lam: tuple[float, float] = (0.0, 1.0),
-            execution_probability: float = 0.1,
-            **kwargs
+        self,
+        random_state: np.random.RandomState,
+        lam: tuple[float, float] = (0.0, 1.0),
+        execution_probability: float = 0.1,
+        **kwargs,
     ):
         self.execution_probability = execution_probability
         self.random_state = random_state
@@ -817,9 +808,7 @@ class ToTensor:
         normalize (bool): zero-one normalization of the input data
     """
 
-    def __init__(
-            self, expand_dims: bool, dtype: np.dtype = np.float32, normalize: bool = False, **kwargs
-    ):
+    def __init__(self, expand_dims: bool, dtype: np.dtype = np.float32, normalize: bool = False, **kwargs):
         self.expand_dims = expand_dims
         self.dtype = dtype
         self.normalize = normalize
@@ -849,9 +838,7 @@ class Relabel:
         ignore_label: Label to ignore.
     """
 
-    def __init__(
-            self, append_original: bool = False, run_cc: bool = True, ignore_label: int = None, **kwargs
-    ):
+    def __init__(self, append_original: bool = False, run_cc: bool = True, ignore_label: int = None, **kwargs):
         self.append_original = append_original
         self.ignore_label = ignore_label
         self.run_cc = run_cc
@@ -893,7 +880,7 @@ class RgbToLabel:
 
 
 class LabelToTensor:
-    """ Convert a given input numpy.ndarray label array into torch.Tensor of dtype int64."""
+    """Convert a given input numpy.ndarray label array into torch.Tensor of dtype int64."""
 
     def __call__(self, m: np.ndarray) -> torch.Tensor:
         m = np.array(m)
@@ -903,9 +890,7 @@ class LabelToTensor:
 class GaussianBlur3D:
     """Apply Gaussian blur to a given input tensor."""
 
-    def __init__(
-            self, sigma: tuple[float, float] = (0.1, 2.0), execution_probability: float = 0.5, **kwargs
-    ):
+    def __init__(self, sigma: tuple[float, float] = (0.1, 2.0), execution_probability: float = 0.5, **kwargs):
         self.sigma = sigma
         self.execution_probability = execution_probability
 

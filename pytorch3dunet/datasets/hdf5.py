@@ -53,16 +53,16 @@ class AbstractHDF5Dataset(ConfigDataset):
     """
 
     def __init__(
-            self,
-            file_path: str,
-            phase: str,
-            slice_builder_config: dict,
-            transformer_config: dict,
-            raw_internal_path: str = "raw",
-            label_internal_path: str = "label",
-            global_normalization: bool = False,
-            random_scale: int | None = None,
-            random_scale_probability: float = 0.5,
+        self,
+        file_path: str,
+        phase: str,
+        slice_builder_config: dict,
+        transformer_config: dict,
+        raw_internal_path: str = "raw",
+        label_internal_path: str = "label",
+        global_normalization: bool = False,
+        random_scale: int | None = None,
+        random_scale_probability: float = 0.5,
     ):
         assert phase in ["train", "val", "test"]
 
@@ -237,16 +237,16 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
     """
 
     def __init__(
-            self,
-            file_path: str,
-            phase: str,
-            slice_builder_config: dict,
-            transformer_config: dict,
-            raw_internal_path: str = "raw",
-            label_internal_path: str = "label",
-            global_normalization: bool = False,
-            random_scale: int = None,
-            random_scale_probability: float = 0.5,
+        self,
+        file_path: str,
+        phase: str,
+        slice_builder_config: dict,
+        transformer_config: dict,
+        raw_internal_path: str = "raw",
+        label_internal_path: str = "label",
+        global_normalization: bool = False,
+        random_scale: int = None,
+        random_scale_probability: float = 0.5,
     ):
         super().__init__(
             file_path=file_path,
@@ -294,16 +294,16 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
     """
 
     def __init__(
-            self,
-            file_path: str,
-            phase: str,
-            slice_builder_config: dict,
-            transformer_config: dict,
-            raw_internal_path: str = "raw",
-            label_internal_path: str = "label",
-            global_normalization: bool = False,
-            random_scale: int = None,
-            random_scale_probability: float = 0.5,
+        self,
+        file_path: str,
+        phase: str,
+        slice_builder_config: dict,
+        transformer_config: dict,
+        raw_internal_path: str = "raw",
+        label_internal_path: str = "label",
+        global_normalization: bool = False,
+        random_scale: int = None,
+        random_scale_probability: float = 0.5,
     ):
         super().__init__(
             file_path=file_path,
