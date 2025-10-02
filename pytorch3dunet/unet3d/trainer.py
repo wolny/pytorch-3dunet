@@ -9,6 +9,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
+from pytorch3dunet.datasets import utils
 from pytorch3dunet.datasets.utils import get_train_loaders
 from pytorch3dunet.unet3d.config import TorchDevice
 from pytorch3dunet.unet3d.losses import get_loss_criterion
@@ -21,7 +22,6 @@ from pytorch3dunet.unet3d.utils import (
     get_logger,
     get_number_of_learnable_parameters,
 )
-from . import utils
 
 logger = get_logger("UNetTrainer")
 
