@@ -15,6 +15,7 @@ dependencies:
   - scikit-image
   - pyyaml
   - pytest
+  - ruff
   - pip
   - pip:
     - torch

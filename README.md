@@ -58,8 +58,8 @@ conda activate 3dunet
 
 # pytorch-3dunet does not include PyTorch dependencies, so that one can install the desired PyTorch version (with/without CUDA support) separately
 pip install torch torchvision
-# you may need to adjust the command above depending on your GPU and the CUDA version you want to use, e.g. for CUDA 11.8:
-# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# you may need to adjust the command above depending on your GPU and the CUDA version you want to use, e.g. for CUDA 12.6:
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
 # or for CPU-only version:
 # pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
@@ -70,8 +70,7 @@ conda install -c conda-forge pytorch-3dunet
 After installation the following commands will be accessible within the conda environment:
 `train3dunet` for training the network and `predict3dunet` for prediction (see below).
 
-- One can also install directly from source, i.e. go to the checkout directory and run:
-
+One can also install directly from source, i.e. go to the checkout directory and run:
 ```
 pip install -e .
 ```
@@ -104,7 +103,7 @@ One can monitor the training progress with Tensorboard `tensorboard --logdir <ch
    When training with `WeightedCrossEntropyLoss`, `CrossEntropyLoss` the target dataset has to be 3D, see also pytorch
    documentation for CE loss: https://pytorch.org/docs/master/generated/torch.nn.CrossEntropyLoss.html
 2. When training with `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss` set `final_sigmoid=True` in
-   the `model` part of the config so that the sigmoid is applied to the logits.
+   the `model` part of the config so that the sigmoid is applied to the logits in inference mode.
 3. When training with cross entropy based losses (`WeightedCrossEntropyLoss`, `CrossEntropyLoss`) set
    `final_sigmoid=False` so that `Softmax` normalization is applied to the logits.
 
@@ -309,6 +308,7 @@ pip install -e .
 
 Tests can be run via `pytest`.
 The device the tests should be run on can be specified with the `--device` argument (`cpu`, `mps`, or `cuda` - default: `cpu`).
+Linting is done via `ruff` (see `pyproject.toml` for configuration).
 
 ## Release new version on `conda-forge` channel
 To release a new version of `pytorch-3dunet` on the `conda-forge` channel, follow these steps:
