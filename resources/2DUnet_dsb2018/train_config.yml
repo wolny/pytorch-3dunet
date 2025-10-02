@@ -9,6 +9,8 @@ model:
   final_sigmoid: true
   is_segmentation: true
 trainer:
+  tensorboard_formatter:
+    skip_last_target: true
   checkpoint_dir: PATH_TO_CHECKPOINT_DIR
   resume: null
   pre_trained: null

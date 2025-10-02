@@ -1,7 +1,7 @@
 import torch
 
 from pytorch3dunet.unet3d.buildingblocks import ResNetBlock
-from pytorch3dunet.unet3d.model import UNet2D, UNet3D, ResidualUNet3D, ResidualUNetSE3D, ResidualUNet2D
+from pytorch3dunet.unet3d.model import ResidualUNet2D, ResidualUNet3D, ResidualUNetSE3D, UNet2D, UNet3D
 
 
 class TestModel:
@@ -24,7 +24,7 @@ class TestModel:
         assert torch.all(0 <= y) and torch.all(y <= 1)
 
     def test_resnet_block1(self):
-        blk = ResNetBlock(33, 64, is3d=False, order='cgr')
+        blk = ResNetBlock(33, 64, is3d=False, order="cgr")
         blk.eval()
         x = torch.rand(1, 33, 65, 65)
 
@@ -34,7 +34,7 @@ class TestModel:
         assert torch.all(0 <= y)
 
     def test_resnet_block2(self):
-        blk = ResNetBlock(33, 32, is3d=False, order='cgr')
+        blk = ResNetBlock(33, 32, is3d=False, order="cgr")
         blk.eval()
         x = torch.rand(1, 33, 65, 65)
 

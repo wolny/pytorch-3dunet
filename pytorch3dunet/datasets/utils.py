@@ -1,14 +1,15 @@
 import collections
+from typing import Any
+
 import numpy as np
 import torch
 from torch.nn.functional import interpolate
-from torch.utils.data import DataLoader, ConcatDataset, Dataset
-from typing import Any, Optional
+from torch.utils.data import ConcatDataset, DataLoader, Dataset
 
-from pytorch3dunet.unet3d.config import TorchDevice, legacy_default_device, os_dependent_dataloader_kwargs
-from pytorch3dunet.unet3d.utils import get_logger, get_class
+from pytorch3dunet.unet3d.config import TorchDevice, os_dependent_dataloader_kwargs
+from pytorch3dunet.unet3d.utils import get_class, get_logger
 
-logger = get_logger('Dataset')
+logger = get_logger("Dataset")
 
 
 class RandomScaler:
@@ -25,12 +26,12 @@ class RandomScaler:
     """
 
     def __init__(
-            self,
-            scale_range: int,
-            patch_shape: tuple,
-            volume_shape: tuple,
-            execution_probability: float = 0.5,
-            seed: int = 47
+        self,
+        scale_range: int,
+        patch_shape: tuple,
+        volume_shape: tuple,
+        execution_probability: float = 0.5,
+        seed: int = 47,
     ):
         self.scale_range = scale_range
         self.patch_shape = patch_shape
@@ -62,7 +63,9 @@ class RandomScaler:
             label_idx_spacial = label_idx[1:]
         else:
             label_idx_spacial = label_idx
-        assert raw_idx_spacial == label_idx_spacial, f"Raw and label indices are different: {raw_idx_spacial} != {label_idx_spacial}"
+        assert raw_idx_spacial == label_idx_spacial, (
+            f"Raw and label indices are different: {raw_idx_spacial} != {label_idx_spacial}"
+        )
 
         return raw_idx, label_idx
 
@@ -88,7 +91,7 @@ class RandomScaler:
             remove_dims = 2
 
         # interpolate raw patch
-        raw_patch = interpolate(raw_patch, self.patch_shape, mode='trilinear')
+        raw_patch = interpolate(raw_patch, self.patch_shape, mode="trilinear")
         # remove additional dimensions
         for _ in range(remove_dims):
             raw_patch = raw_patch.squeeze(0)
@@ -107,7 +110,7 @@ class RandomScaler:
             label_patch = label_patch.float()
 
         # interpolate label patch
-        label_patch = interpolate(label_patch, self.patch_shape, mode='nearest')
+        label_patch = interpolate(label_patch, self.patch_shape, mode="nearest")
 
         # remove additional dimensions
         for _ in range(remove_dims):
@@ -129,7 +132,7 @@ class RandomScaler:
             spatial_idx = idx
 
         new_idx = []
-        for i, o, s in zip(spatial_idx, offsets, self.volume_shape):
+        for i, o, s in zip(spatial_idx, offsets, self.volume_shape, strict=True):
             if is_start:
                 # prevent negative start
                 start = max(0, i.start + o)
@@ -174,7 +177,14 @@ class ConfigDataset(Dataset):
 
     @classmethod
     def prediction_collate(cls, batch):
-        """Default collate_fn. Override in child class for non-standard datasets."""
+        """Default collate_fn. Override in child class for non-standard datasets.
+
+        Args:
+            batch: List of samples from the dataset.
+
+        Returns:
+            Collated batch.
+        """
         return default_prediction_collate(batch)
 
 
@@ -191,16 +201,11 @@ class SliceBuilder:
     """
 
     def __init__(
-            self,
-            raw_dataset: np.ndarray,
-            label_dataset: np.ndarray,
-            patch_shape: tuple,
-            stride_shape: tuple,
-            **kwargs
+        self, raw_dataset: np.ndarray, label_dataset: np.ndarray, patch_shape: tuple, stride_shape: tuple, **kwargs
     ):
         patch_shape = tuple(patch_shape)
         stride_shape = tuple(stride_shape)
-        skip_shape_check = kwargs.get('skip_shape_check', False)
+        skip_shape_check = kwargs.get("skip_shape_check", False)
         if not skip_shape_check:
             self._check_patch_shape(patch_shape)
 
@@ -222,13 +227,16 @@ class SliceBuilder:
 
     @staticmethod
     def _build_slices(dataset, patch_shape, stride_shape):
-        """Iterates over a given n-dim dataset patch-by-patch with a given stride
-        and builds an array of slice positions.
+        """Iterates over a given n-dim dataset patch-by-patch with a given stride and builds an array of slice positions.
+
+        Args:
+            dataset: The dataset to build slices for.
+            patch_shape: Shape of the patch.
+            stride_shape: Shape of the stride.
 
         Returns:
-            list of slices, i.e.
-            [(slice, slice, slice, slice), ...] if len(shape) == 4
-            [(slice, slice, slice), ...] if len(shape) == 3
+            List of slices, i.e. [(slice, slice, slice, slice), ...] if len(shape) == 4
+            or [(slice, slice, slice), ...] if len(shape) == 3.
         """
         slices = []
         if dataset.ndim == 4:
@@ -256,7 +264,7 @@ class SliceBuilder:
 
     @staticmethod
     def _gen_indices(i, k, s):
-        assert i >= k, 'Sample size has to be bigger than the patch size'
+        assert i >= k, "Sample size has to be bigger than the patch size"
         for j in range(0, i - k + 1, s):
             yield j
         if j + k < i:
@@ -264,8 +272,8 @@ class SliceBuilder:
 
     @staticmethod
     def _check_patch_shape(patch_shape):
-        assert len(patch_shape) == 3, 'patch_shape must be a 3D tuple'
-        assert patch_shape[1] >= 64 and patch_shape[2] >= 64, 'Height and Width must be greater or equal 64'
+        assert len(patch_shape) == 3, "patch_shape must be a 3D tuple"
+        assert patch_shape[1] >= 64 and patch_shape[2] >= 64, "Height and Width must be greater or equal 64"
 
 
 class FilterSliceBuilder(SliceBuilder):
@@ -284,15 +292,15 @@ class FilterSliceBuilder(SliceBuilder):
     """
 
     def __init__(
-            self,
-            raw_dataset: np.ndarray,
-            label_dataset: np.ndarray,
-            patch_shape: tuple,
-            stride_shape: tuple,
-            ignore_index: Optional[int] = None,
-            threshold: float = 0.6,
-            slack_acceptance: float = 0.01,
-            **kwargs
+        self,
+        raw_dataset: np.ndarray,
+        label_dataset: np.ndarray,
+        patch_shape: tuple,
+        stride_shape: tuple,
+        ignore_index: int | None = None,
+        threshold: float = 0.6,
+        slack_acceptance: float = 0.01,
+        **kwargs,
     ):
         super().__init__(raw_dataset, label_dataset, patch_shape, stride_shape, **kwargs)
         if label_dataset is None:
@@ -310,7 +318,7 @@ class FilterSliceBuilder(SliceBuilder):
             non_ignore_counts = non_ignore_counts / patch.size
             return non_ignore_counts > threshold or rand_state.rand() < slack_acceptance
 
-        zipped_slices = zip(self.raw_slices, self.label_slices)
+        zipped_slices = zip(self.raw_slices, self.label_slices, strict=True)
         # ignore slices containing too much ignore_index
         filtered_slices = list(filter(ignore_predicate, zipped_slices))
         # log number of filtered patches
@@ -319,24 +327,20 @@ class FilterSliceBuilder(SliceBuilder):
             f"{int(100 * len(filtered_slices) / len(self.raw_slices))}%"
         )
         # unzip and save slices
-        raw_slices, label_slices = zip(*filtered_slices)
+        raw_slices, label_slices = zip(*filtered_slices, strict=True)
         self._raw_slices = list(raw_slices)
         self._label_slices = list(label_slices)
 
 
 def _loader_classes(class_name):
-    modules = [
-        'pytorch3dunet.datasets.hdf5',
-        'pytorch3dunet.datasets.dsb',
-        'pytorch3dunet.datasets.utils'
-    ]
+    modules = ["pytorch3dunet.datasets.hdf5", "pytorch3dunet.datasets.dsb", "pytorch3dunet.datasets.utils"]
     return get_class(class_name, modules)
 
 
 def get_slice_builder(raw: np.ndarray, label: np.ndarray, config: dict) -> SliceBuilder:
-    assert 'name' in config
+    assert "name" in config
     logger.info(f"Slice builder config: {config}")
-    slice_builder_cls = _loader_classes(config['name'])
+    slice_builder_cls = _loader_classes(config["name"])
     return slice_builder_cls(raw, label, **config)
 
 
@@ -351,84 +355,102 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
             'val': <val_loader>
         }
     """
-    assert 'loaders' in config, 'Could not find data loaders configuration'
-    loaders_config = config['loaders']
+    assert "loaders" in config, "Could not find data loaders configuration"
+    loaders_config = config["loaders"]
 
-    logger.info('Creating training and validation set loaders...')
+    logger.info("Creating training and validation set loaders...")
 
     # get dataset class
-    dataset_cls_str = loaders_config.get('dataset', None)
+    dataset_cls_str = loaders_config.get("dataset", None)
     if dataset_cls_str is None:
-        dataset_cls_str = 'StandardHDF5Dataset'
+        dataset_cls_str = "StandardHDF5Dataset"
         logger.warning(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
     dataset_class = _loader_classes(dataset_cls_str)
 
-    assert set(loaders_config['train']['file_paths']).isdisjoint(loaders_config['val']['file_paths']), \
+    assert set(loaders_config["train"]["file_paths"]).isdisjoint(loaders_config["val"]["file_paths"]), (
         "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
+    )
 
-    train_datasets = dataset_class.create_datasets(loaders_config, phase='train')
+    train_datasets = dataset_class.create_datasets(loaders_config, phase="train")
 
-    val_datasets = dataset_class.create_datasets(loaders_config, phase='val')
+    val_datasets = dataset_class.create_datasets(loaders_config, phase="val")
 
-    num_workers = loaders_config.get('num_workers', 1)
-    logger.info(f'Number of workers for train/val dataloader: {num_workers}')
-    batch_size = loaders_config.get('batch_size', 1)
-    device = config["device"] if config["device"] is not None else legacy_default_device()
+    num_workers = loaders_config.get("num_workers", 1)
+    logger.info(f"Number of workers for train/val dataloader: {num_workers}")
+    batch_size = loaders_config.get("batch_size", 1)
+    device = config.get("device", None)
+    assert device, "Device not specified in the config file and could not be inferred automatically"
     if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         logger.info(
-            f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}'
+            f"{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}"
         )
         batch_size = batch_size * torch.cuda.device_count()
 
-    logger.info(f'Batch size for train/val loader: {batch_size}')
+    logger.info(f"Batch size for train/val loader: {batch_size}")
     loader_kwargs = os_dependent_dataloader_kwargs()
     return {
-        'train': DataLoader(ConcatDataset(train_datasets), batch_size=batch_size, shuffle=True,
-                            num_workers=num_workers, drop_last=True, **loader_kwargs),
+        "train": DataLoader(
+            ConcatDataset(train_datasets),
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            drop_last=True,
+            **loader_kwargs,
+        ),
         # don't shuffle during validation: useful when showing how predictions for a given batch get better over time
-        'val': DataLoader(ConcatDataset(val_datasets), batch_size=batch_size, shuffle=False,
-                          num_workers=num_workers, drop_last=True, **loader_kwargs)
+        "val": DataLoader(
+            ConcatDataset(val_datasets),
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            drop_last=True,
+            **loader_kwargs,
+        ),
     }
 
 
 def get_test_loaders(config: dict) -> DataLoader:
+    """Returns test DataLoader.
+
+    Args:
+        config: A top level configuration object containing the 'loaders' key.
+
+    Returns:
+        Generator of DataLoader objects.
     """
-    Returns test DataLoader.
 
-    :return: generator of DataLoader objects
-    """
+    assert "loaders" in config, "Could not find data loaders configuration"
+    loaders_config = config["loaders"]
 
-    assert 'loaders' in config, 'Could not find data loaders configuration'
-    loaders_config = config['loaders']
-
-    logger.info('Creating test set loaders...')
+    logger.info("Creating test set loaders...")
 
     # get dataset class
-    dataset_cls_str = loaders_config.get('dataset', None)
+    dataset_cls_str = loaders_config.get("dataset", None)
     if dataset_cls_str is None:
-        dataset_cls_str = 'StandardHDF5Dataset'
+        dataset_cls_str = "StandardHDF5Dataset"
         logger.warning(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
     dataset_class = _loader_classes(dataset_cls_str)
 
-    test_datasets = dataset_class.create_datasets(loaders_config, phase='test')
+    test_datasets = dataset_class.create_datasets(loaders_config, phase="test")
 
-    num_workers = loaders_config.get('num_workers', 1)
-    logger.info(f'Number of workers for the dataloader: {num_workers}')
+    num_workers = loaders_config.get("num_workers", 1)
+    logger.info(f"Number of workers for the dataloader: {num_workers}")
 
-    batch_size = loaders_config.get('batch_size', 1)
-    device = config["device"] if config["device"] is not None else legacy_default_device()
+    batch_size = loaders_config.get("batch_size", 1)
+    device = config.get("device", None)
+    assert device, "Device not specified in the config file and could not be inferred automatically"
     if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         logger.info(
-            f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}'
+            f"{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}"
         )
         batch_size = batch_size * torch.cuda.device_count()
 
-    logger.info(f'Batch size for dataloader: {batch_size}')
+    logger.info(f"Batch size for dataloader: {batch_size}")
 
     # use generator in order to create data loaders lazily one by one
     for test_dataset in test_datasets:
-        logger.info(f'Loading test set from: {test_dataset.file_path}...')
-        if hasattr(test_dataset, 'prediction_collate'):
+        logger.info(f"Loading test set from: {test_dataset.file_path}...")
+        if hasattr(test_dataset, "prediction_collate"):
             collate_fn = test_dataset.prediction_collate
         else:
             collate_fn = default_prediction_collate
@@ -436,12 +458,18 @@ def get_test_loaders(config: dict) -> DataLoader:
         dataloader_kwargs = os_dependent_dataloader_kwargs()
 
         yield DataLoader(
-            test_dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn, **dataloader_kwargs)
+            test_dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn, **dataloader_kwargs
+        )
 
 
 def default_prediction_collate(batch):
-    """
-    Default collate_fn to form a mini-batch of Tensor(s) for HDF5 based datasets
+    """Default collate_fn to form a mini-batch of Tensor(s) for HDF5 based datasets.
+
+    Args:
+        batch: List of samples from the dataset.
+
+    Returns:
+        Collated batch.
     """
     error_msg = "batch must contain tensors or slice; found {}"
     if isinstance(batch[0], torch.Tensor):
@@ -449,10 +477,10 @@ def default_prediction_collate(batch):
     elif isinstance(batch[0], tuple) and isinstance(batch[0][0], slice):
         return batch
     elif isinstance(batch[0], collections.abc.Sequence):
-        transposed = zip(*batch)
+        transposed = zip(*batch, strict=False)
         return [default_prediction_collate(samples) for samples in transposed]
 
-    raise TypeError((error_msg.format(type(batch[0]))))
+    raise TypeError(error_msg.format(type(batch[0])))
 
 
 def calculate_stats(img: np.array, skip: bool = False) -> dict[str, Any]:
@@ -471,12 +499,7 @@ def calculate_stats(img: np.array, skip: bool = False) -> dict[str, Any]:
     else:
         pmin, pmax, mean, std = None, None, None, None
 
-    return {
-        'pmin': pmin,
-        'pmax': pmax,
-        'mean': mean,
-        'std': std
-    }
+    return {"pmin": pmin, "pmax": pmax, "mean": mean, "std": std}
 
 
 def mirror_pad(image, padding_shape):
@@ -507,10 +530,10 @@ def mirror_pad(image, padding_shape):
 
     if image.ndim == 4:
         pad_width = [(0, 0)] + pad_width
-    return np.pad(image, pad_width, mode='reflect')
+    return np.pad(image, pad_width, mode="reflect")
 
 
-def remove_padding(m, padding_shape):
+def remove_padding(m: np.ndarray, padding_shape: int | tuple[int, ...] | None) -> np.ndarray:
     """
     Removes padding from the margins of a multi-dimensional array.
 

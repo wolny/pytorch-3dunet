@@ -1,11 +1,17 @@
 import numpy as np
 
-from pytorch3dunet.augment.transforms import RandomLabelToAffinities, LabelToAffinities, Transformer, Relabel, \
-    CropToFixed, RandomGammaCorrection
+from pytorch3dunet.augment.transforms import (
+    CropToFixed,
+    LabelToAffinities,
+    RandomGammaCorrection,
+    RandomLabelToAffinities,
+    Relabel,
+    Transformer,
+)
 
 
 class TestTransforms:
-    config = {'dtype': 'int64'}
+    config = {"dtype": "int64"}
 
     def test_random_label_to_boundary(self):
         size = 20
@@ -61,11 +67,11 @@ class TestTransforms:
 
     def test_BaseTransformer(self):
         config = {
-            'raw': [{'name': 'Standardize'}, {'name': 'ToTensor', 'expand_dims': True}],
-            'label': [{'name': 'ToTensor', 'expand_dims': False, 'dtype': 'int64'}],
-            'weight': [{'name': 'ToTensor', 'expand_dims': False}]
+            "raw": [{"name": "Standardize"}, {"name": "ToTensor", "expand_dims": True}],
+            "label": [{"name": "ToTensor", "expand_dims": False, "dtype": "int64"}],
+            "weight": [{"name": "ToTensor", "expand_dims": False}],
         }
-        base_config = {'mean': 0, 'std': 1}
+        base_config = {"mean": 0, "std": 1}
         transformer = Transformer(config, base_config)
         raw_transforms = transformer.raw_transform().transforms
         assert raw_transforms[0].mean == 0
@@ -73,24 +79,24 @@ class TestTransforms:
         assert raw_transforms[1].expand_dims
         label_transforms = transformer.label_transform().transforms
         assert not label_transforms[0].expand_dims
-        assert label_transforms[0].dtype == 'int64'
+        assert label_transforms[0].dtype == "int64"
 
     def test_StandardTransformer(self):
         config = {
-            'raw': [
-                {'name': 'Standardize'},
-                {'name': 'RandomContrast', 'execution_probability': 0.5},
-                {'name': 'RandomFlip'},
-                {'name': 'RandomRotate90'},
-                {'name': 'ToTensor', 'expand_dims': True}
+            "raw": [
+                {"name": "Standardize"},
+                {"name": "RandomContrast", "execution_probability": 0.5},
+                {"name": "RandomFlip"},
+                {"name": "RandomRotate90"},
+                {"name": "ToTensor", "expand_dims": True},
             ],
-            'label': [
-                {'name': 'RandomFlip'},
-                {'name': 'RandomRotate90'},
-                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'int64'}
-            ]
+            "label": [
+                {"name": "RandomFlip"},
+                {"name": "RandomRotate90"},
+                {"name": "ToTensor", "expand_dims": False, "dtype": "int64"},
+            ],
         }
-        base_config = {'mean': 0, 'std': 1}
+        base_config = {"mean": 0, "std": 1}
         transformer = Transformer(config, base_config)
         raw_transforms = transformer.raw_transform().transforms
         assert raw_transforms[0].mean == 0
@@ -102,22 +108,22 @@ class TestTransforms:
 
     def test_AnisotropicRotationTransformer(self):
         config = {
-            'raw': [
-                {'name': 'Standardize'},
-                {'name': 'RandomContrast', 'execution_probability': 0.5},
-                {'name': 'RandomFlip'},
-                {'name': 'RandomRotate90'},
-                {'name': 'RandomRotate', 'angle_spectrum': 17, 'axes': [[2, 1]]},
-                {'name': 'ToTensor', 'expand_dims': True}
+            "raw": [
+                {"name": "Standardize"},
+                {"name": "RandomContrast", "execution_probability": 0.5},
+                {"name": "RandomFlip"},
+                {"name": "RandomRotate90"},
+                {"name": "RandomRotate", "angle_spectrum": 17, "axes": [[2, 1]]},
+                {"name": "ToTensor", "expand_dims": True},
             ],
-            'label': [
-                {'name': 'RandomFlip'},
-                {'name': 'RandomRotate90'},
-                {'name': 'RandomRotate', 'angle_spectrum': 17, 'axes': [[2, 1]]},
-                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'int64'}
-            ]
+            "label": [
+                {"name": "RandomFlip"},
+                {"name": "RandomRotate90"},
+                {"name": "RandomRotate", "angle_spectrum": 17, "axes": [[2, 1]]},
+                {"name": "ToTensor", "expand_dims": False, "dtype": "int64"},
+            ],
         }
-        base_config = {'mean': 0, 'std': 1}
+        base_config = {"mean": 0, "std": 1}
         transformer = Transformer(config, base_config)
         raw_transforms = transformer.raw_transform().transforms
         assert raw_transforms[0].mean == 0
@@ -130,23 +136,23 @@ class TestTransforms:
 
     def test_LabelToBoundaryTransformer(self):
         config = {
-            'raw': [
-                {'name': 'Standardize'},
-                {'name': 'RandomContrast', 'execution_probability': 0.5},
-                {'name': 'RandomFlip'},
-                {'name': 'RandomRotate90'},
-                {'name': 'RandomRotate', 'angle_spectrum': 17, 'axes': [[2, 1]], 'mode': 'reflect'},
-                {'name': 'ToTensor', 'expand_dims': True}
+            "raw": [
+                {"name": "Standardize"},
+                {"name": "RandomContrast", "execution_probability": 0.5},
+                {"name": "RandomFlip"},
+                {"name": "RandomRotate90"},
+                {"name": "RandomRotate", "angle_spectrum": 17, "axes": [[2, 1]], "mode": "reflect"},
+                {"name": "ToTensor", "expand_dims": True},
             ],
-            'label': [
-                {'name': 'RandomFlip'},
-                {'name': 'RandomRotate90'},
-                {'name': 'RandomRotate', 'angle_spectrum': 17, 'axes': [[2, 1]], 'mode': 'reflect'},
-                {'name': 'LabelToAffinities', 'offsets': [2, 4, 6, 8]},
-                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'int64'}
-            ]
+            "label": [
+                {"name": "RandomFlip"},
+                {"name": "RandomRotate90"},
+                {"name": "RandomRotate", "angle_spectrum": 17, "axes": [[2, 1]], "mode": "reflect"},
+                {"name": "LabelToAffinities", "offsets": [2, 4, 6, 8]},
+                {"name": "ToTensor", "expand_dims": False, "dtype": "int64"},
+            ],
         }
-        base_config = {'mean': 0, 'std': 1}
+        base_config = {"mean": 0, "std": 1}
         transformer = Transformer(config, base_config)
         raw_transforms = transformer.raw_transform().transforms
         assert raw_transforms[0].mean == 0
@@ -154,33 +160,33 @@ class TestTransforms:
         assert raw_transforms[1].execution_probability == 0.5
         assert raw_transforms[4].angle_spectrum == 17
         assert raw_transforms[4].axes == [[2, 1]]
-        assert raw_transforms[4].mode == 'reflect'
+        assert raw_transforms[4].mode == "reflect"
         label_transforms = transformer.label_transform().transforms
         assert label_transforms[2].angle_spectrum == 17
         assert label_transforms[2].axes == [[2, 1]]
-        assert label_transforms[2].mode == 'reflect'
+        assert label_transforms[2].mode == "reflect"
         # 3 conv kernels per offset
         assert len(label_transforms[3].kernels) == 12
 
     def test_RandomLabelToBoundaryTransformer(self):
         config = {
-            'raw': [
-                {'name': 'Normalize'},
-                {'name': 'RandomContrast', 'execution_probability': 0.5},
-                {'name': 'RandomFlip'},
-                {'name': 'RandomRotate90'},
-                {'name': 'RandomRotate', 'angle_spectrum': 17, 'axes': [[2, 1]], 'mode': 'reflect'},
-                {'name': 'ToTensor', 'expand_dims': True}
+            "raw": [
+                {"name": "Normalize"},
+                {"name": "RandomContrast", "execution_probability": 0.5},
+                {"name": "RandomFlip"},
+                {"name": "RandomRotate90"},
+                {"name": "RandomRotate", "angle_spectrum": 17, "axes": [[2, 1]], "mode": "reflect"},
+                {"name": "ToTensor", "expand_dims": True},
             ],
-            'label': [
-                {'name': 'RandomFlip'},
-                {'name': 'RandomRotate90'},
-                {'name': 'RandomRotate', 'angle_spectrum': 17, 'axes': [[2, 1]], 'mode': 'reflect'},
-                {'name': 'RandomLabelToAffinities', 'max_offset': 4},
-                {'name': 'ToTensor', 'expand_dims': False, 'dtype': 'int64'}
-            ]
+            "label": [
+                {"name": "RandomFlip"},
+                {"name": "RandomRotate90"},
+                {"name": "RandomRotate", "angle_spectrum": 17, "axes": [[2, 1]], "mode": "reflect"},
+                {"name": "RandomLabelToAffinities", "max_offset": 4},
+                {"name": "ToTensor", "expand_dims": False, "dtype": "int64"},
+            ],
         }
-        base_config = {'mean': 0, 'std': 1}
+        base_config = {"mean": 0, "std": 1}
         transformer = Transformer(config, base_config)
         label_transforms = transformer.label_transform().transforms
         assert label_transforms[3].offsets == (1, 2, 3, 4)
@@ -192,7 +198,7 @@ class TestTransforms:
 
         t = CropToFixed(rs1, size=(256, 256))
 
-        expected = np.pad(m, ((0, 0), (28, 28), (28, 28)), mode='reflect')
+        expected = np.pad(m, ((0, 0), (28, 28), (28, 28)), mode="reflect")
 
         assert np.array_equal(expected, t(m))
 
@@ -208,7 +214,7 @@ class TestTransforms:
         y_start = rs2.randint(r)
         x_start = rs2.randint(r)
 
-        m_crop = m[:, y_start:y_start + 128, x_start:x_start + 128]
+        m_crop = m[:, y_start : y_start + 128, x_start : x_start + 128]
 
         assert np.array_equal(m_crop, t(m))
 
