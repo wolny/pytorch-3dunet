@@ -24,7 +24,7 @@ jobs:
         auto-activate-base: true
         activate-environment: ""
         conda-remove-defaults: "true"
-        conda-solver: libmamba
+        conda-solver: classic #libmamba
     - shell: bash -l {0}
       run: conda info --envs
     - name: Build pytorch-3dunet
