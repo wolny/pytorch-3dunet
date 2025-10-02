@@ -24,11 +24,10 @@ jobs:
         auto-activate-base: true
         activate-environment: ""
         conda-remove-defaults: "true"
-        conda-solver: classic #libmamba
     - shell: bash -l {0}
       run: conda info --envs
     - name: Build pytorch-3dunet
       shell: bash -l {0}
       run: |
-        conda install -q conda-build
+        conda install -q conda-build conda=25.7.0
         conda build -c conda-forge conda-recipe
