@@ -51,17 +51,17 @@ def main():
     model = get_model(config["model"])
     device = config.get("device", None)
     assert device, "Device not specified in the config file and could not be inferred automatically"
-    logger.info(f'Using device: {device}')
+    logger.info(f"Using device: {device}")
 
     # Load model state
     model_path = config["model_path"]
-    logger.info(f'Loading model from {model_path}...')
+    logger.info(f"Loading model from {model_path}...")
     utils.load_checkpoint(model_path, model)
 
     # use DataParallel if more than 1 GPU available
     if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
-        logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')
+        logger.info(f"Using {torch.cuda.device_count()} GPUs for prediction")
     model = model.to(device)
 
     # create predictor instance
@@ -79,8 +79,8 @@ def main():
         metrics = torch.Tensor(metrics)
         per_class_metrics = metrics.mean(dim=0)
         avg_metric = metrics.mean()
-        logger.info(f'Per-class average metric: {per_class_metrics}')
-        logger.info(f'Average metric: {avg_metric}')
+        logger.info(f"Per-class average metric: {per_class_metrics}")
+        logger.info(f"Average metric: {avg_metric}")
 
 
 if __name__ == "__main__":

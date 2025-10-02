@@ -124,7 +124,7 @@ class _AbstractDiceLoss(nn.Module):
         per_channel_dice = self.dice(input, target, weight=self.weight)
 
         # average Dice score across all channels/classes
-        return 1. - torch.mean(per_channel_dice)
+        return 1.0 - torch.mean(per_channel_dice)
 
 
 class DiceLoss(_AbstractDiceLoss):
@@ -221,14 +221,14 @@ class WeightedCrossEntropyLoss(nn.Module):
         # normalize the input first
         input = F.softmax(input, dim=1)
         flattened = flatten(input)
-        nominator = (1. - flattened).sum(-1)
+        nominator = (1.0 - flattened).sum(-1)
         denominator = flattened.sum(-1)
         class_weights = nominator / denominator
         return class_weights.detach()
 
 
 class WeightedSmoothL1Loss(nn.SmoothL1Loss):
-    """ A variant of SmoothL1Loss where the loss is weighted by a constant factor
+    """A variant of SmoothL1Loss where the loss is weighted by a constant factor
     when the target value is below or above a certain threshold."""
 
     def __init__(self, threshold, initial_weight, apply_below_threshold=True):
@@ -311,7 +311,7 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
     if name == "BCEWithLogitsLoss":
         return nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     elif name == "BCEDiceLoss":
-        alpha = loss_config.get("alpha", 1.)
+        alpha = loss_config.get("alpha", 1.0)
         return BCEDiceLoss(alpha)
     elif name == "CrossEntropyLoss":
         if ignore_index is None:
@@ -334,8 +334,10 @@ def _create_loss(name, loss_config, weight, ignore_index, pos_weight):
     elif name == "L1Loss":
         return L1Loss()
     elif name == "WeightedSmoothL1Loss":
-        return WeightedSmoothL1Loss(threshold=loss_config["threshold"],
-                                    initial_weight=loss_config["initial_weight"],
-                                    apply_below_threshold=loss_config.get("apply_below_threshold", True))
+        return WeightedSmoothL1Loss(
+            threshold=loss_config["threshold"],
+            initial_weight=loss_config["initial_weight"],
+            apply_below_threshold=loss_config.get("apply_below_threshold", True),
+        )
     else:
         raise RuntimeError(f"Unsupported loss function: '{name}'")

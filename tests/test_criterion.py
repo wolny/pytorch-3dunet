@@ -81,11 +81,11 @@ class TestCriterion:
     def test_average_precision_synthethic_data(self):
         input = np.zeros((64, 200, 200), dtype=np.int32)
         for i in range(40, 200, 40):
-            input[:, :, i:i + 2] = 1
+            input[:, :, i : i + 2] = 1
         for i in range(40, 200, 40):
-            input[:, i:i + 2, :] = 1
+            input[:, i : i + 2, :] = 1
         for i in range(40, 64, 40):
-            input[i:i + 2, :, :] = 1
+            input[i : i + 2, :, :] = 1
 
         target = measure.label(np.logical_not(input).astype(np.int32), background=0)
         input = torch.tensor(input.reshape((1, 1) + input.shape))
@@ -134,17 +134,17 @@ class TestCriterion:
         assert np.all(results < 1)
 
     def test_bce_dice_loss(self):
-        results = _compute_criterion(BCEDiceLoss(1.))
+        results = _compute_criterion(BCEDiceLoss(1.0))
         results = np.array(results)
         assert np.all(results > 0)
 
     def test_ignore_index_loss(self):
         loss = MaskingLossWrapper(nn.BCEWithLogitsLoss(), ignore_index=-1)
         input = torch.rand((3, 3))
-        input[1, 1] = 1.
+        input[1, 1] = 1.0
         input.requires_grad = True
-        target = -1. * torch.ones((3, 3))
-        target[1, 1] = 1.
+        target = -1.0 * torch.ones((3, 3))
+        target[1, 1] = 1.0
         output = loss(input, target)
         output.backward()
 
@@ -157,7 +157,7 @@ class TestCriterion:
         assert output.item() > 0
 
     def test_weighted_smooth_l1loss(self):
-        loss_criterion = WeightedSmoothL1Loss(threshold=0., initial_weight=0.1)
+        loss_criterion = WeightedSmoothL1Loss(threshold=0.0, initial_weight=0.1)
         input = torch.randn(3, 16, 64, 64, 64, requires_grad=True)
         target = torch.randn(3, 16, 64, 64, 64)
         loss = loss_criterion(input, target)

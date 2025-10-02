@@ -69,7 +69,7 @@ class TestTransforms:
         config = {
             "raw": [{"name": "Standardize"}, {"name": "ToTensor", "expand_dims": True}],
             "label": [{"name": "ToTensor", "expand_dims": False, "dtype": "int64"}],
-            "weight": [{"name": "ToTensor", "expand_dims": False}]
+            "weight": [{"name": "ToTensor", "expand_dims": False}],
         }
         base_config = {"mean": 0, "std": 1}
         transformer = Transformer(config, base_config)
@@ -88,13 +88,13 @@ class TestTransforms:
                 {"name": "RandomContrast", "execution_probability": 0.5},
                 {"name": "RandomFlip"},
                 {"name": "RandomRotate90"},
-                {"name": "ToTensor", "expand_dims": True}
+                {"name": "ToTensor", "expand_dims": True},
             ],
             "label": [
                 {"name": "RandomFlip"},
                 {"name": "RandomRotate90"},
-                {"name": "ToTensor", "expand_dims": False, "dtype": "int64"}
-            ]
+                {"name": "ToTensor", "expand_dims": False, "dtype": "int64"},
+            ],
         }
         base_config = {"mean": 0, "std": 1}
         transformer = Transformer(config, base_config)
@@ -114,14 +114,14 @@ class TestTransforms:
                 {"name": "RandomFlip"},
                 {"name": "RandomRotate90"},
                 {"name": "RandomRotate", "angle_spectrum": 17, "axes": [[2, 1]]},
-                {"name": "ToTensor", "expand_dims": True}
+                {"name": "ToTensor", "expand_dims": True},
             ],
             "label": [
                 {"name": "RandomFlip"},
                 {"name": "RandomRotate90"},
                 {"name": "RandomRotate", "angle_spectrum": 17, "axes": [[2, 1]]},
-                {"name": "ToTensor", "expand_dims": False, "dtype": "int64"}
-            ]
+                {"name": "ToTensor", "expand_dims": False, "dtype": "int64"},
+            ],
         }
         base_config = {"mean": 0, "std": 1}
         transformer = Transformer(config, base_config)
@@ -142,15 +142,15 @@ class TestTransforms:
                 {"name": "RandomFlip"},
                 {"name": "RandomRotate90"},
                 {"name": "RandomRotate", "angle_spectrum": 17, "axes": [[2, 1]], "mode": "reflect"},
-                {"name": "ToTensor", "expand_dims": True}
+                {"name": "ToTensor", "expand_dims": True},
             ],
             "label": [
                 {"name": "RandomFlip"},
                 {"name": "RandomRotate90"},
                 {"name": "RandomRotate", "angle_spectrum": 17, "axes": [[2, 1]], "mode": "reflect"},
                 {"name": "LabelToAffinities", "offsets": [2, 4, 6, 8]},
-                {"name": "ToTensor", "expand_dims": False, "dtype": "int64"}
-            ]
+                {"name": "ToTensor", "expand_dims": False, "dtype": "int64"},
+            ],
         }
         base_config = {"mean": 0, "std": 1}
         transformer = Transformer(config, base_config)
@@ -176,15 +176,15 @@ class TestTransforms:
                 {"name": "RandomFlip"},
                 {"name": "RandomRotate90"},
                 {"name": "RandomRotate", "angle_spectrum": 17, "axes": [[2, 1]], "mode": "reflect"},
-                {"name": "ToTensor", "expand_dims": True}
+                {"name": "ToTensor", "expand_dims": True},
             ],
             "label": [
                 {"name": "RandomFlip"},
                 {"name": "RandomRotate90"},
                 {"name": "RandomRotate", "angle_spectrum": 17, "axes": [[2, 1]], "mode": "reflect"},
                 {"name": "RandomLabelToAffinities", "max_offset": 4},
-                {"name": "ToTensor", "expand_dims": False, "dtype": "int64"}
-            ]
+                {"name": "ToTensor", "expand_dims": False, "dtype": "int64"},
+            ],
         }
         base_config = {"mean": 0, "std": 1}
         transformer = Transformer(config, base_config)
@@ -214,7 +214,7 @@ class TestTransforms:
         y_start = rs2.randint(r)
         x_start = rs2.randint(r)
 
-        m_crop = m[:, y_start:y_start + 128, x_start:x_start + 128]
+        m_crop = m[:, y_start : y_start + 128, x_start : x_start + 128]
 
         assert np.array_equal(m_crop, t(m))
 

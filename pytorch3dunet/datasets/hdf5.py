@@ -50,16 +50,16 @@ class AbstractHDF5Dataset(ConfigDataset):
     """
 
     def __init__(
-            self,
-            file_path: str,
-            phase: str,
-            slice_builder_config: dict,
-            transformer_config: dict,
-            raw_internal_path: str = "raw",
-            label_internal_path: str = "label",
-            global_normalization: bool = True,
-            random_scale: int | None = None,
-            random_scale_probability: float = 0.5
+        self,
+        file_path: str,
+        phase: str,
+        slice_builder_config: dict,
+        transformer_config: dict,
+        raw_internal_path: str = "raw",
+        label_internal_path: str = "label",
+        global_normalization: bool = True,
+        random_scale: int | None = None,
+        random_scale_probability: float = 0.5,
     ):
         assert phase in ["train", "val", "test"]
 
@@ -91,9 +91,11 @@ class AbstractHDF5Dataset(ConfigDataset):
             self.label = None
 
             if self.halo_shape == (0, 0, 0):
-                logger.warning("Found halo shape to be (0, 0, 0). This might lead to checkerboard artifacts in the "
-                               "prediction. Consider using a non-zero halo shape, e.g. 'halo_shape: [8, 8, 8]' in "
-                               "the slice_builder configuration.")
+                logger.warning(
+                    "Found halo shape to be (0, 0, 0). This might lead to checkerboard artifacts in the "
+                    "prediction. Consider using a non-zero halo shape, e.g. 'halo_shape: [8, 8, 8]' in "
+                    "the slice_builder configuration."
+                )
 
         with h5py.File(file_path, "r") as f:
             raw = f[raw_internal_path]
@@ -110,8 +112,9 @@ class AbstractHDF5Dataset(ConfigDataset):
         if random_scale is not None:
             assert isinstance(random_scale, int), "random_scale must be an integer"
             stride_shape = slice_builder_config.get("stride_shape")
-            assert all(random_scale < stride for stride in stride_shape), \
+            assert all(random_scale < stride for stride in stride_shape), (
                 f"random_scale {random_scale} must be smaller than each of the strides {stride_shape}"
+            )
             patch_shape = slice_builder_config.get("patch_shape")
             self.random_scaler = RandomScaler(random_scale, patch_shape, self.volume_shape, random_scale_probability)
             logger.info(f"Using RandomScaler with offset range {random_scale}")
@@ -201,15 +204,18 @@ class AbstractHDF5Dataset(ConfigDataset):
             futures = []
             for file_path in file_paths:
                 logger.info(f"Loading {phase} set from: {file_path}...")
-                future = executor.submit(cls, file_path=file_path,
-                                         phase=phase,
-                                         slice_builder_config=slice_builder_config,
-                                         transformer_config=transformer_config,
-                                         raw_internal_path=dataset_config.get("raw_internal_path", "raw"),
-                                         label_internal_path=dataset_config.get("label_internal_path", "label"),
-                                         global_normalization=dataset_config.get("global_normalization", True),
-                                         random_scale=dataset_config.get("random_scale", None),
-                                         random_scale_probability=dataset_config.get("random_scale_probability", 0.5))
+                future = executor.submit(
+                    cls,
+                    file_path=file_path,
+                    phase=phase,
+                    slice_builder_config=slice_builder_config,
+                    transformer_config=transformer_config,
+                    raw_internal_path=dataset_config.get("raw_internal_path", "raw"),
+                    label_internal_path=dataset_config.get("label_internal_path", "label"),
+                    global_normalization=dataset_config.get("global_normalization", True),
+                    random_scale=dataset_config.get("random_scale", None),
+                    random_scale_probability=dataset_config.get("random_scale_probability", 0.5),
+                )
                 futures.append(future)
 
             datasets = []
@@ -218,7 +224,7 @@ class AbstractHDF5Dataset(ConfigDataset):
                     dataset = future.result()
                     datasets.append(dataset)
                 except Exception as e:
-                    logger.error(f'Failed to load dataset: {e}')
+                    logger.error(f"Failed to load dataset: {e}")
             return datasets
 
 
@@ -240,21 +246,28 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
     """
 
     def __init__(
-            self,
-            file_path,
-            phase,
-            slice_builder_config,
-            transformer_config,
-            raw_internal_path="raw",
-            label_internal_path="label",
-            global_normalization=True,
-            random_scale=None,
-            random_scale_probability=0.5
+        self,
+        file_path,
+        phase,
+        slice_builder_config,
+        transformer_config,
+        raw_internal_path="raw",
+        label_internal_path="label",
+        global_normalization=True,
+        random_scale=None,
+        random_scale_probability=0.5,
     ):
-        super().__init__(file_path=file_path, phase=phase, slice_builder_config=slice_builder_config,
-                         transformer_config=transformer_config, raw_internal_path=raw_internal_path,
-                         label_internal_path=label_internal_path, global_normalization=global_normalization,
-                         random_scale=random_scale, random_scale_probability=random_scale_probability)
+        super().__init__(
+            file_path=file_path,
+            phase=phase,
+            slice_builder_config=slice_builder_config,
+            transformer_config=transformer_config,
+            raw_internal_path=raw_internal_path,
+            label_internal_path=label_internal_path,
+            global_normalization=global_normalization,
+            random_scale=random_scale,
+            random_scale_probability=random_scale_probability,
+        )
         self._raw = None
         self._raw_padded = None
         self._label = None
@@ -270,7 +283,9 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
     def get_label_patch(self, idx):
         if self._label is None:
             with h5py.File(self.file_path, "r") as f:
-                assert self.label_internal_path in f, f"Dataset {self.label_internal_path} not found in {self.file_path}"
+                assert self.label_internal_path in f, (
+                    f"Dataset {self.label_internal_path} not found in {self.file_path}"
+                )
                 self._label = f[self.label_internal_path][:]
         return self._label[idx]
 
@@ -300,21 +315,28 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
     """
 
     def __init__(
-            self,
-            file_path,
-            phase,
-            slice_builder_config,
-            transformer_config,
-            raw_internal_path="raw",
-            label_internal_path="label",
-            global_normalization=False,
-            random_scale=None,
-            random_scale_probability=0.5
+        self,
+        file_path,
+        phase,
+        slice_builder_config,
+        transformer_config,
+        raw_internal_path="raw",
+        label_internal_path="label",
+        global_normalization=False,
+        random_scale=None,
+        random_scale_probability=0.5,
     ):
-        super().__init__(file_path=file_path, phase=phase, slice_builder_config=slice_builder_config,
-                         transformer_config=transformer_config, raw_internal_path=raw_internal_path,
-                         label_internal_path=label_internal_path, global_normalization=global_normalization,
-                         random_scale=random_scale, random_scale_probability=random_scale_probability)
+        super().__init__(
+            file_path=file_path,
+            phase=phase,
+            slice_builder_config=slice_builder_config,
+            transformer_config=transformer_config,
+            raw_internal_path=raw_internal_path,
+            label_internal_path=label_internal_path,
+            global_normalization=global_normalization,
+            random_scale=random_scale,
+            random_scale_probability=random_scale_probability,
+        )
 
         logger.info("Using LazyHDF5Dataset")
 

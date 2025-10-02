@@ -21,7 +21,6 @@ from pytorch3dunet.unet3d.utils import (
     get_logger,
     get_number_of_learnable_parameters,
 )
-
 from . import utils
 
 logger = get_logger("UNetTrainer")
@@ -33,16 +32,16 @@ def create_trainer(config: dict) -> "UNetTrainer":
 
     device = config.get("device", None)
     assert device, "Device not specified in the config file and could not be inferred automatically"
-    logger.info(f'Using device: {device}')
+    logger.info(f"Using device: {device}")
 
     # use DataParallel if more than 1 GPU available
     if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
-        logger.info(f'Using {torch.cuda.device_count()} GPUs for training')
+        logger.info(f"Using {torch.cuda.device_count()} GPUs for training")
     model.to(device)
 
     # Log the number of learnable parameters
-    logger.info(f'Number of learnable params {get_number_of_learnable_parameters(model)}')
+    logger.info(f"Number of learnable params {get_number_of_learnable_parameters(model)}")
 
     # Create loss criterion
     loss_criterion = get_loss_criterion(config)
@@ -66,9 +65,19 @@ def create_trainer(config: dict) -> "UNetTrainer":
     resume = trainer_config.pop("resume", None)
     pre_trained = trainer_config.pop("pre_trained", None)
 
-    return UNetTrainer(model=model, optimizer=optimizer, lr_scheduler=lr_scheduler, loss_criterion=loss_criterion,
-                       eval_criterion=eval_criterion, loaders=loaders, tensorboard_formatter=tensorboard_formatter,
-                       resume=resume, pre_trained=pre_trained, device=device, **trainer_config)
+    return UNetTrainer(
+        model=model,
+        optimizer=optimizer,
+        lr_scheduler=lr_scheduler,
+        loss_criterion=loss_criterion,
+        eval_criterion=eval_criterion,
+        loaders=loaders,
+        tensorboard_formatter=tensorboard_formatter,
+        resume=resume,
+        pre_trained=pre_trained,
+        device=device,
+        **trainer_config,
+    )
 
 
 def _split_and_move_to_gpu(t, device: TorchDevice):
@@ -120,30 +129,29 @@ class UNetTrainer:
     """
 
     def __init__(
-            self,
-            model,
-            optimizer,
-            lr_scheduler,
-            loss_criterion,
-            eval_criterion,
-            loaders,
-            checkpoint_dir,
-            max_num_epochs,
-            max_num_iterations,
-            validate_after_iters=200,
-            log_after_iters=100,
-            validate_iters=None,
-            num_iterations=1,
-            num_epoch=0,
-            eval_score_higher_is_better=True,
-            tensorboard_formatter=None,
-            skip_train_validation=False,
-            resume=None,
-            pre_trained=None,
-            max_val_images=100,
-            device: TorchDevice | None = None
+        self,
+        model,
+        optimizer,
+        lr_scheduler,
+        loss_criterion,
+        eval_criterion,
+        loaders,
+        checkpoint_dir,
+        max_num_epochs,
+        max_num_iterations,
+        validate_after_iters=200,
+        log_after_iters=100,
+        validate_iters=None,
+        num_iterations=1,
+        num_epoch=0,
+        eval_score_higher_is_better=True,
+        tensorboard_formatter=None,
+        skip_train_validation=False,
+        resume=None,
+        pre_trained=None,
+        max_val_images=100,
+        device: TorchDevice | None = None,
     ):
-
         self.max_val_images = max_val_images
         self.model = model
         self.optimizer = optimizer
@@ -162,7 +170,7 @@ class UNetTrainer:
         self.device = device
 
         logger.info(model)
-        logger.info(f'eval_score_higher_is_better: {eval_score_higher_is_better}')
+        logger.info(f"eval_score_higher_is_better: {eval_score_higher_is_better}")
         # initialize the best_eval_score
         if eval_score_higher_is_better:
             self.best_eval_score = float("-inf")
@@ -170,10 +178,7 @@ class UNetTrainer:
             self.best_eval_score = float("+inf")
 
         self.writer = SummaryWriter(
-            log_dir=os.path.join(
-                checkpoint_dir, "logs",
-                datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            )
+            log_dir=os.path.join(checkpoint_dir, "logs", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
         )
 
         assert tensorboard_formatter is not None, "TensorboardFormatter must be provided"
@@ -225,8 +230,10 @@ class UNetTrainer:
         self.model.train()
 
         for t in self.loaders["train"]:
-            logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
-                        f'Epoch [{self.num_epochs}/{self.max_num_epochs - 1}]')
+            logger.info(
+                f"Training iteration [{self.num_iterations}/{self.max_num_iterations}]. "
+                f"Epoch [{self.num_epochs}/{self.max_num_epochs - 1}]"
+            )
 
             input, target = _split_and_move_to_gpu(t, self.device)
 
@@ -267,14 +274,10 @@ class UNetTrainer:
                     eval_score = self.eval_criterion(output, target)
                     train_eval_scores.update(eval_score.item(), self._batch_size(input))
 
-                logger.info(
-                    f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
+                logger.info(f"Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}")
                 self._log_stats("train", train_losses.avg, train_eval_scores.avg)
                 self._log_images(
-                    input.detach().cpu().numpy(),
-                    target.detach().cpu().numpy(),
-                    output.detach().cpu().numpy(),
-                    "train_"
+                    input.detach().cpu().numpy(), target.detach().cpu().numpy(), output.detach().cpu().numpy(), "train_"
                 )
 
             if self.should_stop():
@@ -294,13 +297,13 @@ class UNetTrainer:
             True if training should stop, False otherwise.
         """
         if self.max_num_iterations < self.num_iterations:
-            logger.info(f'Maximum number of iterations {self.max_num_iterations} exceeded.')
+            logger.info(f"Maximum number of iterations {self.max_num_iterations} exceeded.")
             return True
 
         min_lr = 1e-6
         lr = self.optimizer.param_groups[0]["lr"]
         if lr < min_lr:
-            logger.info(f'Learning rate below the minimum {min_lr}.')
+            logger.info(f"Learning rate below the minimum {min_lr}.")
             return True
 
         return False
@@ -340,9 +343,9 @@ class UNetTrainer:
             # log images in a separate thread
             with ThreadPoolExecutor() as executor:
                 for input, target, output, i in images_for_logging:
-                    executor.submit(self._log_images, input, target, output, f'val_{i}_')
+                    executor.submit(self._log_images, input, target, output, f"val_{i}_")
 
-            logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
+            logger.info(f"Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}")
             self._log_stats("val", val_losses.avg, val_scores.avg)
             return val_scores.avg
 
@@ -372,7 +375,7 @@ class UNetTrainer:
             is_best = eval_score < self.best_eval_score
 
         if is_best:
-            logger.info(f'Saving new best evaluation metric: {eval_score}')
+            logger.info(f"Saving new best evaluation metric: {eval_score}")
             self.best_eval_score = eval_score
 
         return is_best
@@ -388,23 +391,24 @@ class UNetTrainer:
         last_file_path = os.path.join(self.checkpoint_dir, "last_checkpoint.pytorch")
         logger.info(f"Saving checkpoint to '{last_file_path}'")
 
-        utils.save_checkpoint({
-            "num_epochs": self.num_epochs + 1,
-            "num_iterations": self.num_iterations,
-            "model_state_dict": state_dict,
-            "best_eval_score": self.best_eval_score,
-            "optimizer_state_dict": self.optimizer.state_dict(),
-        }, is_best, checkpoint_dir=self.checkpoint_dir)
+        utils.save_checkpoint(
+            {
+                "num_epochs": self.num_epochs + 1,
+                "num_iterations": self.num_iterations,
+                "model_state_dict": state_dict,
+                "best_eval_score": self.best_eval_score,
+                "optimizer_state_dict": self.optimizer.state_dict(),
+            },
+            is_best,
+            checkpoint_dir=self.checkpoint_dir,
+        )
 
     def _log_lr(self):
         lr = self.optimizer.param_groups[0]["lr"]
         self.writer.add_scalar("learning_rate", lr, self.num_iterations)
 
     def _log_stats(self, phase: str, loss_avg: float, eval_score_avg: float):
-        tag_value = {
-            f'{phase}_loss_avg': loss_avg,
-            f'{phase}_eval_score_avg': eval_score_avg
-        }
+        tag_value = {f"{phase}_loss_avg": loss_avg, f"{phase}_eval_score_avg": eval_score_avg}
 
         for tag, value in tag_value.items():
             self.writer.add_scalar(tag, value, self.num_iterations)
@@ -415,22 +419,13 @@ class UNetTrainer:
             self.writer.add_histogram(name, value.data.cpu().numpy(), self.num_iterations)
             self.writer.add_histogram(name + "/grad", value.grad.data.cpu().numpy(), self.num_iterations)
 
-    def _log_images(
-            self,
-            input: np.ndarray,
-            target: np.ndarray,
-            prediction: np.ndarray,
-            prefix: str):
-        inputs_map = {
-            "inputs": input,
-            "targets": target,
-            "predictions": prediction
-        }
+    def _log_images(self, input: np.ndarray, target: np.ndarray, prediction: np.ndarray, prefix: str):
+        inputs_map = {"inputs": input, "targets": target, "predictions": prediction}
         img_sources = {}
         for name, batch in inputs_map.items():
             if isinstance(batch, (list, tuple)):
                 for i, b in enumerate(batch):
-                    img_sources[f'{name}{i}'] = b
+                    img_sources[f"{name}{i}"] = b
             else:
                 img_sources[name] = batch
 

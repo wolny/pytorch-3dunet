@@ -36,17 +36,19 @@ class AbstractPredictor:
         gt_internal_path: Internal path to the ground truth dataset in the H5 file. Default: None.
     """
 
-    def __init__(self,
-                 model: nn.Module,
-                 output_dir: str,
-                 out_channels: int,
-                 device: TorchDevice,
-                 output_dataset: str = "predictions",
-                 save_segmentation: bool = False,
-                 prediction_channel: int | None = None,
-                 performance_metric: str | None = None,
-                 gt_internal_path: str | None = None,
-                 **kwargs):
+    def __init__(
+        self,
+        model: nn.Module,
+        output_dir: str,
+        out_channels: int,
+        device: TorchDevice,
+        output_dataset: str = "predictions",
+        save_segmentation: bool = False,
+        prediction_channel: int | None = None,
+        performance_metric: str | None = None,
+        gt_internal_path: str | None = None,
+        **kwargs,
+    ):
         self.model = model
         self.output_dir = output_dir
         assert out_channels > 0, f"Invalid number of output channels: {out_channels}"
@@ -81,17 +83,19 @@ class StandardPredictor(AbstractPredictor):
     use `LazyPredictor` instead.
     """
 
-    def __init__(self,
-                 model: nn.Module,
-                 output_dir: str,
-                 out_channels: int,
-                 device: TorchDevice,
-                 output_dataset: str = "predictions",
-                 save_segmentation: bool = False,
-                 prediction_channel: int | None = None,
-                 performance_metric: str | None = None,
-                 gt_internal_path: str | None = None,
-                 **kwargs):
+    def __init__(
+        self,
+        model: nn.Module,
+        output_dir: str,
+        out_channels: int,
+        device: TorchDevice,
+        output_dataset: str = "predictions",
+        save_segmentation: bool = False,
+        prediction_channel: int | None = None,
+        performance_metric: str | None = None,
+        gt_internal_path: str | None = None,
+        **kwargs,
+    ):
         super().__init__(
             model,
             output_dir,
@@ -102,7 +106,7 @@ class StandardPredictor(AbstractPredictor):
             prediction_channel,
             performance_metric,
             gt_internal_path,
-            **kwargs
+            **kwargs,
         )
 
     def __call__(self, test_loader):
@@ -110,7 +114,7 @@ class StandardPredictor(AbstractPredictor):
         logger.info(f"Processing '{test_loader.dataset.file_path}'...")
         start = time.perf_counter()
 
-        logger.info(f'Running inference on {len(test_loader)} batches')
+        logger.info(f"Running inference on {len(test_loader)} batches")
         # dimensionality of the output predictions
         volume_shape = test_loader.dataset.volume_shape
 
@@ -133,7 +137,7 @@ class StandardPredictor(AbstractPredictor):
 
             # determine halo used for padding
             patch_halo = test_loader.dataset.halo_shape
-            logger.info(f'Using patch halo: {patch_halo}')
+            logger.info(f"Using patch halo: {patch_halo}")
 
             # Sets the module in evaluation mode explicitly
             # It is necessary for batchnorm/dropout layers if present as well as final Sigmoid/Softmax to be applied
@@ -165,7 +169,6 @@ class StandardPredictor(AbstractPredictor):
                     prediction = prediction.cpu().numpy()
                     # for each batch sample
                     for pred, index in zip(prediction, indices, strict=True):
-
                         if self.save_segmentation:
                             # if single channel, binarize
                             if pred.shape[0] == 1:
@@ -201,9 +204,9 @@ class StandardPredictor(AbstractPredictor):
                 gt = _load_dataset(test_loader.dataset, self.gt_internal_path)
                 prediction_array = prediction_array[...]
                 # create metric
-                assert self.performance_metric in ["dice", "mean_iou"], \
-                    f"Unsupported performance metric: {self.performance_metric}, " \
-                    f"only dice and mean_iou are supported"
+                assert self.performance_metric in ["dice", "mean_iou"], (
+                    f"Unsupported performance metric: {self.performance_metric}, only dice and mean_iou are supported"
+                )
                 if self.performance_metric == "dice":
                     result = dice_score(prediction_array, gt)
                 else:
@@ -229,17 +232,19 @@ class LazyPredictor(StandardPredictor):
     is slower than `StandardPredictor`, it should only be used when the predicted volume does not fit into RAM.
     """
 
-    def __init__(self,
-                 model: nn.Module,
-                 output_dir: str,
-                 out_channels: int,
-                 device: TorchDevice,
-                 output_dataset: str = "predictions",
-                 save_segmentation: bool = False,
-                 prediction_channel: int | None = None,
-                 performance_metric: str | None = None,
-                 gt_internal_path: str | None = None,
-                 **kwargs):
+    def __init__(
+        self,
+        model: nn.Module,
+        output_dir: str,
+        out_channels: int,
+        device: TorchDevice,
+        output_dataset: str = "predictions",
+        save_segmentation: bool = False,
+        prediction_channel: int | None = None,
+        performance_metric: str | None = None,
+        gt_internal_path: str | None = None,
+        **kwargs,
+    ):
         super().__init__(
             model,
             output_dir,
@@ -250,7 +255,7 @@ class LazyPredictor(StandardPredictor):
             prediction_channel,
             performance_metric,
             gt_internal_path,
-            **kwargs
+            **kwargs,
         )
 
     def _allocate_prediction_array(self, output_shape, output_file):
@@ -259,11 +264,9 @@ class LazyPredictor(StandardPredictor):
         else:
             dtype = "float32"
         # allocate datasets for probability maps
-        prediction_array = output_file.create_dataset(self.output_dataset,
-                                                      shape=output_shape,
-                                                      dtype=dtype,
-                                                      chunks=True,
-                                                      compression="gzip")
+        prediction_array = output_file.create_dataset(
+            self.output_dataset, shape=output_shape, dtype=dtype, chunks=True, compression="gzip"
+        )
         return prediction_array
 
     def _create_prediction_dataset(self, h5_output_file, prediction_array):
@@ -299,12 +302,7 @@ class DSB2018Predictor(AbstractPredictor):
                 # forward pass
                 pred = self.model(img)
 
-                executor.submit(
-                    dsb_save_batch,
-                    self.output_dir,
-                    path,
-                    pred
-                )
+                executor.submit(dsb_save_batch, self.output_dir, path, pred)
 
         print("Waiting for all predictions to be saved to disk...")
         executor.shutdown(wait=True)
@@ -312,12 +310,12 @@ class DSB2018Predictor(AbstractPredictor):
 
 def dsb_save_batch(output_dir, path, pred, save_segmentation=True, pmaps_thershold=0.5):
     def _pmaps_to_seg(pred):
-        mask = (pred > pmaps_thershold)
+        mask = pred > pmaps_thershold
         return measure.label(mask).astype("uint16")
 
     # convert to numpy array
     for single_pred, single_path in zip(pred, path, strict=False):
-        logger.info(f'Processing {single_path}')
+        logger.info(f"Processing {single_path}")
         single_pred = single_pred.squeeze()
 
         # save to h5 file
@@ -332,8 +330,9 @@ def dsb_save_batch(output_dir, path, pred, save_segmentation=True, pmaps_thersho
                 f.create_dataset("segmentation", data=_pmaps_to_seg(single_pred), compression="gzip")
 
 
-def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = "_predictions",
-                     output_dir: str | Path | None = None) -> Path:
+def _get_output_file(
+    dataset: AbstractHDF5Dataset, suffix: str = "_predictions", output_dir: str | Path | None = None
+) -> Path:
     """
     Get the output file path for the predictions. If `output_dir` is not None the output file will be saved in
     the original dataset directory.
@@ -378,7 +377,7 @@ def mean_iou(pred: np.ndarray, gt: np.ndarray, n_classes: int, avg: bool = False
     # convert to numpy arrays
     pred = pred.astype("uint16")
     gt = gt.astype("uint16")
-    assert pred.shape == gt.shape, f'Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}'
+    assert pred.shape == gt.shape, f"Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}"
 
     # compute IoU, skip 0: background
     per_class_iou = []
@@ -401,7 +400,7 @@ def dice_score(pred: np.ndarray, gt: np.ndarray, avg: bool = False) -> list[floa
     # convert to numpy arrays
     pred = pred.astype("uint16")
     gt = gt.astype("uint16")
-    assert pred.shape == gt.shape, f'Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}'
+    assert pred.shape == gt.shape, f"Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}"
     # compute Dice score
     per_class_dice = []
     for c_pred, c_gt in zip(pred, gt, strict=True):

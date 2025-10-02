@@ -143,9 +143,11 @@ class AdaptedRandError:
 
         per_batch_arand = []
         for _input, _target in zip(input, target, strict=True):
-            if np.all(_target == _target.flat[0]):  # skip ARand eval if there is only one label in the patch due to zero-division
+            if np.all(
+                _target == _target.flat[0]
+            ):  # skip ARand eval if there is only one label in the patch due to zero-division
                 logger.info("Skipping ARandError computation: only 1 label present in the ground truth")
-                per_batch_arand.append(0.)
+                per_batch_arand.append(0.0)
                 continue
 
             # convert _input to segmentation CDHW
@@ -158,7 +160,7 @@ class AdaptedRandError:
 
         # return mean arand error
         mean_arand = torch.mean(torch.tensor(per_batch_arand))
-        logger.info(f'ARand: {mean_arand.item()}')
+        logger.info(f"ARand: {mean_arand.item()}")
         return mean_arand
 
     def input_to_segm(self, input):
@@ -183,10 +185,24 @@ class BoundaryAdaptedRandError(AdaptedRandError):
     Boundary map is thresholded, and connected components is run to get the predicted segmentation
     """
 
-    def __init__(self, thresholds=None, use_last_target=True, ignore_index=None, input_channel=None, invert_pmaps=True,
-                 save_plots=False, plots_dir=".", **kwargs):
-        super().__init__(use_last_target=use_last_target, ignore_index=ignore_index, save_plots=save_plots,
-                         plots_dir=plots_dir, **kwargs)
+    def __init__(
+        self,
+        thresholds=None,
+        use_last_target=True,
+        ignore_index=None,
+        input_channel=None,
+        invert_pmaps=True,
+        save_plots=False,
+        plots_dir=".",
+        **kwargs,
+    ):
+        super().__init__(
+            use_last_target=use_last_target,
+            ignore_index=ignore_index,
+            save_plots=save_plots,
+            plots_dir=plots_dir,
+            **kwargs,
+        )
 
         if thresholds is None:
             thresholds = [0.3, 0.4, 0.5, 0.6]
@@ -219,9 +235,9 @@ class BoundaryAdaptedRandError(AdaptedRandError):
 
 
 class GenericAdaptedRandError(AdaptedRandError):
-    def __init__(self, input_channels, thresholds=None, use_last_target=True, ignore_index=None, invert_channels=None,
-                 **kwargs):
-
+    def __init__(
+        self, input_channels, thresholds=None, use_last_target=True, ignore_index=None, invert_channels=None, **kwargs
+    ):
         super().__init__(use_last_target=use_last_target, ignore_index=ignore_index, **kwargs)
         assert isinstance(input_channels, list) or isinstance(input_channels, tuple)
         self.input_channels = input_channels
@@ -302,7 +318,7 @@ class GenericAveragePrecision:
             # compute average precision per channel
             segs_aps = [self.metric(self._filter_instances(seg), tar) for seg in segs]
 
-            logger.info(f'Batch: {i_batch}. Max Average Precision for channel: {np.argmax(segs_aps)}')
+            logger.info(f"Batch: {i_batch}. Max Average Precision for channel: {np.argmax(segs_aps)}")
             # save max AP
             batch_aps.append(np.max(segs_aps))
             i_batch += 1

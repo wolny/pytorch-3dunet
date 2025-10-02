@@ -35,8 +35,9 @@ class TestUNet3DTrainer:
 
     def test_2d_unet(self, tmpdir, capsys, train_config_2d):
         with capsys.disabled():
-            assert_train_save_load(tmpdir, train_config_2d, "CrossEntropyLoss", "MeanIoU", "UNet2D",
-                                   shape=(3, 1, 128, 128))
+            assert_train_save_load(
+                tmpdir, train_config_2d, "CrossEntropyLoss", "MeanIoU", "UNet2D", shape=(3, 1, 128, 128)
+            )
 
 
 def assert_train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map=False, shape=(3, 64, 64, 64)):
@@ -58,11 +59,13 @@ def _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, 
     binary_loss = loss in ["BCEWithLogitsLoss", "DiceLoss", "BCEDiceLoss", "GeneralizedDiceLoss"]
 
     train_config["model"]["name"] = model
-    train_config.update({
-        # get device to train on
-        "loss": {"name": loss, "weight": np.random.rand(2).astype(np.float32), "pos_weight": 3.},
-        "eval_metric": {"name": val_metric}
-    })
+    train_config.update(
+        {
+            # get device to train on
+            "loss": {"name": loss, "weight": np.random.rand(2).astype(np.float32), "pos_weight": 3.0},
+            "eval_metric": {"name": val_metric},
+        }
+    )
     train_config["model"]["final_sigmoid"] = binary_loss
 
     if weight_map:
@@ -89,21 +92,39 @@ def _train_save_load(tmpdir, train_config, loss, val_metric, model, weight_map, 
     lr_scheduler = create_lr_scheduler(train_config.get("lr_scheduler", None), optimizer)
 
     formatter = TensorboardFormatter()
-    trainer = UNetTrainer(model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders, tmpdir,
-                          max_num_epochs=train_config["trainer"]["max_num_epochs"],
-                          max_num_iterations=train_config["trainer"]["max_num_iterations"],
-                          validate_after_iters=train_config["trainer"]["log_after_iters"],
-                          log_after_iters=train_config["trainer"]["log_after_iters"], tensorboard_formatter=formatter,
-                          device=train_config["device"])
+    trainer = UNetTrainer(
+        model,
+        optimizer,
+        lr_scheduler,
+        loss_criterion,
+        eval_criterion,
+        loaders,
+        tmpdir,
+        max_num_epochs=train_config["trainer"]["max_num_epochs"],
+        max_num_iterations=train_config["trainer"]["max_num_iterations"],
+        validate_after_iters=train_config["trainer"]["log_after_iters"],
+        log_after_iters=train_config["trainer"]["log_after_iters"],
+        tensorboard_formatter=formatter,
+        device=train_config["device"],
+    )
     trainer.fit()
     # test loading the trainer from the checkpoint
-    trainer = UNetTrainer(model, optimizer, lr_scheduler, loss_criterion, eval_criterion, loaders, tmpdir,
-                          max_num_epochs=train_config["trainer"]["max_num_epochs"],
-                          max_num_iterations=train_config["trainer"]["max_num_iterations"],
-                          validate_after_iters=train_config["trainer"]["log_after_iters"],
-                          log_after_iters=train_config["trainer"]["log_after_iters"], tensorboard_formatter=formatter,
-                          resume=os.path.join(tmpdir, "last_checkpoint.pytorch"),
-                          device=train_config["device"])
+    trainer = UNetTrainer(
+        model,
+        optimizer,
+        lr_scheduler,
+        loss_criterion,
+        eval_criterion,
+        loaders,
+        tmpdir,
+        max_num_epochs=train_config["trainer"]["max_num_epochs"],
+        max_num_iterations=train_config["trainer"]["max_num_iterations"],
+        validate_after_iters=train_config["trainer"]["log_after_iters"],
+        log_after_iters=train_config["trainer"]["log_after_iters"],
+        tensorboard_formatter=formatter,
+        resume=os.path.join(tmpdir, "last_checkpoint.pytorch"),
+        device=train_config["device"],
+    )
     return trainer
 
 

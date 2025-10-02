@@ -119,8 +119,10 @@ class RandomRotate:
         if m.ndim == 3:
             m = rotate(m, angle, axes=axis, reshape=False, order=self.order, mode=self.mode, cval=-1)
         else:
-            channels = [rotate(m[c], angle, axes=axis, reshape=False, order=self.order, mode=self.mode, cval=-1) for c
-                        in range(m.shape[0])]
+            channels = [
+                rotate(m[c], angle, axes=axis, reshape=False, order=self.order, mode=self.mode, cval=-1)
+                for c in range(m.shape[0])
+            ]
             m = np.stack(channels, axis=0)
 
         return m
@@ -194,8 +196,9 @@ class ElasticDeformation:
         apply_3d: If True apply deformations in each axis. Default: True.
     """
 
-    def __init__(self, random_state, spline_order, alpha=2000, sigma=50, execution_probability=0.1, apply_3d=True,
-                 **kwargs):
+    def __init__(
+        self, random_state, spline_order, alpha=2000, sigma=50, execution_probability=0.1, apply_3d=True, **kwargs
+    ):
         self.random_state = random_state
         self.spline_order = spline_order
         self.alpha = alpha
@@ -218,10 +221,8 @@ class ElasticDeformation:
                 dz = np.zeros_like(m)
 
             dy, dx = [
-                gaussian_filter(
-                    self.random_state.randn(*volume_shape),
-                    self.sigma, mode="reflect"
-                ) * self.alpha for _ in range(2)
+                gaussian_filter(self.random_state.randn(*volume_shape), self.sigma, mode="reflect") * self.alpha
+                for _ in range(2)
             ]
 
             z_dim, y_dim, x_dim = volume_shape
@@ -283,12 +284,12 @@ class CropToFixed:
             x_start, x_pad = _start_and_pad(self.crop_x, x)
 
         if m.ndim == 3:
-            result = m[:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
+            result = m[:, y_start : y_start + self.crop_y, x_start : x_start + self.crop_x]
             return np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode="reflect")
         else:
             channels = []
             for c in range(m.shape[0]):
-                result = m[c][:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
+                result = m[c][:, y_start : y_start + self.crop_y, x_start : x_start + self.crop_x]
                 channels.append(np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode="reflect"))
             return np.stack(channels, axis=0)
 
@@ -306,7 +307,7 @@ class AbstractLabelToBoundary:
     AXES_TRANSPOSE = [
         (0, 1, 2),  # X
         (0, 2, 1),  # Y
-        (2, 0, 1)  # Z
+        (2, 0, 1),  # Z
     ]
 
     def __init__(self, ignore_index=None, aggregate_affinities=False, append_label=False, **kwargs):
@@ -334,7 +335,7 @@ class AbstractLabelToBoundary:
             # aggregate affinities with the same offset
             for i in range(0, len(kernels), 3):
                 # merge across X,Y,Z axes (logical OR)
-                xyz_aggregated_affinities = np.logical_or.reduce(channels[i:i + 3, ...]).astype(np.int32)
+                xyz_aggregated_affinities = np.logical_or.reduce(channels[i : i + 3, ...]).astype(np.int32)
                 # recover ignore index
                 xyz_aggregated_affinities = _recover_ignore_index(xyz_aggregated_affinities, m, self.ignore_index)
                 results.append(xyz_aggregated_affinities)
@@ -362,8 +363,7 @@ class AbstractLabelToBoundary:
 
 
 class StandardLabelToBoundary:
-    def __init__(self, ignore_index=None, append_label=False, mode="thick", foreground=False,
-                 **kwargs):
+    def __init__(self, ignore_index=None, append_label=False, mode="thick", foreground=False, **kwargs):
         self.ignore_index = ignore_index
         self.append_label = append_label
         self.mode = mode
@@ -475,10 +475,12 @@ class LabelToAffinities(AbstractLabelToBoundary):
         z_offsets: Offsets for z-axis, if different from xy offsets.
     """
 
-    def __init__(self, offsets, ignore_index=None, append_label=False, aggregate_affinities=False, z_offsets=None,
-                 **kwargs):
-        super().__init__(ignore_index=ignore_index, append_label=append_label,
-                         aggregate_affinities=aggregate_affinities)
+    def __init__(
+        self, offsets, ignore_index=None, append_label=False, aggregate_affinities=False, z_offsets=None, **kwargs
+    ):
+        super().__init__(
+            ignore_index=ignore_index, append_label=append_label, aggregate_affinities=aggregate_affinities
+        )
 
         assert isinstance(offsets, list) or isinstance(offsets, tuple), "offsets must be a list or a tuple"
         assert all(a > 0 for a in offsets), "'offsets' must be positive"
@@ -549,13 +551,25 @@ class LabelToBoundaryAndAffinities:
         foreground: If True, include foreground mask. Default: False.
     """
 
-    def __init__(self, xy_offsets, z_offsets, append_label=False, blur=False, sigma=1, ignore_index=None, mode="thick",
-                 foreground=False, **kwargs):
+    def __init__(
+        self,
+        xy_offsets,
+        z_offsets,
+        append_label=False,
+        blur=False,
+        sigma=1,
+        ignore_index=None,
+        mode="thick",
+        foreground=False,
+        **kwargs,
+    ):
         # blur only StandardLabelToBoundary results; we don't want to blur the affinities
-        self.l2b = StandardLabelToBoundary(blur=blur, sigma=sigma, ignore_index=ignore_index, mode=mode,
-                                           foreground=foreground)
-        self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label,
-                                     ignore_index=ignore_index)
+        self.l2b = StandardLabelToBoundary(
+            blur=blur, sigma=sigma, ignore_index=ignore_index, mode=mode, foreground=foreground
+        )
+        self.l2a = LabelToAffinities(
+            offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label, ignore_index=ignore_index
+        )
 
     def __call__(self, m):
         boundary = self.l2b(m)
@@ -566,8 +580,9 @@ class LabelToBoundaryAndAffinities:
 class LabelToMaskAndAffinities:
     def __init__(self, xy_offsets, z_offsets, append_label=False, background=0, ignore_index=None, **kwargs):
         self.background = background
-        self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label,
-                                     ignore_index=ignore_index)
+        self.l2a = LabelToAffinities(
+            offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label, ignore_index=ignore_index
+        )
 
     def __call__(self, m):
         mask = m > self.background
@@ -650,8 +665,7 @@ class Normalize:
         eps: Small value to prevent division by zero. Default: 1e-10.
     """
 
-    def __init__(self, min_value=None, max_value=None, norm01=False, channelwise=False,
-                 eps=1e-10, **kwargs):
+    def __init__(self, min_value=None, max_value=None, norm01=False, channelwise=False, eps=1e-10, **kwargs):
         if min_value is not None and max_value is not None:
             assert max_value > min_value
         self.min_value = min_value
@@ -777,7 +791,9 @@ class Relabel:
         self.run_cc = run_cc
 
         if ignore_label is not None:
-            assert append_original, "ignore_label present, so append_original must be true, so that one can localize the ignore region"
+            assert append_original, (
+                "ignore_label present, so append_original must be true, so that one can localize the ignore region"
+            )
 
     def __call__(self, m):
         orig = m
@@ -815,7 +831,7 @@ class LabelToTensor:
 
 
 class GaussianBlur3D:
-    def __init__(self, sigma=(.1, 2.), execution_probability=0.5, **kwargs):
+    def __init__(self, sigma=(0.1, 2.0), execution_probability=0.5, **kwargs):
         self.sigma = sigma
         self.execution_probability = execution_probability
 
@@ -846,10 +862,8 @@ class Transformer:
         return clazz
 
     def _create_transform(self, name):
-        assert name in self.phase_config, f'Could not find {name} transform'
-        return Compose([
-            self._create_augmentation(c) for c in self.phase_config[name]
-        ])
+        assert name in self.phase_config, f"Could not find {name} transform"
+        return Compose([self._create_augmentation(c) for c in self.phase_config[name]])
 
     def _create_augmentation(self, c):
         config = dict(self.config_base)

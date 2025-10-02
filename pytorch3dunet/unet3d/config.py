@@ -61,7 +61,7 @@ def override_config(args, config):
         c = config
         for k in key.split("."):
             if k not in c:
-                raise ValueError(f'Invalid config key: {key}')
+                raise ValueError(f"Invalid config key: {key}")
             if isinstance(c[k], dict):
                 c = c[k]
             else:
@@ -105,8 +105,7 @@ def copy_config(config, config_path):
         subfolders = [f.path for f in os.scandir(path) if f.is_dir()]
         return max(subfolders, default=None)
 
-    checkpoint_dir = os.path.join(
-        config["trainer"].pop("checkpoint_dir"), "logs")
+    checkpoint_dir = os.path.join(config["trainer"].pop("checkpoint_dir"), "logs")
     last_run_dir = _get_last_subfolder_path(checkpoint_dir)
     config_file_name = os.path.basename(config_path)
 

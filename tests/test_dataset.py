@@ -24,18 +24,21 @@ class TestHDF5Dataset:
                 raw = f["raw"][...]
                 label = f["label"][...]
 
-                dataset = StandardHDF5Dataset(path, phase=phase,
-                                              slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
-                                              transformer_config=transformer_config[phase]["transformer"],
-                                              raw_internal_path="raw",
-                                              label_internal_path="label")
+                dataset = StandardHDF5Dataset(
+                    path,
+                    phase=phase,
+                    slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
+                    transformer_config=transformer_config[phase]["transformer"],
+                    raw_internal_path="raw",
+                    label_internal_path="label",
+                )
 
                 # create zero-arrays of the same shape as the original dataset in order to verify if every element
                 # was visited during the iteration
                 visit_raw = np.zeros_like(raw)
                 visit_label = np.zeros_like(label)
 
-                for (_, idx) in dataset:
+                for _, idx in dataset:
                     visit_raw[idx] = 1
                     visit_label[idx] = 1
 
@@ -56,19 +59,21 @@ class TestHDF5Dataset:
                 raw_shape = f["raw"].shape
                 label_shape = f["label"].shape
 
-            dataset = LazyHDF5Dataset(path, phase=phase,
-                                      slice_builder_config=_slice_builder_conf(patch_shape, stride_shape,
-                                                                               halo_shape),
-                                      transformer_config=transformer_config[phase]["transformer"],
-                                      raw_internal_path="raw",
-                                      label_internal_path="label")
+            dataset = LazyHDF5Dataset(
+                path,
+                phase=phase,
+                slice_builder_config=_slice_builder_conf(patch_shape, stride_shape, halo_shape),
+                transformer_config=transformer_config[phase]["transformer"],
+                raw_internal_path="raw",
+                label_internal_path="label",
+            )
 
             # create zero-arrays of the same shape as the original dataset in order to verify if every element
             # was visited during the iteration
             visit_raw = np.zeros(raw_shape)
             visit_label = np.zeros(label_shape)
 
-            for (_, idx) in dataset:
+            for _, idx in dataset:
                 visit_raw[idx] = 1
                 visit_label[idx] = 1
 
@@ -88,12 +93,15 @@ class TestHDF5Dataset:
 
         # set phase='train' in order to execute the train transformers
         phase = "train"
-        dataset = StandardHDF5Dataset(tmp_file, phase=phase,
-                                      slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32)),
-                                      transformer_config=transformer_config[phase]["transformer"])
+        dataset = StandardHDF5Dataset(
+            tmp_file,
+            phase=phase,
+            slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32)),
+            transformer_config=transformer_config[phase]["transformer"],
+        )
 
         data_loader = DataLoader(dataset, batch_size=1, shuffle=True)
-        for (img, label) in data_loader:
+        for img, label in data_loader:
             for i in range(label.shape[0]):
                 assert np.allclose(img, label[i])
 
@@ -106,7 +114,7 @@ class TestHDF5Dataset:
             os.path.join(test_tmp_dir, "f2.h5"),
             os.path.join(test_tmp_dir, "f3.hdf"),
             os.path.join(test_tmp_dir, "f4.hdf5"),
-            os.path.join(test_tmp_dir, "f5.hd5")
+            os.path.join(test_tmp_dir, "f5.hd5"),
         ]
         # create expected files
         for ef in expected_files:
@@ -131,14 +139,19 @@ class TestHDF5Dataset:
 
         # halo only implemented with test phase
         phase = "test"
-        dataset = StandardHDF5Dataset(tmp_file, phase=phase,
-                                      slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32), halo_shape),
-                                      transformer_config=_transformer_test_conf())
+        dataset = StandardHDF5Dataset(
+            tmp_file,
+            phase=phase,
+            slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32), halo_shape),
+            transformer_config=_transformer_test_conf(),
+        )
         data_loader = DataLoader(dataset, batch_size=1, shuffle=True, collate_fn=default_prediction_collate)
 
         # verify all patches have the correct halo added and removed
-        for (input_batch, indices_batch) in data_loader:  # input_batch has NCDHW shape, indices_batch has length N
-            for input_, indices in zip(input_batch, indices_batch, strict=True):  # input_ has CDHW shape, indices is for DHW
+        for input_batch, indices_batch in data_loader:  # input_batch has NCDHW shape, indices_batch has length N
+            for input_, indices in zip(
+                input_batch, indices_batch, strict=True
+            ):  # input_ has CDHW shape, indices is for DHW
                 input_ = remove_padding(input_, halo_shape)
                 assert np.allclose(input_[0], raw[indices])
 
@@ -151,12 +164,15 @@ class TestHDF5Dataset:
         phase = "train"
 
         for patch_shape, stride_shape in zip(patch_shapes, stride_shapes, strict=True):
-            dataset = StandardHDF5Dataset(path, phase=phase,
-                                          slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
-                                          transformer_config=transformer_config[phase]["transformer"],
-                                          raw_internal_path="raw",
-                                          label_internal_path="label",
-                                          random_scale=20)
+            dataset = StandardHDF5Dataset(
+                path,
+                phase=phase,
+                slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
+                transformer_config=transformer_config[phase]["transformer"],
+                raw_internal_path="raw",
+                label_internal_path="label",
+                random_scale=20,
+            )
 
             for raw, label in dataset:
                 if raw.ndim == 3:

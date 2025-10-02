@@ -130,7 +130,7 @@ class SegmentationMetrics:
             "precision": precision(tp, fp, fn),
             "recall": recall(tp, fp, fn),
             "accuracy": accuracy(tp, fp, fn),
-            "f1": f1(tp, fp, fn)
+            "f1": f1(tp, fp, fn),
         }
 
 

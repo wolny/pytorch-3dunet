@@ -26,12 +26,12 @@ class RandomScaler:
     """
 
     def __init__(
-            self,
-            scale_range: int,
-            patch_shape: tuple,
-            volume_shape: tuple,
-            execution_probability: float = 0.5,
-            seed: int = 47
+        self,
+        scale_range: int,
+        patch_shape: tuple,
+        volume_shape: tuple,
+        execution_probability: float = 0.5,
+        seed: int = 47,
     ):
         self.scale_range = scale_range
         self.patch_shape = patch_shape
@@ -63,7 +63,9 @@ class RandomScaler:
             label_idx_spacial = label_idx[1:]
         else:
             label_idx_spacial = label_idx
-        assert raw_idx_spacial == label_idx_spacial, f"Raw and label indices are different: {raw_idx_spacial} != {label_idx_spacial}"
+        assert raw_idx_spacial == label_idx_spacial, (
+            f"Raw and label indices are different: {raw_idx_spacial} != {label_idx_spacial}"
+        )
 
         return raw_idx, label_idx
 
@@ -199,12 +201,7 @@ class SliceBuilder:
     """
 
     def __init__(
-            self,
-            raw_dataset: np.ndarray,
-            label_dataset: np.ndarray,
-            patch_shape: tuple,
-            stride_shape: tuple,
-            **kwargs
+        self, raw_dataset: np.ndarray, label_dataset: np.ndarray, patch_shape: tuple, stride_shape: tuple, **kwargs
     ):
         patch_shape = tuple(patch_shape)
         stride_shape = tuple(stride_shape)
@@ -295,15 +292,15 @@ class FilterSliceBuilder(SliceBuilder):
     """
 
     def __init__(
-            self,
-            raw_dataset: np.ndarray,
-            label_dataset: np.ndarray,
-            patch_shape: tuple,
-            stride_shape: tuple,
-            ignore_index: int | None = None,
-            threshold: float = 0.6,
-            slack_acceptance: float = 0.01,
-            **kwargs
+        self,
+        raw_dataset: np.ndarray,
+        label_dataset: np.ndarray,
+        patch_shape: tuple,
+        stride_shape: tuple,
+        ignore_index: int | None = None,
+        threshold: float = 0.6,
+        slack_acceptance: float = 0.01,
+        **kwargs,
     ):
         super().__init__(raw_dataset, label_dataset, patch_shape, stride_shape, **kwargs)
         if label_dataset is None:
@@ -336,11 +333,7 @@ class FilterSliceBuilder(SliceBuilder):
 
 
 def _loader_classes(class_name):
-    modules = [
-        "pytorch3dunet.datasets.hdf5",
-        "pytorch3dunet.datasets.dsb",
-        "pytorch3dunet.datasets.utils"
-    ]
+    modules = ["pytorch3dunet.datasets.hdf5", "pytorch3dunet.datasets.dsb", "pytorch3dunet.datasets.utils"]
     return get_class(class_name, modules)
 
 
@@ -374,8 +367,9 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
         logger.warning(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
     dataset_class = _loader_classes(dataset_cls_str)
 
-    assert set(loaders_config["train"]["file_paths"]).isdisjoint(loaders_config["val"]["file_paths"]), \
+    assert set(loaders_config["train"]["file_paths"]).isdisjoint(loaders_config["val"]["file_paths"]), (
         "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
+    )
 
     train_datasets = dataset_class.create_datasets(loaders_config, phase="train")
 
@@ -388,18 +382,30 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
     assert device, "Device not specified in the config file and could not be inferred automatically"
     if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         logger.info(
-            f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}'
+            f"{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}"
         )
         batch_size = batch_size * torch.cuda.device_count()
 
-    logger.info(f'Batch size for train/val loader: {batch_size}')
+    logger.info(f"Batch size for train/val loader: {batch_size}")
     loader_kwargs = os_dependent_dataloader_kwargs()
     return {
-        "train": DataLoader(ConcatDataset(train_datasets), batch_size=batch_size, shuffle=True,
-                            num_workers=num_workers, drop_last=True, **loader_kwargs),
+        "train": DataLoader(
+            ConcatDataset(train_datasets),
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            drop_last=True,
+            **loader_kwargs,
+        ),
         # don't shuffle during validation: useful when showing how predictions for a given batch get better over time
-        "val": DataLoader(ConcatDataset(val_datasets), batch_size=batch_size, shuffle=False,
-                          num_workers=num_workers, drop_last=True, **loader_kwargs)
+        "val": DataLoader(
+            ConcatDataset(val_datasets),
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            drop_last=True,
+            **loader_kwargs,
+        ),
     }
 
 
@@ -435,11 +441,11 @@ def get_test_loaders(config: dict) -> DataLoader:
     assert device, "Device not specified in the config file and could not be inferred automatically"
     if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
         logger.info(
-            f'{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}'
+            f"{torch.cuda.device_count()} GPUs available. Using batch_size = {torch.cuda.device_count()} * {batch_size}"
         )
         batch_size = batch_size * torch.cuda.device_count()
 
-    logger.info(f'Batch size for dataloader: {batch_size}')
+    logger.info(f"Batch size for dataloader: {batch_size}")
 
     # use generator in order to create data loaders lazily one by one
     for test_dataset in test_datasets:
@@ -452,7 +458,8 @@ def get_test_loaders(config: dict) -> DataLoader:
         dataloader_kwargs = os_dependent_dataloader_kwargs()
 
         yield DataLoader(
-            test_dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn, **dataloader_kwargs)
+            test_dataset, batch_size=batch_size, num_workers=num_workers, collate_fn=collate_fn, **dataloader_kwargs
+        )
 
 
 def default_prediction_collate(batch):
@@ -492,12 +499,7 @@ def calculate_stats(img: np.array, skip: bool = False) -> dict[str, Any]:
     else:
         pmin, pmax, mean, std = None, None, None, None
 
-    return {
-        "pmin": pmin,
-        "pmax": pmax,
-        "mean": mean,
-        "std": std
-    }
+    return {"pmin": pmin, "pmax": pmax, "mean": mean, "std": std}
 
 
 def mirror_pad(image, padding_shape):
