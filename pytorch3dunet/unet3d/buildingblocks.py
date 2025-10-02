@@ -38,28 +38,28 @@ def create_conv(
     Return:
         list modules, where each module is a tuple (name, module)
     """
-    assert 'c' in order, "Conv layer MUST be present"
-    assert order[0] not in 'rle', 'Non-linearity cannot be the first operation in the layer'
+    assert "c" in order, "Conv layer MUST be present"
+    assert order[0] not in "rle", "Non-linearity cannot be the first operation in the layer"
 
     modules = []
     for i, char in enumerate(order):
-        if char == 'r':
-            modules.append(('ReLU', nn.ReLU(inplace=True)))
-        elif char == 'l':
-            modules.append(('LeakyReLU', nn.LeakyReLU(inplace=True)))
-        elif char == 'e':
-            modules.append(('ELU', nn.ELU(inplace=True)))
-        elif char == 'c':
+        if char == "r":
+            modules.append(("ReLU", nn.ReLU(inplace=True)))
+        elif char == "l":
+            modules.append(("LeakyReLU", nn.LeakyReLU(inplace=True)))
+        elif char == "e":
+            modules.append(("ELU", nn.ELU(inplace=True)))
+        elif char == "c":
             # add learnable bias only in the absence of batchnorm/groupnorm
-            bias = not ('g' in order or 'b' in order)
+            bias = not ("g" in order or "b" in order)
             if is3d:
                 conv = nn.Conv3d(in_channels, out_channels, kernel_size, padding=padding, bias=bias)
             else:
                 conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding, bias=bias)
 
-            modules.append(('conv', conv))
-        elif char == 'g':
-            is_before_conv = i < order.index('c')
+            modules.append(("conv", conv))
+        elif char == "g":
+            is_before_conv = i < order.index("c")
             if is_before_conv:
                 num_channels = in_channels
             else:
@@ -70,22 +70,22 @@ def create_conv(
                 num_groups = 1
 
             assert num_channels % num_groups == 0, f'Expected number of channels in input to be divisible by num_groups. num_channels={num_channels}, num_groups={num_groups}'
-            modules.append(('groupnorm', nn.GroupNorm(num_groups=num_groups, num_channels=num_channels)))
-        elif char == 'b':
-            is_before_conv = i < order.index('c')
+            modules.append(("groupnorm", nn.GroupNorm(num_groups=num_groups, num_channels=num_channels)))
+        elif char == "b":
+            is_before_conv = i < order.index("c")
             if is3d:
                 bn = nn.BatchNorm3d
             else:
                 bn = nn.BatchNorm2d
 
             if is_before_conv:
-                modules.append(('batchnorm', bn(in_channels)))
+                modules.append(("batchnorm", bn(in_channels)))
             else:
-                modules.append(('batchnorm', bn(out_channels)))
-        elif char == 'd':
-            modules.append(('dropout', nn.Dropout(p=dropout_prob)))
-        elif char == 'D':
-            modules.append(('dropout2d', nn.Dropout2d(p=dropout_prob)))
+                modules.append(("batchnorm", bn(out_channels)))
+        elif char == "d":
+            modules.append(("dropout", nn.Dropout(p=dropout_prob)))
+        elif char == "D":
+            modules.append(("dropout2d", nn.Dropout2d(p=dropout_prob)))
         else:
             raise ValueError(
                 f"Unsupported layer type '{char}'. MUST be one of ['b', 'g', 'r', 'l', 'e', 'c', 'd', 'D']")
@@ -113,7 +113,7 @@ class SingleConv(nn.Sequential):
         is3d (bool): if True use Conv3d, otherwise use Conv2d
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size=3, order='gcr', num_groups=8,
+    def __init__(self, in_channels, out_channels, kernel_size=3, order="gcr", num_groups=8,
                  padding=1, dropout_prob=0.1, is3d=True):
         super(SingleConv, self).__init__()
 
@@ -147,7 +147,7 @@ class DoubleConv(nn.Sequential):
         is3d (bool): if True use Conv3d instead of Conv2d layers
     """
 
-    def __init__(self, in_channels, out_channels, encoder, kernel_size=3, order='gcr',
+    def __init__(self, in_channels, out_channels, encoder, kernel_size=3, order="gcr",
                  num_groups=8, padding=1, upscale=2, dropout_prob=0.1, is3d=True):
         super(DoubleConv, self).__init__()
         if encoder:
@@ -174,11 +174,11 @@ class DoubleConv(nn.Sequential):
             dropout_prob1 = dropout_prob2 = dropout_prob
 
         # conv1
-        self.add_module('SingleConv1',
+        self.add_module("SingleConv1",
                         SingleConv(conv1_in_channels, conv1_out_channels, kernel_size, order, num_groups,
                                    padding=padding, dropout_prob=dropout_prob1, is3d=is3d))
         # conv2
-        self.add_module('SingleConv2',
+        self.add_module("SingleConv2",
                         SingleConv(conv2_in_channels, conv2_out_channels, kernel_size, order, num_groups,
                                    padding=padding, dropout_prob=dropout_prob2, is3d=is3d))
 
@@ -198,7 +198,7 @@ class ResNetBlock(nn.Module):
         is3d: If True use Conv3d, otherwise use Conv2d. Default: True.
     """
 
-    def __init__(self, in_channels, out_channels, kernel_size=3, order='cge', num_groups=8, is3d=True, **kwargs):
+    def __init__(self, in_channels, out_channels, kernel_size=3, order="cge", num_groups=8, is3d=True, **kwargs):
         super(ResNetBlock, self).__init__()
 
         if in_channels != out_channels:
@@ -215,15 +215,15 @@ class ResNetBlock(nn.Module):
                                 is3d=is3d)
         # remove non-linearity from the 3rd convolution since it's going to be applied after adding the residual
         n_order = order
-        for c in 'rel':
-            n_order = n_order.replace(c, '')
+        for c in "rel":
+            n_order = n_order.replace(c, "")
         self.conv3 = SingleConv(out_channels, out_channels, kernel_size=kernel_size, order=n_order,
                                 num_groups=num_groups, is3d=is3d)
 
         # create non-linearity separately
-        if 'l' in order:
+        if "l" in order:
             self.non_linearity = nn.LeakyReLU(negative_slope=0.1, inplace=True)
-        elif 'e' in order:
+        elif "e" in order:
             self.non_linearity = nn.ELU(inplace=True)
         else:
             self.non_linearity = nn.ReLU(inplace=True)
@@ -243,16 +243,16 @@ class ResNetBlock(nn.Module):
 
 
 class ResNetBlockSE(ResNetBlock):
-    def __init__(self, in_channels, out_channels, kernel_size=3, order='cge', num_groups=8, se_module='scse', **kwargs):
+    def __init__(self, in_channels, out_channels, kernel_size=3, order="cge", num_groups=8, se_module="scse", **kwargs):
         super(ResNetBlockSE, self).__init__(
             in_channels, out_channels, kernel_size=kernel_size, order=order,
             num_groups=num_groups, **kwargs)
-        assert se_module in ['scse', 'cse', 'sse']
-        if se_module == 'scse':
+        assert se_module in ["scse", "cse", "sse"]
+        if se_module == "scse":
             self.se_module = ChannelSpatialSELayer3D(num_channels=out_channels, reduction_ratio=1)
-        elif se_module == 'cse':
+        elif se_module == "cse":
             self.se_module = ChannelSELayer3D(num_channels=out_channels, reduction_ratio=1)
-        elif se_module == 'sse':
+        elif se_module == "sse":
             self.se_module = SpatialSELayer3D(num_channels=out_channels)
 
     def forward(self, x):
@@ -287,12 +287,12 @@ class Encoder(nn.Module):
     """
 
     def __init__(self, in_channels, out_channels, conv_kernel_size=3, apply_pooling=True,
-                 pool_kernel_size=2, pool_type='max', basic_module=DoubleConv, conv_layer_order='gcr',
+                 pool_kernel_size=2, pool_type="max", basic_module=DoubleConv, conv_layer_order="gcr",
                  num_groups=8, padding=1, upscale=2, dropout_prob=0.1, is3d=True):
         super(Encoder, self).__init__()
-        assert pool_type in ['max', 'avg']
+        assert pool_type in ["max", "avg"]
         if apply_pooling:
-            if pool_type == 'max':
+            if pool_type == "max":
                 if is3d:
                     self.pooling = nn.MaxPool3d(kernel_size=pool_kernel_size)
                 else:
@@ -349,7 +349,7 @@ class Decoder(nn.Module):
     """
 
     def __init__(self, in_channels, out_channels, conv_kernel_size=3, scale_factor=2, basic_module=DoubleConv,
-                 conv_layer_order='gcr', num_groups=8, padding=1, upsample='default',
+                 conv_layer_order="gcr", num_groups=8, padding=1, upsample="default",
                  dropout_prob=0.1, is3d=True):
         super(Decoder, self).__init__()
 
@@ -359,19 +359,19 @@ class Decoder(nn.Module):
         # don't adapt channels after join operation
         adapt_channels = False
 
-        if upsample is not None and upsample != 'none':
-            if upsample == 'default':
+        if upsample is not None and upsample != "none":
+            if upsample == "default":
                 if basic_module == DoubleConv:
-                    upsample = 'nearest'  # use nearest neighbor interpolation for upsampling
+                    upsample = "nearest"  # use nearest neighbor interpolation for upsampling
                     concat = True  # use concat joining
                     adapt_channels = False  # don't adapt channels
                 elif basic_module == ResNetBlock or basic_module == ResNetBlockSE:
-                    upsample = 'deconv'  # use deconvolution upsampling
+                    upsample = "deconv"  # use deconvolution upsampling
                     concat = False  # use summation joining
                     adapt_channels = True  # adapt channels after joining
 
             # perform deconvolution upsampling if mode is deconv
-            if upsample == 'deconv':
+            if upsample == "deconv":
                 self.upsampling = TransposeConvUpsampling(in_channels=in_channels, out_channels=out_channels,
                                                           kernel_size=conv_kernel_size, scale_factor=scale_factor,
                                                           is3d=is3d)
@@ -454,7 +454,7 @@ def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_
     decoders = []
     reversed_f_maps = list(reversed(f_maps))
     for i in range(len(reversed_f_maps) - 1):
-        if basic_module == DoubleConv and upsample != 'deconv':
+        if basic_module == DoubleConv and upsample != "deconv":
             in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
         else:
             in_feature_num = reversed_f_maps[i]
@@ -505,7 +505,7 @@ class InterpolateUpsampling(AbstractUpsampling):
             used only if transposed_conv is False
     """
 
-    def __init__(self, mode='nearest'):
+    def __init__(self, mode="nearest"):
         upsample = partial(self._interpolate, mode=mode)
         super().__init__(upsample)
 

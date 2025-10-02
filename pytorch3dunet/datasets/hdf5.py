@@ -11,7 +11,7 @@ import pytorch3dunet.augment.transforms as transforms
 from pytorch3dunet.datasets.utils import get_slice_builder, ConfigDataset, calculate_stats, mirror_pad, RandomScaler
 from pytorch3dunet.unet3d.utils import get_logger
 
-logger = get_logger('HDF5Dataset')
+logger = get_logger("HDF5Dataset")
 
 
 def _create_padded_indexes(indexes, halo_shape):
@@ -24,7 +24,7 @@ def traverse_h5_paths(file_paths):
     for file_path in file_paths:
         if os.path.isdir(file_path):
             # if file path is a directory take all H5 files in that directory
-            iters = [glob.glob(os.path.join(file_path, ext)) for ext in ['*.h5', '*.hdf', '*.hdf5', '*.hd5']]
+            iters = [glob.glob(os.path.join(file_path, ext)) for ext in ["*.h5", "*.hdf", "*.hdf5", "*.hd5"]]
             for fp in chain(*iters):
                 results.append(fp)
         else:
@@ -56,24 +56,24 @@ class AbstractHDF5Dataset(ConfigDataset):
             phase: str,
             slice_builder_config: dict,
             transformer_config: dict,
-            raw_internal_path: str = 'raw',
-            label_internal_path: str = 'label',
+            raw_internal_path: str = "raw",
+            label_internal_path: str = "label",
             global_normalization: bool = True,
             random_scale: Optional[int] = None,
             random_scale_probability: float = 0.5
     ):
-        assert phase in ['train', 'val', 'test']
+        assert phase in ["train", "val", "test"]
 
         self.phase = phase
         self.file_path = file_path
         self.raw_internal_path = raw_internal_path
         self.label_internal_path = label_internal_path
 
-        self.halo_shape = tuple(slice_builder_config.get('halo_shape', [0, 0, 0]))
+        self.halo_shape = tuple(slice_builder_config.get("halo_shape", [0, 0, 0]))
 
         if global_normalization:
-            logger.info('Calculating mean and std of the raw data...')
-            with h5py.File(file_path, 'r') as f:
+            logger.info("Calculating mean and std of the raw data...")
+            with h5py.File(file_path, "r") as f:
                 raw = f[raw_internal_path][:]
                 stats = calculate_stats(raw)
         else:
@@ -82,7 +82,7 @@ class AbstractHDF5Dataset(ConfigDataset):
         self.transformer = transforms.Transformer(transformer_config, stats)
         self.raw_transform = self.transformer.raw_transform()
 
-        if phase != 'test':
+        if phase != "test":
             # create label transform only in train/val phase
             self.label_transform = self.transformer.label_transform()
 
@@ -96,24 +96,24 @@ class AbstractHDF5Dataset(ConfigDataset):
                                "prediction. Consider using a non-zero halo shape, e.g. 'halo_shape: [8, 8, 8]' in "
                                "the slice_builder configuration.")
 
-        with h5py.File(file_path, 'r') as f:
+        with h5py.File(file_path, "r") as f:
             raw = f[raw_internal_path]
             if raw.ndim == 3:
                 self.volume_shape = raw.shape
             else:
                 self.volume_shape = raw.shape[1:]
-            label = f[label_internal_path] if phase != 'test' else None
+            label = f[label_internal_path] if phase != "test" else None
             # build slice indices for raw and label data sets
             slice_builder = get_slice_builder(raw, label, slice_builder_config)
             self.raw_slices = slice_builder.raw_slices
             self.label_slices = slice_builder.label_slices
 
         if random_scale is not None:
-            assert isinstance(random_scale, int), 'random_scale must be an integer'
-            stride_shape = slice_builder_config.get('stride_shape')
+            assert isinstance(random_scale, int), "random_scale must be an integer"
+            stride_shape = slice_builder_config.get("stride_shape")
             assert all(random_scale < stride for stride in stride_shape), \
                 f"random_scale {random_scale} must be smaller than each of the strides {stride_shape}"
-            patch_shape = slice_builder_config.get('patch_shape')
+            patch_shape = slice_builder_config.get("patch_shape")
             self.random_scaler = RandomScaler(random_scale, patch_shape, self.volume_shape, random_scale_probability)
             logger.info(f"Using RandomScaler with offset range {random_scale}")
         else:
@@ -139,7 +139,7 @@ class AbstractHDF5Dataset(ConfigDataset):
 
         raw_idx = self.raw_slices[idx]
 
-        if self.phase == 'test':
+        if self.phase == "test":
             if len(raw_idx) == 4:
                 # discard the channel dimension in the slices: predictor requires only the spatial dimensions of the volume
                 raw_idx = raw_idx[1:]  # Remove the first element if raw_idx has 4 elements
@@ -176,23 +176,23 @@ class AbstractHDF5Dataset(ConfigDataset):
                 return volume.shape
             return volume.shape[1:]
 
-        with h5py.File(self.file_path, 'r') as f:
+        with h5py.File(self.file_path, "r") as f:
             raw = f[self.raw_internal_path]
             label = f[self.label_internal_path]
-            assert raw.ndim in [3, 4], 'Raw dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
-            assert label.ndim in [3, 4], 'Label dataset must be 3D (DxHxW) or 4D (CxDxHxW)'
-            assert _volume_shape(raw) == _volume_shape(label), 'Raw and labels have to be of the same size'
+            assert raw.ndim in [3, 4], "Raw dataset must be 3D (DxHxW) or 4D (CxDxHxW)"
+            assert label.ndim in [3, 4], "Label dataset must be 3D (DxHxW) or 4D (CxDxHxW)"
+            assert _volume_shape(raw) == _volume_shape(label), "Raw and labels have to be of the same size"
 
     @classmethod
     def create_datasets(cls, dataset_config, phase):
         phase_config = dataset_config[phase]
 
         # load data augmentation configuration
-        transformer_config = phase_config['transformer']
+        transformer_config = phase_config["transformer"]
         # load slice builder config
-        slice_builder_config = phase_config['slice_builder']
+        slice_builder_config = phase_config["slice_builder"]
         # load files to process
-        file_paths = phase_config['file_paths']
+        file_paths = phase_config["file_paths"]
         # file_paths may contain both files and directories; if the file_path is a directory all H5 files inside
         # are going to be included in the final file_paths
         file_paths = traverse_h5_paths(file_paths)
@@ -201,16 +201,16 @@ class AbstractHDF5Dataset(ConfigDataset):
         with ProcessPoolExecutor() as executor:
             futures = []
             for file_path in file_paths:
-                logger.info(f'Loading {phase} set from: {file_path}...')
+                logger.info(f"Loading {phase} set from: {file_path}...")
                 future = executor.submit(cls, file_path=file_path,
                                          phase=phase,
                                          slice_builder_config=slice_builder_config,
                                          transformer_config=transformer_config,
-                                         raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
-                                         label_internal_path=dataset_config.get('label_internal_path', 'label'),
-                                         global_normalization=dataset_config.get('global_normalization', True),
-                                         random_scale=dataset_config.get('random_scale', None),
-                                         random_scale_probability=dataset_config.get('random_scale_probability', 0.5))
+                                         raw_internal_path=dataset_config.get("raw_internal_path", "raw"),
+                                         label_internal_path=dataset_config.get("label_internal_path", "label"),
+                                         global_normalization=dataset_config.get("global_normalization", True),
+                                         random_scale=dataset_config.get("random_scale", None),
+                                         random_scale_probability=dataset_config.get("random_scale_probability", 0.5))
                 futures.append(future)
 
             datasets = []
@@ -246,8 +246,8 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
             phase,
             slice_builder_config,
             transformer_config,
-            raw_internal_path='raw',
-            label_internal_path='label',
+            raw_internal_path="raw",
+            label_internal_path="label",
             global_normalization=True,
             random_scale=None,
             random_scale_probability=0.5
@@ -263,22 +263,22 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
 
     def get_raw_patch(self, idx):
         if self._raw is None:
-            with h5py.File(self.file_path, 'r') as f:
-                assert self.raw_internal_path in f, f'Dataset {self.raw_internal_path} not found in {self.file_path}'
+            with h5py.File(self.file_path, "r") as f:
+                assert self.raw_internal_path in f, f"Dataset {self.raw_internal_path} not found in {self.file_path}"
                 self._raw = f[self.raw_internal_path][:]
         return self._raw[idx]
 
     def get_label_patch(self, idx):
         if self._label is None:
-            with h5py.File(self.file_path, 'r') as f:
-                assert self.label_internal_path in f, f'Dataset {self.label_internal_path} not found in {self.file_path}'
+            with h5py.File(self.file_path, "r") as f:
+                assert self.label_internal_path in f, f"Dataset {self.label_internal_path} not found in {self.file_path}"
                 self._label = f[self.label_internal_path][:]
         return self._label[idx]
 
     def get_raw_padded_patch(self, idx):
         if self._raw_padded is None:
-            with h5py.File(self.file_path, 'r') as f:
-                assert self.raw_internal_path in f, f'Dataset {self.raw_internal_path} not found in {self.file_path}'
+            with h5py.File(self.file_path, "r") as f:
+                assert self.raw_internal_path in f, f"Dataset {self.raw_internal_path} not found in {self.file_path}"
                 self._raw_padded = mirror_pad(f[self.raw_internal_path][:], self.halo_shape)
         return self._raw_padded[idx]
 
@@ -306,8 +306,8 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
             phase,
             slice_builder_config,
             transformer_config,
-            raw_internal_path='raw',
-            label_internal_path='label',
+            raw_internal_path="raw",
+            label_internal_path="label",
             global_normalization=False,
             random_scale=None,
             random_scale_probability=0.5
@@ -320,19 +320,19 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
         logger.info("Using LazyHDF5Dataset")
 
     def get_raw_patch(self, idx):
-        with h5py.File(self.file_path, 'r') as f:
+        with h5py.File(self.file_path, "r") as f:
             return f[self.raw_internal_path][idx]
 
     def get_label_patch(self, idx):
-        with h5py.File(self.file_path, 'r') as f:
+        with h5py.File(self.file_path, "r") as f:
             return f[self.label_internal_path][idx]
 
     def get_raw_padded_patch(self, idx):
-        with h5py.File(self.file_path, 'r+') as f:
-            if 'raw_padded' in f:
-                return f['raw_padded'][idx]
+        with h5py.File(self.file_path, "r+") as f:
+            if "raw_padded" in f:
+                return f["raw_padded"][idx]
 
             raw = f[self.raw_internal_path][:]
             raw_padded = mirror_pad(raw, self.halo_shape)
-            f.create_dataset('raw_padded', data=raw_padded, compression='gzip')
+            f.create_dataset("raw_padded", data=raw_padded, compression="gzip")
             return raw_padded[idx]

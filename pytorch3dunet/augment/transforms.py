@@ -35,13 +35,13 @@ class RandomFlip:
     """
 
     def __init__(self, random_state, axis_prob=0.5, **kwargs):
-        assert random_state is not None, 'RandomState cannot be None'
+        assert random_state is not None, "RandomState cannot be None"
         self.random_state = random_state
         self.axes = (0, 1, 2)
         self.axis_prob = axis_prob
 
     def __call__(self, m):
-        assert m.ndim in [3, 4], 'Supports only 3D (DxHxW) or 4D (CxDxHxW) images'
+        assert m.ndim in [3, 4], "Supports only 3D (DxHxW) or 4D (CxDxHxW) images"
 
         for axis in self.axes:
             if self.random_state.uniform() > self.axis_prob:
@@ -73,7 +73,7 @@ class RandomRotate90:
         self.axis = (1, 2)
 
     def __call__(self, m):
-        assert m.ndim in [3, 4], 'Supports only 3D (DxHxW) or 4D (CxDxHxW) images'
+        assert m.ndim in [3, 4], "Supports only 3D (DxHxW) or 4D (CxDxHxW) images"
 
         # pick number of rotations at random
         k = self.random_state.randint(0, 4)
@@ -100,7 +100,7 @@ class RandomRotate:
         order: Interpolation order. Default: 0.
     """
 
-    def __init__(self, random_state, angle_spectrum=30, axes=None, mode='reflect', order=0, **kwargs):
+    def __init__(self, random_state, angle_spectrum=30, axes=None, mode="reflect", order=0, **kwargs):
         if axes is None:
             axes = [(1, 0), (2, 1), (2, 0)]
         else:
@@ -225,13 +225,13 @@ class ElasticDeformation:
             ]
 
             z_dim, y_dim, x_dim = volume_shape
-            z, y, x = np.meshgrid(np.arange(z_dim), np.arange(y_dim), np.arange(x_dim), indexing='ij')
+            z, y, x = np.meshgrid(np.arange(z_dim), np.arange(y_dim), np.arange(x_dim), indexing="ij")
             indices = z + dz, y + dy, x + dx
 
             if m.ndim == 3:
-                return map_coordinates(m, indices, order=self.spline_order, mode='reflect')
+                return map_coordinates(m, indices, order=self.spline_order, mode="reflect")
             else:
-                channels = [map_coordinates(c, indices, order=self.spline_order, mode='reflect') for c in m]
+                channels = [map_coordinates(c, indices, order=self.spline_order, mode="reflect") for c in m]
                 return np.stack(channels, axis=0)
 
         return m
@@ -284,12 +284,12 @@ class CropToFixed:
 
         if m.ndim == 3:
             result = m[:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
-            return np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode='reflect')
+            return np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode="reflect")
         else:
             channels = []
             for c in range(m.shape[0]):
                 result = m[c][:, y_start:y_start + self.crop_y, x_start:x_start + self.crop_x]
-                channels.append(np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode='reflect'))
+                channels.append(np.pad(result, pad_width=((0, 0), y_pad, x_pad), mode="reflect"))
             return np.stack(channels, axis=0)
 
 
@@ -362,7 +362,7 @@ class AbstractLabelToBoundary:
 
 
 class StandardLabelToBoundary:
-    def __init__(self, ignore_index=None, append_label=False, mode='thick', foreground=False,
+    def __init__(self, ignore_index=None, append_label=False, mode="thick", foreground=False,
                  **kwargs):
         self.ignore_index = ignore_index
         self.append_label = append_label
@@ -373,11 +373,11 @@ class StandardLabelToBoundary:
         assert m.ndim == 3
 
         boundaries = find_boundaries(m, connectivity=2, mode=self.mode)
-        boundaries = boundaries.astype('int32')
+        boundaries = boundaries.astype("int32")
 
         results = []
         if self.foreground:
-            foreground = (m > 0).astype('uint8')
+            foreground = (m > 0).astype("uint8")
             results.append(_recover_ignore_index(foreground, m, self.ignore_index))
 
         results.append(_recover_ignore_index(boundaries, m, self.ignore_index))
@@ -409,11 +409,11 @@ class BlobsToMask:
         assert m.ndim == 3
 
         # get the segmentation mask
-        mask = (m > 0).astype('uint8')
+        mask = (m > 0).astype("uint8")
         results = [mask]
 
         if self.boundary:
-            outer = find_boundaries(m, connectivity=2, mode='outer')
+            outer = find_boundaries(m, connectivity=2, mode="outer")
             if self.cross_entropy:
                 # boundary is class 2
                 mask[outer > 0] = 2
@@ -480,11 +480,11 @@ class LabelToAffinities(AbstractLabelToBoundary):
         super().__init__(ignore_index=ignore_index, append_label=append_label,
                          aggregate_affinities=aggregate_affinities)
 
-        assert isinstance(offsets, list) or isinstance(offsets, tuple), 'offsets must be a list or a tuple'
-        assert all(a > 0 for a in offsets), "'offsets must be positive"
+        assert isinstance(offsets, list) or isinstance(offsets, tuple), "offsets must be a list or a tuple"
+        assert all(a > 0 for a in offsets), "'offsets' must be positive"
         assert len(set(offsets)) == len(offsets), "'offsets' must be unique"
         if z_offsets is not None:
-            assert len(offsets) == len(z_offsets), 'z_offsets length must be the same as the length of offsets'
+            assert len(offsets) == len(z_offsets), "z_offsets length must be the same as the length of offsets"
         else:
             # if z_offsets is None just use the offsets for z-affinities
             z_offsets = list(offsets)
@@ -519,7 +519,7 @@ class LabelToZAffinities(AbstractLabelToBoundary):
     def __init__(self, offsets, ignore_index=None, append_label=False, **kwargs):
         super().__init__(ignore_index=ignore_index, append_label=append_label)
 
-        assert isinstance(offsets, list) or isinstance(offsets, tuple), 'offsets must be a list or a tuple'
+        assert isinstance(offsets, list) or isinstance(offsets, tuple), "offsets must be a list or a tuple"
         assert all(a > 0 for a in offsets), "'offsets must be positive"
         assert len(set(offsets)) == len(offsets), "'offsets' must be unique"
 
@@ -549,7 +549,7 @@ class LabelToBoundaryAndAffinities:
         foreground: If True, include foreground mask. Default: False.
     """
 
-    def __init__(self, xy_offsets, z_offsets, append_label=False, blur=False, sigma=1, ignore_index=None, mode='thick',
+    def __init__(self, xy_offsets, z_offsets, append_label=False, blur=False, sigma=1, ignore_index=None, mode="thick",
                  foreground=False, **kwargs):
         # blur only StandardLabelToBoundary results; we don't want to blur the affinities
         self.l2b = StandardLabelToBoundary(blur=blur, sigma=sigma, ignore_index=ignore_index, mode=mode,
@@ -665,22 +665,22 @@ class Normalize:
             # get min/max channelwise
             axes = list(range(m.ndim))
             axes = tuple(axes[1:])
-            if self.min_value is None or 'None' in self.min_value:
+            if self.min_value is None or "None" in self.min_value:
                 min_value = np.min(m, axis=axes, keepdims=True)
 
-            if self.max_value is None or 'None' in self.max_value:
+            if self.max_value is None or "None" in self.max_value:
                 max_value = np.max(m, axis=axes, keepdims=True)
 
             # check if non None in self.min_value/self.max_value
             # if present and if so copy value to min_value
             if self.min_value is not None:
                 for i, v in enumerate(self.min_value):
-                    if v != 'None':
+                    if v != "None":
                         min_value[i] = v
 
             if self.max_value is not None:
                 for i, v in enumerate(self.max_value):
-                    if v != 'None':
+                    if v != "None":
                         max_value[i] = v
         else:
             if self.min_value is None:
@@ -747,7 +747,7 @@ class ToTensor:
         self.normalize = normalize
 
     def __call__(self, m):
-        assert m.ndim in [3, 4], 'Supports only 3D (DxHxW) or 4D (CxDxHxW) images'
+        assert m.ndim in [3, 4], "Supports only 3D (DxHxW) or 4D (CxDxHxW) images"
         # add channel dimension
         if self.expand_dims and m.ndim == 3:
             m = np.expand_dims(m, axis=0)
@@ -811,7 +811,7 @@ class RgbToLabel:
 class LabelToTensor:
     def __call__(self, m):
         m = np.array(m)
-        return torch.from_numpy(m.astype(dtype='int64'))
+        return torch.from_numpy(m.astype(dtype="int64"))
 
 
 class GaussianBlur3D:
@@ -834,14 +834,14 @@ class Transformer:
         self.seed = GLOBAL_RANDOM_STATE.randint(10000000)
 
     def raw_transform(self):
-        return self._create_transform('raw')
+        return self._create_transform("raw")
 
     def label_transform(self):
-        return self._create_transform('label')
+        return self._create_transform("label")
 
     @staticmethod
     def _transformer_class(class_name):
-        m = importlib.import_module('pytorch3dunet.augment.transforms')
+        m = importlib.import_module("pytorch3dunet.augment.transforms")
         clazz = getattr(m, class_name)
         return clazz
 
@@ -854,8 +854,8 @@ class Transformer:
     def _create_augmentation(self, c):
         config = dict(self.config_base)
         config.update(c)
-        config['random_state'] = np.random.RandomState(self.seed)
-        aug_class = self._transformer_class(config['name'])
+        config["random_state"] = np.random.RandomState(self.seed)
+        aug_class = self._transformer_class(config["name"])
         return aug_class(**config)
 
 

@@ -87,20 +87,20 @@ class TestCriterion:
         label = ovule_label[64:128, 64:128, 64:128]
         ltb = LabelToAffinities((1, 2, 4, 6), aggregate_affinities=True)
         pred = ltb(label)
-        label = torch.tensor(label.reshape((1, 1) + label.shape).astype('int64'))
+        label = torch.tensor(label.reshape((1, 1) + label.shape).astype("int64"))
         pred = torch.tensor(np.expand_dims(pred, 0))
         ap = BoundaryAveragePrecision()
         assert ap(pred, label) > 0.5
 
     def test_adapted_rand_error(self, ovule_label):
-        label = ovule_label[64:128, 64:128, 64:128].astype('int64')
+        label = ovule_label[64:128, 64:128, 64:128].astype("int64")
         input = torch.tensor(label.reshape((1, 1) + label.shape))
         label = torch.tensor(label.reshape((1, 1) + label.shape))
         arand = AdaptedRandError()
         assert arand(input, label) == 0
 
     def test_adapted_rand_error_on_real_data(self, ovule_label):
-        label = ovule_label[64:128, 64:128, 64:128].astype('int64')
+        label = ovule_label[64:128, 64:128, 64:128].astype("int64")
         ltb = StandardLabelToBoundary()
         pred = ltb(label)
         label = torch.tensor(label.reshape((1, 1) + label.shape))

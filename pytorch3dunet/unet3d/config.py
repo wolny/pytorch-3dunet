@@ -9,12 +9,12 @@ import yaml
 
 from pytorch3dunet.unet3d import utils
 
-logger = utils.get_logger('ConfigLoader')
+logger = utils.get_logger("ConfigLoader")
 
 
 class TorchDevice(str, Enum):
-    CUDA = 'cuda'
-    MPS = 'mps'
+    CUDA = "cuda"
+    MPS = "mps"
     CPU = "cpu"
 
     @classmethod
@@ -54,13 +54,13 @@ def override_config(args, config):
 
     args_dict = vars(args)
     # remove the first argument which is the config file path
-    args_dict.pop('config')
+    args_dict.pop("config")
 
     for key, value in args_dict.items():
         if value is None:
             continue
         c = config
-        for k in key.split('.'):
+        for k in key.split("."):
             if k not in c:
                 raise ValueError(f'Invalid config key: {key}')
             if isinstance(c[k], dict):
@@ -70,14 +70,14 @@ def override_config(args, config):
 
 
 def load_config():
-    parser = argparse.ArgumentParser(description='UNet3D')
-    parser.add_argument('--config', type=str, help='Path to the YAML config file', required=True)
+    parser = argparse.ArgumentParser(description="UNet3D")
+    parser.add_argument("--config", type=str, help="Path to the YAML config file", required=True)
     # add additional command line arguments for the prediction that override the ones in the config file
-    parser.add_argument('--model_path', type=str, required=False)
-    parser.add_argument('--loaders.output_dir', type=str, required=False)
-    parser.add_argument('--loaders.test.file_paths', type=str, nargs="+", required=False)
-    parser.add_argument('--loaders.test.slice_builder.patch_shape', type=int, nargs="+", required=False)
-    parser.add_argument('--loaders.test.slice_builder.stride_shape', type=int, nargs="+", required=False)
+    parser.add_argument("--model_path", type=str, required=False)
+    parser.add_argument("--loaders.output_dir", type=str, required=False)
+    parser.add_argument("--loaders.test.file_paths", type=str, nargs="+", required=False)
+    parser.add_argument("--loaders.test.slice_builder.patch_shape", type=int, nargs="+", required=False)
+    parser.add_argument("--loaders.test.slice_builder.stride_shape", type=int, nargs="+", required=False)
 
     args = parser.parse_args()
     config_path = args.config
@@ -107,7 +107,7 @@ def copy_config(config, config_path):
         return max(subfolders, default=None)
 
     checkpoint_dir = os.path.join(
-        config['trainer'].pop('checkpoint_dir'), 'logs')
+        config["trainer"].pop("checkpoint_dir"), "logs")
     last_run_dir = _get_last_subfolder_path(checkpoint_dir)
     config_file_name = os.path.basename(config_path)
 

@@ -9,7 +9,7 @@ from pytorch3dunet.augment import transforms
 from pytorch3dunet.datasets.utils import ConfigDataset, calculate_stats
 from pytorch3dunet.unet3d.utils import get_logger
 
-logger = get_logger('DSB2018Dataset')
+logger = get_logger("DSB2018Dataset")
 
 
 def dsb_prediction_collate(batch):
@@ -36,13 +36,13 @@ def dsb_prediction_collate(batch):
 
 class DSB2018Dataset(ConfigDataset):
     def __init__(self, root_dir, phase, transformer_config, expand_dims=True):
-        assert os.path.isdir(root_dir), f'{root_dir} is not a directory'
-        assert phase in ['train', 'val', 'test']
+        assert os.path.isdir(root_dir), f"{root_dir} is not a directory"
+        assert phase in ["train", "val", "test"]
 
         self.phase = phase
 
         # load raw images
-        images_dir = os.path.join(root_dir, 'images')
+        images_dir = os.path.join(root_dir, "images")
         assert os.path.isdir(images_dir)
         self.images, self.paths = self._load_files(images_dir, expand_dims)
         self.file_path = images_dir
@@ -54,9 +54,9 @@ class DSB2018Dataset(ConfigDataset):
         # load raw images transformer
         self.raw_transform = transformer.raw_transform()
 
-        if phase != 'test':
+        if phase != "test":
             # load labeled images
-            masks_dir = os.path.join(root_dir, 'masks')
+            masks_dir = os.path.join(root_dir, "masks")
             assert os.path.isdir(masks_dir)
             self.masks, _ = self._load_files(masks_dir, expand_dims)
             assert len(self.images) == len(self.masks)
@@ -71,7 +71,7 @@ class DSB2018Dataset(ConfigDataset):
             raise StopIteration
 
         img = self.images[idx]
-        if self.phase != 'test':
+        if self.phase != "test":
             mask = self.masks[idx]
             return self.raw_transform(img), self.masks_transform(mask)
         else:
@@ -88,10 +88,10 @@ class DSB2018Dataset(ConfigDataset):
     def create_datasets(cls, dataset_config, phase):
         phase_config = dataset_config[phase]
         # load data augmentation configuration
-        transformer_config = phase_config['transformer']
+        transformer_config = phase_config["transformer"]
         # load files to process
-        file_paths = phase_config['file_paths']
-        expand_dims = dataset_config.get('expand_dims', True)
+        file_paths = phase_config["file_paths"]
+        expand_dims = dataset_config.get("expand_dims", True)
         return [cls(file_paths[0], phase, transformer_config, expand_dims)]
 
     @staticmethod

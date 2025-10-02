@@ -16,18 +16,18 @@ class TestHDF5Dataset:
         patch_shapes = [(127, 127, 127), (69, 70, 70), (32, 64, 64)]
         stride_shapes = [(127, 127, 127), (69, 69, 69), (32, 64, 64)]
 
-        phase = 'test'
+        phase = "test"
 
         for patch_shape, stride_shape in zip(patch_shapes, stride_shapes):
-            with h5py.File(path, 'r') as f:
-                raw = f['raw'][...]
-                label = f['label'][...]
+            with h5py.File(path, "r") as f:
+                raw = f["raw"][...]
+                label = f["label"][...]
 
                 dataset = StandardHDF5Dataset(path, phase=phase,
                                               slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
-                                              transformer_config=transformer_config[phase]['transformer'],
-                                              raw_internal_path='raw',
-                                              label_internal_path='label')
+                                              transformer_config=transformer_config[phase]["transformer"],
+                                              raw_internal_path="raw",
+                                              label_internal_path="label")
 
                 # create zero-arrays of the same shape as the original dataset in order to verify if every element
                 # was visited during the iteration
@@ -48,19 +48,19 @@ class TestHDF5Dataset:
         patch_shapes = [(127, 127, 127), (69, 70, 70), (32, 64, 64)]
         stride_shapes = [(127, 127, 127), (69, 69, 69), (32, 64, 64)]
         halo_shape = (16, 32, 32)
-        phase = 'test'
+        phase = "test"
 
         for patch_shape, stride_shape in zip(patch_shapes, stride_shapes):
-            with h5py.File(path, 'r') as f:
-                raw_shape = f['raw'].shape
-                label_shape = f['label'].shape
+            with h5py.File(path, "r") as f:
+                raw_shape = f["raw"].shape
+                label_shape = f["label"].shape
 
             dataset = LazyHDF5Dataset(path, phase=phase,
                                       slice_builder_config=_slice_builder_conf(patch_shape, stride_shape,
                                                                                halo_shape),
-                                      transformer_config=transformer_config[phase]['transformer'],
-                                      raw_internal_path='raw',
-                                      label_internal_path='label')
+                                      transformer_config=transformer_config[phase]["transformer"],
+                                      raw_internal_path="raw",
+                                      label_internal_path="label")
 
             # create zero-arrays of the same shape as the original dataset in order to verify if every element
             # was visited during the iteration
@@ -81,15 +81,15 @@ class TestHDF5Dataset:
         label = np.stack([raw for _ in range(3)])
         # create temporary h5 file
         tmp_file = tmpdir / "test.h5"
-        with h5py.File(tmp_file, 'w') as f:
-            f.create_dataset('raw', data=raw)
-            f.create_dataset('label', data=label)
+        with h5py.File(tmp_file, "w") as f:
+            f.create_dataset("raw", data=raw)
+            f.create_dataset("label", data=label)
 
         # set phase='train' in order to execute the train transformers
-        phase = 'train'
+        phase = "train"
         dataset = StandardHDF5Dataset(tmp_file, phase=phase,
                                       slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32)),
-                                      transformer_config=transformer_config[phase]['transformer'])
+                                      transformer_config=transformer_config[phase]["transformer"])
 
         data_loader = DataLoader(dataset, batch_size=1, shuffle=True)
         for (img, label) in data_loader:
@@ -97,23 +97,23 @@ class TestHDF5Dataset:
                 assert np.allclose(img, label[i])
 
     def test_traverse_file_paths(self, tmpdir):
-        test_tmp_dir = os.path.join(tmpdir, 'test')
+        test_tmp_dir = os.path.join(tmpdir, "test")
         os.mkdir(test_tmp_dir)
 
         expected_files = [
-            os.path.join(tmpdir, 'f1.h5'),
-            os.path.join(test_tmp_dir, 'f2.h5'),
-            os.path.join(test_tmp_dir, 'f3.hdf'),
-            os.path.join(test_tmp_dir, 'f4.hdf5'),
-            os.path.join(test_tmp_dir, 'f5.hd5')
+            os.path.join(tmpdir, "f1.h5"),
+            os.path.join(test_tmp_dir, "f2.h5"),
+            os.path.join(test_tmp_dir, "f3.hdf"),
+            os.path.join(test_tmp_dir, "f4.hdf5"),
+            os.path.join(test_tmp_dir, "f5.hd5")
         ]
         # create expected files
         for ef in expected_files:
-            with h5py.File(ef, 'w') as f:
-                f.create_dataset('raw', data=np.random.randn(4, 4, 4))
+            with h5py.File(ef, "w") as f:
+                f.create_dataset("raw", data=np.random.randn(4, 4, 4))
 
         # make sure that traverse_file_paths runs correctly
-        file_paths = [os.path.join(tmpdir, 'f1.h5'), test_tmp_dir]
+        file_paths = [os.path.join(tmpdir, "f1.h5"), test_tmp_dir]
         actual_files = traverse_h5_paths(file_paths)
 
         assert expected_files == actual_files
@@ -125,11 +125,11 @@ class TestHDF5Dataset:
         raw = np.random.rand(32, 96, 96)
         tmp_file = tmpdir / "test.h5"
 
-        with h5py.File(tmp_file, 'w') as f:
-            f.create_dataset('raw', data=raw)
+        with h5py.File(tmp_file, "w") as f:
+            f.create_dataset("raw", data=raw)
 
         # halo only implemented with test phase
-        phase = 'test'
+        phase = "test"
         dataset = StandardHDF5Dataset(tmp_file, phase=phase,
                                       slice_builder_config=_slice_builder_conf((16, 64, 64), (8, 32, 32), halo_shape),
                                       transformer_config=_transformer_test_conf())
@@ -147,14 +147,14 @@ class TestHDF5Dataset:
         patch_shapes = [(172, 172, 172)]
         stride_shapes = [(28, 28, 28)]
 
-        phase = 'train'
+        phase = "train"
 
         for patch_shape, stride_shape in zip(patch_shapes, stride_shapes):
             dataset = StandardHDF5Dataset(path, phase=phase,
                                           slice_builder_config=_slice_builder_conf(patch_shape, stride_shape),
-                                          transformer_config=transformer_config[phase]['transformer'],
-                                          raw_internal_path='raw',
-                                          label_internal_path='label',
+                                          transformer_config=transformer_config[phase]["transformer"],
+                                          raw_internal_path="raw",
+                                          label_internal_path="label",
                                           random_scale=20)
 
             for raw, label in dataset:
@@ -168,13 +168,13 @@ class TestHDF5Dataset:
 
 def create_random_dataset(shape, ignore_index=False, raw_datasets=None, label_datasets=None):
     if label_datasets is None:
-        label_datasets = ['label']
+        label_datasets = ["label"]
     if raw_datasets is None:
-        raw_datasets = ['raw']
+        raw_datasets = ["raw"]
 
     tmp_file = NamedTemporaryFile(delete=False)
 
-    with h5py.File(tmp_file.name, 'w') as f:
+    with h5py.File(tmp_file.name, "w") as f:
         for raw_dataset in raw_datasets:
             f.create_dataset(raw_dataset, data=np.random.rand(*shape))
 
@@ -189,15 +189,15 @@ def create_random_dataset(shape, ignore_index=False, raw_datasets=None, label_da
 
 def _slice_builder_conf(patch_shape, stride_shape, halo_shape=(0, 0, 0)):
     return {
-        'name': 'SliceBuilder',
-        'patch_shape': patch_shape,
-        'stride_shape': stride_shape,
-        'halo_shape': halo_shape,
+        "name": "SliceBuilder",
+        "patch_shape": patch_shape,
+        "stride_shape": stride_shape,
+        "halo_shape": halo_shape,
     }
 
 
 def _transformer_test_conf():
     return {
-        'raw': [{'name': 'ToTensor', 'expand_dims': True}],
+        "raw": [{"name": "ToTensor", "expand_dims": True}],
         # 'label': [{'name': 'ToTensor', 'expand_dims': True}],
     }

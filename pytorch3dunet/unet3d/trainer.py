@@ -19,12 +19,12 @@ from pytorch3dunet.unet3d.utils import get_logger, create_optimizer, \
     create_lr_scheduler, get_number_of_learnable_parameters, TensorboardFormatter
 from . import utils
 
-logger = get_logger('UNetTrainer')
+logger = get_logger("UNetTrainer")
 
 
-def create_trainer(config: dict) -> 'UNetTrainer':
+def create_trainer(config: dict) -> "UNetTrainer":
     # Create the model
-    model = get_model(config['model'])
+    model = get_model(config["model"])
 
     device = config.get("device", None)
     assert device, "Device not specified in the config file and could not be inferred automatically"
@@ -48,18 +48,18 @@ def create_trainer(config: dict) -> 'UNetTrainer':
     loaders = get_train_loaders(config)
 
     # Create the optimizer
-    optimizer = create_optimizer(config['optimizer'], model)
+    optimizer = create_optimizer(config["optimizer"], model)
 
     # Create learning rate adjustment strategy
-    lr_scheduler = create_lr_scheduler(config.get('lr_scheduler', None), optimizer)
+    lr_scheduler = create_lr_scheduler(config.get("lr_scheduler", None), optimizer)
 
-    trainer_config = config['trainer']
+    trainer_config = config["trainer"]
     # Create tensorboard formatter
-    tensorboard_formatter_config = trainer_config.pop('tensorboard_formatter', {})
+    tensorboard_formatter_config = trainer_config.pop("tensorboard_formatter", {})
     tensorboard_formatter = TensorboardFormatter(**tensorboard_formatter_config)
     # Create trainer
-    resume = trainer_config.pop('resume', None)
-    pre_trained = trainer_config.pop('pre_trained', None)
+    resume = trainer_config.pop("resume", None)
+    pre_trained = trainer_config.pop("pre_trained", None)
 
     return UNetTrainer(model=model, optimizer=optimizer, lr_scheduler=lr_scheduler, loss_criterion=loss_criterion,
                        eval_criterion=eval_criterion, loaders=loaders, tensorboard_formatter=tensorboard_formatter,
@@ -160,18 +160,18 @@ class UNetTrainer:
         logger.info(f'eval_score_higher_is_better: {eval_score_higher_is_better}')
         # initialize the best_eval_score
         if eval_score_higher_is_better:
-            self.best_eval_score = float('-inf')
+            self.best_eval_score = float("-inf")
         else:
-            self.best_eval_score = float('+inf')
+            self.best_eval_score = float("+inf")
 
         self.writer = SummaryWriter(
             log_dir=os.path.join(
-                checkpoint_dir, 'logs',
+                checkpoint_dir, "logs",
                 datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             )
         )
 
-        assert tensorboard_formatter is not None, 'TensorboardFormatter must be provided'
+        assert tensorboard_formatter is not None, "TensorboardFormatter must be provided"
         self.tensorboard_formatter = tensorboard_formatter
 
         self.num_iterations = num_iterations
@@ -185,9 +185,9 @@ class UNetTrainer:
                 f"Checkpoint loaded from '{resume}'. Epoch: {state['num_epochs']}.  Iteration: {state['num_iterations']}. "
                 f"Best val score: {state['best_eval_score']}."
             )
-            self.best_eval_score = state['best_eval_score']
-            self.num_iterations = state['num_iterations']
-            self.num_epochs = state['num_epochs']
+            self.best_eval_score = state["best_eval_score"]
+            self.num_iterations = state["num_iterations"]
+            self.num_epochs = state["num_epochs"]
             self.checkpoint_dir = os.path.split(resume)[0]
         elif pre_trained is not None:
             logger.info(f"Logging pre-trained model from '{pre_trained}'...")
@@ -201,7 +201,7 @@ class UNetTrainer:
             should_terminate = self.train()
 
             if should_terminate:
-                logger.info('Stopping criterion is satisfied. Finishing training')
+                logger.info("Stopping criterion is satisfied. Finishing training")
                 return
 
             self.num_epochs += 1
@@ -219,7 +219,7 @@ class UNetTrainer:
         # sets the model in training mode
         self.model.train()
 
-        for t in self.loaders['train']:
+        for t in self.loaders["train"]:
             logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
                         f'Epoch [{self.num_epochs}/{self.max_num_epochs - 1}]')
 
@@ -264,12 +264,12 @@ class UNetTrainer:
 
                 logger.info(
                     f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
-                self._log_stats('train', train_losses.avg, train_eval_scores.avg)
+                self._log_stats("train", train_losses.avg, train_eval_scores.avg)
                 self._log_images(
                     input.detach().cpu().numpy(),
                     target.detach().cpu().numpy(),
                     output.detach().cpu().numpy(),
-                    'train_'
+                    "train_"
                 )
 
             if self.should_stop():
@@ -293,7 +293,7 @@ class UNetTrainer:
             return True
 
         min_lr = 1e-6
-        lr = self.optimizer.param_groups[0]['lr']
+        lr = self.optimizer.param_groups[0]["lr"]
         if lr < min_lr:
             logger.info(f'Learning rate below the minimum {min_lr}.')
             return True
@@ -301,7 +301,7 @@ class UNetTrainer:
         return False
 
     def validate(self):
-        logger.info('Validating...')
+        logger.info("Validating...")
 
         val_losses = utils.RunningAverage()
         val_scores = utils.RunningAverage()
@@ -309,13 +309,13 @@ class UNetTrainer:
         with torch.no_grad():
             # select indices of validation samples to log
             rs = np.random.RandomState(42)
-            if len(self.loaders['val']) <= self.max_val_images:
-                indices = list(range(len(self.loaders['val'])))
+            if len(self.loaders["val"]) <= self.max_val_images:
+                indices = list(range(len(self.loaders["val"])))
             else:
-                indices = rs.choice(len(self.loaders['val']), size=self.max_val_images, replace=False)
+                indices = rs.choice(len(self.loaders["val"]), size=self.max_val_images, replace=False)
 
             images_for_logging = []
-            for i, t in enumerate(tqdm(self.loaders['val'])):
+            for i, t in enumerate(tqdm(self.loaders["val"])):
                 input, target = _split_and_move_to_gpu(t, self.device)
 
                 output, loss = self._forward_pass(input, target)
@@ -338,7 +338,7 @@ class UNetTrainer:
                     executor.submit(self._log_images, input, target, output, f'val_{i}_')
 
             logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
-            self._log_stats('val', val_losses.avg, val_scores.avg)
+            self._log_stats("val", val_losses.avg, val_scores.avg)
             return val_scores.avg
 
     def _forward_pass(self, inp: torch.Tensor, target: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -380,20 +380,20 @@ class UNetTrainer:
         else:
             state_dict = self.model.state_dict()
 
-        last_file_path = os.path.join(self.checkpoint_dir, 'last_checkpoint.pytorch')
+        last_file_path = os.path.join(self.checkpoint_dir, "last_checkpoint.pytorch")
         logger.info(f"Saving checkpoint to '{last_file_path}'")
 
         utils.save_checkpoint({
-            'num_epochs': self.num_epochs + 1,
-            'num_iterations': self.num_iterations,
-            'model_state_dict': state_dict,
-            'best_eval_score': self.best_eval_score,
-            'optimizer_state_dict': self.optimizer.state_dict(),
+            "num_epochs": self.num_epochs + 1,
+            "num_iterations": self.num_iterations,
+            "model_state_dict": state_dict,
+            "best_eval_score": self.best_eval_score,
+            "optimizer_state_dict": self.optimizer.state_dict(),
         }, is_best, checkpoint_dir=self.checkpoint_dir)
 
     def _log_lr(self):
-        lr = self.optimizer.param_groups[0]['lr']
-        self.writer.add_scalar('learning_rate', lr, self.num_iterations)
+        lr = self.optimizer.param_groups[0]["lr"]
+        self.writer.add_scalar("learning_rate", lr, self.num_iterations)
 
     def _log_stats(self, phase: str, loss_avg: float, eval_score_avg: float):
         tag_value = {
@@ -405,10 +405,10 @@ class UNetTrainer:
             self.writer.add_scalar(tag, value, self.num_iterations)
 
     def _log_params(self):
-        logger.info('Logging model parameters and gradients')
+        logger.info("Logging model parameters and gradients")
         for name, value in self.model.named_parameters():
             self.writer.add_histogram(name, value.data.cpu().numpy(), self.num_iterations)
-            self.writer.add_histogram(name + '/grad', value.grad.data.cpu().numpy(), self.num_iterations)
+            self.writer.add_histogram(name + "/grad", value.grad.data.cpu().numpy(), self.num_iterations)
 
     def _log_images(
             self,
@@ -417,9 +417,9 @@ class UNetTrainer:
             prediction: np.ndarray,
             prefix: str):
         inputs_map = {
-            'inputs': input,
-            'targets': target,
-            'predictions': prediction
+            "inputs": input,
+            "targets": target,
+            "predictions": prediction
         }
         img_sources = {}
         for name, batch in inputs_map.items():

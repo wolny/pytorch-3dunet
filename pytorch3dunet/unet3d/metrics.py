@@ -9,7 +9,7 @@ from pytorch3dunet.unet3d.losses import compute_per_channel_dice
 from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy
 from pytorch3dunet.unet3d.utils import get_logger, convert_to_numpy
 
-logger = get_logger('EvalMetric')
+logger = get_logger("EvalMetric")
 
 
 class DiceCoefficient:
@@ -144,7 +144,7 @@ class AdaptedRandError:
         per_batch_arand = []
         for _input, _target in zip(input, target):
             if np.all(_target == _target.flat[0]):  # skip ARand eval if there is only one label in the patch due to zero-division
-                logger.info('Skipping ARandError computation: only 1 label present in the ground truth')
+                logger.info("Skipping ARandError computation: only 1 label present in the ground truth")
                 per_batch_arand.append(0.)
                 continue
 
@@ -184,7 +184,7 @@ class BoundaryAdaptedRandError(AdaptedRandError):
     """
 
     def __init__(self, thresholds=None, use_last_target=True, ignore_index=None, input_channel=None, invert_pmaps=True,
-                 save_plots=False, plots_dir='.', **kwargs):
+                 save_plots=False, plots_dir=".", **kwargs):
         super().__init__(use_last_target=use_last_target, ignore_index=ignore_index, save_plots=save_plots,
                          plots_dir=plots_dir, **kwargs)
 
@@ -256,11 +256,11 @@ class GenericAdaptedRandError(AdaptedRandError):
 
 
 class GenericAveragePrecision:
-    def __init__(self, min_instance_size=None, use_last_target=False, metric='ap', **kwargs):
+    def __init__(self, min_instance_size=None, use_last_target=False, metric="ap", **kwargs):
         self.min_instance_size = min_instance_size
         self.use_last_target = use_last_target
-        assert metric in ['ap', 'acc']
-        if metric == 'ap':
+        assert metric in ["ap", "acc"]
+        if metric == "ap":
             # use AveragePrecision
             self.metric = AveragePrecision()
         else:
@@ -342,7 +342,7 @@ class BlobsAveragePrecision(GenericAveragePrecision):
         input_channel: Channel to use from input. Default: 0.
     """
 
-    def __init__(self, thresholds=None, metric='ap', min_instance_size=None, input_channel=0, **kwargs):
+    def __init__(self, thresholds=None, metric="ap", min_instance_size=None, input_channel=0, **kwargs):
         super().__init__(min_instance_size=min_instance_size, use_last_target=True, metric=metric)
         if thresholds is None:
             thresholds = [0.4, 0.5, 0.6, 0.7, 0.8]
@@ -372,7 +372,7 @@ class BlobsBoundaryAveragePrecision(GenericAveragePrecision):
         min_instance_size: Minimum instance size to consider.
     """
 
-    def __init__(self, thresholds=None, metric='ap', min_instance_size=None, **kwargs):
+    def __init__(self, thresholds=None, metric="ap", min_instance_size=None, **kwargs):
         super().__init__(min_instance_size=min_instance_size, use_last_target=True, metric=metric)
         if thresholds is None:
             thresholds = [0.3, 0.4, 0.5, 0.6, 0.7]
@@ -453,11 +453,11 @@ def get_evaluation_metric(config):
     """
 
     def _metric_class(class_name):
-        m = importlib.import_module('pytorch3dunet.unet3d.metrics')
+        m = importlib.import_module("pytorch3dunet.unet3d.metrics")
         clazz = getattr(m, class_name)
         return clazz
 
-    assert 'eval_metric' in config, 'Could not find evaluation metric configuration'
-    metric_config = config['eval_metric']
-    metric_class = _metric_class(metric_config['name'])
+    assert "eval_metric" in config, "Could not find evaluation metric configuration"
+    metric_config = config["eval_metric"]
+    metric_class = _metric_class(metric_config["name"])
     return metric_class(**metric_config)

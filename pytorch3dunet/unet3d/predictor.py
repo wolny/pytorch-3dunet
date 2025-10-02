@@ -18,7 +18,7 @@ from pytorch3dunet.unet3d.config import TorchDevice
 from pytorch3dunet.unet3d.model import is_model_2d
 from pytorch3dunet.unet3d.utils import get_logger
 
-logger = get_logger('UNetPredictor')
+logger = get_logger("UNetPredictor")
 
 
 class AbstractPredictor:
@@ -41,7 +41,7 @@ class AbstractPredictor:
                  output_dir: str,
                  out_channels: int,
                  device: TorchDevice,
-                 output_dataset: str = 'predictions',
+                 output_dataset: str = "predictions",
                  save_segmentation: bool = False,
                  prediction_channel: Optional[int] = None,
                  performance_metric: Optional[str] = None,
@@ -86,7 +86,7 @@ class StandardPredictor(AbstractPredictor):
                  output_dir: str,
                  out_channels: int,
                  device: TorchDevice,
-                 output_dataset: str = 'predictions',
+                 output_dataset: str = "predictions",
                  save_segmentation: bool = False,
                  prediction_channel: Optional[int] = None,
                  performance_metric: Optional[str] = None,
@@ -126,9 +126,9 @@ class StandardPredictor(AbstractPredictor):
 
         # create destination H5 file
         output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
-        with h5py.File(output_file, 'w') as h5_output_file:
+        with h5py.File(output_file, "w") as h5_output_file:
             # allocate prediction arrays
-            logger.info('Allocating prediction arrays...')
+            logger.info("Allocating prediction arrays...")
             prediction_array = self._allocate_prediction_array(prediction_shape, h5_output_file)
 
             # determine halo used for padding
@@ -173,7 +173,7 @@ class StandardPredictor(AbstractPredictor):
                             else:
                                 # use the argmax of the prediction
                                 pred = np.argmax(pred, axis=0)
-                            pred = pred.astype('uint16')
+                            pred = pred.astype("uint16")
                             index = tuple(index)
                         else:
                             # save patch index: (C,D,H,W)
@@ -189,10 +189,10 @@ class StandardPredictor(AbstractPredictor):
                         # accumulate probabilities into the output prediction array
                         prediction_array[index] = pred
 
-            logger.info(f'Finished inference in {time.perf_counter() - start:.2f} seconds')
+            logger.info(f"Finished inference in {time.perf_counter() - start:.2f} seconds")
             # save results
-            output_type = 'segmentation' if self.save_segmentation else 'probability maps'
-            logger.info(f'Saving {output_type} to: {output_file}')
+            output_type = "segmentation" if self.save_segmentation else "probability maps"
+            logger.info(f"Saving {output_type} to: {output_file}")
             self._create_prediction_dataset(h5_output_file, prediction_array)
 
             if self.performance_metric is not None:
@@ -201,10 +201,10 @@ class StandardPredictor(AbstractPredictor):
                 gt = _load_dataset(test_loader.dataset, self.gt_internal_path)
                 prediction_array = prediction_array[...]
                 # create metric
-                assert self.performance_metric in ['dice', 'mean_iou'], \
-                    f'Unsupported performance metric: {self.performance_metric}, ' \
-                    f'only "dice" and "mean_iou" are supported'
-                if self.performance_metric == 'dice':
+                assert self.performance_metric in ["dice", "mean_iou"], \
+                    f"Unsupported performance metric: {self.performance_metric}, " \
+                    f"only dice and mean_iou are supported"
+                if self.performance_metric == "dice":
                     result = dice_score(prediction_array, gt)
                 else:
                     result = mean_iou(prediction_array, gt, n_classes=self.out_channels)
@@ -215,9 +215,9 @@ class StandardPredictor(AbstractPredictor):
 
     def _allocate_prediction_array(self, output_shape, output_file):
         if self.save_segmentation:
-            dtype = 'uint16'
+            dtype = "uint16"
         else:
-            dtype = 'float32'
+            dtype = "float32"
         # initialize the output prediction arrays
         return np.zeros(output_shape, dtype=dtype)
 
@@ -234,7 +234,7 @@ class LazyPredictor(StandardPredictor):
                  output_dir: str,
                  out_channels: int,
                  device: TorchDevice,
-                 output_dataset: str = 'predictions',
+                 output_dataset: str = "predictions",
                  save_segmentation: bool = False,
                  prediction_channel: Optional[int] = None,
                  performance_metric: Optional[str] = None,
@@ -255,15 +255,15 @@ class LazyPredictor(StandardPredictor):
 
     def _allocate_prediction_array(self, output_shape, output_file):
         if self.save_segmentation:
-            dtype = 'uint16'
+            dtype = "uint16"
         else:
-            dtype = 'float32'
+            dtype = "float32"
         # allocate datasets for probability maps
         prediction_array = output_file.create_dataset(self.output_dataset,
                                                       shape=output_shape,
                                                       dtype=dtype,
                                                       chunks=True,
-                                                      compression='gzip')
+                                                      compression="gzip")
         return prediction_array
 
     def _create_prediction_dataset(self, h5_output_file, prediction_array):
@@ -306,14 +306,14 @@ class DSB2018Predictor(AbstractPredictor):
                     pred
                 )
 
-        print('Waiting for all predictions to be saved to disk...')
+        print("Waiting for all predictions to be saved to disk...")
         executor.shutdown(wait=True)
 
 
 def dsb_save_batch(output_dir, path, pred, save_segmentation=True, pmaps_thershold=0.5):
     def _pmaps_to_seg(pred):
         mask = (pred > pmaps_thershold)
-        return measure.label(mask).astype('uint16')
+        return measure.label(mask).astype("uint16")
 
     # convert to numpy array
     for single_pred, single_path in zip(pred, path):
@@ -321,18 +321,18 @@ def dsb_save_batch(output_dir, path, pred, save_segmentation=True, pmaps_thersho
         single_pred = single_pred.squeeze()
 
         # save to h5 file
-        out_file = os.path.splitext(single_path)[0] + '_predictions.h5'
+        out_file = os.path.splitext(single_path)[0] + "_predictions.h5"
         if output_dir is not None:
             out_file = os.path.join(output_dir, os.path.split(out_file)[1])
 
-        with h5py.File(out_file, 'w') as f:
+        with h5py.File(out_file, "w") as f:
             # logger.info(f'Saving output to {out_file}')
-            f.create_dataset('predictions', data=single_pred, compression='gzip')
+            f.create_dataset("predictions", data=single_pred, compression="gzip")
             if save_segmentation:
-                f.create_dataset('segmentation', data=_pmaps_to_seg(single_pred), compression='gzip')
+                f.create_dataset("segmentation", data=_pmaps_to_seg(single_pred), compression="gzip")
 
 
-def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions',
+def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = "_predictions",
                      output_dir: Optional[Union[str, Path]] = None) -> Path:
     """
     Get the output file path for the predictions. If `output_dir` is not None the output file will be saved in
@@ -354,13 +354,13 @@ def _get_output_file(dataset: AbstractHDF5Dataset, suffix: str = '_predictions',
     else:
         output_dir = Path(output_dir)
 
-    output_filename = file_path.stem + suffix + '.h5'
+    output_filename = file_path.stem + suffix + ".h5"
     return output_dir / output_filename
 
 
 def _load_dataset(dataset: AbstractHDF5Dataset, internal_path: str) -> np.ndarray:
     file_path = dataset.file_path
-    with h5py.File(file_path, 'r') as f:
+    with h5py.File(file_path, "r") as f:
         return f[internal_path][...]
 
 
@@ -376,8 +376,8 @@ def mean_iou(pred: np.ndarray, gt: np.ndarray, n_classes: int, avg: bool = False
         mean IoU
     """
     # convert to numpy arrays
-    pred = pred.astype('uint16')
-    gt = gt.astype('uint16')
+    pred = pred.astype("uint16")
+    gt = gt.astype("uint16")
     assert pred.shape == gt.shape, f'Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}'
 
     # compute IoU, skip 0: background
@@ -399,8 +399,8 @@ def dice_score(pred: np.ndarray, gt: np.ndarray, avg: bool = False) -> list[floa
     If avg is True, return the mean Dice score, otherwise return the Dice score for each channel/class.
     """
     # convert to numpy arrays
-    pred = pred.astype('uint16')
-    gt = gt.astype('uint16')
+    pred = pred.astype("uint16")
+    gt = gt.astype("uint16")
     assert pred.shape == gt.shape, f'Predictions and ground truth have different shapes: {pred.shape} != {gt.shape}'
     # compute Dice score
     per_class_dice = []

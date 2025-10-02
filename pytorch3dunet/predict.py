@@ -2,7 +2,7 @@ import importlib
 import os
 
 # Fix for OpenMP library conflict on Windows
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 import torch
 import torch.nn as nn
@@ -12,7 +12,7 @@ from pytorch3dunet.unet3d import utils
 from pytorch3dunet.unet3d.config import TorchDevice, load_config
 from pytorch3dunet.unet3d.model import get_model
 
-logger = utils.get_logger('UNet3DPredict')
+logger = utils.get_logger("UNet3DPredict")
 
 
 def get_predictor(model, config):
@@ -25,16 +25,16 @@ def get_predictor(model, config):
     Returns:
         A predictor instance (StandardPredictor or LazyPredictor).
     """
-    output_dir = config['loaders'].get('output_dir', None)
+    output_dir = config["loaders"].get("output_dir", None)
     if output_dir is not None:
         os.makedirs(output_dir, exist_ok=True)
 
-    predictor_config = config.get('predictor', {})
-    class_name = predictor_config.get('name', 'StandardPredictor')
+    predictor_config = config.get("predictor", {})
+    class_name = predictor_config.get("name", "StandardPredictor")
 
-    m = importlib.import_module('pytorch3dunet.unet3d.predictor')
+    m = importlib.import_module("pytorch3dunet.unet3d.predictor")
     predictor_class = getattr(m, class_name)
-    out_channels = config['model'].get('out_channels')
+    out_channels = config["model"].get("out_channels")
     return predictor_class(model, output_dir, out_channels, **predictor_config, device=config["device"])
 
 
@@ -48,13 +48,13 @@ def main():
     config, _ = load_config()
 
     # Create the model
-    model = get_model(config['model'])
+    model = get_model(config["model"])
     device = config.get("device", None)
     assert device, "Device not specified in the config file and could not be inferred automatically"
     logger.info(f'Using device: {device}')
 
     # Load model state
-    model_path = config['model_path']
+    model_path = config["model_path"]
     logger.info(f'Loading model from {model_path}...')
     utils.load_checkpoint(model_path, model)
 
@@ -83,5 +83,5 @@ def main():
         logger.info(f'Average metric: {avg_metric}')
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

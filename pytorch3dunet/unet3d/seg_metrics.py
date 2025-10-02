@@ -127,10 +127,10 @@ class SegmentationMetrics:
             fp = n_seg - np.count_nonzero(detection_matrix.sum(axis=0))
 
         return {
-            'precision': precision(tp, fp, fn),
-            'recall': recall(tp, fp, fn),
-            'accuracy': accuracy(tp, fp, fn),
-            'f1': f1(tp, fp, fn)
+            "precision": precision(tp, fp, fn),
+            "recall": recall(tp, fp, fn),
+            "accuracy": accuracy(tp, fp, fn),
+            "f1": f1(tp, fp, fn)
         }
 
 
@@ -150,7 +150,7 @@ class Accuracy:
 
     def __call__(self, input_seg, gt_seg):
         metrics = SegmentationMetrics(gt_seg, input_seg).metrics(self.iou_threshold)
-        return metrics['accuracy']
+        return metrics["accuracy"]
 
 
 class AveragePrecision:
@@ -166,6 +166,6 @@ class AveragePrecision:
         # compute contingency_table
         sm = SegmentationMetrics(gt_seg, input_seg)
         # compute accuracy for each threshold
-        acc = [sm.metrics(iou)['accuracy'] for iou in self.iou_range]
+        acc = [sm.metrics(iou)["accuracy"] for iou in self.iou_range]
         # return the average
         return np.mean(acc)
