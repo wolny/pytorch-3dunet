@@ -65,7 +65,7 @@ class AbstractHDF5Dataset(ConfigDataset):
         random_scale_probability: float = 0.5,
     ):
         assert phase in ["train", "val", "test"]
-
+        logger.info(f"Creating {self.__class__.__name__} for {phase} phase from {file_path}")
         self.phase = phase
         self.file_path = file_path
         self.raw_internal_path = raw_internal_path
@@ -87,8 +87,6 @@ class AbstractHDF5Dataset(ConfigDataset):
         if phase != "test":
             # create label transform only in train/val phase
             self.label_transform = self.transformer.label_transform()
-
-            self._check_volume_sizes()
         else:
             # 'test' phase used only for predictions so ignore the label dataset
             self.label = None
@@ -107,6 +105,14 @@ class AbstractHDF5Dataset(ConfigDataset):
             else:
                 self.volume_shape = raw.shape[1:]
             label = f[label_internal_path] if phase != "test" else None
+            # check that raw and label shapes match
+            if label is not None:
+                if label.ndim == 3:
+                    assert label.shape == self.volume_shape, "Raw and label shapes do not match"
+                else:
+                    assert label.shape[1:] == self.volume_shape, "Raw and label shapes do not match"
+
+            logger.info(f"Volume shape: {self.volume_shape}. Creating slices...")
             # build slice indices for raw and label data sets
             slice_builder = get_slice_builder(raw, label, slice_builder_config)
             self.raw_slices = slice_builder.raw_slices
@@ -174,19 +180,6 @@ class AbstractHDF5Dataset(ConfigDataset):
 
     def __len__(self) -> int:
         return self.patch_count
-
-    def _check_volume_sizes(self):
-        def _volume_shape(volume):
-            if volume.ndim == 3:
-                return volume.shape
-            return volume.shape[1:]
-
-        with h5py.File(self.file_path, "r") as f:
-            raw = f[self.raw_internal_path]
-            label = f[self.label_internal_path]
-            assert raw.ndim in [3, 4], "Raw dataset must be 3D (DxHxW) or 4D (CxDxHxW)"
-            assert label.ndim in [3, 4], "Label dataset must be 3D (DxHxW) or 4D (CxDxHxW)"
-            assert _volume_shape(raw) == _volume_shape(label), "Raw and labels have to be of the same size"
 
     @classmethod
     def create_datasets(cls, dataset_config: dict, phase: str) -> Iterable["AbstractHDF5Dataset"]:

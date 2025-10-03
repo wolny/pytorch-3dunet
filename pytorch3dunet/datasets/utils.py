@@ -1,6 +1,7 @@
 import collections
 from typing import Any
 
+import h5py
 import numpy as np
 import torch
 from torch.nn.functional import interpolate
@@ -193,15 +194,20 @@ class SliceBuilder:
     Builds the position of the patches in a given raw/label ndarray based on the patch and stride shape.
 
     Args:
-        raw_dataset (ndarray): raw data
-        label_dataset (ndarray): ground truth labels
-        patch_shape (tuple): the shape of the patch DxHxW
-        stride_shape (tuple): the shape of the stride DxHxW
+        raw_dataset: raw data
+        label_dataset: ground truth labels
+        patch_shape: the shape of the patch DxHxW
+        stride_shape: the shape of the stride DxHxW
         kwargs: additional metadata
     """
 
     def __init__(
-        self, raw_dataset: np.ndarray, label_dataset: np.ndarray, patch_shape: tuple, stride_shape: tuple, **kwargs
+        self,
+        raw_dataset: h5py.Dataset,
+        label_dataset: h5py.Dataset,
+        patch_shape: tuple[int, int, int],
+        stride_shape: tuple[int, int, int],
+        **kwargs,
     ):
         patch_shape = tuple(patch_shape)
         stride_shape = tuple(stride_shape)
@@ -213,9 +219,12 @@ class SliceBuilder:
         if label_dataset is None:
             self._label_slices = None
         else:
-            # take the first element in the label_dataset to build slices
-            self._label_slices = self._build_slices(label_dataset, patch_shape, stride_shape)
-            assert len(self._raw_slices) == len(self._label_slices)
+            if raw_dataset.ndim != label_dataset.ndim:
+                self._label_slices = self._build_slices(label_dataset, patch_shape, stride_shape)
+                assert len(self._raw_slices) == len(self._label_slices)
+            else:
+                # if raw and label have the same dim, they have the same shape and thus the same slices
+                self._label_slices = self._raw_slices
 
     @property
     def raw_slices(self):
@@ -226,7 +235,9 @@ class SliceBuilder:
         return self._label_slices
 
     @staticmethod
-    def _build_slices(dataset, patch_shape, stride_shape):
+    def _build_slices(
+        dataset: h5py.Dataset, patch_shape: tuple[int, int, int], stride_shape: tuple[int, int, int]
+    ) -> list[tuple[slice, ...]]:
         """Iterates over a given n-dim dataset patch-by-patch with a given stride and builds an array of slice positions.
 
         Args:
@@ -281,22 +292,22 @@ class FilterSliceBuilder(SliceBuilder):
     Filter patches containing less than the `threshold` of non-zero values.
 
     Args:
-        raw_dataset (ndarray): raw data
-        label_dataset (ndarray): ground truth labels
-        patch_shape (tuple): the shape of the patch DxHxW
-        stride_shape (tuple): the shape of the stride DxHxW
-        ignore_index (int): ignore index in the label dataset; this label will be matched to 0 before filtering
-        threshold (float): the threshold of non-zero values in the label patch
-        slack_acceptance (float): the probability of accepting a patch that does not meet the threshold criteria
+        raw_dataset: raw data
+        label_dataset: ground truth labels
+        patch_shape: the shape of the patch DxHxW
+        stride_shape: the shape of the stride DxHxW
+        ignore_index: ignore index in the label dataset; this label will be matched to 0 before filtering
+        threshold: the threshold of non-zero values in the label patch
+        slack_acceptance: the probability of accepting a patch that does not meet the threshold criteria
         kwargs: additional metadata
     """
 
     def __init__(
         self,
-        raw_dataset: np.ndarray,
-        label_dataset: np.ndarray,
-        patch_shape: tuple,
-        stride_shape: tuple,
+        raw_dataset: h5py.Dataset,
+        label_dataset: h5py.Dataset,
+        patch_shape: tuple[int, int, int],
+        stride_shape: tuple[int, int, int],
         ignore_index: int | None = None,
         threshold: float = 0.6,
         slack_acceptance: float = 0.01,
@@ -306,9 +317,11 @@ class FilterSliceBuilder(SliceBuilder):
         if label_dataset is None:
             return
 
+        # load label dataset into memory for faster filtering
+        label_dataset = label_dataset[()]
         rand_state = np.random.RandomState(47)
 
-        def ignore_predicate(raw_label_idx):
+        def ignore_predicate(raw_label_idx: tuple[slice, slice]) -> bool:
             label_idx = raw_label_idx[1]
             patch = label_dataset[label_idx]
             if ignore_index is not None:
@@ -323,7 +336,7 @@ class FilterSliceBuilder(SliceBuilder):
         filtered_slices = list(filter(ignore_predicate, zipped_slices))
         # log number of filtered patches
         logger.info(
-            f"Loading {len(filtered_slices)} out of {len(self.raw_slices)} patches: "
+            f"FilterSliceBuilder: Loading {len(filtered_slices)} out of {len(self.raw_slices)} patches: "
             f"{int(100 * len(filtered_slices) / len(self.raw_slices))}%"
         )
         # unzip and save slices
