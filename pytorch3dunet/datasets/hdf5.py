@@ -1,7 +1,7 @@
 from abc import abstractmethod
+from collections.abc import Iterable
 from itertools import chain
 from pathlib import Path
-from typing import Iterable
 
 import h5py
 import numpy as np
@@ -15,6 +15,8 @@ logger = get_logger("HDF5Dataset")
 
 def _create_padded_indexes(indexes: tuple, halo_shape: tuple):
     """Create padded indexes by extending each slice in `indexes` by the corresponding `halo_shape`."""
+    if sum(halo_shape) == 0:
+        return indexes
     return tuple(slice(index.start, index.stop + 2 * halo) for index, halo in zip(indexes, halo_shape, strict=True))
 
 
@@ -243,6 +245,7 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
         self._label = None
 
     def get_raw_patch(self, idx):
+        # load lazily on the first request
         if self._raw is None:
             with h5py.File(self.file_path, "r") as f:
                 assert self.raw_internal_path in f, f"Dataset {self.raw_internal_path} not found in {self.file_path}"

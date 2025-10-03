@@ -511,7 +511,7 @@ def calculate_stats(img: np.array, skip: bool = False) -> dict[str, Any]:
     return {"pmin": pmin, "pmax": pmax, "mean": mean, "std": std}
 
 
-def mirror_pad(image, padding_shape):
+def mirror_pad(image: np.ndarray, padding_shape: tuple[int, int, int]) -> np.ndarray:
     """
     Pad the image with a mirror reflection of itself.
 
