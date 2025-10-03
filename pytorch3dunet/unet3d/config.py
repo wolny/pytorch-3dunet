@@ -35,7 +35,7 @@ def default_device() -> TorchDevice:
 
 
 def os_dependent_dataloader_kwargs() -> dict:
-    kwargs = {"pin_memory": True}
+    kwargs = {}
     if platform.system() == "Darwin":
         # Considerable performance improvement avoiding spawn for dataloaders and persisting loaders on MacOSX
         kwargs = {"multiprocessing_context": "forkserver", "persistent_workers": True}

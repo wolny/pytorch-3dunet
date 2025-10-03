@@ -1,6 +1,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 import torch
@@ -82,19 +83,15 @@ def create_trainer(config: dict) -> "UNetTrainer":
     )
 
 
-def _split_and_move_to_gpu(t, device: TorchDevice):
-    def _move_to_gpu(input, device):
-        if isinstance(input, (tuple, list)):
-            return tuple([_move_to_gpu(x, device) for x in input])
+def _split_and_move_to_device(t: Any, device: TorchDevice) -> tuple[torch.Tensor, torch.Tensor]:
+    def _move_to_device(input, device):
+        if isinstance(input, tuple | list):
+            return tuple([_move_to_device(x, device) for x in input])
         else:
-            if device == TorchDevice.CUDA:
-                input = input.cuda(non_blocking=True)
-            else:
-                input = input.to(device)
+            # send batch to device, see: https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html
+            return input.to(device, non_blocking=True)
 
-            return input
-
-    input, target = _move_to_gpu(t, device)
+    input, target = _move_to_device(t, device)
     return input, target
 
 
@@ -237,7 +234,7 @@ class UNetTrainer:
                 f"Epoch [{self.num_epochs}/{self.max_num_epochs - 1}]"
             )
 
-            input, target = _split_and_move_to_gpu(t, self.device)
+            input, target = _split_and_move_to_device(t, self.device)
 
             output, loss = self._forward_pass(input, target)
 
@@ -326,7 +323,7 @@ class UNetTrainer:
 
             images_for_logging = []
             for i, t in enumerate(tqdm(self.loaders["val"])):
-                input, target = _split_and_move_to_gpu(t, self.device)
+                input, target = _split_and_move_to_device(t, self.device)
 
                 output, loss = self._forward_pass(input, target)
                 val_losses.update(loss.item(), self._batch_size(input))
@@ -425,7 +422,7 @@ class UNetTrainer:
         inputs_map = {"inputs": input, "targets": target, "predictions": prediction}
         img_sources = {}
         for name, batch in inputs_map.items():
-            if isinstance(batch, (list, tuple)):
+            if isinstance(batch, list | tuple):
                 for i, b in enumerate(batch):
                     img_sources[f"{name}{i}"] = b
             else:
