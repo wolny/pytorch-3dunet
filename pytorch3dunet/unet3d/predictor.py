@@ -109,7 +109,7 @@ class StandardPredictor(AbstractPredictor):
             **kwargs,
         )
 
-    def __call__(self, test_loader):
+    def __call__(self, test_loader: DataLoader) -> Any:
         assert isinstance(test_loader.dataset, AbstractHDF5Dataset)
         logger.info(f"Processing '{test_loader.dataset.file_path}'...")
         start = time.perf_counter()
