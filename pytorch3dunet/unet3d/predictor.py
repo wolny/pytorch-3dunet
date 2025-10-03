@@ -146,11 +146,10 @@ class StandardPredictor(AbstractPredictor):
             # Run predictions on the entire input dataset
             with torch.no_grad():
                 for input, indices in tqdm(test_loader):
-                    # send batch to gpu
-                    if self.device == TorchDevice.CUDA:
-                        input = input.pin_memory().cuda(non_blocking=True)
-                    else:
-                        input = input.to(self.device)
+                    # send batch to device
+                    # generally this is an effective choice for enhancing transfer speed,
+                    # see: https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html
+                    input = input.to(self.device, non_blocking=True)
 
                     if is_model_2d(self.model):
                         # remove the singleton z-dimension from the input
