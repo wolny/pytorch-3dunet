@@ -156,20 +156,20 @@ class ConfigDataset(Dataset):
     Abstract class for datasets that are configured via a dictionary.
     """
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> np.ndarray:
         raise NotImplementedError
 
-    def __len__(self):
+    def __len__(self) -> int:
         raise NotImplementedError
 
     @classmethod
-    def create_datasets(cls, dataset_config, phase):
+    def create_datasets(cls, dataset_config: dict, phase: str) -> list[Dataset]:
         """
         Factory method for creating a list of datasets based on the provided config.
 
         Args:
-            dataset_config (dict): dataset configuration
-            phase (str): one of ['train', 'val', 'test']
+            dataset_config: dataset configuration
+            phase: one of ['train', 'val', 'test']
 
         Returns:
             list of `Dataset` instances
@@ -177,7 +177,7 @@ class ConfigDataset(Dataset):
         raise NotImplementedError
 
     @classmethod
-    def prediction_collate(cls, batch):
+    def prediction_collate(cls, batch: list) -> Any:
         """Default collate_fn. Override in child class for non-standard datasets.
 
         Args:
@@ -311,14 +311,19 @@ class FilterSliceBuilder(SliceBuilder):
         ignore_index: int | None = None,
         threshold: float = 0.6,
         slack_acceptance: float = 0.01,
+        lazy_loader: bool = False,
         **kwargs,
     ):
         super().__init__(raw_dataset, label_dataset, patch_shape, stride_shape, **kwargs)
         if label_dataset is None:
             return
+        assert 0 <= threshold <= 1, "Threshold must be in the range [0, 1]"
+        assert 0 <= slack_acceptance <= 1, "Slack acceptance must be in the range [0, 1]"
 
-        # load label dataset into memory for faster filtering
-        label_dataset = label_dataset[()]
+        if not lazy_loader:
+            # if not lazy, load label dataset into memory for faster patch filtering
+            label_dataset = label_dataset[()]
+
         rand_state = np.random.RandomState(47)
 
         def ignore_predicate(raw_label_idx: tuple[slice, slice]) -> bool:
@@ -350,7 +355,7 @@ def _loader_classes(class_name):
     return get_class(class_name, modules)
 
 
-def get_slice_builder(raw: np.ndarray, label: np.ndarray, config: dict) -> SliceBuilder:
+def get_slice_builder(raw: h5py.Dataset, label: h5py.Dataset, config: dict) -> SliceBuilder:
     assert "name" in config
     logger.info(f"Slice builder config: {config}")
     slice_builder_cls = _loader_classes(config["name"])
@@ -470,7 +475,7 @@ def get_test_loaders(config: dict) -> DataLoader:
         )
 
 
-def default_prediction_collate(batch):
+def default_prediction_collate(batch: list) -> Any:
     """Default collate_fn to form a mini-batch of Tensor(s) for HDF5 based datasets.
 
     Args:
@@ -485,7 +490,7 @@ def default_prediction_collate(batch):
     elif isinstance(batch[0], tuple) and isinstance(batch[0][0], slice):
         return batch
     elif isinstance(batch[0], collections.abc.Sequence):
-        transposed = zip(*batch, strict=False)
+        transposed = zip(*batch, strict=True)
         return [default_prediction_collate(samples) for samples in transposed]
 
     raise TypeError(error_msg.format(type(batch[0])))

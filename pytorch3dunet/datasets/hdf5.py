@@ -116,6 +116,7 @@ class AbstractHDF5Dataset(ConfigDataset):
 
             logger.info(f"Volume shape: {self.volume_shape}. Creating slices...")
             # build slice indices for raw and label data sets
+            slice_builder_config["lazy_loader"] = self.is_lazy()  # pass this information to the slice builder
             slice_builder = get_slice_builder(raw, label, slice_builder_config)
             self.raw_slices = slice_builder.raw_slices
             self.label_slices = slice_builder.label_slices
@@ -144,6 +145,10 @@ class AbstractHDF5Dataset(ConfigDataset):
 
     @abstractmethod
     def get_raw_padded_patch(self, idx) -> np.ndarray:
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_lazy(self) -> bool:
         raise NotImplementedError
 
     def __getitem__(self, idx: int) -> tuple:
@@ -268,6 +273,9 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
                 self._raw_padded = mirror_pad(f[self.raw_internal_path][:], self.halo_shape)
         return self._raw_padded[idx]
 
+    def is_lazy(self) -> bool:
+        False
+
 
 class LazyHDF5Dataset(AbstractHDF5Dataset):
     """Implementation of the HDF5 dataset which loads the data lazily.
@@ -317,3 +325,6 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
             raw_padded = mirror_pad(raw, self.halo_shape)
             f.create_dataset("raw_padded", data=raw_padded, compression="gzip")
             return raw_padded[idx]
+
+    def is_lazy(self) -> bool:
+        True
