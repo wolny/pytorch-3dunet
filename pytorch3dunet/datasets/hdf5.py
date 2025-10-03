@@ -165,7 +165,11 @@ class AbstractHDF5Dataset(ConfigDataset):
             else:
                 raw_idx_padded = _create_padded_indexes(raw_idx, self.halo_shape)
 
-            raw_patch_transformed = self.raw_transform(self.get_raw_padded_patch(raw_idx_padded))
+            # use halo padding in the 'test' phase to avoid edge artifacts
+            padded_patch = self.get_raw_padded_patch(raw_idx_padded)
+            raw_patch_transformed = self.raw_transform(padded_patch)
+            # return padded patch, and the original (non-padded) index for placing the prediction back into the volume
+            # predictor is responsible for removing the halo from the prediction
             return raw_patch_transformed, raw_idx
         else:
             label_idx = self.label_slices[idx]
@@ -274,7 +278,7 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
         return self._raw_padded[idx]
 
     def is_lazy(self) -> bool:
-        False
+        return False
 
 
 class LazyHDF5Dataset(AbstractHDF5Dataset):
@@ -321,10 +325,11 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
             if "raw_padded" in f:
                 return f["raw_padded"][idx]
 
+            logger.info(f"Creating 'raw_padded' dataset in {self.file_path}")
             raw = f[self.raw_internal_path][:]
             raw_padded = mirror_pad(raw, self.halo_shape)
             f.create_dataset("raw_padded", data=raw_padded, compression="gzip")
             return raw_padded[idx]
 
     def is_lazy(self) -> bool:
-        True
+        return True
