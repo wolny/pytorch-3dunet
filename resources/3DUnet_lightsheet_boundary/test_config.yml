@@ -18,12 +18,16 @@ model:
 predictor:
   name: 'StandardPredictor'
 loaders:
+  # dataset class, currently StandardHDF5Dataset and LazyHDF5Dataset are supported
+  dataset: StandardHDF5Dataset
   # save predictions to output_dir
   output_dir: PATH_TO_OUTPUT_DIR
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
   batch_size: 1
   # how many subprocesses to use for data loading
   num_workers: 8
+  # compute global dataset statistics (mean, std) for Standardize transformer
+  global_normalization: true
   # test loaders configuration
   test:
     file_paths:

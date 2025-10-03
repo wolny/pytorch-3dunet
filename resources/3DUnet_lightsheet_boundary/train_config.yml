@@ -68,6 +68,8 @@ trainer:
   max_num_iterations: 150000
 # Configure training and validation loaders
 loaders:
+  # dataset class, currently StandardHDF5Dataset and LazyHDF5Dataset are supported
+  dataset: StandardHDF5Dataset
   # how many subprocesses to use for data loading
   num_workers: 32
   # path to the raw data within the H5
@@ -78,6 +80,8 @@ loaders:
   random_scale: 20
   # random scale execution probability; since random scale is quite slow for 3D data, we set it to 0.1
   random_scale_probability: 0.1
+  # compute global dataset statistics (mean, std) for Standardize transformer
+  global_normalization: true
   # configuration of the train loader
   train:
     # path to the training datasets

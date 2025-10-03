@@ -64,7 +64,7 @@ lr_scheduler:
 
 # data loaders configuration
 loaders:
-  # class of the HDF5 dataset, currently StandardHDF5Dataset and LazyHDF5Dataset are supported.
+  # dataset class, currently StandardHDF5Dataset and LazyHDF5Dataset are supported
   dataset: StandardHDF5Dataset
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
   batch_size: 1
@@ -78,8 +78,8 @@ loaders:
   random_scale: 20
   # random scale execution probability; since random scale is quite slow for 3D data, we set it to 0.1
   random_scale_probability: 0.1
-  # path to the pixel-wise weight map withing the H5 if present
-  weight_internal_path: null
+  # compute global dataset statistics (mean, std) for Standardize transformer
+  global_normalization: false
   # configuration of the train loader
   train:
     # paths to the training datasets

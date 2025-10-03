@@ -68,14 +68,18 @@ trainer:
   max_num_iterations: 150000
 # Configure training and validation loaders
 loaders:
+  # dataset class, currently StandardHDF5Dataset and LazyHDF5Dataset are supported
+  dataset: StandardHDF5Dataset
   # how many subprocesses to use for data loading
   num_workers: 8
   # batch size
   batch_size: 32
   # path to the raw data within the H5
-  raw_internal_path: /raw
-  # path to the the label data withtin the H5
-  label_internal_path: /label
+  raw_internal_path: raw
+  # path to the label data within the H5
+  label_internal_path: label
+  # compute global dataset statistics (mean, std) for Standardize transformer
+  global_normalization: true
   # configuration of the train loader
   train:
     # path to the training datasets

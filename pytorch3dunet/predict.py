@@ -66,6 +66,7 @@ def main():
         logger.info(f"Using {torch.cuda.device_count()} GPUs for prediction")
     model = model.to(device)
 
+    logger.info("Creating predictor...")
     # create predictor instance
     predictor = get_predictor(model, config)
 

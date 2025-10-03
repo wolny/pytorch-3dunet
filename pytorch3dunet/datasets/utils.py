@@ -1,6 +1,7 @@
 import collections
 from typing import Any
 
+import h5py
 import numpy as np
 import torch
 from torch.nn.functional import interpolate
@@ -155,20 +156,20 @@ class ConfigDataset(Dataset):
     Abstract class for datasets that are configured via a dictionary.
     """
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> np.ndarray:
         raise NotImplementedError
 
-    def __len__(self):
+    def __len__(self) -> int:
         raise NotImplementedError
 
     @classmethod
-    def create_datasets(cls, dataset_config, phase):
+    def create_datasets(cls, dataset_config: dict, phase: str) -> list[Dataset]:
         """
         Factory method for creating a list of datasets based on the provided config.
 
         Args:
-            dataset_config (dict): dataset configuration
-            phase (str): one of ['train', 'val', 'test']
+            dataset_config: dataset configuration
+            phase: one of ['train', 'val', 'test']
 
         Returns:
             list of `Dataset` instances
@@ -176,7 +177,7 @@ class ConfigDataset(Dataset):
         raise NotImplementedError
 
     @classmethod
-    def prediction_collate(cls, batch):
+    def prediction_collate(cls, batch: list) -> Any:
         """Default collate_fn. Override in child class for non-standard datasets.
 
         Args:
@@ -193,15 +194,20 @@ class SliceBuilder:
     Builds the position of the patches in a given raw/label ndarray based on the patch and stride shape.
 
     Args:
-        raw_dataset (ndarray): raw data
-        label_dataset (ndarray): ground truth labels
-        patch_shape (tuple): the shape of the patch DxHxW
-        stride_shape (tuple): the shape of the stride DxHxW
+        raw_dataset: raw data
+        label_dataset: ground truth labels
+        patch_shape: the shape of the patch DxHxW
+        stride_shape: the shape of the stride DxHxW
         kwargs: additional metadata
     """
 
     def __init__(
-        self, raw_dataset: np.ndarray, label_dataset: np.ndarray, patch_shape: tuple, stride_shape: tuple, **kwargs
+        self,
+        raw_dataset: h5py.Dataset,
+        label_dataset: h5py.Dataset,
+        patch_shape: tuple[int, int, int],
+        stride_shape: tuple[int, int, int],
+        **kwargs,
     ):
         patch_shape = tuple(patch_shape)
         stride_shape = tuple(stride_shape)
@@ -213,9 +219,12 @@ class SliceBuilder:
         if label_dataset is None:
             self._label_slices = None
         else:
-            # take the first element in the label_dataset to build slices
-            self._label_slices = self._build_slices(label_dataset, patch_shape, stride_shape)
-            assert len(self._raw_slices) == len(self._label_slices)
+            if raw_dataset.ndim != label_dataset.ndim:
+                self._label_slices = self._build_slices(label_dataset, patch_shape, stride_shape)
+                assert len(self._raw_slices) == len(self._label_slices)
+            else:
+                # if raw and label have the same dim, they have the same shape and thus the same slices
+                self._label_slices = self._raw_slices
 
     @property
     def raw_slices(self):
@@ -226,7 +235,9 @@ class SliceBuilder:
         return self._label_slices
 
     @staticmethod
-    def _build_slices(dataset, patch_shape, stride_shape):
+    def _build_slices(
+        dataset: h5py.Dataset, patch_shape: tuple[int, int, int], stride_shape: tuple[int, int, int]
+    ) -> list[tuple[slice, ...]]:
         """Iterates over a given n-dim dataset patch-by-patch with a given stride and builds an array of slice positions.
 
         Args:
@@ -281,34 +292,41 @@ class FilterSliceBuilder(SliceBuilder):
     Filter patches containing less than the `threshold` of non-zero values.
 
     Args:
-        raw_dataset (ndarray): raw data
-        label_dataset (ndarray): ground truth labels
-        patch_shape (tuple): the shape of the patch DxHxW
-        stride_shape (tuple): the shape of the stride DxHxW
-        ignore_index (int): ignore index in the label dataset; this label will be matched to 0 before filtering
-        threshold (float): the threshold of non-zero values in the label patch
-        slack_acceptance (float): the probability of accepting a patch that does not meet the threshold criteria
+        raw_dataset: raw data
+        label_dataset: ground truth labels
+        patch_shape: the shape of the patch DxHxW
+        stride_shape: the shape of the stride DxHxW
+        ignore_index: ignore index in the label dataset; this label will be matched to 0 before filtering
+        threshold: the threshold of non-zero values in the label patch
+        slack_acceptance: the probability of accepting a patch that does not meet the threshold criteria
         kwargs: additional metadata
     """
 
     def __init__(
         self,
-        raw_dataset: np.ndarray,
-        label_dataset: np.ndarray,
-        patch_shape: tuple,
-        stride_shape: tuple,
+        raw_dataset: h5py.Dataset,
+        label_dataset: h5py.Dataset,
+        patch_shape: tuple[int, int, int],
+        stride_shape: tuple[int, int, int],
         ignore_index: int | None = None,
         threshold: float = 0.6,
         slack_acceptance: float = 0.01,
+        lazy_loader: bool = False,
         **kwargs,
     ):
         super().__init__(raw_dataset, label_dataset, patch_shape, stride_shape, **kwargs)
         if label_dataset is None:
             return
+        assert 0 <= threshold <= 1, "Threshold must be in the range [0, 1]"
+        assert 0 <= slack_acceptance <= 1, "Slack acceptance must be in the range [0, 1]"
+
+        if not lazy_loader:
+            # if not lazy, load label dataset into memory for faster patch filtering
+            label_dataset = label_dataset[()]
 
         rand_state = np.random.RandomState(47)
 
-        def ignore_predicate(raw_label_idx):
+        def ignore_predicate(raw_label_idx: tuple[slice, slice]) -> bool:
             label_idx = raw_label_idx[1]
             patch = label_dataset[label_idx]
             if ignore_index is not None:
@@ -323,7 +341,7 @@ class FilterSliceBuilder(SliceBuilder):
         filtered_slices = list(filter(ignore_predicate, zipped_slices))
         # log number of filtered patches
         logger.info(
-            f"Loading {len(filtered_slices)} out of {len(self.raw_slices)} patches: "
+            f"FilterSliceBuilder: Loading {len(filtered_slices)} out of {len(self.raw_slices)} patches: "
             f"{int(100 * len(filtered_slices) / len(self.raw_slices))}%"
         )
         # unzip and save slices
@@ -337,7 +355,7 @@ def _loader_classes(class_name):
     return get_class(class_name, modules)
 
 
-def get_slice_builder(raw: np.ndarray, label: np.ndarray, config: dict) -> SliceBuilder:
+def get_slice_builder(raw: h5py.Dataset, label: h5py.Dataset, config: dict) -> SliceBuilder:
     assert "name" in config
     logger.info(f"Slice builder config: {config}")
     slice_builder_cls = _loader_classes(config["name"])
@@ -357,6 +375,9 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
     """
     assert "loaders" in config, "Could not find data loaders configuration"
     loaders_config = config["loaders"]
+    assert set(loaders_config["train"]["file_paths"]).isdisjoint(loaders_config["val"]["file_paths"]), (
+        "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
+    )
 
     logger.info("Creating training and validation set loaders...")
 
@@ -367,12 +388,7 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
         logger.warning(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
     dataset_class = _loader_classes(dataset_cls_str)
 
-    assert set(loaders_config["train"]["file_paths"]).isdisjoint(loaders_config["val"]["file_paths"]), (
-        "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
-    )
-
     train_datasets = dataset_class.create_datasets(loaders_config, phase="train")
-
     val_datasets = dataset_class.create_datasets(loaders_config, phase="val")
 
     num_workers = loaders_config.get("num_workers", 1)
@@ -394,7 +410,6 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
             batch_size=batch_size,
             shuffle=True,
             num_workers=num_workers,
-            drop_last=True,
             **loader_kwargs,
         ),
         # don't shuffle during validation: useful when showing how predictions for a given batch get better over time
@@ -403,7 +418,6 @@ def get_train_loaders(config: dict) -> dict[str, DataLoader]:
             batch_size=batch_size,
             shuffle=False,
             num_workers=num_workers,
-            drop_last=True,
             **loader_kwargs,
         ),
     }
@@ -449,7 +463,6 @@ def get_test_loaders(config: dict) -> DataLoader:
 
     # use generator in order to create data loaders lazily one by one
     for test_dataset in test_datasets:
-        logger.info(f"Loading test set from: {test_dataset.file_path}...")
         if hasattr(test_dataset, "prediction_collate"):
             collate_fn = test_dataset.prediction_collate
         else:
@@ -462,7 +475,7 @@ def get_test_loaders(config: dict) -> DataLoader:
         )
 
 
-def default_prediction_collate(batch):
+def default_prediction_collate(batch: list) -> Any:
     """Default collate_fn to form a mini-batch of Tensor(s) for HDF5 based datasets.
 
     Args:
@@ -477,7 +490,7 @@ def default_prediction_collate(batch):
     elif isinstance(batch[0], tuple) and isinstance(batch[0][0], slice):
         return batch
     elif isinstance(batch[0], collections.abc.Sequence):
-        transposed = zip(*batch, strict=False)
+        transposed = zip(*batch, strict=True)
         return [default_prediction_collate(samples) for samples in transposed]
 
     raise TypeError(error_msg.format(type(batch[0])))
@@ -502,7 +515,7 @@ def calculate_stats(img: np.array, skip: bool = False) -> dict[str, Any]:
     return {"pmin": pmin, "pmax": pmax, "mean": mean, "std": std}
 
 
-def mirror_pad(image, padding_shape):
+def mirror_pad(image: np.ndarray, padding_shape: tuple[int, int, int]) -> np.ndarray:
     """
     Pad the image with a mirror reflection of itself.
 

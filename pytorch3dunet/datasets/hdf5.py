@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Iterable
 from itertools import chain
 from pathlib import Path
 
@@ -15,6 +15,8 @@ logger = get_logger("HDF5Dataset")
 
 def _create_padded_indexes(indexes: tuple, halo_shape: tuple):
     """Create padded indexes by extending each slice in `indexes` by the corresponding `halo_shape`."""
+    if sum(halo_shape) == 0:
+        return indexes
     return tuple(slice(index.start, index.stop + 2 * halo) for index, halo in zip(indexes, halo_shape, strict=True))
 
 
@@ -65,7 +67,7 @@ class AbstractHDF5Dataset(ConfigDataset):
         random_scale_probability: float = 0.5,
     ):
         assert phase in ["train", "val", "test"]
-
+        logger.info(f"Creating {self.__class__.__name__} for {phase} phase from {file_path}")
         self.phase = phase
         self.file_path = file_path
         self.raw_internal_path = raw_internal_path
@@ -87,8 +89,6 @@ class AbstractHDF5Dataset(ConfigDataset):
         if phase != "test":
             # create label transform only in train/val phase
             self.label_transform = self.transformer.label_transform()
-
-            self._check_volume_sizes()
         else:
             # 'test' phase used only for predictions so ignore the label dataset
             self.label = None
@@ -107,7 +107,16 @@ class AbstractHDF5Dataset(ConfigDataset):
             else:
                 self.volume_shape = raw.shape[1:]
             label = f[label_internal_path] if phase != "test" else None
+            # check that raw and label shapes match
+            if label is not None:
+                if label.ndim == 3:
+                    assert label.shape == self.volume_shape, "Raw and label shapes do not match"
+                else:
+                    assert label.shape[1:] == self.volume_shape, "Raw and label shapes do not match"
+
+            logger.info(f"Volume shape: {self.volume_shape}. Creating slices...")
             # build slice indices for raw and label data sets
+            slice_builder_config["lazy_loader"] = self.is_lazy()  # pass this information to the slice builder
             slice_builder = get_slice_builder(raw, label, slice_builder_config)
             self.raw_slices = slice_builder.raw_slices
             self.label_slices = slice_builder.label_slices
@@ -138,6 +147,10 @@ class AbstractHDF5Dataset(ConfigDataset):
     def get_raw_padded_patch(self, idx) -> np.ndarray:
         raise NotImplementedError
 
+    @abstractmethod
+    def is_lazy(self) -> bool:
+        raise NotImplementedError
+
     def __getitem__(self, idx: int) -> tuple:
         if idx >= len(self):
             raise StopIteration
@@ -152,7 +165,11 @@ class AbstractHDF5Dataset(ConfigDataset):
             else:
                 raw_idx_padded = _create_padded_indexes(raw_idx, self.halo_shape)
 
-            raw_patch_transformed = self.raw_transform(self.get_raw_padded_patch(raw_idx_padded))
+            # use halo padding in the 'test' phase to avoid edge artifacts
+            padded_patch = self.get_raw_padded_patch(raw_idx_padded)
+            raw_patch_transformed = self.raw_transform(padded_patch)
+            # return padded patch, and the original (non-padded) index for placing the prediction back into the volume
+            # predictor is responsible for removing the halo from the prediction
             return raw_patch_transformed, raw_idx
         else:
             label_idx = self.label_slices[idx]
@@ -175,21 +192,8 @@ class AbstractHDF5Dataset(ConfigDataset):
     def __len__(self) -> int:
         return self.patch_count
 
-    def _check_volume_sizes(self):
-        def _volume_shape(volume):
-            if volume.ndim == 3:
-                return volume.shape
-            return volume.shape[1:]
-
-        with h5py.File(self.file_path, "r") as f:
-            raw = f[self.raw_internal_path]
-            label = f[self.label_internal_path]
-            assert raw.ndim in [3, 4], "Raw dataset must be 3D (DxHxW) or 4D (CxDxHxW)"
-            assert label.ndim in [3, 4], "Label dataset must be 3D (DxHxW) or 4D (CxDxHxW)"
-            assert _volume_shape(raw) == _volume_shape(label), "Raw and labels have to be of the same size"
-
     @classmethod
-    def create_datasets(cls, dataset_config: dict, phase: str) -> list["AbstractHDF5Dataset"]:
+    def create_datasets(cls, dataset_config: dict, phase: str) -> Iterable["AbstractHDF5Dataset"]:
         phase_config = dataset_config[phase]
 
         # load data augmentation configuration
@@ -202,33 +206,19 @@ class AbstractHDF5Dataset(ConfigDataset):
         # are going to be included in the final file_paths
         file_paths = traverse_h5_paths(file_paths)
 
-        # create datasets concurrently
-        with ThreadPoolExecutor() as executor:
-            futures = []
-            for file_path in file_paths:
-                logger.info(f"Loading {phase} set from: {file_path}...")
-                future = executor.submit(
-                    cls,
-                    file_path=file_path,
-                    phase=phase,
-                    slice_builder_config=slice_builder_config,
-                    transformer_config=transformer_config,
-                    raw_internal_path=dataset_config.get("raw_internal_path", "raw"),
-                    label_internal_path=dataset_config.get("label_internal_path", "label"),
-                    global_normalization=dataset_config.get("global_normalization", True),
-                    random_scale=dataset_config.get("random_scale", None),
-                    random_scale_probability=dataset_config.get("random_scale_probability", 0.5),
-                )
-                futures.append(future)
-
-            datasets = []
-            for future in futures:
-                try:
-                    dataset = future.result()
-                    datasets.append(dataset)
-                except Exception as e:
-                    logger.error(f"Failed to load dataset: {e}")
-            return datasets
+        # create dataset for each file path
+        for file_path in file_paths:
+            yield cls(
+                file_path=file_path,
+                phase=phase,
+                slice_builder_config=slice_builder_config,
+                transformer_config=transformer_config,
+                raw_internal_path=dataset_config.get("raw_internal_path", "raw"),
+                label_internal_path=dataset_config.get("label_internal_path", "label"),
+                global_normalization=dataset_config.get("global_normalization", False),
+                random_scale=dataset_config.get("random_scale", None),
+                random_scale_probability=dataset_config.get("random_scale_probability", 0.5),
+            )
 
 
 class StandardHDF5Dataset(AbstractHDF5Dataset):
@@ -262,9 +252,9 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
         self._raw = None
         self._raw_padded = None
         self._label = None
-        self._weight_map = None
 
     def get_raw_patch(self, idx):
+        # load lazily on the first request
         if self._raw is None:
             with h5py.File(self.file_path, "r") as f:
                 assert self.raw_internal_path in f, f"Dataset {self.raw_internal_path} not found in {self.file_path}"
@@ -286,6 +276,9 @@ class StandardHDF5Dataset(AbstractHDF5Dataset):
                 assert self.raw_internal_path in f, f"Dataset {self.raw_internal_path} not found in {self.file_path}"
                 self._raw_padded = mirror_pad(f[self.raw_internal_path][:], self.halo_shape)
         return self._raw_padded[idx]
+
+    def is_lazy(self) -> bool:
+        return False
 
 
 class LazyHDF5Dataset(AbstractHDF5Dataset):
@@ -332,7 +325,11 @@ class LazyHDF5Dataset(AbstractHDF5Dataset):
             if "raw_padded" in f:
                 return f["raw_padded"][idx]
 
+            logger.info(f"Creating 'raw_padded' dataset in {self.file_path}")
             raw = f[self.raw_internal_path][:]
             raw_padded = mirror_pad(raw, self.halo_shape)
             f.create_dataset("raw_padded", data=raw_padded, compression="gzip")
             return raw_padded[idx]
+
+    def is_lazy(self) -> bool:
+        return True

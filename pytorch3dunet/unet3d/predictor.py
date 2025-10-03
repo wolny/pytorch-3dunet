@@ -109,12 +109,11 @@ class StandardPredictor(AbstractPredictor):
             **kwargs,
         )
 
-    def __call__(self, test_loader):
+    def __call__(self, test_loader: DataLoader) -> Any:
         assert isinstance(test_loader.dataset, AbstractHDF5Dataset)
         logger.info(f"Processing '{test_loader.dataset.file_path}'...")
         start = time.perf_counter()
 
-        logger.info(f"Running inference on {len(test_loader)} batches")
         # dimensionality of the output predictions
         volume_shape = test_loader.dataset.volume_shape
 
@@ -130,6 +129,7 @@ class StandardPredictor(AbstractPredictor):
 
         # create destination H5 file
         output_file = _get_output_file(dataset=test_loader.dataset, output_dir=self.output_dir)
+        logger.info(f"Saving predictions to: {output_file}")
         with h5py.File(output_file, "w") as h5_output_file:
             # allocate prediction arrays
             logger.info("Allocating prediction arrays...")
@@ -137,11 +137,12 @@ class StandardPredictor(AbstractPredictor):
 
             # determine halo used for padding
             patch_halo = test_loader.dataset.halo_shape
-            logger.info(f"Using patch halo: {patch_halo}")
+            logger.info(f"Using halo: {patch_halo}")
 
             # Sets the module in evaluation mode explicitly
             # It is necessary for batchnorm/dropout layers if present as well as final Sigmoid/Softmax to be applied
             self.model.eval()
+            logger.info(f"Running inference on {len(test_loader)} batches")
             # Run predictions on the entire input dataset
             with torch.no_grad():
                 for input, indices in tqdm(test_loader):
