@@ -22,8 +22,7 @@ dependencies = [
     "h5py",
     "scipy",
     "scikit-image",
-    "pyyaml",
-    "networkx<3.0"
+    "pyyaml"
 ]
 
 [project.urls]

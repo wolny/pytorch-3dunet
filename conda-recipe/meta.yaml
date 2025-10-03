@@ -32,7 +32,6 @@ requirements:
     - scikit-image
     - pyyaml
     - pip
-    - "networkx <3.0"
 
 test:
   imports:

@@ -20,4 +20,3 @@ dependencies:
   - pip:
     - torch
     - torchvision
-    - "networkx<3.0"
