@@ -43,7 +43,7 @@ The format of the raw and label datasets depends on whether the problem is 2D or
 
 ### Running on Windows/OSX
 
-`pytorch-3dunet` is a cross-platform package and runs on Windows and OS X as well.
+`pytorch-3dunet` is a cross-platform package and runs on Windows and OSX as well as on Linux.
 
 ## Installation
 
@@ -120,10 +120,9 @@ In order to predict on your own data, just provide the path to your model as wel
 ### Prediction tips
 
 1. If you're running prediction for a large dataset, consider using `LazyHDF5Dataset` and `LazyPredictor` in the config.
-   This will save memory by loading data on the fly at the cost of slower prediction time.
+   This will save memory by loading data/saving predictions on the fly at the cost of slower prediction time.
    See [test_config_lazy](resources/3DUnet_confocal_boundary/test_config_lazy.yml) for an example config.
-2. If your model predicts multiple classes (see
-   e.g. [train_config_multiclass](resources/3DUnet_multiclass/train_config.yaml)), consider saving only the final
+2. If your model predicts multiple classes (see e.g. [train_config_multiclass](resources/3DUnet_multiclass/train_config.yaml)), consider saving only the final
    segmentation instead of the probability maps which can be time and space consuming.
    To do so, set `save_segmentation: true` in the `predictor` section of the config (
    see [test_config_multiclass](resources/3DUnet_multiclass/test_config.yaml)).
@@ -311,14 +310,14 @@ The device the tests should be run on can be specified with the `--device` argum
 Linting is done via `ruff` (see `pyproject.toml` for configuration).
 
 ## Release new version on `conda-forge` channel
+
 To release a new version of `pytorch-3dunet` on the `conda-forge` channel, follow these steps:
 1. In the `main` branch: run `bumpversion patch` (or `major` or `minor`) - this will bump the version in `.bumpversion.cfg` and `__version__.py` add create a new tag
 2. Run `git push && git push --tags` to push the changes to GitHub 
-3. Make a new release on GitHub
-4. (Optional) Make sure that the new release version is in sync with the version in `.bumpversion.cfg` and `__version__.py`
-5. Generate the checksums for the new release using: `curl -sL https://github.com/wolny/pytorch-3dunet/archive/refs/tags/VERSION.tar.gz | openssl sha256`. Replace `VERSION` with the new release version
-6. Fork the `conda-forge` feedstock  repository (https://github.com/conda-forge/pytorch-3dunet-feedstock)
-7. Clone the forked repository and create a new PR with the following changes:
+3. Make a new release on GitHub using the new tag 
+4. Generate the checksums for the new release using: `curl -sL https://github.com/wolny/pytorch-3dunet/archive/refs/tags/VERSION.tar.gz | openssl sha256`. Replace `VERSION` with the new release version 
+5. Fork the `conda-forge` feedstock  repository (https://github.com/conda-forge/pytorch-3dunet-feedstock)
+6. Clone the forked repository and create a new PR with the following changes:
     - Update the `version` in `recipe/meta.yaml` to the new release version
     - Update the `sha256` in `recipe/meta.yaml` to the new checksum
-8. Wait for the checks to pass. Once the PR is merged, the new version will be available on the `conda-forge` channel
+7. Wait for the checks to pass. Once the PR is merged, the new version will be available on the `conda-forge` channel

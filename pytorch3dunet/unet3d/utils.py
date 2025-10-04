@@ -3,23 +3,24 @@ import logging
 import os
 import shutil
 import sys
+from typing import Any
 
-import h5py
 import numpy as np
 import torch
 from skimage.color import label2rgb
-from torch import optim
+from torch import nn, optim
+from torch.optim import Optimizer
 
 
-def save_checkpoint(state, is_best, checkpoint_dir):
+def save_checkpoint(state: dict, is_best: bool, checkpoint_dir: str):
     """Saves model and training parameters at '{checkpoint_dir}/last_checkpoint.pytorch'.
     If is_best==True saves '{checkpoint_dir}/best_checkpoint.pytorch' as well.
 
     Args:
-        state (dict): contains model's state_dict, optimizer's state_dict, epoch
+        state: contains model's state_dict, optimizer's state_dict, epoch
             and best evaluation metric value so far
-        is_best (bool): if True state contains the best model seen so far
-        checkpoint_dir (string): directory where the checkpoint are to be saved
+        is_best: if True state contains the best model seen so far
+        checkpoint_dir: directory where the checkpoint are to be saved
     """
 
     if not os.path.exists(checkpoint_dir):
@@ -33,19 +34,24 @@ def save_checkpoint(state, is_best, checkpoint_dir):
 
 
 def load_checkpoint(
-    checkpoint_path, model, optimizer=None, model_key="model_state_dict", optimizer_key="optimizer_state_dict"
-):
+    checkpoint_path: str,
+    model: nn.Module,
+    optimizer: Optimizer = None,
+    model_key: str = "model_state_dict",
+    optimizer_key: str = "optimizer_state_dict",
+) -> dict:
     """Loads model and training parameters from a given checkpoint_path
     If optimizer is provided, loads optimizer's state_dict of as well.
 
     Args:
-        checkpoint_path (string): path to the checkpoint to be loaded
-        model (torch.nn.Module): model into which the parameters are to be copied
-        optimizer (torch.optim.Optimizer) optional: optimizer instance into
-            which the parameters are to be copied
+        checkpoint_path: path to the checkpoint to be loaded
+        model: model into which the parameters are to be copied
+        optimizer: optimizer instance into which the parameters are to be copied
+        model_key: key corresponding to the model state_dict in the checkpoint
+        optimizer_key: key corresponding to the optimizer state_dict in the checkpoint
 
     Returns:
-        state
+        state dict stored in the checkpoint
     """
     if not os.path.exists(checkpoint_path):
         raise OSError(f"Checkpoint '{checkpoint_path}' does not exist")
@@ -59,18 +65,12 @@ def load_checkpoint(
     return state
 
 
-def save_network_output(output_path, output, logger=None):
-    if logger is not None:
-        logger.info(f"Saving network output to: {output_path}...")
-    output = output.detach().cpu()[0]
-    with h5py.File(output_path, "w") as f:
-        f.create_dataset("predictions", data=output, compression="gzip")
-
-
 loggers = {}
 
 
-def get_logger(name, level=logging.INFO):
+def get_logger(name: str, level=logging.INFO) -> logging.Logger:
+    """Initializes and returns a logger with the given name."""
+
     global loggers
     if loggers.get(name) is not None:
         return loggers[name]
@@ -88,7 +88,8 @@ def get_logger(name, level=logging.INFO):
         return logger
 
 
-def get_number_of_learnable_parameters(model):
+def get_number_of_learnable_parameters(model: nn.Module) -> int:
+    """Returns the number of learnable parameters in the model."""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
@@ -106,7 +107,8 @@ class RunningAverage:
         self.avg = self.sum / self.count
 
 
-def number_of_features_per_level(init_channel_number, num_levels):
+def number_of_features_per_level(init_channel_number: int, num_levels: int) -> list:
+    """Computes the number of features at each level of the UNet"""
     return [init_channel_number * 2**k for k in range(num_levels)]
 
 
@@ -127,14 +129,14 @@ class TensorboardFormatter:
         self.skip_last_target = skip_last_target
         self.log_channelwise = log_channelwise
 
-    def __call__(self, name, batch):
+    def __call__(self, name: str, batch: np.ndarray) -> list:
         """
         Transform a batch to a series of tuples of the form (tag, img), where `tag` corresponds to the image tag
         and `img` is the image itself.
 
         Args:
-             name (str): one of 'inputs'/'targets'/'predictions'
-             batch (torch.tensor): 4D or 5D torch tensor
+             name: one of 'inputs'/'targets'/'predictions'
+             batch: 4D or 5D numpy array
 
         Returns:
             list[(str, np.ndarray)]: list of tuples of the form (tag, img)
@@ -157,7 +159,7 @@ class TensorboardFormatter:
 
         return list(map(_check_img, tagged_images))
 
-    def _process_batch(self, name, batch):
+    def _process_batch(self, name: str, batch: np.ndarray) -> list:
         if name == "targets" and self.skip_last_target:
             batch = batch[:, :-1, ...]
 
@@ -219,65 +221,8 @@ class TensorboardFormatter:
         return tagged_images
 
     @staticmethod
-    def _normalize_img(img):
+    def _normalize_img(img: np.ndarray) -> np.ndarray:
         return np.nan_to_num((img - np.min(img)) / np.ptp(img))
-
-
-def _find_masks(batch, min_size=10):
-    """Center the z-slice in the 'middle' of a given instance, given a batch of instances
-
-    Args:
-        batch (ndarray): 5d numpy tensor (NCDHW)
-    """
-    result = []
-    for b in batch:
-        assert b.shape[0] == 1
-        patch = b[0]
-        z_sum = patch.sum(axis=(1, 2))
-        coords = np.where(z_sum > min_size)[0]
-        if len(coords) > 0:
-            ind = coords[len(coords) // 2]
-            result.append(b[:, ind : ind + 1, ...])
-        else:
-            ind = b.shape[1] // 2
-            result.append(b[:, ind : ind + 1, ...])
-
-    return np.stack(result, axis=0)
-
-
-def expand_as_one_hot(input, C, ignore_index=None):
-    """
-    Converts NxSPATIAL label image to NxCxSPATIAL, where each label gets converted to its corresponding one-hot vector.
-    It is assumed that the batch dimension is present.
-    Args:
-        input (torch.Tensor): 3D/4D input image
-        C (int): number of channels/labels
-        ignore_index (int): ignore index to be kept during the expansion
-    Returns:
-        4D/5D output torch.Tensor (NxCxSPATIAL)
-    """
-    assert input.dim() == 4
-
-    # expand the input tensor to Nx1xSPATIAL before scattering
-    input = input.unsqueeze(1)
-    # create output tensor shape (NxCxSPATIAL)
-    shape = list(input.size())
-    shape[1] = C
-
-    if ignore_index is not None:
-        # create ignore_index mask for the result
-        mask = input.expand(shape) == ignore_index
-        # clone the src tensor and zero out ignore_index in the input
-        input = input.clone()
-        input[input == ignore_index] = 0
-        # scatter to get the one-hot tensor
-        result = torch.zeros(shape).to(input.device).scatter_(1, input, 1)
-        # bring back the ignore_index in the result
-        result[mask] = ignore_index
-        return result
-    else:
-        # scatter to get the one-hot tensor
-        return torch.zeros(shape).to(input.device).scatter_(1, input, 1)
 
 
 def convert_to_numpy(*inputs):
@@ -298,7 +243,7 @@ def convert_to_numpy(*inputs):
     return (_to_numpy(i) for i in inputs)
 
 
-def create_optimizer(optimizer_config, model):
+def create_optimizer(optimizer_config: dict, model: nn.Module) -> Optimizer:
     optim_name = optimizer_config.get("name", "Adam")
     # common optimizer settings
     learning_rate = optimizer_config.get("learning_rate", 1e-3)
@@ -321,13 +266,6 @@ def create_optimizer(optimizer_config, model):
     elif optim_name == "Adamax":
         betas = tuple(optimizer_config.get("betas", (0.9, 0.999)))
         optimizer = optim.Adamax(model.parameters(), lr=learning_rate, betas=betas, weight_decay=weight_decay)
-    elif optim_name == "ASGD":
-        lambd = optimizer_config.get("lambd", 0.0001)
-        alpha = optimizer_config.get("alpha", 0.75)
-        t0 = optimizer_config.get("t0", 1e6)
-        optimizer = optim.Adamax(
-            model.parameters(), lr=learning_rate, lambd=lambd, alpha=alpha, t0=t0, weight_decay=weight_decay
-        )
     elif optim_name == "LBFGS":
         max_iter = optimizer_config.get("max_iter", 20)
         max_eval = optimizer_config.get("max_eval", None)
@@ -378,7 +316,8 @@ def create_optimizer(optimizer_config, model):
     return optimizer
 
 
-def create_lr_scheduler(lr_config, optimizer):
+def create_lr_scheduler(lr_config: dict, optimizer: Optimizer) -> Any | None:
+    """Creates a learning rate scheduler"""
     if lr_config is None:
         return None
     class_name = lr_config.pop("name")
@@ -389,7 +328,8 @@ def create_lr_scheduler(lr_config, optimizer):
     return clazz(**lr_config)
 
 
-def get_class(class_name, modules):
+def get_class(class_name: str, modules: list[str]) -> type:
+    """Helper function which searches for a class in the given list of modules and returns it."""
     for module in modules:
         m = importlib.import_module(module)
         clazz = getattr(m, class_name, None)
