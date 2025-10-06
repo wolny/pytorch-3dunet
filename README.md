@@ -88,7 +88,7 @@ train3dunet --config <CONFIG>
 
 where `CONFIG` is the path to a YAML configuration file that specifies all aspects of the training process.
 
-In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the config.
+In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the config. Below are some example configs for segmentation and regression tasks:
 
 * sample config for 3D semantic segmentation (cell boundary segmentation): [train_config_segmentation.yaml](resources/3DUnet_confocal_boundary/train_config.yml)
 * sample config for 3D regression task (denoising): [train_config_regression.yaml](resources/3DUnet_denoising/train_config_regression.yaml)
@@ -99,13 +99,9 @@ One can monitor the training progress with Tensorboard `tensorboard --logdir <ch
 ### Training tips
 
 1. When training with binary-based losses, i.e.: `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss`:
-   The target data has to be 4D (one target binary mask per channel).
-   When training with `WeightedCrossEntropyLoss`, `CrossEntropyLoss` the target dataset has to be 3D, see also pytorch
-   documentation for CE loss: https://pytorch.org/docs/master/generated/torch.nn.CrossEntropyLoss.html
-2. When training with `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss` set `final_sigmoid=True` in
-   the `model` part of the config so that the sigmoid is applied to the logits in inference mode.
-3. When training with cross entropy based losses (`WeightedCrossEntropyLoss`, `CrossEntropyLoss`) set
-   `final_sigmoid=False` so that `Softmax` normalization is applied to the logits.
+   The target data has to be 4D (one target binary mask per output channel of the network).
+2. When training with `WeightedCrossEntropyLoss`, `CrossEntropyLoss` the target dataset has to be 3D label image as expected by the loss (see PyTorch
+   documentation for cross entropy loss: https://pytorch.org/docs/master/generated/torch.nn.CrossEntropyLoss.html)
 
 ## Prediction
 
@@ -122,11 +118,16 @@ In order to predict on your own data, just provide the path to your model as wel
 1. If you're running prediction for a large dataset, consider using `LazyHDF5Dataset` and `LazyPredictor` in the config.
    This will save memory by loading data on the fly at the cost of slower prediction time.
    See [test_config_lazy](resources/3DUnet_confocal_boundary/test_config_lazy.yml) for an example config.
-2. If your model predicts multiple classes (see
-   e.g. [train_config_multiclass](resources/3DUnet_multiclass/train_config.yaml)), consider saving only the final
-   segmentation instead of the probability maps which can be time and space consuming.
-   To do so, set `save_segmentation: true` in the `predictor` section of the config (
-   see [test_config_multiclass](resources/3DUnet_multiclass/test_config.yaml)).
+2. If your model predicts multiple classes (see e.g. [train_config_multiclass](resources/3DUnet_multiclass/train_config.yaml)),
+   consider saving only the final segmentation instead of the multi-channel probability maps, which can be time and space consuming.
+   To do so, set `save_segmentation: true` in the `predictor` section of the config (see [test_config_multiclass](resources/3DUnet_multiclass/test_config.yaml)).
+3. If the model was trained with binary losses (`BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss`) set `final_sigmoid=True` in
+   the `model` part of the config so that the sigmoid is applied to the logits in inference mode. 
+4. If the model was trained with multi-class losses (`WeightedCrossEntropyLoss`, `CrossEntropyLoss`) set
+   `final_sigmoid=False` so that `Softmax` normalization is applied to the logits in inference mode.
+5. For fast prediction use the same `patch_shape` and `stride_shape` in the config. When doing so make sure to add a non-zero `halo_shape` around each patch in order to avoid checkerboard
+   artifacts in the prediction (see e.g.: https://github.com/wolny/pytorch-3dunet/blob/master/resources/3DUnet_lightsheet_boundary/test_config.yml#L41)
+
 
 ## Data Parallelism
 
