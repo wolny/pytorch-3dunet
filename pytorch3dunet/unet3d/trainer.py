@@ -204,7 +204,6 @@ class UNetTrainer:
             self.model = nn.DataParallel(self.model)
             logger.info(f"Using {torch.cuda.device_count()} GPUs for training")
 
-
     def fit(self):
         for _ in range(self.num_epochs, self.max_num_epochs):
             # train for one epoch
