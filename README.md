@@ -88,7 +88,7 @@ train3dunet --config <CONFIG>
 
 where `CONFIG` is the path to a YAML configuration file that specifies all aspects of the training process.
 
-In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the config.
+In order to train on your own data just provide the paths to your HDF5 training and validation datasets in the config. Below are some example configs for segmentation and regression tasks:
 
 * sample config for 3D semantic segmentation (cell boundary segmentation): [train_config_segmentation.yaml](resources/3DUnet_confocal_boundary/train_config.yml)
 * sample config for 3D regression task (denoising): [train_config_regression.yaml](resources/3DUnet_denoising/train_config_regression.yaml)
@@ -99,13 +99,9 @@ One can monitor the training progress with Tensorboard `tensorboard --logdir <ch
 ### Training tips
 
 1. When training with binary-based losses, i.e.: `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss`:
-   The target data has to be 4D (one target binary mask per channel).
-   When training with `WeightedCrossEntropyLoss`, `CrossEntropyLoss` the target dataset has to be 3D, see also pytorch
-   documentation for CE loss: https://pytorch.org/docs/master/generated/torch.nn.CrossEntropyLoss.html
-2. When training with `BCEWithLogitsLoss`, `DiceLoss`, `BCEDiceLoss`, `GeneralizedDiceLoss` set `final_sigmoid=True` in
-   the `model` part of the config so that the sigmoid is applied to the logits in inference mode.
-3. When training with cross entropy based losses (`WeightedCrossEntropyLoss`, `CrossEntropyLoss`) set
-   `final_sigmoid=False` so that `Softmax` normalization is applied to the logits.
+   The target data has to be 4D (one target binary mask per output channel of the network).
+2. When training with `WeightedCrossEntropyLoss`, `CrossEntropyLoss` the target dataset has to be 3D label image as expected by the loss (see PyTorch
+   documentation for cross entropy loss: https://pytorch.org/docs/master/generated/torch.nn.CrossEntropyLoss.html)
 
 ## Prediction
 

@@ -36,11 +36,6 @@ def create_trainer(config: dict) -> "UNetTrainer":
     device = config.get("device", None)
     assert device, "Device not specified in the config file and could not be inferred automatically"
     logger.info(f"Using device: {device}")
-
-    # use DataParallel if more than 1 GPU available
-    if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
-        model = nn.DataParallel(model)
-        logger.info(f"Using {torch.cuda.device_count()} GPUs for training")
     model.to(device)
 
     # Log the number of learnable parameters
@@ -203,6 +198,11 @@ class UNetTrainer:
             load_checkpoint(pre_trained, self.model, None)
             if not self.checkpoint_dir:
                 self.checkpoint_dir = os.path.split(pre_trained)[0]
+
+        # use DataParallel if more than 1 GPU available
+        if device == TorchDevice.CUDA and torch.cuda.device_count() > 1:
+            self.model = nn.DataParallel(self.model)
+            logger.info(f"Using {torch.cuda.device_count()} GPUs for training")
 
     def fit(self):
         for _ in range(self.num_epochs, self.max_num_epochs):
