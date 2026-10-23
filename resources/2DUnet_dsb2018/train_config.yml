@@ -31,6 +31,7 @@ eval_metric:
   metric: 'ap'
 lr_scheduler:
   name: ReduceLROnPlateau
+  scheduler_step_per: validation
   mode: max
   factor: 0.2
   patience: 30

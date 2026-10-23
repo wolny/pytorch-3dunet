@@ -41,6 +41,8 @@ eval_metric:
   use_first_input: true
 lr_scheduler:
   name: ReduceLROnPlateau
+  # when to step the lr scheduler: 'iteration', 'epoch', or 'validation'
+  scheduler_step_per: validation
   # make sure to use the 'min' mode cause lower AdaptedRandError is better
   mode: min
   factor: 0.5

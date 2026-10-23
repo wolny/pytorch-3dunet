@@ -1,7 +1,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -96,9 +96,9 @@ class UNetTrainer:
     Args:
         model: UNet 3D model to be trained.
         optimizer: Optimizer used for training.
-        lr_scheduler: Learning rate scheduler. Note that lr_scheduler.step() is invoked after every validation
-            step (i.e. validate_after_iters) not after every epoch. So e.g. if one uses StepLR with step_size=30
-            the learning rate will be adjusted after every 30 * validate_after_iters iterations.
+        lr_scheduler: Learning rate scheduler. The stepping behavior depends on the scheduler type and `scheduler_step_per`:
+            - ReduceLROnPlateau: stepped after validation using the validation score
+            - Other schedulers: stepped per iteration or per epoch according to `scheduler_step_per`
         loss_criterion: Loss function.
         eval_criterion: Used to compute training/validation metric (such as Dice, IoU, AP or Rand score).
             Saving the best checkpoint is based on the result of this function on the validation set.
@@ -120,6 +120,8 @@ class UNetTrainer:
         pre_trained: Path to the pre-trained model. Default: None.
         max_val_images: Maximum number of images to log during validation. Default: 100.
         device: Device to use for training (CPU, CUDA, MPS). Default: None.
+        scheduler_step_per: Determines when lr_scheduler.step() is called for schedulers other than
+            ReduceLROnPlateau. Must be one of {'iteration', 'epoch', 'validation'}. Default: 'validation'.
     """
 
     def __init__(
@@ -145,6 +147,7 @@ class UNetTrainer:
         pre_trained=None,
         max_val_images=100,
         device: TorchDevice | None = None,
+        scheduler_step_per: Literal["iteration", "epoch", "validation"] = "validation",
     ):
         self.max_val_images = max_val_images
         self.model = model
@@ -162,6 +165,7 @@ class UNetTrainer:
         self.eval_score_higher_is_better = eval_score_higher_is_better
         assert device, "Device must be specified"
         self.device = device
+        self.scheduler_step_per = scheduler_step_per
 
         logger.info(model)
         logger.info(f"eval_score_higher_is_better: {eval_score_higher_is_better}")
@@ -209,6 +213,11 @@ class UNetTrainer:
             # train for one epoch
             should_terminate = self.train()
 
+            # adjust learning rate per epoch
+            if self.scheduler is not None and not isinstance(self.scheduler, ReduceLROnPlateau):
+                if self.scheduler_step_per == "epoch":
+                    self.scheduler.step()
+
             if should_terminate:
                 logger.info("Stopping criterion is satisfied. Finishing training")
                 return
@@ -245,6 +254,11 @@ class UNetTrainer:
             loss.backward()
             self.optimizer.step()
 
+            # adjust learning rate per iteration
+            if self.scheduler is not None and not isinstance(self.scheduler, ReduceLROnPlateau):
+                if self.scheduler_step_per == "iteration":
+                    self.scheduler.step()
+
             if self.num_iterations % self.validate_after_iters == 0:
                 # set the model in eval mode
                 self.model.eval()
@@ -253,11 +267,9 @@ class UNetTrainer:
                 # set the model back to training mode
                 self.model.train()
 
-                # adjust learning rate if necessary
+                # adjust learning rate per validation if necessary
                 if isinstance(self.scheduler, ReduceLROnPlateau):
                     self.scheduler.step(eval_score)
-                elif self.scheduler is not None:
-                    self.scheduler.step()
 
                 # log current learning rate in tensorboard
                 self._log_lr()

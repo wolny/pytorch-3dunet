@@ -55,6 +55,8 @@ eval_metric:
 lr_scheduler:
   # reduce learning rate when evaluation metric plateaus
   name: ReduceLROnPlateau
+  # when to step the lr scheduler: 'iteration', 'epoch', or 'validation'
+  scheduler_step_per: validation
   # use 'max' if eval_score_higher_is_better=True, 'min' otherwise
   mode: max
   # factor by which learning rate will be reduced
