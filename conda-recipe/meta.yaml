@@ -42,10 +42,13 @@ test:
   requires:
     - pytest
     - pip
+    # pip torch wheels on macOS bundle their own libomp, which clashes with conda-forge's llvm-openmp and segfaults
+    - pytorch  # [osx]
+    - torchvision  # [osx]
   source_files:
     - tests
   commands:
-    - pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+    - pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu  # [not osx]
     - pytest -v
 
 about:
