@@ -29,5 +29,5 @@ jobs:
     - name: Build pytorch-3dunet
       shell: bash -l {0}
       run: |
-        conda install -q conda-build conda=25.7.0
+        conda install -q conda-build
         conda build -c conda-forge conda-recipe
