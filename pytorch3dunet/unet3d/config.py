@@ -2,7 +2,7 @@ import argparse
 import os
 import platform
 import shutil
-from enum import Enum
+from enum import StrEnum
 
 import torch
 import yaml
@@ -12,7 +12,7 @@ from pytorch3dunet.unet3d import utils
 logger = utils.get_logger("ConfigLoader")
 
 
-class TorchDevice(str, Enum):
+class TorchDevice(StrEnum):
     CUDA = "cuda"
     MPS = "mps"
     CPU = "cpu"
